@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>트레이너 수업일지</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --surface: #181818;
+    --surface2: #222222;
+    --border: #2a2a2a;
+    --accent: #c8f135;
+    --accent-dim: #a0c420;
+    --text: #f0f0f0;
+    --text-muted: #888;
+    --text-dim: #555;
+    --danger: #ff5c5c;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans KR', sans-serif;
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  /* --- TOP BAR --- */
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .topbar-title { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
+  .topbar-title span { color: var(--accent); }
+  .settings-btn {
+    background: none; border: 1px solid var(--border);
+    color: var(--text-muted); border-radius: 8px;
+    padding: 6px 12px; font-size: 12px; cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s;
+  }
+  .settings-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* --- TABS --- */
+  .tabs {
+    display: flex; border-bottom: 1px solid var(--border);
+    background: var(--bg); position: sticky; top: 53px; z-index: 99;
+  }
+  .tab {
+    flex: 1; padding: 12px; text-align: center;
+    font-size: 13px; font-weight: 500; color: var(--text-muted);
+    cursor: pointer; border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* --- PAGES --- */
+  .page { display: none; padding: 20px; max-width: 600px; margin: 0 auto; }
+  .page.active { display: block; }
+
+  /* --- SECTION LABEL --- */
+  .section-label {
+    font-size: 11px; font-weight: 500; color: var(--text-dim);
+    letter-spacing: 1px; text-transform: uppercase;
+    margin-bottom: 10px; margin-top: 24px;
+  }
+  .section-label:first-child { margin-top: 0; }
+
+  /* --- CARD --- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+
+  /* --- INPUTS --- */
+  input[type="text"], input[type="email"], input[type="number"], textarea, select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 80px; line-height: 1.6; }
+  select option { background: var(--surface2); }
+  input::placeholder, textarea::placeholder { color: var(--text-dim); }
+
+  label { font-size: 13px; color: var(--text-muted); display: block; margin-bottom: 6px; }
+
+  .form-group { margin-bottom: 14px; }
+
+  /* --- BUTTONS --- */
+  .btn {
+    width: 100%; padding: 14px;
+    border-radius: var(--radius); border: none;
+    font-family: inherit; font-size: 14px; font-weight: 700;
+    cursor: pointer; transition: all 0.2s;
+    letter-spacing: 0.2px;
+  }
+  .btn-primary {
+    background: var(--accent); color: #0f0f0f;
+  }
+  .btn-primary:hover { background: var(--accent-dim); }
+  .btn-primary:disabled { background: var(--border); color: var(--text-dim); cursor: not-allowed; }
+  .btn-ghost {
+    background: none; border: 1px solid var(--border); color: var(--text-muted);
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-danger {
+    background: none; border: 1px solid #3a1a1a; color: var(--danger);
+  }
+  .btn-danger:hover { background: #2a1010; }
+  .btn-sm {
+    width: auto; padding: 6px 14px; font-size: 12px;
+    border-radius: 8px;
+  }
+
+  /* --- MEMBER CARD --- */
+  .member-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    display: flex; align-items: center; gap: 12px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .member-card:hover { border-color: var(--accent); }
+  .member-avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--accent); color: #0f0f0f;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px; flex-shrink: 0;
+  }
+  .member-info { flex: 1; min-width: 0; }
+  .member-name { font-size: 14px; font-weight: 500; }
+  .member-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .session-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; color: var(--accent);
+    background: rgba(200,241,53,0.08);
+    border: 1px solid rgba(200,241,53,0.2);
+    border-radius: 6px;
+    padding: 3px 8px;
+    white-space: nowrap;
+  }
+  .session-badge.low { color: var(--danger); background: rgba(255,92,92,0.08); border-color: rgba(255,92,92,0.2); }
+
+  /* --- SESSION BAR --- */
+  .session-bar-wrap { margin-top: 8px; }
+  .session-bar-bg {
+    height: 4px; background: var(--border); border-radius: 2px; overflow: hidden;
+  }
+  .session-bar-fill {
+    height: 100%; background: var(--accent); border-radius: 2px;
+    transition: width 0.4s;
+  }
+  .session-bar-fill.low { background: var(--danger); }
+
+  /* --- RECORD PAGE --- */
+  .record-header {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 20px;
+  }
+  .back-btn {
+    background: none; border: 1px solid var(--border);
+    color: var(--text-muted); border-radius: 8px;
+    padding: 6px 10px; cursor: pointer;
+    font-size: 18px; line-height: 1;
+  }
+  .back-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* --- VOICE RECORD BTN --- */
+  .voice-wrap { text-align: center; margin: 10px 0 16px; }
+  .voice-btn {
+    width: 72px; height: 72px; border-radius: 50%;
+    border: none; cursor: pointer;
+    background: var(--surface2);
+    border: 2px solid var(--border);
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+    font-size: 28px;
+  }
+  .voice-btn:hover { border-color: var(--accent); }
+  .voice-btn.recording {
+    border-color: var(--danger);
+    background: rgba(255,92,92,0.1);
+    animation: pulse 1.2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,92,92,0.3); }
+    50% { box-shadow: 0 0 0 12px rgba(255,92,92,0); }
+  }
+  .voice-hint { font-size: 12px; color: var(--text-dim); margin-top: 8px; }
+
+  /* --- AI STATUS --- */
+  .ai-status {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--text-muted);
+    padding: 10px 14px;
+    background: var(--surface2);
+    border-radius: 8px; margin-bottom: 14px;
+  }
+  .ai-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+  .ai-dot.loading { animation: blink 1s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  /* --- PREVIEW CARD --- */
+  .preview-card {
+    background: var(--surface);
+    border: 1px solid rgba(200,241,53,0.2);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 14px;
+    white-space: pre-wrap;
+    font-size: 13px;
+    line-height: 1.8;
+    color: var(--text);
+  }
+
+  /* --- SETTINGS --- */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.8); z-index: 200;
+    align-items: flex-end; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px 16px 0 0;
+    padding: 24px 20px 36px;
+    width: 100%; max-width: 600px;
+    max-height: 85vh; overflow-y: auto;
+  }
+  .modal-title {
+    font-size: 16px; font-weight: 700; margin-bottom: 20px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .close-btn {
+    background: none; border: none; color: var(--text-muted);
+    font-size: 20px; cursor: pointer; line-height: 1;
+  }
+
+  /* --- TOAST --- */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--accent); color: #0f0f0f;
+    padding: 10px 20px; border-radius: 100px;
+    font-size: 13px; font-weight: 700;
+    opacity: 0; transition: opacity 0.3s;
+    z-index: 999; white-space: nowrap;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+
+  /* --- EMPTY STATE --- */
+  .empty { text-align: center; padding: 48px 20px; color: var(--text-dim); }
+  .empty-icon { font-size: 36px; margin-bottom: 12px; }
+  .empty p { font-size: 14px; line-height: 1.6; }
+
+  /* --- HISTORY ITEM --- */
+  .history-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+  .history-date { font-size: 11px; color: var(--text-dim); font-family: 'DM Mono', monospace; margin-bottom: 6px; }
+  .history-preview { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+
+  .divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .pill {
+    display: inline-block;
+    padding: 3px 10px; border-radius: 100px;
+    font-size: 11px; font-weight: 500;
+    background: rgba(200,241,53,0.1);
+    color: var(--accent);
+    border: 1px solid rgba(200,241,53,0.2);
+  }
+
+  .ex-list { margin-bottom: 8px; }
+  .ex-item {
+    background: var(--surface2);
+    border-radius: 8px; margin-bottom: 8px;
+    font-size: 13px; overflow: hidden;
+  }
+  .ex-item-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ex-item-name { flex:1; font-weight:500; }
+  .ex-item-meta { font-size:11px; color:var(--text-muted); }
+  .ex-item-body { padding: 8px 10px; font-size:12px; color:var(--text-muted); line-height:1.6; }
+  .ex-remove {
+    background: none; border: none; color: var(--text-dim);
+    cursor: pointer; font-size: 16px; line-height: 1;
+    padding: 0 2px; flex-shrink:0;
+  }
+  .ex-remove:hover { color: var(--danger); }
+
+  .ex-add-form {
+    background: var(--surface2);
+    border-radius: 10px; padding: 12px;
+    margin-bottom: 8px;
+  }
+  .ex-add-form .form-group { margin-bottom: 8px; }
+  .ex-add-form .form-group:last-child { margin-bottom: 0; }
+  .ex-add-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  /* RIR 가이드 */
+  .rir-guide { margin-top: 14px; }
+  .rir-item {
+    border-radius: 8px; padding: 10px 12px;
+    margin-bottom: 6px; font-size: 12px; line-height: 1.6;
+  }
+  .rir-badge {
+    display: inline-block; font-family: 'DM Mono', monospace;
+    font-size: 11px; font-weight: 500; padding: 2px 8px;
+    border-radius: 6px; margin-bottom: 4px;
+  }
+  .rir-2 { background: rgba(55,138,221,0.1); border: 1px solid rgba(55,138,221,0.2); }
+  .rir-2 .rir-badge { background: rgba(55,138,221,0.15); color: #378ADD; }
+  .rir-1 { background: rgba(200,241,53,0.07); border: 1px solid rgba(200,241,53,0.15); }
+  .rir-1 .rir-badge { background: rgba(200,241,53,0.12); color: var(--accent); }
+  .rir-0 { background: rgba(255,92,92,0.07); border: 1px solid rgba(255,92,92,0.15); }
+  .rir-0 .rir-badge { background: rgba(255,92,92,0.12); color: var(--danger); }
+  .rir-label { font-weight:500; color: var(--text); margin-bottom:2px; }
+  .rir-moves { color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-title">TRAINER<span>LOG</span></div>
+  <button class="settings-btn" onclick="openSettings()">⚙ 설정</button>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" onclick="showTab('members')">회원 목록</div>
+  <div class="tab" onclick="showTab('history')">발송 기록</div>
+</div>
+
+<!-- PAGE: MEMBERS -->
+<div class="page active" id="page-members">
+  <div style="margin-bottom:14px; display:flex; gap:8px;">
+    <button class="btn btn-primary" style="flex:1" onclick="showAddMember()">+ 회원 추가</button>
+  </div>
+
+  <div id="member-list-wrap"></div>
+</div>
+
+<!-- PAGE: HISTORY -->
+<div class="page" id="page-history">
+  <div id="history-list-wrap"></div>
+</div>
+
+<!-- PAGE: RECORD (hidden by default, shown via JS) -->
+<div class="page" id="page-record">
+  <div class="record-header">
+    <button class="back-btn" onclick="backToMembers()">←</button>
+    <div>
+      <div style="font-size:15px;font-weight:700;" id="record-member-name">회원명</div>
+      <div style="font-size:12px;color:var(--text-muted);" id="record-member-email"></div>
+    </div>
+  </div>
+
+  <!-- Session status -->
+  <div class="card" style="margin-bottom:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <span style="font-size:13px;font-weight:500;">세션 현황</span>
+      <span class="pill" id="record-session-badge"></span>
+    </div>
+    <div class="session-bar-wrap">
+      <div class="session-bar-bg"><div class="session-bar-fill" id="record-bar"></div></div>
+    </div>
+  </div>
+
+  <!-- Step 1: Audio upload + memo -->
+  <div class="section-label">1단계 — 수업 녹음 업로드</div>
+  <div class="card">
+
+    <!-- Audio upload area -->
+    <div id="upload-area" style="border:1.5px dashed var(--border);border-radius:10px;padding:24px 16px;text-align:center;cursor:pointer;transition:border-color 0.2s;margin-bottom:14px;" onclick="document.getElementById('audio-file-input').click()">
+      <div style="font-size:28px;margin-bottom:8px;">🎙</div>
+      <div style="font-size:13px;font-weight:500;color:var(--text-muted);">음성 메모 파일 업로드</div>
+      <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">아이폰 음성 메모 앱에서 녹음 후 업로드<br>m4a · mp3 · wav · mp4 지원</div>
+      <input type="file" id="audio-file-input" accept="audio/*,video/mp4" style="display:none;" onchange="handleAudioUpload(event)">
+    </div>
+
+    <!-- Uploaded file indicator -->
+    <div id="audio-file-info" style="display:none;background:var(--surface2);border-radius:8px;padding:10px 14px;margin-bottom:14px;display:none;align-items:center;gap:10px;">
+      <span style="font-size:20px;">🎵</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:500;" id="audio-file-name"></div>
+        <div style="font-size:11px;color:var(--text-dim);" id="audio-file-size"></div>
+      </div>
+      <button onclick="removeAudio()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:18px;padding:0 4px;">×</button>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+      <span style="font-size:11px;color:var(--text-dim);">추가 메모 (선택)</span>
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+    </div>
+
+    <div class="form-group">
+      <textarea id="raw-input" placeholder="녹음에 없는 추가 내용이 있으면 여기에 적어주세요.&#10;&#10;예) 다음 수업 때 어깨 재활 동작 추가 예정, 오늘 컨디션 좋았음" rows="3"></textarea>
+    </div>
+
+    <div class="section-label" style="margin-top:4px;">운동 종목 기록 (선택)</div>
+    <div class="ex-list" id="ex-list"></div>
+
+    <div class="ex-add-form">
+      <div class="form-group">
+        <label>운동 종목</label>
+        <input type="text" id="ex-name" placeholder="예: 벤치프레스">
+      </div>
+      <div class="ex-add-row2">
+        <div class="form-group">
+          <label>세트 & 횟수</label>
+          <input type="text" id="ex-detail" placeholder="예: 4x10">
+        </div>
+        <div class="form-group">
+          <label>RIR</label>
+          <input type="number" id="ex-rir" placeholder="예: 2" min="0" max="10">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>부족한 점 / 느낀 점</label>
+        <input type="text" id="ex-note" placeholder="예: 하강 시 무릎이 안으로 쏠림">
+      </div>
+      <button class="btn btn-ghost" style="width:100%;padding:10px;" onclick="addExercise()">+ 운동 추가</button>
+    </div>
+
+    <!-- RIR 가이드 -->
+    <div class="section-label" style="margin-top:16px;">RIR 가이드 참고</div>
+    <div class="rir-guide">
+      <div class="rir-item rir-2">
+        <div class="rir-badge">2 RIR 추천</div>
+        <div class="rir-label">부상위험↑ · 협응성 필요 복합운동</div>
+        <div class="rir-moves">벤치프레스 · 스쿼트 · 데드리프트</div>
+      </div>
+      <div class="rir-item rir-1">
+        <div class="rir-badge">1 RIR 추천</div>
+        <div class="rir-label">큰 근육 · 부상위험 낮은 복합운동</div>
+        <div class="rir-moves">렛풀다운 · 시티드로우 · 덤벨체스트프레스 · 덤벨숄더프레스 · 런지</div>
+      </div>
+      <div class="rir-item rir-0">
+        <div class="rir-badge">0 RIR 추천</div>
+        <div class="rir-label">자극 위주 · 단일관절 고립운동</div>
+        <div class="rir-moves">사이드레터럴레이즈 · 벤트오버레터럴레이즈 · 덤벨컬 · 케이블푸쉬다운 · 레그익스텐션</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2: AI Generate -->
+  <div class="section-label">2단계 — AI 수업일지 생성</div>
+  <div id="ai-status-wrap" style="display:none;">
+    <div class="ai-status"><div class="ai-dot loading" id="ai-dot"></div><span id="ai-status-text">AI가 수업일지를 작성하는 중...</span></div>
+  </div>
+  <div id="preview-wrap" style="display:none;">
+    <div class="preview-card" id="preview-content"></div>
+    <div class="form-group">
+      <label>수정이 필요하면 여기서 직접 편집하세요</label>
+      <textarea id="final-content" rows="12" style="font-size:13px;line-height:1.8;"></textarea>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" style="margin-bottom:10px;" id="generate-btn" onclick="generateLog()">✦ AI 수업일지 생성</button>
+
+  <!-- Step 3: Send -->
+  <div id="send-wrap" style="display:none;">
+    <div class="section-label">3단계 — 발송</div>
+    <button class="btn btn-primary" style="margin-bottom:10px;" onclick="sendKakao()">
+      <span style="display:flex;align-items:center;justify-content:center;gap:8px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#0f0f0f"><path d="M12 3C6.477 3 2 6.582 2 11c0 2.83 1.634 5.33 4.127 6.89l-1.07 3.97a.5.5 0 0 0 .733.556L10.13 19.7A11.6 11.6 0 0 0 12 19.8c5.523 0 10-3.582 10-8S17.523 3 12 3z"/></svg>
+        카카오톡으로 수업일지 보내기
+      </span>
+    </button>
+    <div style="font-size:12px;color:var(--text-dim);text-align:center;margin-top:-4px;margin-bottom:10px;">내용이 복사되고 카카오톡이 열려요 · 회원 선택 후 전송하세요</div>
+  </div>
+</div>
+
+<!-- PAGE: ADD MEMBER -->
+<div class="page" id="page-add-member">
+  <div class="record-header">
+    <button class="back-btn" onclick="backToMembers()">←</button>
+    <div style="font-size:15px;font-weight:700;">회원 추가</div>
+  </div>
+
+  <div class="form-group">
+    <label>이름</label>
+    <input type="text" id="add-name" placeholder="홍길동">
+  </div>
+  <div class="form-group">
+    <label>이메일</label>
+    <input type="email" id="add-email" placeholder="example@gmail.com">
+  </div>
+  <div class="divider"></div>
+  <div class="section-label">세션 관리</div>
+  <div class="two-col">
+    <div class="form-group">
+      <label>총 세션 수</label>
+      <input type="number" id="add-total" placeholder="30" min="1">
+    </div>
+    <div class="form-group">
+      <label>완료한 세션</label>
+      <input type="number" id="add-done" placeholder="0" min="0">
+    </div>
+  </div>
+  <div class="form-group">
+    <label>메모 (선택)</label>
+    <input type="text" id="add-memo" placeholder="부상 이력, 목표 등">
+  </div>
+  <button class="btn btn-primary" onclick="addMember()">회원 추가 완료</button>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal">
+    <div class="modal-title">
+      설정
+      <button class="close-btn" onclick="closeSettings()">✕</button>
+    </div>
+
+    <div class="section-label">트레이너 정보</div>
+    <div class="form-group">
+      <label>트레이너 이름</label>
+      <input type="text" id="s-trainer-name" placeholder="홍길동 트레이너">
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-label">Gemini API 키</div>
+    <div class="form-group">
+      <label>API 키 <span style="color:var(--text-dim);font-weight:400;">(무료 · <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--accent);">여기서 발급</a>)</span></label>
+      <input type="text" id="s-api-key" placeholder="AIza...">
+    </div>
+
+    <button class="btn btn-primary" style="margin-top:8px;" onclick="saveSettings()">저장</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ========== STATE ==========
+let state = {
+  members: [],
+  logs: [],
+  settings: { trainerName: '', apiKey: '', gmail: '' },
+  currentMemberId: null,
+  exercises: [],
+  isRecording: false,
+  recognition: null,
+};
+
+// ========== INIT ==========
+function init() {
+  const saved = localStorage.getItem('tl_data');
+  if (saved) {
+    const d = JSON.parse(saved);
+    state.members = d.members || [];
+    state.logs = d.logs || [];
+    state.settings = d.settings || { trainerName: '', apiKey: '', gmail: '' };
+  }
+  renderMembers();
+  renderHistory();
+  // Load settings into form
+  document.getElementById('s-trainer-name').value = state.settings.trainerName || '';
+  document.getElementById('s-api-key').value = state.settings.apiKey || '';
+
+  if (!state.settings.apiKey) {
+    setTimeout(() => {
+      showToast('⚙ 먼저 설정에서 Gemini API 키를 입력해주세요');
+    }, 800);
+  }
+}
+
+function save() {
+  localStorage.setItem('tl_data', JSON.stringify({
+    members: state.members,
+    logs: state.logs,
+    settings: state.settings,
+  }));
+}
+
+// ========== TABS ==========
+function showTab(tab) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    t.classList.toggle('active', ['members','history'][i] === tab);
+  });
+  document.getElementById('page-members').classList.toggle('active', tab === 'members');
+  document.getElementById('page-history').classList.toggle('active', tab === 'history');
+  document.getElementById('page-record').classList.remove('active');
+  document.getElementById('page-add-member').classList.remove('active');
+}
+
+function showPage(id) {
+  ['page-members','page-history','page-record','page-add-member'].forEach(p => {
+    document.getElementById(p).classList.remove('active');
+  });
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+}
+
+// ========== MEMBERS ==========
+function renderMembers() {
+  const wrap = document.getElementById('member-list-wrap');
+  if (!state.members.length) {
+    wrap.innerHTML = `<div class="empty"><div class="empty-icon">👥</div><p>아직 회원이 없어요.<br>위에서 첫 회원을 추가해보세요!</p></div>`;
+    return;
+  }
+  wrap.innerHTML = state.members.map(m => {
+    const pct = m.total > 0 ? Math.round((m.done / m.total) * 100) : 0;
+    const remain = m.total - m.done;
+    const low = remain <= 3;
+    return `
+    <div class="member-card" onclick="openRecord('${m.id}')">
+      <div class="member-avatar">${m.name[0]}</div>
+      <div class="member-info">
+        <div class="member-name">${m.name}</div>
+        <div class="member-meta">${m.email}${m.memo ? ' · '+m.memo : ''}</div>
+        <div class="session-bar-wrap" style="margin-top:6px;">
+          <div class="session-bar-bg"><div class="session-bar-fill ${low?'low':''}" style="width:${pct}%"></div></div>
+        </div>
+      </div>
+      <span class="session-badge ${low?'low':''}">${m.done}/${m.total}</span>
+    </div>`;
+  }).join('');
+}
+
+function showAddMember() {
+  showPage('page-add-member');
+  document.getElementById('add-name').value = '';
+  document.getElementById('add-email').value = '';
+  document.getElementById('add-total').value = '';
+  document.getElementById('add-done').value = '0';
+  document.getElementById('add-memo').value = '';
+}
+
+function addMember() {
+  const name = document.getElementById('add-name').value.trim();
+  const email = document.getElementById('add-email').value.trim();
+  const total = parseInt(document.getElementById('add-total').value) || 0;
+  const done = parseInt(document.getElementById('add-done').value) || 0;
+  const memo = document.getElementById('add-memo').value.trim();
+  if (!name || !email) { showToast('이름과 이메일을 입력해주세요'); return; }
+  state.members.push({ id: Date.now().toString(), name, email, total, done, memo });
+  save();
+  renderMembers();
+  backToMembers();
+  showToast('✓ 회원이 추가되었어요');
+}
+
+// ========== RECORD ==========
+function openRecord(memberId) {
+  state.currentMemberId = memberId;
+  state.exercises = [];
+  const m = state.members.find(x => x.id === memberId);
+  document.getElementById('record-member-name').textContent = m.name;
+  document.getElementById('record-member-email').textContent = m.email;
+
+  const remain = m.total - m.done;
+  const low = remain <= 3;
+  document.getElementById('record-session-badge').textContent = `${m.done}회 완료 · ${remain}회 남음`;
+  const pct = m.total > 0 ? Math.round((m.done / m.total) * 100) : 0;
+  const bar = document.getElementById('record-bar');
+  bar.style.width = pct + '%';
+  bar.className = 'session-bar-fill' + (low ? ' low' : '');
+
+  // 페이지 먼저 표시 후 DOM 초기화
+  showPage('page-record');
+
+  audioFileData = null;
+  audioMimeType = null;
+  const uploadArea = document.getElementById('upload-area');
+  if (uploadArea) {
+    uploadArea.style.borderColor = 'var(--border)';
+    uploadArea.style.opacity = '1';
+    uploadArea.style.pointerEvents = 'auto';
+  }
+  const audioInfo = document.getElementById('audio-file-info');
+  if (audioInfo) audioInfo.style.display = 'none';
+  const audioInput = document.getElementById('audio-file-input');
+  if (audioInput) audioInput.value = '';
+  document.getElementById('raw-input').value = '';
+  document.getElementById('ex-list').innerHTML = '';
+  document.getElementById('preview-wrap').style.display = 'none';
+  document.getElementById('send-wrap').style.display = 'none';
+  document.getElementById('ai-status-wrap').style.display = 'none';
+  document.getElementById('generate-btn').style.display = 'block';
+  document.getElementById('final-content').value = '';
+}
+
+function backToMembers() {
+  showPage('page-members');
+  document.querySelectorAll('.tab')[0].classList.add('active');
+}
+
+// ========== EXERCISES ==========
+function addExercise() {
+  const name = document.getElementById('ex-name').value.trim();
+  const detail = document.getElementById('ex-detail').value.trim();
+  const rir = document.getElementById('ex-rir').value.trim();
+  const note = document.getElementById('ex-note').value.trim();
+  if (!name) { showToast('운동 종목을 입력해주세요'); return; }
+  const id = Date.now().toString();
+  state.exercises.push({ id, name, detail, rir, note });
+  renderExercises();
+  document.getElementById('ex-name').value = '';
+  document.getElementById('ex-detail').value = '';
+  document.getElementById('ex-rir').value = '';
+  document.getElementById('ex-note').value = '';
+}
+
+function removeExercise(id) {
+  state.exercises = state.exercises.filter(e => e.id !== id);
+  renderExercises();
+}
+
+function renderExercises() {
+  document.getElementById('ex-list').innerHTML = state.exercises.map(e => {
+    const meta = [e.detail, e.rir !== '' ? `RIR ${e.rir}` : ''].filter(Boolean).join(' · ');
+    return `<div class="ex-item">
+      <div class="ex-item-header">
+        <span class="ex-item-name">• ${e.name}</span>
+        ${meta ? `<span class="ex-item-meta">${meta}</span>` : ''}
+        <button class="ex-remove" onclick="removeExercise('${e.id}')">×</button>
+      </div>
+      ${e.note ? `<div class="ex-item-body">💬 ${e.note}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ========== AUDIO FILE UPLOAD ==========
+let audioFileData = null;
+let audioMimeType = null;
+
+function handleAudioUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const maxMB = 100;
+  if (file.size > maxMB * 1024 * 1024) {
+    showToast(`파일이 너무 커요. ${maxMB}MB 이하만 가능해요.`);
+    return;
+  }
+
+  const infoEl = document.getElementById('audio-file-info');
+  document.getElementById('audio-file-name').textContent = file.name;
+  document.getElementById('audio-file-size').textContent = (file.size / (1024*1024)).toFixed(1) + ' MB';
+  infoEl.style.display = 'flex';
+
+  const uploadArea = document.getElementById('upload-area');
+  uploadArea.style.borderColor = 'var(--accent)';
+  uploadArea.style.opacity = '0.5';
+  uploadArea.style.pointerEvents = 'none';
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const base64 = e.target.result.split(',')[1];
+    audioFileData = base64;
+    audioMimeType = file.type || 'audio/m4a';
+    showToast('✓ 파일 업로드 완료!');
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeAudio() {
+  audioFileData = null;
+  audioMimeType = null;
+  document.getElementById('audio-file-info').style.display = 'none';
+  document.getElementById('audio-file-input').value = '';
+  const uploadArea = document.getElementById('upload-area');
+  uploadArea.style.borderColor = 'var(--border)';
+  uploadArea.style.opacity = '1';
+  uploadArea.style.pointerEvents = 'auto';
+}
+
+// ========== AI GENERATE ==========
+async function generateLog() {
+  const raw = document.getElementById('raw-input').value.trim();
+  const exercises = state.exercises;
+
+  if (!audioFileData && !raw && exercises.length === 0) {
+    showToast('녹음 파일을 업로드하거나 내용을 입력해주세요');
+    return;
+  }
+  if (!state.settings.apiKey) {
+    showToast('설정에서 Gemini API 키를 먼저 입력해주세요');
+    openSettings();
+    return;
+  }
+
+  const m = state.members.find(x => x.id === state.currentMemberId);
+  const remain = Math.max(0, m.total - m.done - 1);
+
+  document.getElementById('generate-btn').style.display = 'none';
+  document.getElementById('ai-status-wrap').style.display = 'block';
+  document.getElementById('preview-wrap').style.display = 'none';
+
+  const exerciseStr = exercises.length > 0
+    ? exercises.map(e => {
+        let line = `- ${e.name}`;
+        if (e.detail) line += ` ${e.detail}`;
+        if (e.rir !== '') line += ` (RIR ${e.rir})`;
+        if (e.note) line += `\n  └ 느낀점: ${e.note}`;
+        return line;
+      }).join('\n')
+    : '';
+
+  const systemPrompt = `당신은 전문 퍼스널 트레이너의 수업일지 작성 도우미입니다.
+트레이너가 수업 중 녹음한 음성(또는 메모)을 분석해서 회원에게 보낼 수업일지를 작성해주세요.
+
+규칙:
+1. 중복되는 내용은 하나로 합쳐서 정리하세요
+2. 운동별로 깔끔하게 분류하세요
+3. 트레이너의 말 흐름에서 핵심만 추출하세요
+4. 회원이 읽기 편하고 따뜻한 톤으로 작성하세요
+5. 이모지를 적절히 사용하세요
+
+[트레이너]: ${state.settings.trainerName || '트레이너'}
+[회원 이름]: ${m.name}
+[오늘 세션]: ${m.done + 1}회차 (전체 ${m.total}회 중, 남은 세션 ${remain}회)
+${exerciseStr ? '\n[운동 종목 목록]:\n' + exerciseStr : ''}
+${raw ? '\n[추가 메모]:\n' + raw : ''}
+
+아래 형식으로 작성해주세요:
+
+📋 수업일지 - ${m.name} 회원님
+📅 ${new Date().toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric'})} | ${m.done+1}/${m.total}회차
+
+🏋️ 오늘의 운동
+[운동 종목과 세트/횟수 정리 — 중복 제거 후]
+
+💬 트레이너 코멘트
+[수업 내용 기반 전문적이고 따뜻한 피드백]
+
+🎯 다음 수업 목표
+[다음에 집중할 내용 2~3가지]
+
+📌 세션 현황
+${m.done+1}/${m.total}회 완료 · 남은 세션 ${remain}회
+
+— ${state.settings.trainerName || '트레이너'} 드림`;
+
+  try {
+    let parts = [];
+
+    // 오디오 파일이 있으면 포함
+    if (audioFileData) {
+      document.getElementById('ai-status-text').textContent = 'AI가 수업 녹음을 분석하는 중...';
+      parts.push({
+        inline_data: {
+          mime_type: audioMimeType,
+          data: audioFileData
+        }
+      });
+      parts.push({ text: '\n위 음성을 분석해서 다음 지시에 따라 수업일지를 작성해주세요:\n\n' + systemPrompt });
+    } else {
+      parts.push({ text: systemPrompt });
+    }
+
+    document.getElementById('ai-status-text').textContent = 'AI가 수업일지를 작성하는 중...';
+
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${state.settings.apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts }] })
+      }
+    );
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    document.getElementById('ai-status-wrap').style.display = 'none';
+    document.getElementById('preview-wrap').style.display = 'block';
+    document.getElementById('preview-content').textContent = text;
+    document.getElementById('final-content').value = text;
+    document.getElementById('send-wrap').style.display = 'block';
+    showToast('✦ 수업일지 생성 완료!');
+  } catch (err) {
+    document.getElementById('ai-status-wrap').style.display = 'none';
+    document.getElementById('generate-btn').style.display = 'block';
+    showToast('오류: ' + (err.message || 'API 키를 확인해주세요'));
+  }
+}
+
+// ========== SEND KAKAO ==========
+function sendKakao() {
+  const m = state.members.find(x => x.id === state.currentMemberId);
+  const content = document.getElementById('final-content').value;
+  if (!content) { showToast('먼저 수업일지를 생성해주세요'); return; }
+
+  // 클립보드에 수업일지 복사
+  navigator.clipboard.writeText(content).then(() => {
+    showToast('✓ 내용 복사 완료! 카카오톡에서 붙여넣기 하세요');
+  }).catch(() => {
+    showToast('카카오톡 앱을 열어 내용을 직접 붙여넣기 해주세요');
+  });
+
+  // 카카오톡 앱 열기 (아이폰)
+  setTimeout(() => {
+    window.location.href = 'kakaolink://open';
+    // 앱 딥링크 실패 시 웹 카카오톡으로 fallback
+    setTimeout(() => { window.open('https://talk.kakao.com', '_blank'); }, 1200);
+  }, 700);
+
+  // 발송 기록 저장 & 세션 +1
+  state.logs.unshift({
+    id: Date.now().toString(),
+    memberId: m.id,
+    memberName: m.name,
+    date: new Date().toISOString(),
+    content,
+    session: m.done + 1,
+  });
+
+  const mi = state.members.findIndex(x => x.id === m.id);
+  state.members[mi].done += 1;
+  save();
+  renderMembers();
+  renderHistory();
+
+  setTimeout(() => {
+    document.getElementById('send-wrap').style.display = 'none';
+    document.getElementById('generate-btn').style.display = 'block';
+    document.getElementById('preview-wrap').style.display = 'none';
+    document.getElementById('raw-input').value = '';
+    audioFileData = null; audioMimeType = null;
+    document.getElementById('audio-file-info').style.display = 'none';
+    document.getElementById('audio-file-input').value = '';
+    const ua = document.getElementById('upload-area');
+    if (ua) { ua.style.borderColor='var(--border)'; ua.style.opacity='1'; ua.style.pointerEvents='auto'; }
+    state.exercises = [];
+    renderExercises();
+    const updated = state.members[mi];
+    const remain = updated.total - updated.done;
+    const low = remain <= 3;
+    document.getElementById('record-session-badge').textContent = `${updated.done}회 완료 · ${remain}회 남음`;
+    const pct = updated.total > 0 ? Math.round((updated.done / updated.total) * 100) : 0;
+    const bar = document.getElementById('record-bar');
+    bar.style.width = pct + '%';
+    bar.className = 'session-bar-fill' + (low ? ' low' : '');
+  }, 2000);
+}
+
+// ========== HISTORY ==========
+function renderHistory() {
+  const wrap = document.getElementById('history-list-wrap');
+  if (!state.logs.length) {
+    wrap.innerHTML = `<div class="empty"><div class="empty-icon">📋</div><p>발송한 수업일지가 없어요.<br>회원을 선택하고 첫 수업일지를 작성해보세요!</p></div>`;
+    return;
+  }
+  wrap.innerHTML = state.logs.map(l => {
+    const d = new Date(l.date);
+    const ds = d.toLocaleDateString('ko-KR', {month:'long',day:'numeric'}) + ' ' + d.toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit'});
+    return `<div class="history-item">
+      <div class="history-date">${ds} · ${l.memberName} · ${l.session}회차</div>
+      <div class="history-preview">${l.content.substring(0, 120)}...</div>
+    </div>`;
+  }).join('');
+}
+
+// ========== SETTINGS ==========
+function openSettings() {
+  document.getElementById('settings-modal').classList.add('open');
+}
+function closeSettings() {
+  document.getElementById('settings-modal').classList.remove('open');
+}
+function saveSettings() {
+  state.settings.trainerName = document.getElementById('s-trainer-name').value.trim();
+  state.settings.apiKey = document.getElementById('s-api-key').value.trim();
+  save();
+  closeSettings();
+  showToast('✓ 설정이 저장되었어요');
+}
+
+// ========== TOAST ==========
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+init();
+</script>
+</body>
+</html>

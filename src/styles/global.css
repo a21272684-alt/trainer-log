@@ -1,0 +1,88 @@
+/* ========== GLOBAL RESET & TOKENS ========== */
+:root {
+  --bg:#0a0a0a; --surface:#141414; --surface2:#1e1e1e; --surface3:#252525;
+  --border:#2a2a2a; --accent:#c8f135; --accent-dim:#a0c420;
+  --text:#f0f0f0; --text-muted:#888; --text-dim:#444;
+  --danger:#ff5c5c; --warning:#f5a623; --info:#378ADD; --radius:12px;
+}
+
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg); color:var(--text); font-family:'Noto Sans KR',sans-serif; min-height:100vh; }
+
+/* ========== INPUTS ========== */
+input[type="text"],input[type="password"],input[type="number"],input[type="date"],input[type="email"],input[type="time"],select,textarea {
+  width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+  color:var(--text); font-family:inherit; font-size:13px; padding:9px 12px; outline:none; transition:border-color 0.2s;
+}
+input:focus,select:focus,textarea:focus { border-color:var(--accent); }
+select option { background:var(--surface2); }
+input::placeholder,textarea::placeholder { color:var(--text-dim); }
+textarea { resize:vertical; min-height:70px; line-height:1.6; }
+label { font-size:12px; color:var(--text-muted); display:block; margin-bottom:5px; }
+.form-group { margin-bottom:12px; }
+.form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+/* ========== BUTTONS ========== */
+.btn { padding:10px 18px; border-radius:8px; border:none; font-family:inherit; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.2s; }
+.btn-primary { background:var(--accent); color:#0a0a0a; }
+.btn-primary:hover { background:var(--accent-dim); }
+.btn-ghost { background:none; border:1px solid var(--border); color:var(--text-muted); }
+.btn-ghost:hover { border-color:var(--accent); color:var(--accent); }
+.btn-danger { background:none; border:1px solid rgba(255,92,92,0.3); color:var(--danger); }
+.btn-danger:hover { background:rgba(255,92,92,0.1); }
+.btn-sm { padding:5px 12px; font-size:11px; border-radius:6px; }
+.btn-full { width:100%; }
+
+/* ========== BADGES ========== */
+.badge { display:inline-block; padding:3px 8px; border-radius:100px; font-size:11px; font-weight:500; }
+.badge-green { background:rgba(200,241,53,0.1); color:var(--accent); border:1px solid rgba(200,241,53,0.2); }
+.badge-red { background:rgba(255,92,92,0.1); color:var(--danger); border:1px solid rgba(255,92,92,0.2); }
+.badge-blue { background:rgba(55,138,221,0.1); color:var(--info); border:1px solid rgba(55,138,221,0.2); }
+.badge-yellow { background:rgba(245,166,35,0.1); color:var(--warning); border:1px solid rgba(245,166,35,0.2); }
+
+/* ========== CARDS ========== */
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px; margin-bottom:14px; }
+.stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:20px; }
+.stat-card { background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:16px; }
+.stat-num { font-size:26px; font-weight:700; font-family:'DM Mono',monospace; color:var(--accent); }
+.stat-label { font-size:12px; color:var(--text-muted); margin-top:4px; }
+.stat-sub { font-size:11px; color:var(--text-dim); margin-top:2px; font-family:'DM Mono',monospace; }
+
+/* ========== TABLES ========== */
+.table-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th { text-align:left; padding:10px 12px; font-size:11px; font-weight:500; color:var(--text-dim); letter-spacing:0.5px; border-bottom:1px solid var(--border); }
+td { padding:12px; border-bottom:1px solid var(--border); color:var(--text-muted); vertical-align:middle; }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:var(--surface2); }
+
+/* ========== SECTIONS ========== */
+.section-title { font-size:15px; font-weight:700; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; }
+.section-label { font-size:11px; color:var(--text-dim); letter-spacing:1px; text-transform:uppercase; margin-bottom:10px; margin-top:20px; }
+.section-label:first-child { margin-top:0; }
+.divider { height:1px; background:var(--border); margin:16px 0; }
+
+/* ========== MISC ========== */
+.empty { text-align:center; padding:40px 20px; color:var(--text-dim); font-size:13px; }
+.avatar { width:32px; height:32px; border-radius:50%; background:var(--accent); color:#0a0a0a; display:inline-flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; flex-shrink:0; }
+.name-cell { display:flex; align-items:center; gap:10px; }
+.two-col { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+/* ========== LOGIN ========== */
+.login-wrap { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+.login-card { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:36px 28px; width:100%; max-width:360px; }
+.login-logo { font-size:22px; font-weight:700; margin-bottom:4px; }
+.login-logo span { color:var(--accent); }
+.login-badge { display:inline-block; background:rgba(200,241,53,0.1); border:1px solid rgba(200,241,53,0.2); color:var(--accent); font-size:10px; font-weight:700; padding:3px 10px; border-radius:100px; letter-spacing:1px; margin-bottom:20px; }
+
+/* ========== MODAL ========== */
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:200; align-items:center; justify-content:center; padding:20px; }
+.modal-overlay.open { display:flex; }
+.modal { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:24px; width:100%; max-width:480px; max-height:85vh; overflow-y:auto; }
+.modal-title { font-size:15px; font-weight:700; margin-bottom:18px; display:flex; align-items:center; justify-content:space-between; }
+.close-btn { background:none; border:none; color:var(--text-muted); font-size:20px; cursor:pointer; line-height:1; }
+
+/* ========== PERIOD TABS ========== */
+.period-tabs { display:flex; gap:6px; margin-bottom:16px; }
+.period-tab { padding:6px 14px; border-radius:100px; font-size:12px; font-weight:500; cursor:pointer; border:1px solid var(--border); color:var(--text-muted); transition:all 0.2s; background:none; font-family:inherit; }
+.period-tab.active { background:var(--accent); color:#0a0a0a; border-color:var(--accent); }

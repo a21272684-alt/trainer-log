@@ -1,0 +1,16 @@
+/* ADMIN LAYOUT */
+.topbar { background:var(--surface); border-bottom:1px solid var(--border); padding:12px 24px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; }
+.topbar-left { display:flex; align-items:center; gap:12px; }
+.topbar-title { font-size:14px; font-weight:700; }
+.topbar-title span { color:var(--accent); }
+.admin-badge { background:rgba(200,241,53,0.1); border:1px solid rgba(200,241,53,0.2); color:var(--accent); font-size:10px; font-weight:700; padding:2px 8px; border-radius:100px; letter-spacing:1px; }
+.logout-btn { background:none; border:1px solid var(--border); color:var(--text-muted); border-radius:8px; padding:5px 12px; font-size:12px; cursor:pointer; font-family:inherit; transition:all 0.2s; }
+.logout-btn:hover { border-color:var(--danger); color:var(--danger); }
+
+.layout { display:flex; min-height:calc(100vh - 53px); }
+.sidebar { width:200px; background:var(--surface); border-right:1px solid var(--border); padding:16px 0; flex-shrink:0; position:sticky; top:53px; height:calc(100vh - 53px); overflow-y:auto; }
+.nav-item { display:flex; align-items:center; gap:10px; padding:11px 20px; font-size:13px; color:var(--text-muted); cursor:pointer; transition:all 0.15s; border-left:2px solid transparent; }
+.nav-item:hover { color:var(--text); background:var(--surface2); }
+.nav-item.active { color:var(--accent); background:rgba(200,241,53,0.05); border-left-color:var(--accent); }
+.nav-icon { font-size:16px; width:20px; text-align:center; }
+.content { flex:1; padding:24px; max-width:900px; overflow-y:auto; }

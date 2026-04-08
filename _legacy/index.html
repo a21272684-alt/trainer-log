@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrainerLog</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#0f0f0f;color:#f0f0f0;font-family:'Noto Sans KR',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;}
+.logo{font-size:36px;font-weight:900;letter-spacing:-1px;margin-bottom:6px;}
+.logo span{color:#c8f135;}
+.tagline{font-size:14px;color:#666;margin-bottom:48px;text-align:center;line-height:1.6;}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;width:100%;max-width:440px;margin-bottom:24px;}
+.portal-card{background:#181818;border:1px solid #2a2a2a;border-radius:16px;padding:28px 20px;text-align:center;cursor:pointer;transition:all 0.2s;text-decoration:none;color:inherit;display:block;}
+.portal-card:hover{border-color:#c8f135;transform:translateY(-2px);}
+.portal-icon{font-size:32px;margin-bottom:12px;}
+.portal-title{font-size:16px;font-weight:700;margin-bottom:4px;}
+.portal-sub{font-size:12px;color:#666;}
+.admin-link{font-size:12px;color:#444;cursor:pointer;transition:color 0.2s;}
+.admin-link:hover{color:#888;}
+.admin-link a{color:inherit;text-decoration:none;}
+.version{position:fixed;bottom:16px;font-size:11px;color:#333;font-family:'DM Mono',monospace;}
+</style>
+</head>
+<body>
+<div class="logo">TRAINER<span>LOG</span></div>
+<div class="tagline">트레이너와 회원을 연결하는<br>스마트 수업일지 플랫폼</div>
+
+<div class="cards">
+  <a href="trainer-app.html" class="portal-card">
+    <div class="portal-icon">💪</div>
+    <div class="portal-title">트레이너</div>
+    <div class="portal-sub">수업일지 작성<br>회원 관리</div>
+  </a>
+  <a href="member-portal.html" class="portal-card">
+    <div class="portal-icon">🏃</div>
+    <div class="portal-title">회원</div>
+    <div class="portal-sub">수업일지 조회<br>체중·식단 기록</div>
+  </a>
+</div>
+
+<div class="admin-link"><a href="admin-portal.html">관리자 페이지 →</a></div>
+<div class="version">v1.0</div>
+</body>
+</html>

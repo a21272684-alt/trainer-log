@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrainerLog — 관리자</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0a0a0a; --surface:#141414; --surface2:#1e1e1e; --surface3:#252525;
+    --border:#2a2a2a; --accent:#c8f135; --accent-dim:#a0c420;
+    --text:#f0f0f0; --text-muted:#888; --text-dim:#444;
+    --danger:#ff5c5c; --warning:#f5a623; --info:#378ADD; --radius:12px;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:'Noto Sans KR',sans-serif; min-height:100vh; }
+
+  /* LOGIN */
+  .login-wrap { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .login-card { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:36px 28px; width:100%; max-width:360px; }
+  .login-logo { font-size:22px; font-weight:700; margin-bottom:4px; }
+  .login-logo span { color:var(--accent); }
+  .login-badge { display:inline-block; background:rgba(200,241,53,0.1); border:1px solid rgba(200,241,53,0.2); color:var(--accent); font-size:10px; font-weight:700; padding:3px 10px; border-radius:100px; letter-spacing:1px; margin-bottom:20px; }
+
+  /* LAYOUT */
+  .topbar { background:var(--surface); border-bottom:1px solid var(--border); padding:12px 24px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; }
+  .topbar-left { display:flex; align-items:center; gap:12px; }
+  .topbar-title { font-size:14px; font-weight:700; }
+  .topbar-title span { color:var(--accent); }
+  .admin-badge { background:rgba(200,241,53,0.1); border:1px solid rgba(200,241,53,0.2); color:var(--accent); font-size:10px; font-weight:700; padding:2px 8px; border-radius:100px; letter-spacing:1px; }
+  .logout-btn { background:none; border:1px solid var(--border); color:var(--text-muted); border-radius:8px; padding:5px 12px; font-size:12px; cursor:pointer; font-family:inherit; transition:all 0.2s; }
+  .logout-btn:hover { border-color:var(--danger); color:var(--danger); }
+
+  .layout { display:flex; min-height:calc(100vh - 53px); }
+  .sidebar { width:200px; background:var(--surface); border-right:1px solid var(--border); padding:16px 0; flex-shrink:0; position:sticky; top:53px; height:calc(100vh - 53px); overflow-y:auto; }
+  .nav-item { display:flex; align-items:center; gap:10px; padding:11px 20px; font-size:13px; color:var(--text-muted); cursor:pointer; transition:all 0.15s; border-left:2px solid transparent; }
+  .nav-item:hover { color:var(--text); background:var(--surface2); }
+  .nav-item.active { color:var(--accent); background:rgba(200,241,53,0.05); border-left-color:var(--accent); }
+  .nav-icon { font-size:16px; width:20px; text-align:center; }
+  .content { flex:1; padding:24px; max-width:900px; overflow-y:auto; }
+
+  /* CARDS */
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px; margin-bottom:14px; }
+  .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:20px; }
+  .stat-card { background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:16px; }
+  .stat-num { font-size:26px; font-weight:700; font-family:'DM Mono',monospace; color:var(--accent); }
+  .stat-label { font-size:12px; color:var(--text-muted); margin-top:4px; }
+  .stat-sub { font-size:11px; color:var(--text-dim); margin-top:2px; font-family:'DM Mono',monospace; }
+
+  /* TABLE */
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; padding:10px 12px; font-size:11px; font-weight:500; color:var(--text-dim); letter-spacing:0.5px; border-bottom:1px solid var(--border); }
+  td { padding:12px; border-bottom:1px solid var(--border); color:var(--text-muted); vertical-align:middle; }
+  tr:last-child td { border-bottom:none; }
+  tr:hover td { background:var(--surface2); }
+
+  /* INPUTS */
+  input[type="text"],input[type="password"],input[type="number"],input[type="date"],select,textarea {
+    width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+    color:var(--text); font-family:inherit; font-size:13px; padding:9px 12px; outline:none; transition:border-color 0.2s;
+  }
+  input:focus,select:focus,textarea:focus { border-color:var(--accent); }
+  select option { background:var(--surface2); }
+  input::placeholder { color:var(--text-dim); }
+  label { font-size:12px; color:var(--text-muted); display:block; margin-bottom:5px; }
+  .form-group { margin-bottom:12px; }
+  .form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+  /* BUTTONS */
+  .btn { padding:10px 18px; border-radius:8px; border:none; font-family:inherit; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.2s; }
+  .btn-primary { background:var(--accent); color:#0a0a0a; }
+  .btn-primary:hover { background:var(--accent-dim); }
+  .btn-ghost { background:none; border:1px solid var(--border); color:var(--text-muted); }
+  .btn-ghost:hover { border-color:var(--accent); color:var(--accent); }
+  .btn-danger { background:none; border:1px solid rgba(255,92,92,0.3); color:var(--danger); }
+  .btn-danger:hover { background:rgba(255,92,92,0.1); }
+  .btn-sm { padding:5px 12px; font-size:11px; border-radius:6px; }
+  .btn-full { width:100%; }
+
+  /* BADGES */
+  .badge { display:inline-block; padding:3px 8px; border-radius:100px; font-size:11px; font-weight:500; }
+  .badge-green { background:rgba(200,241,53,0.1); color:var(--accent); border:1px solid rgba(200,241,53,0.2); }
+  .badge-red { background:rgba(255,92,92,0.1); color:var(--danger); border:1px solid rgba(255,92,92,0.2); }
+  .badge-blue { background:rgba(55,138,221,0.1); color:var(--info); border:1px solid rgba(55,138,221,0.2); }
+  .badge-yellow { background:rgba(245,166,35,0.1); color:var(--warning); border:1px solid rgba(245,166,35,0.2); }
+
+  /* SECTION */
+  .section-title { font-size:15px; font-weight:700; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; }
+  .section-label { font-size:11px; color:var(--text-dim); letter-spacing:1px; text-transform:uppercase; margin-bottom:10px; margin-top:20px; }
+  .section-label:first-child { margin-top:0; }
+  .divider { height:1px; background:var(--border); margin:16px 0; }
+
+  /* PERIOD TABS */
+  .period-tabs { display:flex; gap:6px; margin-bottom:16px; }
+  .period-tab { padding:6px 14px; border-radius:100px; font-size:12px; font-weight:500; cursor:pointer; border:1px solid var(--border); color:var(--text-muted); transition:all 0.2s; background:none; font-family:inherit; }
+  .period-tab.active { background:var(--accent); color:#0a0a0a; border-color:var(--accent); }
+
+  /* MODAL */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:200; align-items:center; justify-content:center; padding:20px; }
+  .modal-overlay.open { display:flex; }
+  .modal { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:24px; width:100%; max-width:480px; max-height:85vh; overflow-y:auto; }
+  .modal-title { font-size:15px; font-weight:700; margin-bottom:18px; display:flex; align-items:center; justify-content:space-between; }
+  .close-btn { background:none; border:none; color:var(--text-muted); font-size:20px; cursor:pointer; line-height:1; }
+
+  /* TOAST */
+  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--accent); color:#0a0a0a; padding:10px 20px; border-radius:100px; font-size:13px; font-weight:700; opacity:0; transition:opacity 0.3s; z-index:999; pointer-events:none; white-space:nowrap; }
+  .toast.show { opacity:1; }
+
+  .empty { text-align:center; padding:40px 20px; color:var(--text-dim); font-size:13px; }
+  .avatar { width:32px; height:32px; border-radius:50%; background:var(--accent); color:#0a0a0a; display:inline-flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; flex-shrink:0; }
+  .name-cell { display:flex; align-items:center; gap:10px; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen" class="login-wrap">
+  <div class="login-card">
+    <div class="login-logo">TRAINER<span>LOG</span></div>
+    <div class="login-badge">ADMIN</div>
+    <div class="form-group">
+      <label>관리자 비밀번호</label>
+      <input type="password" id="admin-pw" placeholder="비밀번호 입력" onkeydown="if(event.key==='Enter')adminLogin()">
+    </div>
+    <button class="btn btn-primary btn-full" style="margin-top:8px;" onclick="adminLogin()">관리자 로그인</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main-app" style="display:none;">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-title">TRAINER<span>LOG</span></div>
+      <div class="admin-badge">ADMIN</div>
+    </div>
+    <button class="logout-btn" onclick="logout()">로그아웃</button>
+  </div>
+
+  <div class="layout">
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="nav-item active" onclick="showPage('dashboard')"><span class="nav-icon">📊</span>대시보드</div>
+      <div class="nav-item" onclick="showPage('trainers')"><span class="nav-icon">💪</span>트레이너</div>
+      <div class="nav-item" onclick="showPage('members')"><span class="nav-icon">👥</span>회원 현황</div>
+      <div class="nav-item" onclick="showPage('logs')"><span class="nav-icon">📋</span>수업일지</div>
+      <div class="nav-item" onclick="showPage('subscriptions')"><span class="nav-icon">💳</span>구독 관리</div>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="content">
+
+      <!-- DASHBOARD -->
+      <div id="page-dashboard" class="pg active">
+        <div class="section-title">대시보드</div>
+        <div class="stat-grid" id="dash-stats"></div>
+        <div class="section-label">오늘의 활동</div>
+        <div class="card" id="dash-today"></div>
+        <div class="section-label">최근 수업일지</div>
+        <div id="dash-recent-logs"></div>
+      </div>
+
+      <!-- TRAINERS -->
+      <div id="page-trainers" class="pg" style="display:none;">
+        <div class="section-title">트레이너 목록 <button class="btn btn-primary btn-sm" onclick="openAddSubscription()">+ 구독 추가</button></div>
+        <div class="card table-wrap">
+          <table>
+            <thead><tr><th>트레이너</th><th>회원수</th><th>일지 발송</th><th>가입일</th><th>구독상태</th><th></th></tr></thead>
+            <tbody id="trainers-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- MEMBERS -->
+      <div id="page-members" class="pg" style="display:none;">
+        <div class="section-title">회원 현황</div>
+        <div id="members-by-trainer"></div>
+      </div>
+
+      <!-- LOGS -->
+      <div id="page-logs" class="pg" style="display:none;">
+        <div class="section-title">수업일지 현황</div>
+        <div class="period-tabs">
+          <button class="period-tab active" onclick="setLogPeriod('day',this)">오늘</button>
+          <button class="period-tab" onclick="setLogPeriod('week',this)">이번 주</button>
+          <button class="period-tab" onclick="setLogPeriod('month',this)">이번 달</button>
+        </div>
+        <div class="stat-grid" id="log-stats"></div>
+        <div class="section-label">트레이너별 발송 현황</div>
+        <div class="card table-wrap">
+          <table>
+            <thead><tr><th>트레이너</th><th>발송 건수</th><th>마지막 발송</th></tr></thead>
+            <tbody id="logs-by-trainer"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SUBSCRIPTIONS -->
+      <div id="page-subscriptions" class="pg" style="display:none;">
+        <div class="section-title">구독 · 결제 관리 <button class="btn btn-primary btn-sm" onclick="openAddSubscription()">+ 결제 추가</button></div>
+        <div class="card table-wrap">
+          <table>
+            <thead><tr><th>트레이너</th><th>플랜</th><th>결제수단</th><th>금액</th><th>결제일</th><th>만료일</th><th>메모</th></tr></thead>
+            <tbody id="subs-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ADD SUBSCRIPTION MODAL -->
+<div class="modal-overlay" id="modal-sub">
+  <div class="modal">
+    <div class="modal-title">결제 추가 <button class="close-btn" onclick="closeModal('modal-sub')">✕</button></div>
+    <div class="form-group">
+      <label>트레이너</label>
+      <select id="sub-trainer-id"></select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>플랜</label>
+        <select id="sub-plan">
+          <option value="basic">Basic</option>
+          <option value="pro">Pro</option>
+          <option value="business">Business</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>결제 금액 (원)</label>
+        <input type="number" id="sub-amount" placeholder="99000">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>결제 수단</label>
+      <select id="sub-method">
+        <option value="카카오페이">카카오페이</option>
+        <option value="카드">카드</option>
+        <option value="계좌이체">계좌이체</option>
+        <option value="현금">현금</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>결제일</label>
+        <input type="date" id="sub-paid-at">
+      </div>
+      <div class="form-group">
+        <label>만료일</label>
+        <input type="date" id="sub-valid-until">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>메모 (선택)</label>
+      <input type="text" id="sub-memo" placeholder="특이사항">
+    </div>
+    <button class="btn btn-primary btn-full" onclick="addSubscription()">저장</button>
+  </div>
+</div>
+
+<!-- TRAINER DETAIL MODAL -->
+<div class="modal-overlay" id="modal-trainer">
+  <div class="modal">
+    <div class="modal-title" id="modal-trainer-title">트레이너 상세 <button class="close-btn" onclick="closeModal('modal-trainer')">✕</button></div>
+    <div id="modal-trainer-body"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://udnyilxwskgkofbvvzfy.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_FXnRJ_Hsb4TdPiQ8DNpolw_A9sOcatE';
+const ADMIN_PW = 'trainer2024!';
+
+const sb = {
+  async query(table, method='GET', body=null, params='') {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${params}`, {
+      method, headers: {
+        'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': method === 'POST' ? 'return=representation' : ''
+      },
+      body: body ? JSON.stringify(body) : null
+    });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.message || 'DB 오류'); }
+    const text = await res.text();
+    return text ? JSON.parse(text) : [];
+  }
+};
+
+let allTrainers = [], allMembers = [], allLogs = [], allSubs = [];
+let logPeriod = 'day';
+
+function adminLogin() {
+  const pw = document.getElementById('admin-pw').value;
+  if (pw !== ADMIN_PW) { showToast('비밀번호가 틀렸어요'); return; }
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('main-app').style.display = 'block';
+  loadAll();
+}
+function logout() {
+  document.getElementById('main-app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('admin-pw').value = '';
+}
+
+async function loadAll() {
+  try {
+    [allTrainers, allMembers, allLogs, allSubs] = await Promise.all([
+      sb.query('trainers','GET',null,'?select=*&order=created_at.desc'),
+      sb.query('members','GET',null,'?select=*&order=created_at.desc'),
+      sb.query('logs','GET',null,'?select=*&order=created_at.desc'),
+      sb.query('subscriptions','GET',null,'?select=*&order=paid_at.desc'),
+    ]);
+    renderDashboard();
+    renderTrainers();
+    renderMembers();
+    renderLogs();
+    renderSubscriptions();
+    populateTrainerSelect();
+  } catch(e) { showToast('데이터 로드 오류: ' + e.message); }
+}
+
+// ===== DASHBOARD =====
+function renderDashboard() {
+  const today = new Date().toDateString();
+  const todayLogs = allLogs.filter(l => new Date(l.created_at).toDateString() === today);
+  const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate()-7);
+  const activeTrainers = new Set(allLogs.filter(l => new Date(l.created_at) > weekAgo).map(l => l.trainer_id)).size;
+
+  document.getElementById('dash-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-num">${allTrainers.length}</div><div class="stat-label">전체 트레이너</div><div class="stat-sub">활성 ${activeTrainers}명 / 7일</div></div>
+    <div class="stat-card"><div class="stat-num">${allMembers.length}</div><div class="stat-label">전체 회원</div></div>
+    <div class="stat-card"><div class="stat-num">${allLogs.length}</div><div class="stat-label">총 수업일지</div><div class="stat-sub">오늘 ${todayLogs.length}건</div></div>
+    <div class="stat-card"><div class="stat-num">${allSubs.length}</div><div class="stat-label">총 결제 건수</div></div>`;
+
+  document.getElementById('dash-today').innerHTML = `
+    <div style="display:flex;gap:24px;flex-wrap:wrap;">
+      <div><div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">오늘 수업일지</div><div style="font-size:20px;font-weight:700;color:var(--accent);font-family:'DM Mono',monospace;">${todayLogs.length}건</div></div>
+      <div><div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">이번주 활성 트레이너</div><div style="font-size:20px;font-weight:700;color:var(--accent);font-family:'DM Mono',monospace;">${activeTrainers}명</div></div>
+      <div><div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">전체 회원 평균 세션</div><div style="font-size:20px;font-weight:700;color:var(--accent);font-family:'DM Mono',monospace;">${allMembers.length ? Math.round(allMembers.reduce((s,m)=>s+m.done_sessions,0)/allMembers.length) : 0}회</div></div>
+    </div>`;
+
+  const recentLogs = allLogs.slice(0,5);
+  document.getElementById('dash-recent-logs').innerHTML = recentLogs.length ? recentLogs.map(l => {
+    const trainer = allTrainers.find(t => t.id === l.trainer_id);
+    const member = allMembers.find(m => m.id === l.member_id);
+    const d = new Date(l.created_at);
+    return `<div class="card" style="margin-bottom:8px;padding:12px 16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <span style="font-size:13px;font-weight:500;">${member?.name || '?'} 회원님 · ${l.session_number}회차</span>
+        <span style="font-size:11px;color:var(--text-dim);font-family:'DM Mono',monospace;">${d.toLocaleDateString('ko-KR',{month:'short',day:'numeric'})} ${d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);">트레이너: ${trainer?.name || '?'}</div>
+    </div>`;
+  }).join('') : '<div class="empty">수업일지가 없어요</div>';
+}
+
+// ===== TRAINERS =====
+function renderTrainers() {
+  const tbody = document.getElementById('trainers-tbody');
+  if (!allTrainers.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">등록된 트레이너가 없어요</td></tr>'; return; }
+  tbody.innerHTML = allTrainers.map(t => {
+    const memberCount = allMembers.filter(m => m.trainer_id === t.id).length;
+    const logCount = allLogs.filter(l => l.trainer_id === t.id).length;
+    const sub = allSubs.filter(s => s.trainer_id === t.id).sort((a,b) => new Date(b.paid_at)-new Date(a.paid_at))[0];
+    const isActive = sub && sub.valid_until && new Date(sub.valid_until) > new Date();
+    const joinDate = new Date(t.created_at);
+    return `<tr>
+      <td><div class="name-cell"><div class="avatar">${t.name[0]}</div><div><div style="color:var(--text);font-weight:500;">${t.name}</div></div></div></td>
+      <td><span style="color:var(--text);">${memberCount}명</span></td>
+      <td><span style="color:var(--text);">${logCount}건</span></td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;">${joinDate.toLocaleDateString('ko-KR',{year:'2-digit',month:'short',day:'numeric'})}<br><span style="color:var(--text-dim);font-size:11px;">${joinDate.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}</span></td>
+      <td>${isActive ? `<span class="badge badge-green">${sub.plan}</span>` : '<span class="badge badge-red">미구독</span>'}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="showTrainerDetail('${t.id}')">상세</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function showTrainerDetail(trainerId) {
+  const t = allTrainers.find(x => x.id === trainerId);
+  const members = allMembers.filter(m => m.trainer_id === trainerId);
+  const logs = allLogs.filter(l => l.trainer_id === trainerId);
+  const subs = allSubs.filter(s => s.trainer_id === trainerId).sort((a,b) => new Date(b.paid_at)-new Date(a.paid_at));
+  document.getElementById('modal-trainer-title').innerHTML = `${t.name} 트레이너 <button class="close-btn" onclick="closeModal('modal-trainer')">✕</button>`;
+  document.getElementById('modal-trainer-body').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px;">
+      <div class="stat-card"><div class="stat-num" style="font-size:20px;">${members.length}</div><div class="stat-label">회원수</div></div>
+      <div class="stat-card"><div class="stat-num" style="font-size:20px;">${logs.length}</div><div class="stat-label">총 일지</div></div>
+      <div class="stat-card"><div class="stat-num" style="font-size:20px;">${subs.length}</div><div class="stat-label">결제 건</div></div>
+    </div>
+    <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">가입일: ${new Date(t.created_at).toLocaleString('ko-KR')}</div>
+    <div class="divider"></div>
+    <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">회원 목록</div>
+    ${members.length ? members.map(m => `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">
+      <span style="color:var(--text);">${m.name}</span>
+      <span style="color:var(--text-dim);font-size:11px;">${m.lesson_purpose || '-'} · ${m.done_sessions}/${m.total_sessions}회</span>
+    </div>`).join('') : '<div style="color:var(--text-dim);font-size:13px;">회원 없음</div>'}
+    <div class="divider"></div>
+    <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">결제 이력</div>
+    ${subs.length ? subs.map(s => `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">
+      <div><span class="badge badge-blue" style="margin-right:6px;">${s.plan}</span>${s.payment_method}</div>
+      <div style="text-align:right;"><div style="color:var(--text);">${s.amount.toLocaleString()}원</div><div style="font-size:11px;color:var(--text-dim);">${s.paid_at?.split('T')[0]}</div></div>
+    </div>`).join('') : '<div style="color:var(--text-dim);font-size:13px;">결제 이력 없음</div>'}`;
+  document.getElementById('modal-trainer').classList.add('open');
+}
+
+// ===== MEMBERS =====
+function renderMembers() {
+  const wrap = document.getElementById('members-by-trainer');
+  if (!allTrainers.length) { wrap.innerHTML = '<div class="empty">트레이너가 없어요</div>'; return; }
+  wrap.innerHTML = allTrainers.map(t => {
+    const members = allMembers.filter(m => m.trainer_id === t.id);
+    return `<div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="avatar">${t.name[0]}</div>
+          <span style="font-weight:500;">${t.name} 트레이너</span>
+        </div>
+        <span class="badge badge-green">${members.length}명</span>
+      </div>
+      ${members.length ? `<div class="table-wrap"><table>
+        <thead><tr><th>이름</th><th>레슨목적</th><th>세션</th><th>전화</th></tr></thead>
+        <tbody>${members.map(m => `<tr>
+          <td style="color:var(--text);font-weight:500;">${m.name}</td>
+          <td><span class="badge badge-blue">${m.lesson_purpose || '미설정'}</span></td>
+          <td style="font-family:'DM Mono',monospace;">${m.done_sessions}/${m.total_sessions}</td>
+          <td style="color:var(--text-dim);">***${m.phone}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>` : `<div style="color:var(--text-dim);font-size:13px;padding:8px 0;">회원이 없어요</div>`}
+    </div>`;
+  }).join('');
+}
+
+// ===== LOGS =====
+function setLogPeriod(period, el) {
+  logPeriod = period;
+  document.querySelectorAll('.period-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderLogs();
+}
+
+function filterLogsByPeriod(logs, period) {
+  const now = new Date();
+  return logs.filter(l => {
+    const d = new Date(l.created_at);
+    if (period === 'day') return d.toDateString() === now.toDateString();
+    if (period === 'week') { const w = new Date(now); w.setDate(now.getDate()-7); return d >= w; }
+    if (period === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    return true;
+  });
+}
+
+function renderLogs() {
+  const filtered = filterLogsByPeriod(allLogs, logPeriod);
+  const periodLabel = {day:'오늘', week:'이번 주', month:'이번 달'}[logPeriod];
+
+  document.getElementById('log-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-num">${filtered.length}</div><div class="stat-label">${periodLabel} 발송</div></div>
+    <div class="stat-card"><div class="stat-num">${new Set(filtered.map(l=>l.trainer_id)).size}</div><div class="stat-label">활성 트레이너</div></div>
+    <div class="stat-card"><div class="stat-num">${new Set(filtered.map(l=>l.member_id)).size}</div><div class="stat-label">수업 회원</div></div>`;
+
+  const tbody = document.getElementById('logs-by-trainer');
+  tbody.innerHTML = allTrainers.map(t => {
+    const tLogs = filtered.filter(l => l.trainer_id === t.id);
+    const lastLog = allLogs.filter(l => l.trainer_id === t.id)[0];
+    const lastDate = lastLog ? new Date(lastLog.created_at) : null;
+    return `<tr>
+      <td><div class="name-cell"><div class="avatar">${t.name[0]}</div><span style="color:var(--text);">${t.name}</span></div></td>
+      <td><span style="color:var(--accent);font-weight:700;font-family:'DM Mono',monospace;">${tLogs.length}건</span></td>
+      <td style="font-size:12px;color:var(--text-dim);">${lastDate ? lastDate.toLocaleDateString('ko-KR',{month:'short',day:'numeric'}) + ' ' + lastDate.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}) : '없음'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ===== SUBSCRIPTIONS =====
+function renderSubscriptions() {
+  const tbody = document.getElementById('subs-tbody');
+  if (!allSubs.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">결제 내역이 없어요</td></tr>'; return; }
+  tbody.innerHTML = allSubs.map(s => {
+    const trainer = allTrainers.find(t => t.id === s.trainer_id);
+    const isActive = s.valid_until && new Date(s.valid_until) > new Date();
+    const methodBadge = {
+      '카카오페이': 'badge-yellow', '카드': 'badge-blue',
+      '계좌이체': 'badge-green', '현금': 'badge-blue'
+    }[s.payment_method] || 'badge-blue';
+    return `<tr>
+      <td style="color:var(--text);font-weight:500;">${trainer?.name || '?'}</td>
+      <td><span class="badge ${isActive?'badge-green':'badge-red'}">${s.plan}</span></td>
+      <td><span class="badge ${methodBadge}">${s.payment_method}</span></td>
+      <td style="font-family:'DM Mono',monospace;">${s.amount.toLocaleString()}원</td>
+      <td style="font-size:12px;color:var(--text-dim);">${s.paid_at?.split('T')[0] || '-'}</td>
+      <td style="font-size:12px;color:${isActive?'var(--accent)':'var(--danger)'};">${s.valid_until || '-'}</td>
+      <td style="font-size:12px;color:var(--text-dim);">${s.memo || '-'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function populateTrainerSelect() {
+  const sel = document.getElementById('sub-trainer-id');
+  sel.innerHTML = allTrainers.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+}
+
+function openAddSubscription() {
+  document.getElementById('sub-paid-at').value = new Date().toISOString().split('T')[0];
+  const nextMonth = new Date(); nextMonth.setMonth(nextMonth.getMonth()+1);
+  document.getElementById('sub-valid-until').value = nextMonth.toISOString().split('T')[0];
+  document.getElementById('modal-sub').classList.add('open');
+}
+
+async function addSubscription() {
+  const trainer_id = document.getElementById('sub-trainer-id').value;
+  const plan = document.getElementById('sub-plan').value;
+  const payment_method = document.getElementById('sub-method').value;
+  const amount = parseInt(document.getElementById('sub-amount').value) || 0;
+  const paid_at = document.getElementById('sub-paid-at').value;
+  const valid_until = document.getElementById('sub-valid-until').value;
+  const memo = document.getElementById('sub-memo').value.trim();
+  try {
+    await sb.query('subscriptions','POST',{ trainer_id, plan, payment_method, amount, paid_at, valid_until, memo });
+    await loadAll();
+    closeModal('modal-sub');
+    showToast('✓ 결제가 추가됐어요');
+  } catch(e) { showToast('오류: ' + e.message); }
+}
+
+// ===== NAV =====
+function showPage(id) {
+  document.querySelectorAll('.pg').forEach(p => p.style.display = 'none');
+  document.getElementById('page-'+id).style.display = 'block';
+  document.querySelectorAll('.nav-item').forEach((n,i) => n.classList.toggle('active', ['dashboard','trainers','members','logs','subscriptions'][i] === id));
+}
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+</script>
+</body>
+</html>
