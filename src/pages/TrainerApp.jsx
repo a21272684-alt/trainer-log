@@ -34,7 +34,7 @@ export default function TrainerApp() {
   const [healthData, setHealthData] = useState(null)
 
   // Add member form
-  const [addForm, setAddForm] = useState({name:'',phone:'',email:'',purpose:'체형교정',total:'',done:'0',memo:''})
+  const [addForm, setAddForm] = useState({name:'',kakao_phone:'',phone:'',email:'',purpose:'체형교정',total:'',done:'0',price:'',memo:''})
 
   // Exercise modal
   const [exModal, setExModal] = useState(false)
@@ -62,6 +62,9 @@ export default function TrainerApp() {
   const [blockMemo, setBlockMemo] = useState('')
   const [blockMemberId, setBlockMemberId] = useState('')
   const [blockTitle, setBlockTitle] = useState('')
+  const [showCancelForm, setShowCancelForm] = useState(false)
+  const [cancelType, setCancelType] = useState('')
+  const [cancelDetail, setCancelDetail] = useState('')
 
   // Login
   const [loginName, setLoginName] = useState('')
@@ -117,8 +120,9 @@ export default function TrainerApp() {
     if (!addForm.name || !addForm.phone) { showToast('이름과 전화번호를 입력해주세요'); return }
     try {
       await supabase.from('members').insert({
-        trainer_id: trainer.id, name: addForm.name, phone: addForm.phone, email: addForm.email,
-        lesson_purpose: addForm.purpose, total_sessions: parseInt(addForm.total)||0, done_sessions: parseInt(addForm.done)||0, memo: addForm.memo
+        trainer_id: trainer.id, name: addForm.name, kakao_phone: addForm.kakao_phone, phone: addForm.phone, email: addForm.email,
+        lesson_purpose: addForm.purpose, total_sessions: parseInt(addForm.total)||0, done_sessions: parseInt(addForm.done)||0,
+        session_price: parseInt(addForm.price)||0, memo: addForm.memo
       })
       await loadMembers(); setActivePage('page-members'); setTab('members'); showToast('✓ 회원이 추가됐어요')
     } catch(e) { showToast('오류: ' + e.message) }
@@ -243,13 +247,23 @@ export default function TrainerApp() {
   function openAddBlock(ds, start, end) {
     setEditBlockId(null); setBlockDate(ds||dStr(new Date())); setBlockStart(start||'09:00'); setBlockEnd(end||'10:00')
     setBlockMemo(''); setBlockTitle(''); setSelType('lesson'); setSelColor('green')
-    setBlockMemberId(members[0]?.id || ''); setSchModal(true)
+    setBlockMemberId(members[0]?.id || ''); setShowCancelForm(false); setCancelType(''); setCancelDetail(''); setSchModal(true)
   }
   function openEditBlock(id) {
     const b = blocks.find(x => x.id === id); if (!b) return
     setEditBlockId(id); setBlockDate(b.date); setBlockStart(b.start); setBlockEnd(b.end)
     setBlockMemo(b.memo||''); setBlockTitle(b.title||''); setSelType(b.type); setSelColor(b.color)
-    setBlockMemberId(b.memberId||''); setSchModal(true)
+    setBlockMemberId(b.memberId||''); setShowCancelForm(false); setCancelType(''); setCancelDetail(''); setSchModal(true)
+  }
+  function toggleCancel() {
+    if (showCancelForm) {
+      if (!cancelType) { showToast('취소 사유를 선택해주세요'); return }
+      if (!editBlockId) return
+      setBlocks(blocks.map(b => b.id===editBlockId ? {...b, cancelled:true, cancelType, cancelDetail} : b))
+      setSchModal(false); showToast('취소 처리됐어요')
+    } else {
+      setShowCancelForm(true)
+    }
   }
   function saveBlock() {
     if (!blockDate||!blockStart||!blockEnd) { showToast('날짜와 시간을 입력해주세요'); return }
@@ -297,8 +311,9 @@ export default function TrainerApp() {
                   const h = Math.max((tToSlot(b.end)-tToSlot(b.start))*SPX-2,14); const top = tToSlot(b.start)*SPX+1
                   const col = COLORS.find(c=>c.id===b.color)||COLORS[0]
                   const label = b.type==='lesson'?(members.find(m=>m.id===b.memberId)?.name||'회원'):(b.title||'개인일정')
+                  const cancelledStyle = b.cancelled ? {opacity:0.4,textDecoration:'line-through'} : {}
                   return (
-                    <div key={b.id} className="sg-blk" style={{top:top+'px',height:h+'px',background:col.bg,color:col.tx}} onClick={e => { e.stopPropagation(); openEditBlock(b.id) }}>
+                    <div key={b.id} className="sg-blk" style={{top:top+'px',height:h+'px',background:b.cancelled?'#444':col.bg,color:b.cancelled?'#aaa':col.tx,...cancelledStyle}} onClick={e => { e.stopPropagation(); openEditBlock(b.id) }}>
                       <span className="bn">{label}</span>
                       {h>22 && <span className="bt">{b.start}~{b.end}</span>}
                     </div>
@@ -308,6 +323,109 @@ export default function TrainerApp() {
             )
           })}
         </div>
+      </div>
+    )
+  }
+
+  // === REVENUE ===
+  function renderRevenue() {
+    if (!members.length) return <div style={{textAlign:'center',padding:'40px',color:'var(--text-dim)'}}>회원을 먼저 추가해주세요</div>
+    const now = new Date()
+    const weekStart = new Date(now); weekStart.setDate(now.getDate()-(now.getDay()||7)+1); weekStart.setHours(0,0,0,0)
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const weekLogs = logs.filter(l => new Date(l.created_at) >= weekStart)
+    const monthLogs = logs.filter(l => new Date(l.created_at) >= monthStart)
+    const totalRevenue = members.reduce((s,m) => s+(m.session_price||0)*m.done_sessions, 0)
+    const remainRevenue = members.reduce((s,m) => s+(m.session_price||0)*(m.total_sessions-m.done_sessions), 0)
+    const weekRevenue = weekLogs.reduce((s,l) => { const m=members.find(x=>x.id===l.member_id); return s+(m?.session_price||0) }, 0)
+    const monthRevenue = monthLogs.reduce((s,l) => { const m=members.find(x=>x.id===l.member_id); return s+(m?.session_price||0) }, 0)
+    const dayOfMonth = now.getDate()
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate()
+    const projectedMonth = dayOfMonth>0 ? Math.round(monthRevenue/dayOfMonth*daysInMonth) : 0
+    return (
+      <div>
+        <div style={{marginBottom:'14px'}}>
+          <div className="section-label">전체 매출 현황</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
+            <div className="card" style={{marginBottom:0,padding:'14px'}}>
+              <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'6px'}}>이번 주 매출</div>
+              <div style={{fontSize:'20px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'var(--accent)'}}>{weekRevenue.toLocaleString()}원</div>
+              <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'3px'}}>{weekLogs.length}회 수업</div>
+            </div>
+            <div className="card" style={{marginBottom:0,padding:'14px'}}>
+              <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'6px'}}>이번 달 매출</div>
+              <div style={{fontSize:'20px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'var(--accent)'}}>{monthRevenue.toLocaleString()}원</div>
+              <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'3px'}}>{monthLogs.length}회 수업</div>
+            </div>
+            <div className="card" style={{marginBottom:0,padding:'14px'}}>
+              <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'6px'}}>월말 예상 매출</div>
+              <div style={{fontSize:'20px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'#facc15'}}>{projectedMonth.toLocaleString()}원</div>
+              <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'3px'}}>{dayOfMonth}/{daysInMonth}일 기준</div>
+            </div>
+            <div className="card" style={{marginBottom:0,padding:'14px'}}>
+              <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'6px'}}>잔여 예상 수익</div>
+              <div style={{fontSize:'20px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'#60a5fa'}}>{remainRevenue.toLocaleString()}원</div>
+              <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'3px'}}>남은 세션 기준</div>
+            </div>
+          </div>
+        </div>
+        <div className="section-label">회원별 분석</div>
+        {members.map(m => {
+          const mLogs = logs.filter(l => l.member_id === m.id)
+          const mWeekLogs = mLogs.filter(l => new Date(l.created_at) >= weekStart)
+          const mMonthLogs = mLogs.filter(l => new Date(l.created_at) >= monthStart)
+          const price = m.session_price || 0
+          const weekBlocks = blocks.filter(b => b.type==='lesson' && b.memberId===m.id && !b.cancelled && new Date(b.date+'T00:00:00')>=weekStart && new Date(b.date+'T00:00:00')<=now)
+          const attendRate = weekBlocks.length>0 ? Math.round((mWeekLogs.length/weekBlocks.length)*100) : null
+          const cancelledBlocks = blocks.filter(b => b.memberId===m.id && b.cancelled)
+          const remain = m.total_sessions - m.done_sessions
+          const pct = m.total_sessions>0 ? Math.round((m.done_sessions/m.total_sessions)*100) : 0
+          return (
+            <div key={m.id} className="card" style={{marginBottom:'12px'}}>
+              <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'12px'}}>
+                <div style={{width:'36px',height:'36px',borderRadius:'50%',background:'var(--accent)',color:'#0f0f0f',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:'14px'}}>{m.name[0]}</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:'14px',fontWeight:600}}>{m.name}</div>
+                  <div style={{fontSize:'11px',color:'var(--text-muted)'}}>{m.lesson_purpose||''} · 단가 {price ? price.toLocaleString()+'원' : '미설정'}</div>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontSize:'16px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'var(--accent)'}}>{(price*m.done_sessions).toLocaleString()}<span style={{fontSize:'11px'}}>원</span></div>
+                  <div style={{fontSize:'10px',color:'var(--text-dim)'}}>누적 매출</div>
+                </div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'8px',marginBottom:'12px'}}>
+                {[
+                  [attendRate!==null?attendRate+'%':'—', '주간출석률', attendRate!==null?(attendRate>=80?'#4ade80':attendRate>=60?'#facc15':'var(--danger)'):'var(--text-dim)'],
+                  [mWeekLogs.length, '주당소진', 'var(--text)'],
+                  [mMonthLogs.length, '월간소진', 'var(--text)'],
+                  [dayOfMonth>0&&mMonthLogs.length>0?Math.round(mMonthLogs.length/dayOfMonth*daysInMonth):0, '월간예상', '#60a5fa']
+                ].map(([v,l,c],i) => (
+                  <div key={i} style={{textAlign:'center',padding:'8px',background:'var(--surface2)',borderRadius:'8px'}}>
+                    <div style={{fontSize:'15px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:c}}>{v}</div>
+                    <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'2px'}}>{l}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{height:'4px',background:'var(--border)',borderRadius:'2px',overflow:'hidden',marginBottom:'8px'}}>
+                <div style={{height:'100%',background:'var(--accent)',borderRadius:'2px',width:pct+'%'}}></div>
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:'11px',color:'var(--text-muted)'}}>
+                <span>{m.done_sessions}회 완료 · 잔여 {remain}회</span>
+                {price>0 && <span style={{color:'var(--accent)'}}>잔여 예상 수익 {(price*remain).toLocaleString()}원</span>}
+              </div>
+              {cancelledBlocks.length>0 && (
+                <div style={{marginTop:'10px',paddingTop:'10px',borderTop:'1px solid var(--border)'}}>
+                  <div style={{fontSize:'10px',color:'var(--danger)',marginBottom:'6px'}}>취소 이력 {cancelledBlocks.length}건</div>
+                  {cancelledBlocks.slice(-3).map((b,i) => (
+                    <div key={i} style={{fontSize:'11px',color:'var(--text-muted)',padding:'4px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
+                      {b.date} · {b.cancelType}{b.cancelDetail?' — '+b.cancelDetail:''}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
     )
   }
@@ -359,9 +477,9 @@ export default function TrainerApp() {
         <button className="settings-btn" onClick={()=>setSettingsModal(true)}>⚙ 설정</button>
       </div>
       <div className="tabs-t">
-        {['members','history','schedule'].map(t => (
+        {['members','history','schedule','revenue'].map(t => (
           <div key={t} className={`tab-t${tab===t?' active':''}`} onClick={()=>showTabFn(t)}>
-            {{members:'회원',history:'발송기록',schedule:'시간표'}[t]}
+            {{members:'회원',history:'발송기록',schedule:'시간표',revenue:'매출분석'}[t]}
           </div>
         ))}
       </div>
@@ -369,7 +487,7 @@ export default function TrainerApp() {
       {/* MEMBERS LIST */}
       {activePage === 'page-members' && (
         <div className="page-t">
-          <div style={{marginBottom:'14px'}}><button className="btn btn-primary" style={{width:'100%'}} onClick={()=>setActivePage('page-add-member')}>+ 회원 추가</button></div>
+          <div style={{marginBottom:'14px'}}><button className="btn btn-primary" style={{width:'100%'}} onClick={()=>{setAddForm({name:'',kakao_phone:'',phone:'',email:'',purpose:'체형교정',total:'',done:'0',price:'',memo:''});setActivePage('page-add-member')}}>+ 회원 추가</button></div>
           {!members.length && <div className="empty"><div style={{fontSize:'36px',marginBottom:'12px'}}>👥</div><p>아직 회원이 없어요.<br/>위에서 첫 회원을 추가해보세요!</p></div>}
           {members.map(m => {
             const pct = m.total_sessions>0?Math.round((m.done_sessions/m.total_sessions)*100):0
@@ -425,12 +543,18 @@ export default function TrainerApp() {
         </div>
       )}
 
+      {/* REVENUE */}
+      {activePage === 'page-revenue' && (
+        <div className="page-t">{renderRevenue()}</div>
+      )}
+
       {/* ADD MEMBER */}
       {activePage === 'page-add-member' && (
         <div className="page-t">
           <div className="record-header"><button className="back-btn" onClick={()=>{setActivePage('page-members');setTab('members')}}>←</button><div style={{fontSize:'15px',fontWeight:700}}>회원 추가</div></div>
           <div className="form-group"><label>이름</label><input type="text" value={addForm.name} onChange={e=>setAddForm({...addForm,name:e.target.value})} placeholder="홍길동" /></div>
-          <div className="form-group"><label>전화번호 뒷 4자리</label><input type="text" value={addForm.phone} onChange={e=>setAddForm({...addForm,phone:e.target.value})} placeholder="1234" maxLength={4} /></div>
+          <div className="form-group"><label>전화번호 (카카오톡 발송용)</label><input type="text" value={addForm.kakao_phone} onChange={e=>setAddForm({...addForm,kakao_phone:e.target.value})} placeholder="010-1234-5678" /></div>
+          <div className="form-group"><label>전화번호 뒷 4자리 (회원 포털 로그인용)</label><input type="text" value={addForm.phone} onChange={e=>setAddForm({...addForm,phone:e.target.value})} placeholder="1234" maxLength={4} /></div>
           <div className="form-group"><label>이메일 (선택)</label><input type="email" value={addForm.email} onChange={e=>setAddForm({...addForm,email:e.target.value})} placeholder="example@gmail.com" /></div>
           <div className="form-group"><label>레슨 목적 (필수)</label>
             <select value={addForm.purpose} onChange={e=>setAddForm({...addForm,purpose:e.target.value})}>
@@ -443,6 +567,7 @@ export default function TrainerApp() {
             <div className="form-group"><label>총 세션 수</label><input type="number" value={addForm.total} onChange={e=>setAddForm({...addForm,total:e.target.value})} placeholder="30" min="1" /></div>
             <div className="form-group"><label>완료한 세션</label><input type="number" value={addForm.done} onChange={e=>setAddForm({...addForm,done:e.target.value})} placeholder="0" min="0" /></div>
           </div>
+          <div className="form-group"><label>세션 단가 (원, 예상매출 계산용)</label><input type="number" value={addForm.price} onChange={e=>setAddForm({...addForm,price:e.target.value})} placeholder="60000" min="0" /></div>
           <div className="form-group"><label>메모 (선택)</label><input type="text" value={addForm.memo} onChange={e=>setAddForm({...addForm,memo:e.target.value})} placeholder="부상 이력, 목표 등" /></div>
           <button className="btn btn-primary" style={{width:'100%'}} onClick={addMember}>회원 추가 완료</button>
         </div>
@@ -622,9 +747,34 @@ export default function TrainerApp() {
         <div className="form-group"><label>시간</label><div className="time-row"><input type="time" value={blockStart} onChange={e=>setBlockStart(e.target.value)} step="300" /><span>~</span><input type="time" value={blockEnd} onChange={e=>setBlockEnd(e.target.value)} step="300" /></div></div>
         <div className="form-group"><label>메모 (선택)</label><input type="text" value={blockMemo} onChange={e=>setBlockMemo(e.target.value)} placeholder="특이사항" /></div>
         <div className="form-group"><label>색상</label><div className="color-row">{COLORS.map(c=><div key={c.id} className={`color-btn${selColor===c.id?' sel':''}`} style={{background:c.bg}} onClick={()=>setSelColor(c.id)}></div>)}</div></div>
+        {showCancelForm && (
+          <div>
+            <div style={{height:'1px',background:'var(--border)',margin:'12px 0'}}></div>
+            <div className="form-group">
+              <label style={{color:'var(--danger)'}}>취소 사유</label>
+              <select value={cancelType} onChange={e=>setCancelType(e.target.value)}>
+                <option value="">사유 선택</option>
+                <option value="회원 개인 사정">회원 개인 사정</option>
+                <option value="회원 질병/부상">회원 질병/부상</option>
+                <option value="트레이너 사정">트레이너 사정</option>
+                <option value="시설 문제">시설 문제</option>
+                <option value="기타">기타</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label style={{color:'var(--danger)'}}>취소 상세 내용 (선택)</label>
+              <textarea value={cancelDetail} onChange={e=>setCancelDetail(e.target.value)} placeholder="취소 사유를 자세히 적어주세요" rows={2} style={{minHeight:'60px'}}></textarea>
+            </div>
+          </div>
+        )}
         <div style={{display:'flex',gap:'8px'}}>
           <button className="btn btn-primary" style={{flex:1}} onClick={saveBlock}>저장</button>
-          {editBlockId && <button className="btn btn-danger btn-sm" onClick={deleteBlock}>삭제</button>}
+          {editBlockId && (
+            <button className="btn btn-ghost btn-sm" onClick={toggleCancel} style={{color:'var(--danger)',borderColor:'rgba(255,92,92,0.3)',background:showCancelForm?'rgba(255,92,92,0.1)':'none'}}>
+              {showCancelForm ? '취소 확정' : '취소 처리'}
+            </button>
+          )}
+          {editBlockId && !showCancelForm && <button className="btn btn-ghost btn-sm" style={{color:'var(--danger)',borderColor:'rgba(255,92,92,0.3)'}} onClick={deleteBlock}>삭제</button>}
         </div>
       </Modal>
     </div>
