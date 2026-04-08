@@ -36,6 +36,11 @@ export default function TrainerApp() {
   // Add member form
   const [addForm, setAddForm] = useState({name:'',kakao_phone:'',phone:'',email:'',purpose:'체형교정',total:'',done:'0',price:'',memo:''})
 
+  // Edit member modal
+  const [editMemberModal, setEditMemberModal] = useState(false)
+  const [editMemberForm, setEditMemberForm] = useState({})
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState(false)
+
   // Exercise modal
   const [exModal, setExModal] = useState(false)
   const [exName, setExName] = useState('')
@@ -131,6 +136,41 @@ export default function TrainerApp() {
   function openRecord(memberId) {
     setCurrentMemberId(memberId); setExercises([]); setActivePage('page-record')
     setAudioData(null); setShowPreview(false); setShowSend(false); setRawInput(''); setFinalContent(''); setRtab('write')
+  }
+
+  function openEditMember(m) {
+    setEditMemberForm({
+      id: m.id, name: m.name, kakao_phone: m.kakao_phone||'', phone: m.phone||'',
+      email: m.email||'', purpose: m.lesson_purpose||'체형교정',
+      total: String(m.total_sessions||0), done: String(m.done_sessions||0),
+      price: String(m.session_price||0), memo: m.memo||''
+    })
+    setEditMemberModal(true)
+  }
+
+  async function updateMember() {
+    const f = editMemberForm
+    if (!f.name || !f.phone) { showToast('이름과 전화번호를 입력해주세요'); return }
+    try {
+      await supabase.from('members').update({
+        name: f.name, kakao_phone: f.kakao_phone, phone: f.phone, email: f.email,
+        lesson_purpose: f.purpose, total_sessions: parseInt(f.total)||0,
+        done_sessions: parseInt(f.done)||0, session_price: parseInt(f.price)||0, memo: f.memo
+      }).eq('id', f.id)
+      await loadMembers()
+      setEditMemberModal(false)
+      showToast('✓ 회원 정보가 수정됐어요')
+    } catch(e) { showToast('오류: ' + e.message) }
+  }
+
+  async function deleteMember() {
+    try {
+      await supabase.from('members').delete().eq('id', editMemberForm.id)
+      await loadMembers()
+      setDeleteConfirmModal(false)
+      setEditMemberModal(false)
+      showToast('회원이 삭제됐어요')
+    } catch(e) { showToast('오류: ' + e.message) }
   }
 
   // === AUDIO ===
@@ -500,7 +540,10 @@ export default function TrainerApp() {
                   <div className="member-meta">📱 {m.phone}{m.lesson_purpose?' · '+m.lesson_purpose:''}</div>
                   <div className="session-bar-bg"><div className={`session-bar-fill${low?' low':''}`} style={{width:pct+'%'}}></div></div>
                 </div>
-                <span className={`session-badge${low?' low':''}`}>{m.done_sessions}/{m.total_sessions}</span>
+                <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
+                  <span className={`session-badge${low?' low':''}`}>{m.done_sessions}/{m.total_sessions}</span>
+                  <button className="btn btn-ghost btn-sm" style={{padding:'4px 8px',fontSize:'13px'}} onClick={e=>{e.stopPropagation();openEditMember(m)}}>✏️</button>
+                </div>
               </div>
             )
           })}
@@ -700,6 +743,42 @@ export default function TrainerApp() {
           )}
         </div>
       )}
+
+      {/* EDIT MEMBER MODAL */}
+      <Modal open={editMemberModal} onClose={()=>setEditMemberModal(false)} title="회원 정보 수정">
+        <div className="form-group"><label>이름</label><input type="text" value={editMemberForm.name||''} onChange={e=>setEditMemberForm({...editMemberForm,name:e.target.value})} placeholder="홍길동" /></div>
+        <div className="form-group"><label>전화번호 (카카오톡 발송용)</label><input type="text" value={editMemberForm.kakao_phone||''} onChange={e=>setEditMemberForm({...editMemberForm,kakao_phone:e.target.value})} placeholder="010-1234-5678" /></div>
+        <div className="form-group"><label>전화번호 뒷 4자리 (회원 포털 로그인용)</label><input type="text" value={editMemberForm.phone||''} onChange={e=>setEditMemberForm({...editMemberForm,phone:e.target.value})} placeholder="1234" maxLength={4} /></div>
+        <div className="form-group"><label>이메일 (선택)</label><input type="email" value={editMemberForm.email||''} onChange={e=>setEditMemberForm({...editMemberForm,email:e.target.value})} placeholder="example@gmail.com" /></div>
+        <div className="form-group"><label>레슨 목적</label>
+          <select value={editMemberForm.purpose||'체형교정'} onChange={e=>setEditMemberForm({...editMemberForm,purpose:e.target.value})}>
+            {['체형교정','근비대','다이어트','체력향상','재활','스포츠퍼포먼스','유지관리','기타'].map(v=><option key={v} value={v}>{v}</option>)}
+          </select>
+        </div>
+        <div className="divider"></div>
+        <div className="section-label">세션 관리</div>
+        <div className="two-col">
+          <div className="form-group"><label>총 세션 수</label><input type="number" value={editMemberForm.total||''} onChange={e=>setEditMemberForm({...editMemberForm,total:e.target.value})} placeholder="30" min="1" /></div>
+          <div className="form-group"><label>완료한 세션</label><input type="number" value={editMemberForm.done||''} onChange={e=>setEditMemberForm({...editMemberForm,done:e.target.value})} placeholder="0" min="0" /></div>
+        </div>
+        <div className="form-group"><label>세션 단가 (원)</label><input type="number" value={editMemberForm.price||''} onChange={e=>setEditMemberForm({...editMemberForm,price:e.target.value})} placeholder="60000" min="0" /></div>
+        <div className="form-group"><label>메모 (선택)</label><input type="text" value={editMemberForm.memo||''} onChange={e=>setEditMemberForm({...editMemberForm,memo:e.target.value})} placeholder="부상 이력, 목표 등" /></div>
+        <button className="btn btn-primary" style={{width:'100%',marginBottom:'8px'}} onClick={updateMember}>저장</button>
+        <button className="btn btn-ghost" style={{width:'100%',color:'var(--danger)',borderColor:'rgba(255,92,92,0.3)'}} onClick={()=>setDeleteConfirmModal(true)}>회원 삭제</button>
+      </Modal>
+
+      {/* DELETE CONFIRM MODAL */}
+      <Modal open={deleteConfirmModal} onClose={()=>setDeleteConfirmModal(false)} title="회원 삭제" maxWidth="320px">
+        <div style={{textAlign:'center',padding:'8px 0 20px'}}>
+          <div style={{fontSize:'32px',marginBottom:'12px'}}>⚠️</div>
+          <div style={{fontSize:'14px',fontWeight:600,marginBottom:'8px'}}>{editMemberForm.name} 회원을 삭제할까요?</div>
+          <div style={{fontSize:'12px',color:'var(--text-muted)',lineHeight:'1.6'}}>수업일지, 건강기록 등 관련 데이터는<br/>삭제되지 않습니다.</div>
+        </div>
+        <div style={{display:'flex',gap:'8px'}}>
+          <button className="btn btn-ghost" style={{flex:1}} onClick={()=>setDeleteConfirmModal(false)}>취소</button>
+          <button className="btn btn-primary" style={{flex:1,background:'var(--danger)',color:'#fff'}} onClick={deleteMember}>삭제</button>
+        </div>
+      </Modal>
 
       {/* SETTINGS MODAL */}
       <Modal open={settingsModal} onClose={()=>setSettingsModal(false)} title="설정">
