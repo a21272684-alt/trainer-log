@@ -96,7 +96,7 @@ function MemberRevenueCard({ m, mWeekLogs, mMonthLogs, attendRate, cancelledBloc
 
 const COLORS=[{id:'green',bg:'#c8f135',tx:'#1a3300'},{id:'blue',bg:'#60a5fa',tx:'#1e3a5f'},{id:'purple',bg:'#a78bfa',tx:'#2e1065'},{id:'coral',bg:'#fb923c',tx:'#431407'},{id:'pink',bg:'#f472b6',tx:'#500724'},{id:'teal',bg:'#2dd4bf',tx:'#134e4a'},{id:'yellow',bg:'#facc15',tx:'#422006'},{id:'gray',bg:'#94a3b8',tx:'#1e293b'}]
 const DAYS=['월','화','수','목','금','토','일']
-const SH=6,EH=23,SMIN=5,SPX=4
+const SH=0,EH=24,SMIN=5,SPX=4
 
 export default function TrainerApp() {
   const showToast = useToast()
@@ -178,6 +178,10 @@ export default function TrainerApp() {
   const [cancelType, setCancelType] = useState('')
   const [cancelDetail, setCancelDetail] = useState('')
 
+  // Notifications
+  const [notifEnabled, setNotifEnabled] = useState(() => localStorage.getItem('tl_notif_enabled') === 'true')
+  const [notifMinutes, setNotifMinutes] = useState(() => parseInt(localStorage.getItem('tl_notif_minutes')||'30'))
+
   // Login
   const [loginName, setLoginName] = useState('')
   const [loginPhone, setLoginPhone] = useState('')
@@ -188,6 +192,59 @@ export default function TrainerApp() {
   const audioInputRef = useRef(null)
 
   useEffect(() => { localStorage.setItem('tl_sch', JSON.stringify(blocks)) }, [blocks])
+
+  // 알림 설정 localStorage 동기화
+  useEffect(() => { localStorage.setItem('tl_notif_enabled', notifEnabled) }, [notifEnabled])
+  useEffect(() => { localStorage.setItem('tl_notif_minutes', notifMinutes) }, [notifMinutes])
+
+  // 알림 체크 인터벌 (30초마다)
+  useEffect(() => {
+    if (!notifEnabled) return
+    function checkAndNotify() {
+      if (Notification.permission !== 'granted') return
+      const now = new Date()
+      blocks.forEach(b => {
+        if (b.cancelled) return
+        const blockTime = new Date(b.date + 'T' + b.start + ':00')
+        const diffMin = (blockTime - now) / 60000
+        if (diffMin > notifMinutes - 0.5 && diffMin <= notifMinutes + 0.5) {
+          const key = `tl_notified_${b.id}_${b.date}_${notifMinutes}`
+          if (localStorage.getItem(key)) return
+          const label = b.type === 'lesson'
+            ? (members.find(m => m.id === b.memberId)?.name || '회원') + ' 수업'
+            : (b.title || '개인일정')
+          new Notification('🏋️ TrainerLog 수업 알림', {
+            body: `${notifMinutes}분 후 [${label}] 시작 (${b.start})`,
+            icon: '/favicon.ico'
+          })
+          localStorage.setItem(key, '1')
+        }
+      })
+    }
+    checkAndNotify()
+    const id = setInterval(checkAndNotify, 30000)
+    return () => clearInterval(id)
+  }, [notifEnabled, notifMinutes, blocks, members])
+
+  async function requestNotifPermission() {
+    if (!('Notification' in window)) { showToast('이 브라우저는 알림을 지원하지 않아요'); return }
+    const perm = await Notification.requestPermission()
+    if (perm === 'granted') {
+      setNotifEnabled(true)
+      showToast('✓ 알림이 활성화됐어요')
+    } else {
+      setNotifEnabled(false)
+      showToast('알림 권한이 거부됐어요. 브라우저 설정에서 허용해주세요')
+    }
+  }
+  async function toggleNotif(on) {
+    if (on) {
+      if (Notification.permission === 'granted') { setNotifEnabled(true); showToast('✓ 알림 켜짐') }
+      else await requestNotifPermission()
+    } else {
+      setNotifEnabled(false); showToast('알림 꺼짐')
+    }
+  }
 
   const currentMember = members.find(m => m.id === currentMemberId)
 
@@ -1150,6 +1207,49 @@ export default function TrainerApp() {
           <label>Gemini API 키 <a href="https://aistudio.google.com/app/apikey" target="_blank" style={{color:'var(--accent)',fontSize:'11px'}}>무료 발급</a></label>
           <input type="text" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="AIza..." />
         </div>
+        <div className="divider"></div>
+        <div className="section-label">수업 푸시 알림</div>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
+          <div>
+            <div style={{fontSize:'13px',fontWeight:500}}>알림 사용</div>
+            <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'2px'}}>수업 시작 전 미리 알림을 받아요</div>
+          </div>
+          <div onClick={()=>toggleNotif(!notifEnabled)}
+            style={{width:'44px',height:'24px',borderRadius:'12px',cursor:'pointer',transition:'background 0.2s',position:'relative',
+              background: notifEnabled ? 'var(--accent)' : 'var(--surface2)',
+              border: '1px solid ' + (notifEnabled ? 'var(--accent)' : 'var(--border)')}}>
+            <div style={{position:'absolute',top:'2px',width:'18px',height:'18px',borderRadius:'50%',background: notifEnabled ? '#0f0f0f' : 'var(--text-dim)',transition:'left 0.2s',
+              left: notifEnabled ? '22px' : '2px'}}></div>
+          </div>
+        </div>
+        {notifEnabled && (
+          <div className="form-group">
+            <label>알림 시간 (수업 시작 몇 분 전)</label>
+            <div style={{display:'flex',gap:'6px',flexWrap:'wrap',marginBottom:'8px'}}>
+              {[5,10,15,30,60].map(v => (
+                <button key={v} onClick={()=>setNotifMinutes(v)}
+                  style={{padding:'6px 12px',borderRadius:'8px',border:'1px solid',fontSize:'12px',cursor:'pointer',fontFamily:'inherit',
+                    background: notifMinutes===v ? 'var(--accent)' : 'var(--surface2)',
+                    color: notifMinutes===v ? '#0f0f0f' : 'var(--text-muted)',
+                    borderColor: notifMinutes===v ? 'var(--accent)' : 'var(--border)'}}>
+                  {v}분
+                </button>
+              ))}
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+              <input type="number" value={notifMinutes} min="1" max="120"
+                onChange={e=>setNotifMinutes(Math.max(1,parseInt(e.target.value)||1))}
+                style={{width:'80px'}} />
+              <span style={{fontSize:'12px',color:'var(--text-muted)'}}>분 전 알림</span>
+            </div>
+            {Notification.permission !== 'granted' && (
+              <div style={{marginTop:'8px',fontSize:'12px',color:'var(--danger)'}}>
+                ⚠️ 브라우저 알림 권한이 필요해요.
+                <span style={{color:'var(--accent)',cursor:'pointer',marginLeft:'6px'}} onClick={requestNotifPermission}>권한 요청 →</span>
+              </div>
+            )}
+          </div>
+        )}
         <button className="btn btn-primary" style={{width:'100%',marginTop:'8px'}} onClick={saveSettings}>저장</button>
       </Modal>
 
