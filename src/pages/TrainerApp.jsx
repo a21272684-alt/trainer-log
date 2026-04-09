@@ -127,7 +127,8 @@ export default function TrainerApp() {
   const [memberSort, setMemberSort] = useState('created') // 'name' | 'created' | 'expire'
 
   // Add member form
-  const [addForm, setAddForm] = useState({name:'',kakao_phone:'',phone:'',email:'',purpose:'체형교정',total:'',done:'0',price:'',memo:''})
+  const [addForm, setAddForm] = useState({name:'',kakao_phone:'',phone:'',birthdate:'',address:'',email:'',special_notes:'',purpose:'체형교정',visit_source:'',visit_source_memo:'',total:'',done:'0',price:'',memo:''})
+  const [memberFilter, setMemberFilter] = useState('전체')
 
   // Edit member modal
   const [editMemberModal, setEditMemberModal] = useState(false)
@@ -383,8 +384,13 @@ export default function TrainerApp() {
     if (!addForm.name || !addForm.phone) { showToast('이름과 전화번호를 입력해주세요'); return }
     try {
       await supabase.from('members').insert({
-        trainer_id: trainer.id, name: addForm.name, kakao_phone: addForm.kakao_phone, phone: addForm.phone, email: addForm.email,
-        lesson_purpose: addForm.purpose, total_sessions: parseInt(addForm.total)||0, done_sessions: parseInt(addForm.done)||0,
+        trainer_id: trainer.id, name: addForm.name, kakao_phone: addForm.kakao_phone, phone: addForm.phone,
+        birthdate: addForm.birthdate || null, address: addForm.address || null,
+        email: addForm.email || null, special_notes: addForm.special_notes || null,
+        lesson_purpose: addForm.purpose,
+        visit_source: addForm.visit_source || null,
+        visit_source_memo: addForm.visit_source_memo || null,
+        total_sessions: parseInt(addForm.total)||0, done_sessions: parseInt(addForm.done)||0,
         session_price: parseInt(addForm.price)||0, memo: addForm.memo
       })
       await loadMembers(); setActivePage('page-members'); setTab('members'); showToast('✓ 회원이 추가됐어요')
@@ -399,9 +405,13 @@ export default function TrainerApp() {
   function openEditMember(m) {
     setEditMemberForm({
       id: m.id, name: m.name, kakao_phone: m.kakao_phone||'', phone: m.phone||'',
-      email: m.email||'', purpose: m.lesson_purpose||'체형교정',
+      birthdate: m.birthdate||'', address: m.address||'',
+      email: m.email||'', special_notes: m.special_notes||'',
+      purpose: m.lesson_purpose||'체형교정',
+      visit_source: m.visit_source||'', visit_source_memo: m.visit_source_memo||'',
       total: String(m.total_sessions||0), done: String(m.done_sessions||0),
-      price: String(m.session_price||0), memo: m.memo||''
+      price: String(m.session_price||0), memo: m.memo||'',
+      suspended: m.suspended||false
     })
     setEditMemberModal(true)
   }
@@ -411,9 +421,14 @@ export default function TrainerApp() {
     if (!f.name || !f.phone) { showToast('이름과 전화번호를 입력해주세요'); return }
     try {
       await supabase.from('members').update({
-        name: f.name, kakao_phone: f.kakao_phone, phone: f.phone, email: f.email,
-        lesson_purpose: f.purpose, total_sessions: parseInt(f.total)||0,
-        done_sessions: parseInt(f.done)||0, session_price: parseInt(f.price)||0, memo: f.memo
+        name: f.name, kakao_phone: f.kakao_phone, phone: f.phone,
+        birthdate: f.birthdate || null, address: f.address || null,
+        email: f.email || null, special_notes: f.special_notes || null,
+        lesson_purpose: f.purpose,
+        visit_source: f.visit_source || null, visit_source_memo: f.visit_source_memo || null,
+        total_sessions: parseInt(f.total)||0,
+        done_sessions: parseInt(f.done)||0, session_price: parseInt(f.price)||0,
+        memo: f.memo, suspended: f.suspended
       }).eq('id', f.id)
       await loadMembers()
       setEditMemberModal(false)
@@ -759,44 +774,86 @@ export default function TrainerApp() {
       {/* MEMBERS LIST */}
       {activePage === 'page-members' && (
         <div className="page-t">
-          <div style={{marginBottom:'10px'}}><button className="btn btn-primary" style={{width:'100%'}} onClick={()=>{setAddForm({name:'',kakao_phone:'',phone:'',email:'',purpose:'체형교정',total:'',done:'0',price:'',memo:''});setActivePage('page-add-member')}}>+ 회원 추가</button></div>
-          {members.length > 0 && (
-            <div style={{display:'flex',gap:'6px',marginBottom:'12px'}}>
-              {[['created','등록일자순'],['name','이름순'],['expire','만료예정순']].map(([key,label])=>(
-                <button key={key}
-                  onClick={()=>setMemberSort(key)}
-                  style={{flex:1,padding:'7px 4px',borderRadius:'8px',border:'1px solid',fontSize:'11px',fontWeight:500,cursor:'pointer',fontFamily:'inherit',transition:'all 0.15s',
-                    background: memberSort===key ? 'var(--accent)' : 'var(--surface2)',
-                    color: memberSort===key ? '#0f0f0f' : 'var(--text-muted)',
-                    borderColor: memberSort===key ? 'var(--accent)' : 'var(--border)'}}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-          {!members.length && <div className="empty"><div style={{fontSize:'36px',marginBottom:'12px'}}>👥</div><p>아직 회원이 없어요.<br/>위에서 첫 회원을 추가해보세요!</p></div>}
-          {[...members].sort((a,b) => {
-            if (memberSort === 'name') return a.name.localeCompare(b.name, 'ko')
-            if (memberSort === 'expire') return (a.total_sessions-a.done_sessions) - (b.total_sessions-b.done_sessions)
-            return new Date(b.created_at) - new Date(a.created_at) // created (기본)
-          }).map(m => {
-            const pct = m.total_sessions>0?Math.round((m.done_sessions/m.total_sessions)*100):0
-            const remain = m.total_sessions-m.done_sessions; const low = remain<=3
+          <div style={{marginBottom:'10px'}}><button className="btn btn-primary" style={{width:'100%'}} onClick={()=>{setAddForm({name:'',kakao_phone:'',phone:'',birthdate:'',address:'',email:'',special_notes:'',purpose:'체형교정',visit_source:'',visit_source_memo:'',total:'',done:'0',price:'',memo:''});setActivePage('page-add-member')}}>+ 회원 추가</button></div>
+          {members.length > 0 && (() => {
+            // 상태 계산
+            function getStatus(m) {
+              if (m.suspended) return 'suspended'
+              const r = m.total_sessions - m.done_sessions
+              if (r <= 0) return 'expired'
+              if (r <= 3) return 'expiring'
+              return 'active'
+            }
+            const STATUS_LABEL = { active:'활성', expiring:'만료예정', expired:'만료', suspended:'정지' }
+            const STATUS_COLOR = { active:'#4ade80', expiring:'#f97316', expired:'#ef4444', suspended:'#9ca3af' }
+            // 필터 + 정렬
+            const filtered = [...members].filter(m => {
+              const s = getStatus(m)
+              if (memberFilter === '전체') return true
+              if (memberFilter === '활성') return s === 'active' || s === 'expiring'
+              if (memberFilter === '만료') return s === 'expired'
+              if (memberFilter === '정지') return s === 'suspended'
+              return true
+            }).sort((a,b) => {
+              if (memberSort === 'name') return a.name.localeCompare(b.name, 'ko')
+              if (memberSort === 'expire') return (a.total_sessions-a.done_sessions) - (b.total_sessions-b.done_sessions)
+              return new Date(b.created_at) - new Date(a.created_at)
+            })
             return (
-              <div key={m.id} className="member-card" onClick={()=>openRecord(m.id)}>
-                <div className="member-avatar">{m.name[0]}</div>
-                <div className="member-info">
-                  <div className="member-name">{m.name}</div>
-                  <div className="member-meta">📱 {m.phone}{m.lesson_purpose?' · '+m.lesson_purpose:''}</div>
-                  <div className="session-bar-bg"><div className={`session-bar-fill${low?' low':''}`} style={{width:pct+'%'}}></div></div>
+              <>
+                {/* 상태 필터 */}
+                <div style={{display:'flex',gap:'6px',marginBottom:'8px'}}>
+                  {['전체','활성','만료','정지'].map(f => (
+                    <button key={f} onClick={()=>setMemberFilter(f)}
+                      style={{flex:1,padding:'6px 4px',borderRadius:'8px',border:'1px solid',fontSize:'11px',fontWeight:500,cursor:'pointer',fontFamily:'inherit',transition:'all 0.15s',
+                        background: memberFilter===f ? 'var(--accent)' : 'var(--surface2)',
+                        color: memberFilter===f ? '#0f0f0f' : 'var(--text-muted)',
+                        borderColor: memberFilter===f ? 'var(--accent)' : 'var(--border)'}}>
+                      {f}
+                    </button>
+                  ))}
                 </div>
-                <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
-                  <span className={`session-badge${low?' low':''}`}>{m.done_sessions}/{m.total_sessions}</span>
-                  <button className="btn btn-ghost btn-sm" style={{padding:'4px 8px',fontSize:'13px'}} onClick={e=>{e.stopPropagation();openEditMember(m)}}>✏️</button>
+                {/* 정렬 */}
+                <div style={{display:'flex',gap:'6px',marginBottom:'12px'}}>
+                  {[['created','등록일자순'],['name','이름순'],['expire','만료예정순']].map(([key,label])=>(
+                    <button key={key} onClick={()=>setMemberSort(key)}
+                      style={{flex:1,padding:'6px 4px',borderRadius:'8px',border:'1px solid',fontSize:'11px',fontWeight:500,cursor:'pointer',fontFamily:'inherit',transition:'all 0.15s',
+                        background: memberSort===key ? 'var(--surface2)' : 'transparent',
+                        color: memberSort===key ? 'var(--text)' : 'var(--text-dim)',
+                        borderColor: memberSort===key ? 'var(--border)' : 'transparent'}}>
+                      {label}
+                    </button>
+                  ))}
                 </div>
-              </div>
+                {!filtered.length && <div className="empty"><p>해당하는 회원이 없어요</p></div>}
+                {filtered.map(m => {
+                  const status = getStatus(m)
+                  const pct = m.total_sessions>0?Math.round((m.done_sessions/m.total_sessions)*100):0
+                  const remain = m.total_sessions-m.done_sessions; const low = remain<=3
+                  return (
+                    <div key={m.id} className="member-card" onClick={()=>openRecord(m.id)}>
+                      <div className="member-avatar">{m.name[0]}</div>
+                      <div className="member-info">
+                        <div className="member-name" style={{display:'flex',alignItems:'center',gap:'6px'}}>
+                          <span style={{fontSize:'10px',fontWeight:600,padding:'1px 6px',borderRadius:'4px',background: STATUS_COLOR[status]+'22',color: STATUS_COLOR[status],border:`1px solid ${STATUS_COLOR[status]}44`,flexShrink:0}}>
+                            {STATUS_LABEL[status]}
+                          </span>
+                          {m.name}
+                        </div>
+                        <div className="member-meta">📱 {m.phone}{m.lesson_purpose?' · '+m.lesson_purpose:''}</div>
+                        <div className="session-bar-bg"><div className={`session-bar-fill${low?' low':''}`} style={{width:pct+'%'}}></div></div>
+                      </div>
+                      <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
+                        <span className={`session-badge${low?' low':''}`}>{m.done_sessions}/{m.total_sessions}</span>
+                        <button className="btn btn-ghost btn-sm" style={{padding:'4px 8px',fontSize:'13px'}} onClick={e=>{e.stopPropagation();openEditMember(m)}}>✏️</button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </>
             )
-          })}
+          })()}
+          {!members.length && <div className="empty"><div style={{fontSize:'36px',marginBottom:'12px'}}>👥</div><p>아직 회원이 없어요.<br/>위에서 첫 회원을 추가해보세요!</p></div>}
         </div>
       )}
 
@@ -891,14 +948,37 @@ export default function TrainerApp() {
       {activePage === 'page-add-member' && (
         <div className="page-t">
           <div className="record-header"><button className="back-btn" onClick={()=>{setActivePage('page-members');setTab('members')}}>←</button><div style={{fontSize:'15px',fontWeight:700}}>회원 추가</div></div>
-          <div className="form-group"><label>이름</label><input type="text" value={addForm.name} onChange={e=>setAddForm({...addForm,name:e.target.value})} placeholder="홍길동" /></div>
-          <div className="form-group"><label>전화번호 (카카오톡 발송용)</label><input type="text" value={addForm.kakao_phone} onChange={e=>setAddForm({...addForm,kakao_phone:e.target.value})} placeholder="010-1234-5678" /></div>
-          <div className="form-group"><label>전화번호 뒷 4자리 (회원 포털 로그인용)</label><input type="text" value={addForm.phone} onChange={e=>setAddForm({...addForm,phone:e.target.value})} placeholder="1234" maxLength={4} /></div>
+          <div className="section-label" style={{marginTop:0}}>기본 정보</div>
+          <div className="form-group"><label>이름 *</label><input type="text" value={addForm.name} onChange={e=>setAddForm({...addForm,name:e.target.value})} placeholder="홍길동" /></div>
+          <div className="form-group"><label>휴대폰 번호 (카카오톡 발송용)</label><input type="text" value={addForm.kakao_phone} onChange={e=>setAddForm({...addForm,kakao_phone:e.target.value})} placeholder="010-1234-5678" /></div>
+          <div className="form-group"><label>전화번호 뒷 4자리 (회원 포털 로그인용) *</label><input type="text" value={addForm.phone} onChange={e=>setAddForm({...addForm,phone:e.target.value})} placeholder="1234" maxLength={4} /></div>
+          <div className="form-group"><label>생년월일</label><input type="date" value={addForm.birthdate} onChange={e=>setAddForm({...addForm,birthdate:e.target.value})} /></div>
+          <div className="form-group"><label>주소</label><input type="text" value={addForm.address} onChange={e=>setAddForm({...addForm,address:e.target.value})} placeholder="서울시 강남구..." /></div>
           <div className="form-group"><label>이메일 (선택)</label><input type="email" value={addForm.email} onChange={e=>setAddForm({...addForm,email:e.target.value})} placeholder="example@gmail.com" /></div>
-          <div className="form-group"><label>레슨 목적 (필수)</label>
+          <div className="form-group"><label>특이사항</label><textarea value={addForm.special_notes} onChange={e=>setAddForm({...addForm,special_notes:e.target.value})} placeholder="부상 이력, 주의사항 등" rows={2} style={{resize:'vertical'}} /></div>
+          <div className="form-group"><label>운동 목적</label>
             <select value={addForm.purpose} onChange={e=>setAddForm({...addForm,purpose:e.target.value})}>
               {['체형교정','근비대','다이어트','체력향상','재활','스포츠퍼포먼스','유지관리','기타'].map(v=><option key={v} value={v}>{v}</option>)}
             </select>
+          </div>
+          <div className="form-group">
+            <label>방문 경로</label>
+            <div style={{display:'flex',flexWrap:'wrap',gap:'6px',marginBottom:'8px'}}>
+              {['소개','인터넷','광고물','SNS','기타'].map(src => (
+                <button key={src} type="button" onClick={()=>setAddForm({...addForm,visit_source:addForm.visit_source===src?'':src,visit_source_memo:''})}
+                  style={{padding:'6px 12px',borderRadius:'8px',border:'1px solid',fontSize:'12px',cursor:'pointer',fontFamily:'inherit',
+                    background: addForm.visit_source===src ? 'var(--accent)' : 'var(--surface2)',
+                    color: addForm.visit_source===src ? '#0f0f0f' : 'var(--text-muted)',
+                    borderColor: addForm.visit_source===src ? 'var(--accent)' : 'var(--border)'}}>
+                  {src}
+                </button>
+              ))}
+            </div>
+            {(addForm.visit_source==='소개'||addForm.visit_source==='기타') && (
+              <input type="text" value={addForm.visit_source_memo} onChange={e=>setAddForm({...addForm,visit_source_memo:e.target.value})}
+                placeholder={addForm.visit_source==='소개'?'소개해주신 분 이름 또는 메모':'기타 경로 메모'} />
+            )}
+            {addForm.visit_source==='광고물' && <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'4px'}}>간판, 전단지, 현수막 등</div>}
           </div>
           <div className="divider"></div>
           <div className="section-label">세션 관리</div>
@@ -907,7 +987,7 @@ export default function TrainerApp() {
             <div className="form-group"><label>완료한 세션</label><input type="number" value={addForm.done} onChange={e=>setAddForm({...addForm,done:e.target.value})} placeholder="0" min="0" /></div>
           </div>
           <div className="form-group"><label>세션 단가 (원, 예상매출 계산용)</label><input type="number" value={addForm.price} onChange={e=>setAddForm({...addForm,price:e.target.value})} placeholder="60000" min="0" /></div>
-          <div className="form-group"><label>메모 (선택)</label><input type="text" value={addForm.memo} onChange={e=>setAddForm({...addForm,memo:e.target.value})} placeholder="부상 이력, 목표 등" /></div>
+          <div className="form-group"><label>메모 (선택)</label><input type="text" value={addForm.memo} onChange={e=>setAddForm({...addForm,memo:e.target.value})} placeholder="기타 메모" /></div>
           <button className="btn btn-primary" style={{width:'100%'}} onClick={addMember}>회원 추가 완료</button>
         </div>
       )}
@@ -1241,14 +1321,37 @@ export default function TrainerApp() {
 
       {/* EDIT MEMBER MODAL */}
       <Modal open={editMemberModal} onClose={()=>setEditMemberModal(false)} title="회원 정보 수정">
-        <div className="form-group"><label>이름</label><input type="text" value={editMemberForm.name||''} onChange={e=>setEditMemberForm({...editMemberForm,name:e.target.value})} placeholder="홍길동" /></div>
-        <div className="form-group"><label>전화번호 (카카오톡 발송용)</label><input type="text" value={editMemberForm.kakao_phone||''} onChange={e=>setEditMemberForm({...editMemberForm,kakao_phone:e.target.value})} placeholder="010-1234-5678" /></div>
-        <div className="form-group"><label>전화번호 뒷 4자리 (회원 포털 로그인용)</label><input type="text" value={editMemberForm.phone||''} onChange={e=>setEditMemberForm({...editMemberForm,phone:e.target.value})} placeholder="1234" maxLength={4} /></div>
+        <div className="section-label" style={{marginTop:0}}>기본 정보</div>
+        <div className="form-group"><label>이름 *</label><input type="text" value={editMemberForm.name||''} onChange={e=>setEditMemberForm({...editMemberForm,name:e.target.value})} placeholder="홍길동" /></div>
+        <div className="form-group"><label>휴대폰 번호 (카카오톡 발송용)</label><input type="text" value={editMemberForm.kakao_phone||''} onChange={e=>setEditMemberForm({...editMemberForm,kakao_phone:e.target.value})} placeholder="010-1234-5678" /></div>
+        <div className="form-group"><label>전화번호 뒷 4자리 (회원 포털 로그인용) *</label><input type="text" value={editMemberForm.phone||''} onChange={e=>setEditMemberForm({...editMemberForm,phone:e.target.value})} placeholder="1234" maxLength={4} /></div>
+        <div className="form-group"><label>생년월일</label><input type="date" value={editMemberForm.birthdate||''} onChange={e=>setEditMemberForm({...editMemberForm,birthdate:e.target.value})} /></div>
+        <div className="form-group"><label>주소</label><input type="text" value={editMemberForm.address||''} onChange={e=>setEditMemberForm({...editMemberForm,address:e.target.value})} placeholder="서울시 강남구..." /></div>
         <div className="form-group"><label>이메일 (선택)</label><input type="email" value={editMemberForm.email||''} onChange={e=>setEditMemberForm({...editMemberForm,email:e.target.value})} placeholder="example@gmail.com" /></div>
-        <div className="form-group"><label>레슨 목적</label>
+        <div className="form-group"><label>특이사항</label><textarea value={editMemberForm.special_notes||''} onChange={e=>setEditMemberForm({...editMemberForm,special_notes:e.target.value})} placeholder="부상 이력, 주의사항 등" rows={2} style={{resize:'vertical'}} /></div>
+        <div className="form-group"><label>운동 목적</label>
           <select value={editMemberForm.purpose||'체형교정'} onChange={e=>setEditMemberForm({...editMemberForm,purpose:e.target.value})}>
             {['체형교정','근비대','다이어트','체력향상','재활','스포츠퍼포먼스','유지관리','기타'].map(v=><option key={v} value={v}>{v}</option>)}
           </select>
+        </div>
+        <div className="form-group">
+          <label>방문 경로</label>
+          <div style={{display:'flex',flexWrap:'wrap',gap:'6px',marginBottom:'8px'}}>
+            {['소개','인터넷','광고물','SNS','기타'].map(src => (
+              <button key={src} type="button" onClick={()=>setEditMemberForm({...editMemberForm,visit_source:editMemberForm.visit_source===src?'':src,visit_source_memo:''})}
+                style={{padding:'6px 12px',borderRadius:'8px',border:'1px solid',fontSize:'12px',cursor:'pointer',fontFamily:'inherit',
+                  background: editMemberForm.visit_source===src ? 'var(--accent)' : 'var(--surface2)',
+                  color: editMemberForm.visit_source===src ? '#0f0f0f' : 'var(--text-muted)',
+                  borderColor: editMemberForm.visit_source===src ? 'var(--accent)' : 'var(--border)'}}>
+                {src}
+              </button>
+            ))}
+          </div>
+          {(editMemberForm.visit_source==='소개'||editMemberForm.visit_source==='기타') && (
+            <input type="text" value={editMemberForm.visit_source_memo||''} onChange={e=>setEditMemberForm({...editMemberForm,visit_source_memo:e.target.value})}
+              placeholder={editMemberForm.visit_source==='소개'?'소개해주신 분 이름 또는 메모':'기타 경로 메모'} />
+          )}
+          {editMemberForm.visit_source==='광고물' && <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'4px'}}>간판, 전단지, 현수막 등</div>}
         </div>
         <div className="divider"></div>
         <div className="section-label">세션 관리</div>
@@ -1257,7 +1360,21 @@ export default function TrainerApp() {
           <div className="form-group"><label>완료한 세션</label><input type="number" value={editMemberForm.done||''} onChange={e=>setEditMemberForm({...editMemberForm,done:e.target.value})} placeholder="0" min="0" /></div>
         </div>
         <div className="form-group"><label>세션 단가 (원)</label><input type="number" value={editMemberForm.price||''} onChange={e=>setEditMemberForm({...editMemberForm,price:e.target.value})} placeholder="60000" min="0" /></div>
-        <div className="form-group"><label>메모 (선택)</label><input type="text" value={editMemberForm.memo||''} onChange={e=>setEditMemberForm({...editMemberForm,memo:e.target.value})} placeholder="부상 이력, 목표 등" /></div>
+        <div className="form-group"><label>메모 (선택)</label><input type="text" value={editMemberForm.memo||''} onChange={e=>setEditMemberForm({...editMemberForm,memo:e.target.value})} placeholder="기타 메모" /></div>
+        <div className="divider"></div>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
+          <div>
+            <div style={{fontSize:'13px',fontWeight:500}}>회원 정지</div>
+            <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'2px'}}>정지 상태 회원은 목록에서 구분 표시돼요</div>
+          </div>
+          <div onClick={()=>setEditMemberForm({...editMemberForm,suspended:!editMemberForm.suspended})}
+            style={{width:'44px',height:'24px',borderRadius:'12px',cursor:'pointer',transition:'background 0.2s',position:'relative',flexShrink:0,
+              background: editMemberForm.suspended ? '#ef4444' : 'var(--surface2)',
+              border: '1px solid ' + (editMemberForm.suspended ? '#ef4444' : 'var(--border)')}}>
+            <div style={{position:'absolute',top:'2px',width:'18px',height:'18px',borderRadius:'50%',background:'#fff',transition:'left 0.2s',
+              left: editMemberForm.suspended ? '22px' : '2px'}}></div>
+          </div>
+        </div>
         <button className="btn btn-primary" style={{width:'100%',marginBottom:'8px'}} onClick={updateMember}>저장</button>
         <button className="btn btn-ghost" style={{width:'100%',color:'var(--danger)',borderColor:'rgba(255,92,92,0.3)'}} onClick={()=>setDeleteConfirmModal(true)}>회원 삭제</button>
       </Modal>
