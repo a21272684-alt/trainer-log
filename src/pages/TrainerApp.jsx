@@ -362,8 +362,8 @@ export default function TrainerApp() {
 
   // Hold (정지/홀딩)
   async function loadHolds(memberId) {
-    const { data } = await supabase.from('member_holds').select('*').eq('member_id', memberId).order('start_date', { ascending: false })
-    setHolds(data || [])
+    const { data, error } = await supabase.from('member_holds').select('*').eq('member_id', memberId).order('start_date', { ascending: false })
+    if (!error) setHolds(data || [])
   }
   async function addHold() {
     const f = holdForm
@@ -381,12 +381,13 @@ export default function TrainerApp() {
           photoUrl = urlData.publicUrl
         }
       }
-      await supabase.from('member_holds').insert({
+      const { error: insertErr } = await supabase.from('member_holds').insert({
         member_id: currentMemberId, trainer_id: trainer.id,
         product_id: f.productId || null, product_name: prod?.name || null,
         start_date: f.startDate, end_date: f.endDate,
         reason: f.reason || null, photo_url: photoUrl
       })
+      if (insertErr) throw insertErr
       // 회원 상태 정지 처리
       await supabase.from('members').update({ suspended: true }).eq('id', currentMemberId)
       await loadMembers(); await loadHolds(currentMemberId)
@@ -396,7 +397,8 @@ export default function TrainerApp() {
   }
   async function deleteHold(holdId) {
     try {
-      await supabase.from('member_holds').delete().eq('id', holdId)
+      const { error: delErr } = await supabase.from('member_holds').delete().eq('id', holdId)
+      if (delErr) throw delErr
       // 남은 홀딩 없으면 정지 해제
       const { data: remaining } = await supabase.from('member_holds').select('id').eq('member_id', currentMemberId)
       if (!remaining?.length) {
@@ -600,6 +602,7 @@ export default function TrainerApp() {
     } catch(e) { setHealthData([]) }
   }
   useEffect(() => { if (rtab === 'health' && currentMemberId) loadHealthView() }, [rtab, currentMemberId])
+  useEffect(() => { if (rtab === 'holds' && currentMemberId) loadHolds(currentMemberId) }, [rtab, currentMemberId])
 
   // === SCHEDULE HELPERS ===
   function getWeekDates() {
