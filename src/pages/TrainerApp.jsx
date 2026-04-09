@@ -146,6 +146,7 @@ export default function TrainerApp() {
   const [editingProductId, setEditingProductId] = useState(null)
   const [productForm, setProductForm] = useState({name:'',count:'',priceEx:'',priceIn:''})
   const [paymentForm, setPaymentForm] = useState({productId:'',memo:'',customAmount:'',taxIncluded:false})
+  const [cancelPaymentTarget, setCancelPaymentTarget] = useState(null) // 취소 확인 대상 payment
 
   // Exercise modal
   const [exModal, setExModal] = useState(false)
@@ -965,6 +966,25 @@ export default function TrainerApp() {
         </div>
       )}
 
+      {/* PAYMENT CANCEL CONFIRM MODAL */}
+      <Modal open={!!cancelPaymentTarget} onClose={()=>setCancelPaymentTarget(null)} title="결제 취소 확인" maxWidth="320px">
+        <div style={{textAlign:'center',padding:'8px 0 20px'}}>
+          <div style={{fontSize:'32px',marginBottom:'12px'}}>⚠️</div>
+          <div style={{fontSize:'14px',fontWeight:600,marginBottom:'8px'}}>정말로 결제를 취소하시겠습니까?</div>
+          {cancelPaymentTarget && (
+            <div style={{fontSize:'12px',color:'var(--text-muted)',lineHeight:'1.7'}}>
+              {cancelPaymentTarget.product_name}<br/>
+              {cancelPaymentTarget.amount.toLocaleString()}원 · {cancelPaymentTarget.session_count}회<br/>
+              <span style={{color:'var(--danger)',fontSize:'11px'}}>취소 시 해당 세션 수가 차감됩니다.</span>
+            </div>
+          )}
+        </div>
+        <div style={{display:'flex',gap:'8px'}}>
+          <button className="btn btn-ghost" style={{flex:1}} onClick={()=>setCancelPaymentTarget(null)}>아니오</button>
+          <button className="btn btn-primary" style={{flex:1,background:'var(--danger)',color:'#fff'}} onClick={()=>{deletePayment(cancelPaymentTarget);setCancelPaymentTarget(null)}}>네</button>
+        </div>
+      </Modal>
+
       {/* PAYMENT MODAL */}
       <Modal open={paymentModal} onClose={()=>setPaymentModal(false)} title={`결제 관리 — ${currentMember?.name||''}`}>
         <div className="type-row" style={{marginBottom:'14px'}}>
@@ -1030,7 +1050,7 @@ export default function TrainerApp() {
                   </div>
                   <div style={{textAlign:'right',flexShrink:0}}>
                     <div style={{fontSize:'14px',fontWeight:700,color:'var(--accent)',fontFamily:"'DM Mono',monospace"}}>{p.amount.toLocaleString()}원</div>
-                    <button style={{fontSize:'10px',color:'var(--danger)',background:'none',border:'none',cursor:'pointer',padding:0}} onClick={()=>deletePayment(p)}>취소</button>
+                    <button style={{fontSize:'10px',color:'var(--danger)',background:'none',border:'none',cursor:'pointer',padding:0}} onClick={()=>setCancelPaymentTarget(p)}>취소</button>
                   </div>
                 </div>
               ))
