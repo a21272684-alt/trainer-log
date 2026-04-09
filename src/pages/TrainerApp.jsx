@@ -832,6 +832,52 @@ export default function TrainerApp() {
               <button className="btn btn-primary btn-sm" onClick={()=>openAddBlock(null,null,null)} style={{fontSize:'12px'}}>+ 추가</button>
             </div>
           </div>
+
+          {/* 알림 설정 */}
+          <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'10px',padding:'12px 14px',marginBottom:'12px'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div>
+                <div style={{fontSize:'13px',fontWeight:500}}>알림 사용</div>
+                <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'2px'}}>일정 시작 전 미리 알림을 받아요</div>
+              </div>
+              <div onClick={()=>toggleNotif(!notifEnabled)}
+                style={{width:'44px',height:'24px',borderRadius:'12px',cursor:'pointer',transition:'background 0.2s',position:'relative',flexShrink:0,
+                  background: notifEnabled ? 'var(--accent)' : 'var(--surface2)',
+                  border: '1px solid ' + (notifEnabled ? 'var(--accent)' : 'var(--border)')}}>
+                <div style={{position:'absolute',top:'2px',width:'18px',height:'18px',borderRadius:'50%',background: notifEnabled ? '#0f0f0f' : 'var(--text-dim)',transition:'left 0.2s',
+                  left: notifEnabled ? '22px' : '2px'}}></div>
+              </div>
+            </div>
+            {notifEnabled && (
+              <div style={{marginTop:'12px',borderTop:'1px solid var(--border)',paddingTop:'12px'}}>
+                <div style={{fontSize:'12px',color:'var(--text-muted)',marginBottom:'8px'}}>몇 분 전에 알림을 받을까요?</div>
+                <div style={{display:'flex',gap:'6px',flexWrap:'wrap',marginBottom:'8px'}}>
+                  {[5,10,15,30,60].map(v => (
+                    <button key={v} onClick={()=>setNotifMinutes(v)}
+                      style={{padding:'5px 11px',borderRadius:'8px',border:'1px solid',fontSize:'12px',cursor:'pointer',fontFamily:'inherit',
+                        background: notifMinutes===v ? 'var(--accent)' : 'var(--surface2)',
+                        color: notifMinutes===v ? '#0f0f0f' : 'var(--text-muted)',
+                        borderColor: notifMinutes===v ? 'var(--accent)' : 'var(--border)'}}>
+                      {v}분
+                    </button>
+                  ))}
+                  <div style={{display:'flex',alignItems:'center',gap:'4px'}}>
+                    <input type="number" value={notifMinutes} min="1" max="120"
+                      onChange={e=>setNotifMinutes(Math.max(1,parseInt(e.target.value)||1))}
+                      style={{width:'60px',fontSize:'12px',padding:'4px 8px'}} />
+                    <span style={{fontSize:'12px',color:'var(--text-muted)'}}>분</span>
+                  </div>
+                </div>
+                {Notification.permission !== 'granted' && (
+                  <div style={{fontSize:'12px',color:'var(--danger)'}}>
+                    ⚠️ 브라우저 알림 권한이 필요해요.
+                    <span style={{color:'var(--accent)',cursor:'pointer',marginLeft:'6px'}} onClick={requestNotifPermission}>권한 요청 →</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {renderScheduleGrid()}
         </div>
       )}
@@ -1237,49 +1283,6 @@ export default function TrainerApp() {
           <label>Gemini API 키 <a href="https://aistudio.google.com/app/apikey" target="_blank" style={{color:'var(--accent)',fontSize:'11px'}}>무료 발급</a></label>
           <input type="text" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="AIza..." />
         </div>
-        <div className="divider"></div>
-        <div className="section-label">수업 푸시 알림</div>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
-          <div>
-            <div style={{fontSize:'13px',fontWeight:500}}>알림 사용</div>
-            <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'2px'}}>수업 시작 전 미리 알림을 받아요</div>
-          </div>
-          <div onClick={()=>toggleNotif(!notifEnabled)}
-            style={{width:'44px',height:'24px',borderRadius:'12px',cursor:'pointer',transition:'background 0.2s',position:'relative',
-              background: notifEnabled ? 'var(--accent)' : 'var(--surface2)',
-              border: '1px solid ' + (notifEnabled ? 'var(--accent)' : 'var(--border)')}}>
-            <div style={{position:'absolute',top:'2px',width:'18px',height:'18px',borderRadius:'50%',background: notifEnabled ? '#0f0f0f' : 'var(--text-dim)',transition:'left 0.2s',
-              left: notifEnabled ? '22px' : '2px'}}></div>
-          </div>
-        </div>
-        {notifEnabled && (
-          <div className="form-group">
-            <label>알림 시간 (수업 시작 몇 분 전)</label>
-            <div style={{display:'flex',gap:'6px',flexWrap:'wrap',marginBottom:'8px'}}>
-              {[5,10,15,30,60].map(v => (
-                <button key={v} onClick={()=>setNotifMinutes(v)}
-                  style={{padding:'6px 12px',borderRadius:'8px',border:'1px solid',fontSize:'12px',cursor:'pointer',fontFamily:'inherit',
-                    background: notifMinutes===v ? 'var(--accent)' : 'var(--surface2)',
-                    color: notifMinutes===v ? '#0f0f0f' : 'var(--text-muted)',
-                    borderColor: notifMinutes===v ? 'var(--accent)' : 'var(--border)'}}>
-                  {v}분
-                </button>
-              ))}
-            </div>
-            <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
-              <input type="number" value={notifMinutes} min="1" max="120"
-                onChange={e=>setNotifMinutes(Math.max(1,parseInt(e.target.value)||1))}
-                style={{width:'80px'}} />
-              <span style={{fontSize:'12px',color:'var(--text-muted)'}}>분 전 알림</span>
-            </div>
-            {Notification.permission !== 'granted' && (
-              <div style={{marginTop:'8px',fontSize:'12px',color:'var(--danger)'}}>
-                ⚠️ 브라우저 알림 권한이 필요해요.
-                <span style={{color:'var(--accent)',cursor:'pointer',marginLeft:'6px'}} onClick={requestNotifPermission}>권한 요청 →</span>
-              </div>
-            )}
-          </div>
-        )}
         <button className="btn btn-primary" style={{width:'100%',marginTop:'8px'}} onClick={saveSettings}>저장</button>
       </Modal>
 
