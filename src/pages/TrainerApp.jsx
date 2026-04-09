@@ -150,6 +150,11 @@ export default function TrainerApp() {
   const [paymentForm, setPaymentForm] = useState({productId:'',memo:'',customAmount:'',taxIncluded:false})
   const [cancelPaymentTarget, setCancelPaymentTarget] = useState(null) // 취소 확인 대상 payment
 
+  // Hold (정지/홀딩) modal
+  const [holdModal, setHoldModal] = useState(false)
+  const [holdForm, setHoldForm] = useState({startDate:'',endDate:'',productId:'',reason:'',photoFile:null,photoPreview:''})
+  const [holds, setHolds] = useState([])
+
   // Exercise modal
   const [exModal, setExModal] = useState(false)
   const [exName, setExName] = useState('')
@@ -355,6 +360,54 @@ export default function TrainerApp() {
     } catch(e) { showToast('오류: ' + e.message) }
   }
 
+  // Hold (정지/홀딩)
+  async function loadHolds(memberId) {
+    const { data } = await supabase.from('member_holds').select('*').eq('member_id', memberId).order('start_date', { ascending: false })
+    setHolds(data || [])
+  }
+  async function addHold() {
+    const f = holdForm
+    if (!f.startDate || !f.endDate) { showToast('기간을 선택해주세요'); return }
+    if (f.startDate > f.endDate) { showToast('종료일이 시작일보다 늦어야 해요'); return }
+    try {
+      const prod = products.find(p => p.id === f.productId)
+      let photoUrl = null
+      if (f.photoFile) {
+        const ext = f.photoFile.name.split('.').pop()
+        const path = `holds/${trainer.id}/${Date.now()}.${ext}`
+        const { error: upErr } = await supabase.storage.from('hold-photos').upload(path, f.photoFile)
+        if (!upErr) {
+          const { data: urlData } = supabase.storage.from('hold-photos').getPublicUrl(path)
+          photoUrl = urlData.publicUrl
+        }
+      }
+      await supabase.from('member_holds').insert({
+        member_id: currentMemberId, trainer_id: trainer.id,
+        product_id: f.productId || null, product_name: prod?.name || null,
+        start_date: f.startDate, end_date: f.endDate,
+        reason: f.reason || null, photo_url: photoUrl
+      })
+      // 회원 상태 정지 처리
+      await supabase.from('members').update({ suspended: true }).eq('id', currentMemberId)
+      await loadMembers(); await loadHolds(currentMemberId)
+      setHoldModal(false)
+      showToast('✓ 정지(홀딩)가 등록됐어요')
+    } catch(e) { showToast('오류: ' + e.message) }
+  }
+  async function deleteHold(holdId) {
+    try {
+      await supabase.from('member_holds').delete().eq('id', holdId)
+      // 남은 홀딩 없으면 정지 해제
+      const { data: remaining } = await supabase.from('member_holds').select('id').eq('member_id', currentMemberId)
+      if (!remaining?.length) {
+        await supabase.from('members').update({ suspended: false }).eq('id', currentMemberId)
+        await loadMembers()
+      }
+      await loadHolds(currentMemberId)
+      showToast('정지가 해제됐어요')
+    } catch(e) { showToast('오류: ' + e.message) }
+  }
+
   // Attendance
   async function loadAttendance(memberId) {
     const { y, m } = attendanceMonth
@@ -400,6 +453,7 @@ export default function TrainerApp() {
   function openRecord(memberId) {
     setCurrentMemberId(memberId); setExercises([]); setActivePage('page-record')
     setAudioData(null); setShowPreview(false); setShowSend(false); setRawInput(''); setFinalContent(''); setRtab('write')
+    loadHolds(memberId)
   }
 
   function openEditMember(m) {
@@ -997,7 +1051,13 @@ export default function TrainerApp() {
         <div className="page-t">
           <div className="record-header"><button className="back-btn" onClick={()=>{setActivePage('page-members');setTab('members')}}>←</button>
             <div style={{flex:1}}><div style={{fontSize:'15px',fontWeight:700}}>{currentMember.name}</div><div style={{fontSize:'12px',color:'var(--text-muted)'}}>📱 {currentMember.phone}{currentMember.lesson_purpose?' · '+currentMember.lesson_purpose:''}</div></div>
-            <button className="btn btn-primary btn-sm" style={{fontSize:'12px',whiteSpace:'nowrap'}} onClick={()=>{setPaymentTab('pay');setPaymentForm({productId:'',memo:'',taxIncluded:false});loadPayments(currentMemberId);setPaymentModal(true)}}>💳 결제</button>
+            <div style={{display:'flex',gap:'6px',flexShrink:0}}>
+              <button className="btn btn-sm" style={{fontSize:'12px',whiteSpace:'nowrap',background:'var(--surface2)',border:'1px solid var(--border)',color:currentMember.suspended?'#f97316':'var(--text-muted)'}}
+                onClick={()=>{setHoldForm({startDate:'',endDate:'',productId:'',reason:'',photoFile:null,photoPreview:''});loadHolds(currentMemberId);setHoldModal(true)}}>
+                {currentMember.suspended?'⏸ 정지중':'⏸ 정지'}
+              </button>
+              <button className="btn btn-primary btn-sm" style={{fontSize:'12px',whiteSpace:'nowrap'}} onClick={()=>{setPaymentTab('pay');setPaymentForm({productId:'',memo:'',taxIncluded:false});loadPayments(currentMemberId);setPaymentModal(true)}}>💳 결제</button>
+            </div>
           </div>
           <div className="card" style={{marginBottom:'14px'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'8px'}}>
@@ -1317,6 +1377,65 @@ export default function TrainerApp() {
         )}
         <div className="form-group"><label>메모 (선택)</label><input type="text" value={productForm.memo||''} onChange={e=>setProductForm({...productForm,memo:e.target.value})} placeholder="할인 조건 등" /></div>
         <button className="btn btn-primary" style={{width:'100%'}} onClick={saveProduct}>저장</button>
+      </Modal>
+
+      {/* HOLD (정지/홀딩) MODAL */}
+      <Modal open={holdModal} onClose={()=>setHoldModal(false)} title="정지 (기간 홀딩)">
+        {/* 기존 홀딩 이력 */}
+        {holds.length > 0 && (
+          <>
+            <div className="section-label" style={{marginTop:0}}>정지 이력</div>
+            {holds.map(h => (
+              <div key={h.id} style={{display:'flex',alignItems:'flex-start',gap:'10px',padding:'10px 12px',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'8px',marginBottom:'6px'}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:'13px',fontWeight:500}}>{h.start_date} ~ {h.end_date}</div>
+                  {h.product_name && <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'2px'}}>상품: {h.product_name}</div>}
+                  {h.reason && <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'2px'}}>{h.reason}</div>}
+                  {h.photo_url && <img src={h.photo_url} alt="첨부사진" style={{marginTop:'6px',maxWidth:'100%',maxHeight:'120px',borderRadius:'6px',objectFit:'cover'}} />}
+                </div>
+                <button className="btn btn-ghost btn-sm" style={{color:'var(--danger)',fontSize:'11px',flexShrink:0}} onClick={()=>deleteHold(h.id)}>해제</button>
+              </div>
+            ))}
+            <div className="divider"></div>
+          </>
+        )}
+        <div className="section-label" style={{marginTop:0}}>새 정지 등록</div>
+        <div className="two-col">
+          <div className="form-group"><label>시작일</label><input type="date" value={holdForm.startDate} onChange={e=>setHoldForm({...holdForm,startDate:e.target.value})} /></div>
+          <div className="form-group"><label>종료일</label><input type="date" value={holdForm.endDate} onChange={e=>setHoldForm({...holdForm,endDate:e.target.value})} /></div>
+        </div>
+        {holdForm.startDate && holdForm.endDate && holdForm.startDate <= holdForm.endDate && (
+          <div style={{fontSize:'12px',color:'var(--accent)',marginBottom:'8px',marginTop:'-4px'}}>
+            총 {Math.round((new Date(holdForm.endDate)-new Date(holdForm.startDate))/86400000)+1}일 정지
+          </div>
+        )}
+        <div className="form-group">
+          <label>상품 선택 (선택)</label>
+          <select value={holdForm.productId} onChange={e=>setHoldForm({...holdForm,productId:e.target.value})}>
+            <option value="">상품 미지정</option>
+            {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+        <div className="form-group">
+          <label>정지 사유 (메모)</label>
+          <textarea value={holdForm.reason} onChange={e=>setHoldForm({...holdForm,reason:e.target.value})} placeholder="부상, 개인 사정, 여행 등" rows={2} style={{resize:'vertical'}} />
+        </div>
+        <div className="form-group">
+          <label>사진 첨부 (선택)</label>
+          <input type="file" accept="image/*" onChange={e=>{
+            const file = e.target.files?.[0]
+            if (!file) return
+            setHoldForm({...holdForm, photoFile:file, photoPreview:URL.createObjectURL(file)})
+          }} style={{fontSize:'12px'}} />
+          {holdForm.photoPreview && (
+            <div style={{marginTop:'8px',position:'relative',display:'inline-block'}}>
+              <img src={holdForm.photoPreview} alt="미리보기" style={{maxWidth:'100%',maxHeight:'160px',borderRadius:'8px',objectFit:'cover'}} />
+              <button onClick={()=>setHoldForm({...holdForm,photoFile:null,photoPreview:''})}
+                style={{position:'absolute',top:'4px',right:'4px',background:'rgba(0,0,0,0.6)',border:'none',borderRadius:'50%',width:'22px',height:'22px',color:'#fff',cursor:'pointer',fontSize:'12px',lineHeight:'22px',textAlign:'center'}}>✕</button>
+            </div>
+          )}
+        </div>
+        <button className="btn btn-primary" style={{width:'100%'}} onClick={addHold}>정지 등록</button>
       </Modal>
 
       {/* EDIT MEMBER MODAL */}
