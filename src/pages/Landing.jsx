@@ -7,7 +7,7 @@ export default function Landing() {
       <div className="logo">TRAINER<span>LOG</span></div>
       <div className="tagline">트레이너와 회원을 연결하는<br/>스마트 수업일지 플랫폼</div>
 
-      <div className="cards">
+      <div className="cards cards-three">
         <Link to="/trainer" className="portal-card">
           <div className="portal-icon">💪</div>
           <div className="portal-title">트레이너</div>
@@ -17,6 +17,11 @@ export default function Landing() {
           <div className="portal-icon">🏃</div>
           <div className="portal-title">회원</div>
           <div className="portal-sub">수업일지 조회<br/>체중·식단 기록</div>
+        </Link>
+        <Link to="/community" className="portal-card portal-card-comm">
+          <div className="portal-icon">🤝</div>
+          <div className="portal-title">커뮤니티</div>
+          <div className="portal-sub">구인 · 구직 · 매칭</div>
         </Link>
       </div>
 

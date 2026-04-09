@@ -5,6 +5,7 @@ import AdminPortal from './pages/AdminPortal'
 import TrainerApp from './pages/TrainerApp'
 import MemberPortal from './pages/MemberPortal'
 import Report from './pages/Report'
+import CommunityPortal from './pages/CommunityPortal'
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
           <Route path="/trainer" element={<TrainerApp />} />
           <Route path="/member" element={<MemberPortal />} />
           <Route path="/report" element={<Report />} />
+          <Route path="/community" element={<CommunityPortal />} />
         </Routes>
       </ToastProvider>
     </BrowserRouter>
