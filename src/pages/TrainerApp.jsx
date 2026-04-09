@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase, GEMINI_MODEL } from '../lib/supabase'
+import { subscribeToPush, scheduleNotification, deleteScheduledNotification } from '../lib/push'
 import { useToast } from '../components/common/Toast'
 import Modal from '../components/common/Modal'
 import { Link } from 'react-router-dom'
@@ -241,6 +242,10 @@ export default function TrainerApp() {
     if (perm === 'granted') {
       setNotifEnabled(true)
       showToast('✓ 알림이 활성화됐어요')
+      // Web Push 구독 등록 (브라우저 완전 종료 시에도 알림)
+      if ('serviceWorker' in navigator && import.meta.env.VITE_VAPID_PUBLIC_KEY && trainer?.id) {
+        try { await subscribeToPush(trainer.id) } catch(e) { console.warn('Web Push 구독 실패:', e) }
+      }
     } else {
       setNotifEnabled(false)
       showToast('알림 권한이 거부됐어요. 브라우저 설정에서 허용해주세요')
@@ -558,14 +563,30 @@ export default function TrainerApp() {
       setShowCancelForm(true)
     }
   }
-  function saveBlock() {
+  async function saveBlock() {
     if (!blockDate||!blockStart||!blockEnd) { showToast('날짜와 시간을 입력해주세요'); return }
     if (blockStart>=blockEnd) { showToast('종료 시간이 시작보다 늦어야 해요'); return }
     const block = { id:editBlockId||Date.now().toString(), date:blockDate, start:blockStart, end:blockEnd, type:selType, color:selColor, memo:blockMemo.trim(), memberId:selType==='lesson'?blockMemberId:null, title:selType==='personal'?blockTitle.trim():null }
     setBlocks(editBlockId ? blocks.map(b=>b.id===editBlockId?block:b) : [...blocks,block])
     setSchModal(false); showToast(editBlockId?'✓ 수정됐어요!':'✓ 스케쥴 추가됐어요!')
+    // Web Push 알림 예약 (설정 ON + 권한 허용 + 트레이너 로그인 상태)
+    if (notifEnabled && Notification.permission==='granted' && trainer?.id && import.meta.env.VITE_VAPID_PUBLIC_KEY) {
+      try {
+        const memberName = block.type==='lesson'
+          ? (members.find(m=>m.id===block.memberId)?.name||'회원')
+          : (block.title||'개인일정')
+        await scheduleNotification(trainer.id, block, memberName, notifMinutes)
+      } catch(e) { console.warn('알림 예약 실패:', e) }
+    }
   }
-  function deleteBlock() { if (!editBlockId) return; setBlocks(blocks.filter(b=>b.id!==editBlockId)); setSchModal(false); showToast('삭제됐어요') }
+  async function deleteBlock() {
+    if (!editBlockId) return
+    setBlocks(blocks.filter(b=>b.id!==editBlockId))
+    setSchModal(false); showToast('삭제됐어요')
+    if (trainer?.id && import.meta.env.VITE_VAPID_PUBLIC_KEY) {
+      try { await deleteScheduledNotification(trainer.id, editBlockId) } catch(e) {}
+    }
+  }
 
   // === RENDER SCHEDULE GRID ===
   function renderScheduleGrid() {
