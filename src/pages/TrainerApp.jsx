@@ -200,9 +200,11 @@ export default function TrainerApp() {
   // 알림 체크 인터벌 (30초마다)
   useEffect(() => {
     if (!notifEnabled) return
-    function checkAndNotify() {
+    async function checkAndNotify() {
       if (Notification.permission !== 'granted') return
       const now = new Date()
+      // SW registration 가져오기 (백그라운드 알림 지원)
+      const swReg = 'serviceWorker' in navigator ? await navigator.serviceWorker.ready.catch(() => null) : null
       blocks.forEach(b => {
         if (b.cancelled) return
         const blockTime = new Date(b.date + 'T' + b.start + ':00')
@@ -213,10 +215,17 @@ export default function TrainerApp() {
           const label = b.type === 'lesson'
             ? (members.find(m => m.id === b.memberId)?.name || '회원') + ' 수업'
             : (b.title || '개인일정')
-          new Notification('🏋️ TrainerLog 수업 알림', {
+          const title = '🏋️ TrainerLog 수업 알림'
+          const options = {
             body: `${notifMinutes}분 후 [${label}] 시작 (${b.start})`,
-            icon: '/favicon.ico'
-          })
+            icon: '/favicon.ico',
+            badge: '/favicon.ico',
+            tag: key,          // 같은 일정 중복 알림 방지
+            renotify: false
+          }
+          // SW가 있으면 백그라운드 알림(탭 비활성/최소화 시에도 동작)
+          if (swReg) swReg.showNotification(title, options)
+          else new Notification(title, options)
           localStorage.setItem(key, '1')
         }
       })
