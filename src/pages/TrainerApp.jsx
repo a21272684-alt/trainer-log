@@ -122,6 +122,9 @@ export default function TrainerApp() {
   const [rtab, setRtab] = useState('write')
   const [healthData, setHealthData] = useState(null)
 
+  // Member sort
+  const [memberSort, setMemberSort] = useState('created') // 'name' | 'created' | 'expire'
+
   // Add member form
   const [addForm, setAddForm] = useState({name:'',kakao_phone:'',phone:'',email:'',purpose:'체형교정',total:'',done:'0',price:'',memo:''})
 
@@ -668,9 +671,27 @@ export default function TrainerApp() {
       {/* MEMBERS LIST */}
       {activePage === 'page-members' && (
         <div className="page-t">
-          <div style={{marginBottom:'14px'}}><button className="btn btn-primary" style={{width:'100%'}} onClick={()=>{setAddForm({name:'',kakao_phone:'',phone:'',email:'',purpose:'체형교정',total:'',done:'0',price:'',memo:''});setActivePage('page-add-member')}}>+ 회원 추가</button></div>
+          <div style={{marginBottom:'10px'}}><button className="btn btn-primary" style={{width:'100%'}} onClick={()=>{setAddForm({name:'',kakao_phone:'',phone:'',email:'',purpose:'체형교정',total:'',done:'0',price:'',memo:''});setActivePage('page-add-member')}}>+ 회원 추가</button></div>
+          {members.length > 0 && (
+            <div style={{display:'flex',gap:'6px',marginBottom:'12px'}}>
+              {[['created','등록일자순'],['name','이름순'],['expire','만료예정순']].map(([key,label])=>(
+                <button key={key}
+                  onClick={()=>setMemberSort(key)}
+                  style={{flex:1,padding:'7px 4px',borderRadius:'8px',border:'1px solid',fontSize:'11px',fontWeight:500,cursor:'pointer',fontFamily:'inherit',transition:'all 0.15s',
+                    background: memberSort===key ? 'var(--accent)' : 'var(--surface2)',
+                    color: memberSort===key ? '#0f0f0f' : 'var(--text-muted)',
+                    borderColor: memberSort===key ? 'var(--accent)' : 'var(--border)'}}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           {!members.length && <div className="empty"><div style={{fontSize:'36px',marginBottom:'12px'}}>👥</div><p>아직 회원이 없어요.<br/>위에서 첫 회원을 추가해보세요!</p></div>}
-          {members.map(m => {
+          {[...members].sort((a,b) => {
+            if (memberSort === 'name') return a.name.localeCompare(b.name, 'ko')
+            if (memberSort === 'expire') return (a.total_sessions-a.done_sessions) - (b.total_sessions-b.done_sessions)
+            return new Date(b.created_at) - new Date(a.created_at) // created (기본)
+          }).map(m => {
             const pct = m.total_sessions>0?Math.round((m.done_sessions/m.total_sessions)*100):0
             const remain = m.total_sessions-m.done_sessions; const low = remain<=3
             return (
