@@ -52,11 +52,11 @@ export default function AdminPortal() {
 
   // ===== 커뮤니티 관리 =====
   const COMM_CAT_LABEL = {
-    trainer_seeks_member: '트레이너 구인',
-    member_seeks_trainer: '트레이너 찾기',
-    instructor_seeks_student: '강의 수강생',
-    gym_seeks_trainer: '직원 구인',
-    trainer_seeks_gym: '센터 구직',
+    trainer_seeks_member:     '직원 구인',
+    member_seeks_trainer:     '나만의 트레이너 찾기',
+    instructor_seeks_student: '수강생 구인(교육)',
+    gym_seeks_trainer:        '트레이너 채용',
+    trainer_seeks_gym:        '센터 구직',
   }
   const COMM_ROLE_LABEL = { trainer:'트레이너', member:'회원', instructor:'교육강사', gym_owner:'헬스장 대표' }
 
