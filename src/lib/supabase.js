@@ -4,4 +4,4 @@ const SUPABASE_URL = 'https://udnyilxwskgkofbvvzfy.supabase.co'
 const SUPABASE_KEY = 'sb_publishable_FXnRJ_Hsb4TdPiQ8DNpolw_A9sOcatE'
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
-export const GEMINI_MODEL = 'gemini-1.5-flash-lite'
+export const GEMINI_MODEL = 'gemini-3.1-flash-lite-preview'
