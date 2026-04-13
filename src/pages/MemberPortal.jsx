@@ -1,11 +1,78 @@
 import { useState, useEffect, useRef } from 'react'
-import { supabase, GEMINI_MODEL } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 import { useToast } from '../components/common/Toast'
+import Modal from '../components/common/Modal'
+import { EXERCISE_DB } from '../lib/exercises'
 import { Link } from 'react-router-dom'
 import { Chart, registerables } from 'chart.js'
 import '../styles/member.css'
 
 Chart.register(...registerables)
+
+const MUSCLE_GROUPS = ['가슴','등','어깨','이두','삼두','하체','코어','유산소','전신']
+const MUSCLE_COLOR = {'가슴':'#ef4444','등':'#3b82f6','어깨':'#8b5cf6','이두':'#f97316','삼두':'#06b6d4','하체':'#22c55e','코어':'#eab308','유산소':'#ec4899','전신':'#6b7280'}
+const REACTIONS = ['❤️','🔥','💪','👏','😮','💯','🙌']
+
+function MuscleDiagram({ primary = [], secondary = [] }) {
+  if (!primary.length && !secondary.length) return null
+  const c = (m) => {
+    if (primary.includes(m)) return MUSCLE_COLOR[m] || '#888'
+    if (secondary.includes(m)) return (MUSCLE_COLOR[m] || '#888') + '55'
+    return '#e5e7eb'
+  }
+  return (
+    <div style={{display:'flex',justifyContent:'center',gap:'20px',margin:'8px 0 12px',padding:'10px',background:'#f5f5f5',borderRadius:'12px'}}>
+      <div style={{textAlign:'center'}}>
+        <div style={{fontSize:'10px',color:'#aaa',marginBottom:'4px'}}>앞면</div>
+        <svg width="80" height="180" viewBox="0 0 80 180">
+          <circle cx="40" cy="12" r="11" fill="#d1d5db"/>
+          <rect x="35" y="22" width="10" height="8" rx="2" fill="#d1d5db"/>
+          <ellipse cx="21" cy="38" rx="9" ry="8" fill={c('어깨')}/>
+          <ellipse cx="59" cy="38" rx="9" ry="8" fill={c('어깨')}/>
+          <path d="M30 32 Q40 37 50 32 L52 65 Q40 69 28 65 Z" fill={c('가슴')}/>
+          <rect x="29" y="65" width="22" height="28" rx="3" fill={c('코어')}/>
+          <ellipse cx="15" cy="57" rx="6" ry="14" fill={c('이두')}/>
+          <ellipse cx="65" cy="57" rx="6" ry="14" fill={c('이두')}/>
+          <ellipse cx="14" cy="80" rx="5" ry="11" fill="#d1d5db"/>
+          <ellipse cx="66" cy="80" rx="5" ry="11" fill="#d1d5db"/>
+          <ellipse cx="32" cy="120" rx="11" ry="19" fill={c('하체')}/>
+          <ellipse cx="48" cy="120" rx="11" ry="19" fill={c('하체')}/>
+          <ellipse cx="31" cy="154" rx="8" ry="14" fill={c('하체')} opacity="0.7"/>
+          <ellipse cx="49" cy="154" rx="8" ry="14" fill={c('하체')} opacity="0.7"/>
+        </svg>
+      </div>
+      <div style={{textAlign:'center'}}>
+        <div style={{fontSize:'10px',color:'#aaa',marginBottom:'4px'}}>뒷면</div>
+        <svg width="80" height="180" viewBox="0 0 80 180">
+          <circle cx="40" cy="12" r="11" fill="#d1d5db"/>
+          <rect x="35" y="22" width="10" height="8" rx="2" fill="#d1d5db"/>
+          <ellipse cx="21" cy="38" rx="9" ry="8" fill={c('어깨')}/>
+          <ellipse cx="59" cy="38" rx="9" ry="8" fill={c('어깨')}/>
+          <path d="M28 32 Q40 37 52 32 L54 65 Q40 70 26 65 Z" fill={c('등')}/>
+          <rect x="29" y="65" width="22" height="14" rx="3" fill={c('등')} opacity="0.6"/>
+          <rect x="29" y="80" width="22" height="13" rx="3" fill={c('코어')} opacity="0.5"/>
+          <ellipse cx="15" cy="57" rx="6" ry="14" fill={c('삼두')}/>
+          <ellipse cx="65" cy="57" rx="6" ry="14" fill={c('삼두')}/>
+          <ellipse cx="14" cy="80" rx="5" ry="11" fill="#d1d5db"/>
+          <ellipse cx="66" cy="80" rx="5" ry="11" fill="#d1d5db"/>
+          <ellipse cx="32" cy="120" rx="11" ry="19" fill={c('하체')}/>
+          <ellipse cx="48" cy="120" rx="11" ry="19" fill={c('하체')}/>
+          <ellipse cx="31" cy="154" rx="8" ry="14" fill={c('하체')} opacity="0.7"/>
+          <ellipse cx="49" cy="154" rx="8" ry="14" fill={c('하체')} opacity="0.7"/>
+        </svg>
+      </div>
+      <div style={{display:'flex',flexDirection:'column',justifyContent:'center',gap:'4px'}}>
+        {[...primary.map(m=>({m,type:'주동근'})),...secondary.map(m=>({m,type:'보조근'}))].map(({m,type})=>(
+          <div key={m+type} style={{display:'flex',alignItems:'center',gap:'5px'}}>
+            <div style={{width:'8px',height:'8px',borderRadius:'50%',background:MUSCLE_COLOR[m]||'#888',opacity:type==='보조근'?0.5:1,flexShrink:0}}></div>
+            <span style={{fontSize:'10px',color:'#555',lineHeight:1}}>{m}</span>
+            <span style={{fontSize:'9px',color:'#aaa'}}>{type==='주동근'?'●':'○'}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 export default function MemberPortal() {
   const showToast = useToast()
@@ -35,8 +102,40 @@ export default function MemberPortal() {
   const chartRef = useRef(null)
   const chartInstance = useRef(null)
 
+  // Workout state
+  const emptyWEx = () => ({localId:Date.now().toString()+Math.random(),name:'',muscle_group:'',sets:[{weight:'',reps:'',rest_sec:''}]})
+  const [workoutSessions, setWorkoutSessions] = useState([])
+  const [workoutRoutines, setWorkoutRoutines] = useState([])
+  const [workoutModal, setWorkoutModal] = useState(false)
+  const [workoutEditId, setWorkoutEditId] = useState(null)
+  const [workoutForm, setWorkoutForm] = useState({date:'',title:'',duration_min:'',memo:'',exercises:[emptyWEx()]})
+  const [workoutRoutineModal, setWorkoutRoutineModal] = useState(false)
+  const [workoutSaveRoutineName, setWorkoutSaveRoutineName] = useState('')
+  const [workoutDetailId, setWorkoutDetailId] = useState(null)
+  const [exQuery, setExQuery] = useState({}) // localId -> query text (for autocomplete visibility)
+
+  // Community state
+  const [posts, setPosts] = useState([])
+  const [myReactions, setMyReactions] = useState({})   // postId -> Set of reactions
+  const [reactionCounts, setReactionCounts] = useState({}) // postId -> {emoji: count}
+  const [postModal, setPostModal] = useState(false)
+  const [postContent, setPostContent] = useState('')
+  const [postPhotoFile, setPostPhotoFile] = useState(null)
+  const [postPhotoPreview, setPostPhotoPreview] = useState('')
+
   const today = () => new Date().toISOString().split('T')[0]
   const formatDate = (str) => new Date(str+'T00:00:00').toLocaleDateString('ko-KR',{month:'short',day:'numeric'})
+  const formatRelative = (str) => {
+    const diff = Date.now() - new Date(str).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 1) return '방금 전'
+    if (mins < 60) return `${mins}분 전`
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return `${hours}시간 전`
+    const days = Math.floor(hours / 24)
+    if (days < 7) return `${days}일 전`
+    return new Date(str).toLocaleDateString('ko-KR', {month:'short',day:'numeric'})
+  }
 
   async function login() {
     if (!loginName || !loginPhone) { showToast('이름과 전화번호 뒷자리를 입력해주세요'); return }
@@ -73,6 +172,17 @@ export default function MemberPortal() {
   useEffect(() => {
     if (tab === 'health' && healthRecords.length) setTimeout(renderChart, 200)
   }, [tab, healthRecords])
+
+  useEffect(() => {
+    if (tab === 'workout' && member) {
+      loadWorkoutSessions()
+      loadWorkoutRoutines()
+    }
+  }, [tab])
+
+  useEffect(() => {
+    if (tab === 'community' && member) loadPosts()
+  }, [tab])
 
   function renderChart() {
     const records = healthRecords.filter(r => r.morning_weight).slice(0,14).reverse()
@@ -132,6 +242,175 @@ export default function MemberPortal() {
     })
   }
 
+  // === PERSONAL WORKOUT ===
+  async function loadWorkoutSessions() {
+    const { data, error } = await supabase.from('workout_sessions').select('*').eq('member_id', member.id).order('workout_date', { ascending: false })
+    if (!error) setWorkoutSessions(data || [])
+  }
+  async function loadWorkoutRoutines() {
+    const { data, error } = await supabase.from('workout_routines').select('*').eq('member_id', member.id).order('created_at', { ascending: false })
+    if (!error) setWorkoutRoutines(data || [])
+  }
+  function openWorkoutModal(session = null) {
+    const t = new Date().toISOString().split('T')[0]
+    if (session) {
+      setWorkoutEditId(session.id)
+      setWorkoutForm({ date: session.workout_date, title: session.title||'', duration_min: session.duration_min||'', memo: session.memo||'', exercises: session.exercises?.length ? session.exercises.map(e=>({...e,localId:e.localId||Date.now().toString()+Math.random()})) : [emptyWEx()] })
+    } else {
+      setWorkoutEditId(null)
+      setWorkoutForm({ date: t, title: '', duration_min: '', memo: '', exercises: [emptyWEx()] })
+    }
+    setWorkoutSaveRoutineName('')
+    setExQuery({})
+    setWorkoutModal(true)
+  }
+  function calcVolume(exercises) {
+    return exercises.reduce((total, ex) => total + ex.sets.reduce((s, set) => s + ((parseFloat(set.weight)||0) * (parseInt(set.reps)||0)), 0), 0)
+  }
+  async function saveWorkoutSession() {
+    const f = workoutForm
+    if (!f.date) { showToast('날짜를 입력해주세요'); return }
+    const exercises = f.exercises.filter(e => e.name.trim())
+    const total_volume = calcVolume(exercises)
+    try {
+      if (workoutEditId) {
+        const { error } = await supabase.from('workout_sessions').update({ title: f.title||null, workout_date: f.date, duration_min: parseInt(f.duration_min)||null, memo: f.memo||null, exercises, total_volume }).eq('id', workoutEditId)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('workout_sessions').insert({ member_id: member.id, trainer_id: member.trainer_id||null, title: f.title||null, workout_date: f.date, duration_min: parseInt(f.duration_min)||null, memo: f.memo||null, exercises, total_volume })
+        if (error) throw error
+      }
+      await loadWorkoutSessions()
+      setWorkoutModal(false)
+      showToast(workoutEditId ? '✓ 운동일지가 수정됐어요' : '✓ 운동일지가 저장됐어요')
+    } catch(e) { showToast('오류: ' + e.message) }
+  }
+  async function deleteWorkoutSession(id) {
+    const { error } = await supabase.from('workout_sessions').delete().eq('id', id)
+    if (!error) { await loadWorkoutSessions(); showToast('삭제됐어요') }
+    else showToast('오류: ' + error.message)
+  }
+  async function saveAsRoutine() {
+    if (!workoutSaveRoutineName.trim()) { showToast('루틴 이름을 입력해주세요'); return }
+    const exercises = workoutForm.exercises.filter(e => e.name.trim())
+    const { error } = await supabase.from('workout_routines').insert({ trainer_id: member.trainer_id||null, member_id: member.id, name: workoutSaveRoutineName.trim(), exercises })
+    if (!error) { await loadWorkoutRoutines(); setWorkoutSaveRoutineName(''); showToast('✓ 루틴으로 저장됐어요') }
+    else showToast('오류: ' + error.message)
+  }
+  async function deleteWorkoutRoutine(id) {
+    const { error } = await supabase.from('workout_routines').delete().eq('id', id)
+    if (!error) { await loadWorkoutRoutines(); showToast('루틴이 삭제됐어요') }
+  }
+  function loadRoutineIntoForm(routine) {
+    const t = new Date().toISOString().split('T')[0]
+    setWorkoutEditId(null)
+    setWorkoutForm({ date: t, title: routine.name, duration_min: '', memo: '', exercises: routine.exercises.map(e=>({...e,localId:Date.now().toString()+Math.random(),sets:e.sets.map(s=>({...s,weight:'',reps:'',rest_sec:''})) })) })
+    setWorkoutRoutineModal(false)
+    setExQuery({})
+    setWorkoutModal(true)
+  }
+  function wfAddEx() { setWorkoutForm(f=>({...f,exercises:[...f.exercises,emptyWEx()]})) }
+  function wfRemoveEx(localId) { setWorkoutForm(f=>({...f,exercises:f.exercises.filter(e=>e.localId!==localId)})) }
+  function wfUpdateEx(localId, key, val) { setWorkoutForm(f=>({...f,exercises:f.exercises.map(e=>e.localId===localId?{...e,[key]:val}:e)})) }
+  function wfAddSet(localId) { setWorkoutForm(f=>({...f,exercises:f.exercises.map(e=>e.localId===localId?{...e,sets:[...e.sets,{weight:'',reps:'',rest_sec:''}]}:e)})) }
+  function wfRemoveSet(localId, idx) { setWorkoutForm(f=>({...f,exercises:f.exercises.map(e=>e.localId===localId?{...e,sets:e.sets.filter((_,i)=>i!==idx)}:e)})) }
+  function wfUpdateSet(localId, idx, key, val) { setWorkoutForm(f=>({...f,exercises:f.exercises.map(e=>e.localId===localId?{...e,sets:e.sets.map((s,i)=>i===idx?{...s,[key]:val}:s)}:e)})) }
+  function handleExNameChange(localId, val) {
+    wfUpdateEx(localId, 'name', val)
+    const match = EXERCISE_DB.find(e => e.name === val)
+    if (match) wfUpdateEx(localId, 'muscle_group', match.primary[0] || '')
+    setExQuery(q => ({...q, [localId]: val}))
+  }
+  function selectExSuggestion(localId, ex) {
+    wfUpdateEx(localId, 'name', ex.name)
+    wfUpdateEx(localId, 'muscle_group', ex.primary[0] || '')
+    setExQuery(q => ({...q, [localId]: ''}))
+  }
+
+  // === COMMUNITY ===
+  async function loadPosts() {
+    if (!member?.trainer_id) { setPosts([]); return }
+    try {
+      const { data: postsData, error } = await supabase
+        .from('community_posts')
+        .select('*')
+        .eq('trainer_id', member.trainer_id)
+        .order('created_at', { ascending: false })
+        .limit(50)
+      if (error) throw error
+      setPosts(postsData || [])
+      if (postsData?.length) {
+        const ids = postsData.map(p => p.id)
+        const { data: reactData } = await supabase.from('post_reactions').select('*').in('post_id', ids)
+        if (reactData) {
+          const counts = {}; const mine = {}
+          for (const r of reactData) {
+            if (!counts[r.post_id]) counts[r.post_id] = {}
+            counts[r.post_id][r.reaction] = (counts[r.post_id][r.reaction] || 0) + 1
+            if (r.member_id === member.id) {
+              if (!mine[r.post_id]) mine[r.post_id] = new Set()
+              mine[r.post_id].add(r.reaction)
+            }
+          }
+          setReactionCounts(counts)
+          setMyReactions(mine)
+        }
+      }
+    } catch(e) { showToast('커뮤니티를 불러오지 못했어요') }
+  }
+  async function createPost() {
+    if (!postContent.trim() && !postPhotoFile) { showToast('내용이나 사진을 추가해주세요'); return }
+    try {
+      let photo_url = null
+      if (postPhotoFile) {
+        const ext = postPhotoFile.name.split('.').pop()
+        const path = `${member.id}/${Date.now()}.${ext}`
+        const { error: upErr } = await supabase.storage.from('community-photos').upload(path, postPhotoFile)
+        if (upErr) throw upErr
+        const { data: { publicUrl } } = supabase.storage.from('community-photos').getPublicUrl(path)
+        photo_url = publicUrl
+      }
+      const { error } = await supabase.from('community_posts').insert({
+        member_id: member.id, member_name: member.name,
+        trainer_id: member.trainer_id, content: postContent.trim() || null, photo_url,
+      })
+      if (error) throw error
+      setPostContent(''); setPostPhotoFile(null); setPostPhotoPreview(''); setPostModal(false)
+      await loadPosts()
+      showToast('✓ 게시됐어요!')
+    } catch(e) { showToast('오류: ' + e.message) }
+  }
+  async function toggleReaction(postId, reaction) {
+    const mySet = myReactions[postId] || new Set()
+    const hasIt = mySet.has(reaction)
+    // Optimistic update
+    setMyReactions(prev => {
+      const next = {...prev}; const s = new Set(next[postId] || [])
+      hasIt ? s.delete(reaction) : s.add(reaction)
+      next[postId] = s; return next
+    })
+    setReactionCounts(prev => {
+      const next = {...prev}
+      if (!next[postId]) next[postId] = {}
+      const n = (next[postId][reaction] || 0) + (hasIt ? -1 : 1)
+      next[postId] = {...next[postId]}
+      if (n <= 0) delete next[postId][reaction]; else next[postId][reaction] = n
+      return next
+    })
+    try {
+      if (hasIt) {
+        await supabase.from('post_reactions').delete().eq('post_id', postId).eq('member_id', member.id).eq('reaction', reaction)
+      } else {
+        await supabase.from('post_reactions').upsert({ post_id: postId, member_id: member.id, reaction }, { onConflict: 'post_id,member_id,reaction' })
+      }
+    } catch(e) { showToast('오류가 발생했어요'); loadPosts() }
+  }
+  async function deletePost(postId) {
+    const { error } = await supabase.from('community_posts').delete().eq('id', postId)
+    if (!error) { await loadPosts(); showToast('삭제됐어요') }
+    else showToast('오류: ' + error.message)
+  }
+
   // === COMPUTED ===
   const latestMorning = healthRecords.find(r => r.morning_weight)
   const currentW = latestMorning?.morning_weight || null
@@ -164,10 +443,10 @@ export default function MemberPortal() {
         <div className="m-topbar-title">TRAINER<span>LOG</span></div>
         <button className="m-logout-btn" onClick={logout}>로그아웃</button>
       </div>
-      <div className="m-tabs">
-        {['logs','health','diet'].map(t => (
-          <div key={t} className={`m-tab${tab===t?' active':''}`} onClick={()=>setTab(t)}>
-            {{logs:'📋 수업일지',health:'⚖️ 체중관리',diet:'🥗 식단기록'}[t]}
+      <div className="m-tabs" style={{overflowX:'auto',display:'flex',WebkitOverflowScrolling:'touch',scrollbarWidth:'none'}}>
+        {['logs','health','diet','workout','community'].map(t => (
+          <div key={t} className={`m-tab${tab===t?' active':''}`} onClick={()=>setTab(t)} style={{whiteSpace:'nowrap',flexShrink:0}}>
+            {{logs:'📋 수업일지',health:'⚖️ 체중관리',diet:'🥗 식단기록',workout:'🏃 개인운동',community:'🤝 커뮤니티'}[t]}
           </div>
         ))}
       </div>
@@ -302,6 +581,302 @@ export default function MemberPortal() {
           ))}
         </div>
       )}
+
+      {/* 개인운동 */}
+      {tab === 'workout' && (() => {
+        const now = new Date()
+        const thisMonth = now.toISOString().slice(0,7)
+        const monthSessions = workoutSessions.filter(s => s.workout_date?.startsWith(thisMonth))
+        const monthVolume = monthSessions.reduce((s,ss)=>s+(ss.total_volume||0),0)
+        return (
+          <div className="m-page">
+            {/* 이번 달 요약 */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:'14px'}}>
+              {[
+                ['이번 달 운동', monthSessions.length+'회', '#22c55e'],
+                ['총 볼륨', monthVolume>=1000?(monthVolume/1000).toFixed(1)+'t':Math.round(monthVolume)+'kg', '#22c55e'],
+                ['전체 기록', workoutSessions.length+'회', 'var(--m-text-dim)'],
+              ].map(([label,val,color])=>(
+                <div key={label} className="card" style={{marginBottom:0,padding:'10px 12px'}}>
+                  <div style={{fontSize:'10px',color:'var(--m-text-dim)',marginBottom:'3px'}}>{label}</div>
+                  <div style={{fontSize:'16px',fontWeight:700,fontFamily:"'DM Mono',monospace",color}}>{val}</div>
+                </div>
+              ))}
+            </div>
+            {/* 버튼 */}
+            <div style={{display:'flex',gap:'8px',marginBottom:'14px'}}>
+              {workoutRoutines.length > 0 && (
+                <button className="btn btn-outline btn-sm" style={{flex:1,fontSize:'12px'}} onClick={()=>setWorkoutRoutineModal(true)}>📋 루틴 불러오기</button>
+              )}
+              <button className="btn btn-primary btn-sm" style={{flex:1,fontSize:'12px'}} onClick={()=>openWorkoutModal()}>+ 운동 기록</button>
+            </div>
+            {/* 세션 이력 */}
+            {!workoutSessions.length && <div className="empty"><div style={{fontSize:'32px',marginBottom:'12px'}}>🏃</div><p>아직 개인 운동 기록이 없어요</p><p style={{fontSize:'12px',marginTop:'4px'}}>위 버튼으로 오늘 운동을 기록해보세요!</p></div>}
+            {workoutSessions.map(s => {
+              const isOpen = workoutDetailId === s.id
+              const exList = s.exercises || []
+              const vol = s.total_volume || 0
+              const dateStr = new Date(s.workout_date+'T00:00:00').toLocaleDateString('ko-KR',{month:'short',day:'numeric',weekday:'short'})
+              const allPrimary = [...new Set(exList.flatMap(e => {
+                const dbEx = EXERCISE_DB.find(d => d.name === e.name)
+                return dbEx ? dbEx.primary : (e.muscle_group ? [e.muscle_group] : [])
+              }))]
+              const allSecondary = [...new Set(exList.flatMap(e => {
+                const dbEx = EXERCISE_DB.find(d => d.name === e.name)
+                return dbEx ? dbEx.secondary : []
+              }).filter(m => !allPrimary.includes(m)))]
+              const muscles = [...new Set(exList.map(e=>e.muscle_group).filter(Boolean))]
+              return (
+                <div key={s.id} className="card" style={{marginBottom:'10px',cursor:'pointer'}} onClick={()=>setWorkoutDetailId(isOpen?null:s.id)}>
+                  <div style={{display:'flex',alignItems:'flex-start',gap:'10px'}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'4px',flexWrap:'wrap'}}>
+                        <span style={{fontSize:'14px',fontWeight:600}}>{s.title||'운동'}</span>
+                        <span style={{fontSize:'11px',color:'var(--m-text-dim)'}}>{dateStr}</span>
+                        {s.duration_min && <span style={{fontSize:'11px',color:'var(--m-text-dim)'}}>⏱ {s.duration_min}분</span>}
+                      </div>
+                      <div style={{display:'flex',gap:'5px',flexWrap:'wrap',marginBottom:'4px'}}>
+                        {muscles.map(mg=>(
+                          <span key={mg} style={{fontSize:'10px',padding:'1px 7px',borderRadius:'4px',background:(MUSCLE_COLOR[mg]||'#6b7280')+'22',color:MUSCLE_COLOR[mg]||'#6b7280',border:`1px solid ${(MUSCLE_COLOR[mg]||'#6b7280')}44`}}>{mg}</span>
+                        ))}
+                      </div>
+                      <div style={{fontSize:'12px',color:'var(--m-text-dim)'}}>운동 {exList.length}종목 · 총 볼륨 {vol>=1000?(vol/1000).toFixed(1)+'t':Math.round(vol)+'kg'}</div>
+                    </div>
+                    <span style={{color:'var(--m-text-dim)',fontSize:'14px',flexShrink:0,marginTop:'2px'}}>{isOpen?'▲':'▼'}</span>
+                  </div>
+                  {isOpen && (
+                    <div style={{marginTop:'12px',borderTop:'1px solid #eee',paddingTop:'12px'}} onClick={e=>e.stopPropagation()}>
+                      <MuscleDiagram primary={allPrimary} secondary={allSecondary} />
+                      {exList.map((ex,ei)=>{
+                        const exVol = ex.sets.reduce((s,set)=>s+((parseFloat(set.weight)||0)*(parseInt(set.reps)||0)),0)
+                        const dbEx = EXERCISE_DB.find(d => d.name === ex.name)
+                        return (
+                          <div key={ei} style={{marginBottom:'10px'}}>
+                            <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'6px'}}>
+                              <span style={{fontSize:'13px',fontWeight:600}}>{ex.name}</span>
+                              {ex.muscle_group && <span style={{fontSize:'10px',padding:'1px 7px',borderRadius:'4px',background:(MUSCLE_COLOR[ex.muscle_group]||'#6b7280')+'22',color:MUSCLE_COLOR[ex.muscle_group]||'#6b7280',border:`1px solid ${(MUSCLE_COLOR[ex.muscle_group]||'#6b7280')}44`}}>{ex.muscle_group}</span>}
+                              {dbEx && <span style={{fontSize:'10px',color:'#aaa'}}>장비: {dbEx.eq}</span>}
+                              <span style={{fontSize:'11px',color:'var(--m-text-dim)',marginLeft:'auto'}}>볼륨 {Math.round(exVol)}kg</span>
+                            </div>
+                            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(90px,1fr))',gap:'4px'}}>
+                              {ex.sets.map((set,si)=>(
+                                <div key={si} style={{background:'#f5f5f5',borderRadius:'6px',padding:'6px 8px',fontSize:'12px',textAlign:'center'}}>
+                                  <div style={{color:'#aaa',fontSize:'10px',marginBottom:'2px'}}>{si+1}세트</div>
+                                  <div style={{fontWeight:600,fontFamily:"'DM Mono',monospace"}}>{set.weight||'—'}kg × {set.reps||'—'}회</div>
+                                  {set.rest_sec && <div style={{color:'#aaa',fontSize:'10px',marginTop:'2px'}}>휴식 {set.rest_sec}초</div>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      })}
+                      {s.memo && <div style={{marginTop:'8px',fontSize:'12px',color:'var(--m-text-muted)',padding:'8px',background:'#f5f5f5',borderRadius:'6px'}}>💬 {s.memo}</div>}
+                      <div style={{display:'flex',gap:'8px',marginTop:'12px'}}>
+                        <button className="btn btn-outline btn-sm" style={{flex:1,fontSize:'12px'}} onClick={()=>openWorkoutModal(s)}>✏️ 수정</button>
+                        <button className="btn btn-outline btn-sm" style={{flex:1,fontSize:'12px',color:'#ef4444'}} onClick={()=>deleteWorkoutSession(s.id)}>삭제</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )
+      })()}
+
+      {/* 커뮤니티 */}
+      {tab === 'community' && (
+        <div className="m-page">
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'14px'}}>
+            <div>
+              <div style={{fontSize:'15px',fontWeight:700}}>운동 일상 공유</div>
+              <div style={{fontSize:'12px',color:'var(--m-text-dim)',marginTop:'2px'}}>같은 센터 회원들과 일상을 나눠보세요</div>
+            </div>
+            <button className="btn btn-primary btn-sm" onClick={()=>setPostModal(true)} style={{fontSize:'12px'}}>+ 글쓰기</button>
+          </div>
+          {!member.trainer_id && (
+            <div className="empty">커뮤니티는 트레이너에게 등록된 회원만 이용할 수 있어요.</div>
+          )}
+          {member.trainer_id && !posts.length && (
+            <div className="empty"><div style={{fontSize:'32px',marginBottom:'12px'}}>🤝</div><p>아직 게시물이 없어요</p><p style={{fontSize:'12px',marginTop:'4px'}}>첫 번째 게시물을 올려보세요!</p></div>
+          )}
+          {posts.map(post => {
+            const counts = reactionCounts[post.id] || {}
+            const mine = myReactions[post.id] || new Set()
+            const totalReactions = Object.values(counts).reduce((a,b)=>a+b,0)
+            return (
+              <div key={post.id} className="card" style={{marginBottom:'12px'}}>
+                <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'10px'}}>
+                  <div style={{width:'36px',height:'36px',borderRadius:'50%',background:'linear-gradient(135deg,#667eea,#764ba2)',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:'14px',fontWeight:700,flexShrink:0}}>
+                    {(post.member_name||'?')[0]}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:'13px',fontWeight:600}}>{post.member_name||'회원'}</div>
+                    <div style={{fontSize:'11px',color:'var(--m-text-dim)'}}>{formatRelative(post.created_at)}</div>
+                  </div>
+                  {post.member_id === member.id && (
+                    <button onClick={()=>deletePost(post.id)} style={{background:'none',border:'none',color:'#ccc',cursor:'pointer',fontSize:'16px',padding:'2px 6px'}}>×</button>
+                  )}
+                </div>
+                {post.content && <p style={{fontSize:'14px',lineHeight:'1.65',margin:'0 0 10px',color:'#333',wordBreak:'break-word'}}>{post.content}</p>}
+                {post.photo_url && (
+                  <img src={post.photo_url} alt="첨부 사진" style={{width:'100%',borderRadius:'10px',objectFit:'cover',maxHeight:'340px',marginBottom:'10px',display:'block'}} />
+                )}
+                {/* 반응 카운트 */}
+                {totalReactions > 0 && (
+                  <div style={{fontSize:'12px',color:'var(--m-text-dim)',marginBottom:'8px',display:'flex',flexWrap:'wrap',gap:'6px'}}>
+                    {REACTIONS.filter(r=>counts[r]>0).map(r=>(
+                      <span key={r}>{r} {counts[r]}</span>
+                    ))}
+                  </div>
+                )}
+                {/* 반응 버튼 */}
+                <div style={{display:'flex',flexWrap:'wrap',gap:'6px',borderTop:'1px solid #f0f0f0',paddingTop:'10px'}}>
+                  {REACTIONS.map(r => (
+                    <button key={r} onClick={()=>toggleReaction(post.id, r)}
+                      style={{padding:'5px 10px',borderRadius:'20px',border:'1px solid',fontSize:'13px',cursor:'pointer',fontFamily:'inherit',transition:'all 0.15s',
+                        background: mine.has(r) ? '#fff3e0' : '#fafafa',
+                        borderColor: mine.has(r) ? '#f97316' : '#e5e7eb',
+                        fontWeight: mine.has(r) ? 600 : 400}}>
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* WORKOUT MODAL */}
+      <Modal open={workoutModal} onClose={()=>setWorkoutModal(false)} title={workoutEditId?'운동일지 수정':'운동 기록'} maxWidth="520px">
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'8px'}}>
+          <div className="form-group" style={{marginBottom:0}}><label>날짜</label><input type="date" value={workoutForm.date} onChange={e=>setWorkoutForm(f=>({...f,date:e.target.value}))} /></div>
+          <div className="form-group" style={{marginBottom:0}}><label>운동 시간 (분)</label><input type="number" value={workoutForm.duration_min} onChange={e=>setWorkoutForm(f=>({...f,duration_min:e.target.value}))} placeholder="60" min="1" /></div>
+        </div>
+        <div className="form-group"><label>제목 (선택)</label><input type="text" value={workoutForm.title} onChange={e=>setWorkoutForm(f=>({...f,title:e.target.value}))} placeholder="상체 / 하체 / 풀바디..." /></div>
+        {workoutForm.exercises.map((ex, ei) => {
+          const query = exQuery[ex.localId] || ''
+          const suggestions = query.length >= 1
+            ? EXERCISE_DB.filter(e => e.name.includes(query) && e.name !== ex.name).slice(0,6)
+            : []
+          const dbEx = EXERCISE_DB.find(e => e.name === ex.name)
+          return (
+            <div key={ex.localId} style={{background:'#f9f9f9',borderRadius:'10px',padding:'12px',marginBottom:'10px',border:'1px solid #eee'}}>
+              <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'10px'}}>
+                <span style={{fontSize:'12px',color:'#aaa',fontWeight:600,minWidth:'24px'}}>{ei+1}</span>
+                <div style={{flex:1,position:'relative'}}>
+                  <input type="text" value={ex.name}
+                    onChange={e=>handleExNameChange(ex.localId, e.target.value)}
+                    onFocus={()=>setExQuery(q=>({...q,[ex.localId]:ex.name}))}
+                    placeholder="운동 이름 입력 또는 검색"
+                    style={{width:'100%',fontSize:'13px',fontWeight:500}} />
+                  {suggestions.length > 0 && (
+                    <div style={{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid #e5e7eb',borderRadius:'8px',boxShadow:'0 4px 12px rgba(0,0,0,0.1)',zIndex:100,overflow:'hidden',marginTop:'2px'}}>
+                      {suggestions.map(s=>(
+                        <div key={s.name} onMouseDown={()=>selectExSuggestion(ex.localId,s)}
+                          style={{padding:'8px 12px',cursor:'pointer',fontSize:'13px',display:'flex',alignItems:'center',gap:'8px',borderBottom:'1px solid #f5f5f5'}}
+                          onMouseEnter={e=>e.currentTarget.style.background='#f5f5f5'}
+                          onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                          <span style={{flex:1}}>{s.name}</span>
+                          <span style={{fontSize:'10px',color:MUSCLE_COLOR[s.primary[0]]||'#aaa',padding:'1px 6px',background:(MUSCLE_COLOR[s.primary[0]]||'#6b7280')+'15',borderRadius:'4px'}}>{s.primary[0]}</span>
+                          <span style={{fontSize:'10px',color:'#ccc'}}>{s.eq}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {workoutForm.exercises.length > 1 && (
+                  <button onClick={()=>wfRemoveEx(ex.localId)} style={{background:'none',border:'none',color:'#ccc',cursor:'pointer',fontSize:'18px',flexShrink:0,padding:0}}>×</button>
+                )}
+              </div>
+              {/* 근육군 선택 */}
+              <div style={{display:'flex',flexWrap:'wrap',gap:'5px',marginBottom:'10px'}}>
+                {MUSCLE_GROUPS.map(mg=>(
+                  <button key={mg} type="button" onClick={()=>wfUpdateEx(ex.localId,'muscle_group',ex.muscle_group===mg?'':mg)}
+                    style={{padding:'3px 9px',borderRadius:'6px',border:'1px solid',fontSize:'11px',cursor:'pointer',fontFamily:'inherit',
+                      background: ex.muscle_group===mg ? (MUSCLE_COLOR[mg]||'#888') : 'transparent',
+                      color: ex.muscle_group===mg ? '#fff' : (MUSCLE_COLOR[mg]||'#888'),
+                      borderColor: MUSCLE_COLOR[mg]||'#888', opacity: ex.muscle_group===mg ? 1 : 0.6}}>
+                    {mg}
+                  </button>
+                ))}
+              </div>
+              {/* 근육 다이어그램 (운동 선택 시) */}
+              {dbEx && <MuscleDiagram primary={dbEx.primary} secondary={dbEx.secondary} />}
+              {/* 세트 그리드 */}
+              <div style={{display:'grid',gridTemplateColumns:'32px 1fr 1fr 1fr 24px',gap:'4px',marginBottom:'4px',alignItems:'center'}}>
+                <span style={{fontSize:'10px',color:'#aaa',textAlign:'center'}}>세트</span>
+                <span style={{fontSize:'10px',color:'#aaa',textAlign:'center'}}>무게(kg)</span>
+                <span style={{fontSize:'10px',color:'#aaa',textAlign:'center'}}>횟수</span>
+                <span style={{fontSize:'10px',color:'#aaa',textAlign:'center'}}>휴식(초)</span>
+                <span></span>
+              </div>
+              {ex.sets.map((set,si)=>(
+                <div key={si} style={{display:'grid',gridTemplateColumns:'32px 1fr 1fr 1fr 24px',gap:'4px',marginBottom:'4px',alignItems:'center'}}>
+                  <span style={{fontSize:'11px',color:'#aaa',textAlign:'center',flexShrink:0}}>{si+1}</span>
+                  <input type="number" value={set.weight} onChange={e=>wfUpdateSet(ex.localId,si,'weight',e.target.value)} placeholder="0" min="0" step="0.5" style={{padding:'5px 6px',fontSize:'12px',textAlign:'center'}} />
+                  <input type="number" value={set.reps} onChange={e=>wfUpdateSet(ex.localId,si,'reps',e.target.value)} placeholder="0" min="0" style={{padding:'5px 6px',fontSize:'12px',textAlign:'center'}} />
+                  <input type="number" value={set.rest_sec} onChange={e=>wfUpdateSet(ex.localId,si,'rest_sec',e.target.value)} placeholder="60" min="0" style={{padding:'5px 6px',fontSize:'12px',textAlign:'center'}} />
+                  {ex.sets.length > 1
+                    ? <button onClick={()=>wfRemoveSet(ex.localId,si)} style={{background:'none',border:'none',color:'#ccc',cursor:'pointer',fontSize:'16px',padding:0,textAlign:'center'}}>×</button>
+                    : <span></span>
+                  }
+                </div>
+              ))}
+              <button className="btn btn-ghost btn-sm" style={{width:'100%',marginTop:'4px',fontSize:'11px'}} onClick={()=>wfAddSet(ex.localId)}>+ 세트 추가</button>
+            </div>
+          )
+        })}
+        <button className="btn btn-ghost" style={{width:'100%',marginBottom:'12px'}} onClick={wfAddEx}>+ 운동 종목 추가</button>
+        <div className="form-group"><label>메모 (선택)</label><textarea value={workoutForm.memo} onChange={e=>setWorkoutForm(f=>({...f,memo:e.target.value}))} placeholder="오늘 컨디션, 특이사항 등" rows={2} style={{resize:'vertical'}} /></div>
+        <div style={{display:'flex',gap:'6px',marginBottom:'12px',padding:'10px',background:'#f5f5f5',borderRadius:'8px',border:'1px solid #eee'}}>
+          <input type="text" value={workoutSaveRoutineName} onChange={e=>setWorkoutSaveRoutineName(e.target.value)} placeholder="루틴 이름 입력 후 저장" style={{flex:1,fontSize:'12px'}} />
+          <button className="btn btn-ghost btn-sm" style={{flexShrink:0,fontSize:'12px'}} onClick={saveAsRoutine}>루틴 저장</button>
+        </div>
+        <button className="btn btn-primary" style={{width:'100%'}} onClick={saveWorkoutSession}>{workoutEditId?'수정 완료':'기록 완료'}</button>
+      </Modal>
+
+      {/* ROUTINE MODAL */}
+      <Modal open={workoutRoutineModal} onClose={()=>setWorkoutRoutineModal(false)} title="루틴 불러오기">
+        {!workoutRoutines.length && <div className="empty"><p>저장된 루틴이 없어요</p></div>}
+        {workoutRoutines.map(r=>(
+          <div key={r.id} style={{display:'flex',alignItems:'center',gap:'10px',padding:'12px',background:'#f9f9f9',border:'1px solid #eee',borderRadius:'8px',marginBottom:'8px'}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:'13px',fontWeight:600,marginBottom:'4px'}}>{r.name}</div>
+              <div style={{fontSize:'11px',color:'var(--m-text-dim)'}}>{(r.exercises||[]).length}종목 · {(r.exercises||[]).map(e=>e.name).filter(Boolean).join(', ').slice(0,40)}</div>
+            </div>
+            <button className="btn btn-primary btn-sm" style={{flexShrink:0,fontSize:'12px'}} onClick={()=>loadRoutineIntoForm(r)}>불러오기</button>
+            <button className="btn btn-ghost btn-sm" style={{flexShrink:0,fontSize:'12px',color:'#ef4444',padding:'4px 6px'}} onClick={()=>deleteWorkoutRoutine(r.id)}>×</button>
+          </div>
+        ))}
+      </Modal>
+
+      {/* POST CREATE MODAL */}
+      <Modal open={postModal} onClose={()=>setPostModal(false)} title="운동 일상 공유" maxWidth="400px">
+        <div className="form-group">
+          <label>내용</label>
+          <textarea value={postContent} onChange={e=>setPostContent(e.target.value)}
+            placeholder="오늘 운동 어땠나요? 공유하고 싶은 일상을 적어보세요 💪"
+            rows={4} style={{resize:'vertical'}} />
+        </div>
+        <div className="form-group">
+          <label>사진 첨부 (선택)</label>
+          <input type="file" accept="image/*" onChange={e=>{
+            const file = e.target.files?.[0]; if (!file) return
+            setPostPhotoFile(file)
+            setPostPhotoPreview(URL.createObjectURL(file))
+          }} style={{fontSize:'12px'}} />
+          {postPhotoPreview && (
+            <div style={{marginTop:'8px',position:'relative',display:'inline-block'}}>
+              <img src={postPhotoPreview} alt="미리보기" style={{maxWidth:'100%',maxHeight:'200px',borderRadius:'8px',objectFit:'cover',display:'block'}} />
+              <button onClick={()=>{setPostPhotoFile(null);setPostPhotoPreview('')}}
+                style={{position:'absolute',top:'4px',right:'4px',background:'rgba(0,0,0,0.55)',border:'none',borderRadius:'50%',width:'22px',height:'22px',color:'#fff',cursor:'pointer',fontSize:'13px',lineHeight:'22px',textAlign:'center'}}>✕</button>
+            </div>
+          )}
+        </div>
+        <button className="btn btn-primary" style={{width:'100%'}} onClick={createPost}>게시하기</button>
+      </Modal>
     </div>
   )
 }
