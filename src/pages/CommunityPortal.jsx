@@ -9,6 +9,17 @@ import '../styles/community.css'
    viewAccess  : 해당 카테고리 게시글을 볼 수 있는 역할
    writeAccess : 해당 카테고리에 글을 쓸 수 있는 역할
    ============================================================ */
+/*
+  ┌──────────────────────┬─────────────────────────┬──────────────────────────┐
+  │ 카테고리              │ 볼 수 있는 역할(view)   │ 쓸 수 있는 역할(write)   │
+  ├──────────────────────┼─────────────────────────┼──────────────────────────┤
+  │ 직원 구인            │ 센터대표, 트레이너       │ 센터대표, 트레이너       │
+  │ 나만의 트레이너 찾기 │ 회원, 트레이너          │ 회원                     │
+  │ 수강생 구인(교육)    │ 전체                    │ 교육강사                 │
+  │ 트레이너 채용        │ 센터대표, 트레이너       │ 센터대표                 │
+  │ 센터 구직            │ 센터대표                │ 트레이너                 │
+  └──────────────────────┴─────────────────────────┴──────────────────────────┘
+*/
 const CATEGORIES = {
   trainer_seeks_member: {
     label: '직원 구인',
@@ -17,7 +28,7 @@ const CATEGORIES = {
     color: '#c8f135',
     bg: 'rgba(200,241,53,0.12)',
     hint: '모집 조건, 전문 분야, 근무 지역 등을 적어주세요',
-    viewAccess:  ['gym_owner', 'trainer'],
+    viewAccess:  ['gym_owner', 'trainer'],   // 센터대표 + 트레이너만
     writeAccess: ['gym_owner', 'trainer'],
   },
   member_seeks_trainer: {
@@ -27,8 +38,8 @@ const CATEGORIES = {
     color: '#4fc3f7',
     bg: 'rgba(79,195,247,0.12)',
     hint: '원하는 운동 목표, 가능한 시간대, 예산 등을 적어주세요',
-    viewAccess:  ['member', 'trainer'],
-    writeAccess: ['member', 'trainer'],
+    viewAccess:  ['member', 'trainer'],      // 회원 + 트레이너만
+    writeAccess: ['member'],
   },
   instructor_seeks_student: {
     label: '수강생 구인(교육)',
@@ -37,7 +48,7 @@ const CATEGORIES = {
     color: '#ff9800',
     bg: 'rgba(255,152,0,0.12)',
     hint: '강의 주제, 대상 (트레이너/관장 등), 일정 등을 적어주세요',
-    viewAccess:  ['trainer', 'member', 'instructor', 'gym_owner'],
+    viewAccess:  ['trainer', 'member', 'instructor', 'gym_owner'], // 전체
     writeAccess: ['instructor'],
   },
   gym_seeks_trainer: {
@@ -47,7 +58,7 @@ const CATEGORIES = {
     color: '#e040fb',
     bg: 'rgba(224,64,251,0.12)',
     hint: '센터 위치, 근무 조건, 우대사항 등을 적어주세요',
-    viewAccess:  ['gym_owner', 'trainer'],
+    viewAccess:  ['gym_owner', 'trainer'],   // 센터대표 + 트레이너 (구직 공고 확인)
     writeAccess: ['gym_owner'],
   },
   trainer_seeks_gym: {
@@ -57,7 +68,7 @@ const CATEGORIES = {
     color: '#ff5c5c',
     bg: 'rgba(255,92,92,0.12)',
     hint: '가능 지역, 경력, 전문 분야 등을 적어주세요',
-    viewAccess:  ['trainer', 'gym_owner'],
+    viewAccess:  ['gym_owner'],              // 센터대표만 열람 (트레이너는 내 활동에서 관리)
     writeAccess: ['trainer'],
   },
 }
