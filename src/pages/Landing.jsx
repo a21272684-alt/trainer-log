@@ -21,44 +21,50 @@ export default function Landing() {
     <div style={{background:'#0d0d0d',color:'#fff',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden'}}>
 
       {/* ── HERO ─────────────────────────────────────── */}
-      <section style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'60px 24px 40px',textAlign:'center',position:'relative'}}>
-        {/* 배경 글로우 */}
-        <div style={{position:'absolute',top:'30%',left:'50%',transform:'translate(-50%,-50%)',width:'600px',height:'400px',background:'radial-gradient(ellipse at center, rgba(200,241,53,0.07) 0%, transparent 70%)',pointerEvents:'none'}}></div>
+      <section style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'60px 24px 40px',textAlign:'center',position:'relative',overflow:'hidden'}}>
+        {/* 배경 사진 — 트레이너 코칭 */}
+        <div style={{position:'absolute',inset:0,backgroundImage:'url(https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?auto=format&fit=crop&w=1920&q=80)',backgroundSize:'cover',backgroundPosition:'center top',zIndex:0}}></div>
+        {/* 다크 오버레이 — 상단 진하게, 중간 살짝 투명, 하단 다시 진하게 */}
+        <div style={{position:'absolute',inset:0,background:'linear-gradient(180deg,rgba(13,13,13,0.82) 0%,rgba(13,13,13,0.55) 45%,rgba(13,13,13,0.90) 100%)',zIndex:1}}></div>
+        {/* 하단 페이드아웃 — 다음 섹션과 자연스럽게 연결 */}
+        <div style={{position:'absolute',bottom:0,left:0,right:0,height:'180px',background:'linear-gradient(transparent,#0d0d0d)',zIndex:2}}></div>
 
-        <div style={{fontSize:'13px',fontWeight:600,letterSpacing:'0.12em',color:'#c8f135',marginBottom:'20px',background:'rgba(200,241,53,0.08)',padding:'5px 14px',borderRadius:'20px',border:'1px solid rgba(200,241,53,0.2)'}}>
-          FOR PERSONAL TRAINERS
-        </div>
+        {/* 콘텐츠 */}
+        <div style={{position:'relative',zIndex:3,display:'flex',flexDirection:'column',alignItems:'center'}}>
+          <div style={{fontSize:'13px',fontWeight:600,letterSpacing:'0.12em',color:'#c8f135',marginBottom:'20px',background:'rgba(200,241,53,0.1)',padding:'5px 14px',borderRadius:'20px',border:'1px solid rgba(200,241,53,0.25)',backdropFilter:'blur(8px)'}}>
+            FOR PERSONAL TRAINERS
+          </div>
 
-        <div style={{fontSize:'clamp(36px,8vw,72px)',fontWeight:900,letterSpacing:'-2px',lineHeight:1,marginBottom:'16px'}}>
-          TRAINER<span style={{color:'#c8f135'}}>LOG</span>
-        </div>
+          <div style={{fontSize:'clamp(36px,8vw,72px)',fontWeight:900,letterSpacing:'-2px',lineHeight:1,marginBottom:'16px',textShadow:'0 2px 20px rgba(0,0,0,0.5)'}}>
+            TRAINER<span style={{color:'#c8f135'}}>LOG</span>
+          </div>
 
-        <h1 style={{fontSize:'clamp(18px,4vw,28px)',fontWeight:700,lineHeight:1.4,margin:'0 0 16px',maxWidth:'520px',letterSpacing:'-0.5px'}}>
-          트레이너의 시간을 아껴주는<br/>스마트 피트니스 플랫폼
-        </h1>
+          <h1 style={{fontSize:'clamp(18px,4vw,28px)',fontWeight:700,lineHeight:1.4,margin:'0 0 16px',maxWidth:'520px',letterSpacing:'-0.5px',textShadow:'0 2px 12px rgba(0,0,0,0.6)'}}>
+            트레이너의 시간을 아껴주는<br/>스마트 피트니스 플랫폼
+          </h1>
 
-        <p style={{fontSize:'14px',color:'#888',lineHeight:1.8,marginBottom:'36px',maxWidth:'380px'}}>
-          AI가 수업일지를 대신 써주고, 회원은 포털에서 직접 기록을 확인해요.<br/>
-          매출·스케줄·건강까지 모든 것이 연결됩니다.
-        </p>
+          <p style={{fontSize:'14px',color:'rgba(255,255,255,0.72)',lineHeight:1.8,marginBottom:'36px',maxWidth:'380px',textShadow:'0 1px 8px rgba(0,0,0,0.5)'}}>
+            AI가 수업일지를 대신 써주고, 회원은 포털에서 직접 기록을 확인해요.<br/>
+            매출·스케줄·건강까지 모든 것이 연결됩니다.
+          </p>
 
-        <div style={{display:'flex',gap:'12px',flexWrap:'wrap',justifyContent:'center',marginBottom:'60px'}}>
-          <Link to="/trainer" style={{background:'#c8f135',color:'#0d0d0d',padding:'14px 28px',borderRadius:'12px',fontWeight:700,fontSize:'14px',textDecoration:'none',letterSpacing:'-0.3px',transition:'all 0.2s'}}>
-            트레이너 시작하기 →
-          </Link>
-          <Link to="/member" style={{background:'rgba(255,255,255,0.06)',color:'#fff',padding:'14px 28px',borderRadius:'12px',fontWeight:600,fontSize:'14px',textDecoration:'none',border:'1px solid rgba(255,255,255,0.12)',transition:'all 0.2s'}}>
-            회원 포털 입장
-          </Link>
-        </div>
-
-        {/* 스탯 바 */}
-        <div style={{display:'flex',gap:'0',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:'16px',overflow:'hidden',maxWidth:'480px',width:'100%'}}>
-          {[['AI 자동', '수업일지 완성'],['실시간','트레이너↔회원 연결'],['전부 자동','매출·세션 계산']].map(([big,small],i)=>(
-            <div key={i} style={{flex:1,padding:'16px 12px',textAlign:'center',borderRight:i<2?'1px solid rgba(255,255,255,0.08)':'none'}}>
-              <div style={{fontSize:'16px',fontWeight:800,color:'#c8f135',marginBottom:'3px'}}>{big}</div>
-              <div style={{fontSize:'10px',color:'#666',lineHeight:1.4}}>{small}</div>
-            </div>
-          ))}
+          <div style={{display:'flex',gap:'12px',flexWrap:'wrap',justifyContent:'center',marginBottom:'60px'}}>
+            <Link to="/trainer" style={{background:'#c8f135',color:'#0d0d0d',padding:'14px 28px',borderRadius:'12px',fontWeight:700,fontSize:'14px',textDecoration:'none',letterSpacing:'-0.3px',boxShadow:'0 4px 24px rgba(200,241,53,0.35)'}}>
+              트레이너 시작하기 →
+            </Link>
+            <Link to="/member" style={{background:'rgba(255,255,255,0.12)',color:'#fff',padding:'14px 28px',borderRadius:'12px',fontWeight:600,fontSize:'14px',textDecoration:'none',border:'1px solid rgba(255,255,255,0.25)',backdropFilter:'blur(8px)'}}>
+              회원 포털 입장
+            </Link>
+          </div>
+          {/* 스탯 바 */}
+          <div style={{position:'relative',zIndex:3,display:'flex',gap:'0',background:'rgba(13,13,13,0.55)',backdropFilter:'blur(12px)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:'16px',overflow:'hidden',maxWidth:'480px',width:'100%'}}>
+            {[['AI 자동', '수업일지 완성'],['실시간','트레이너↔회원 연결'],['전부 자동','매출·세션 계산']].map(([big,small],i)=>(
+              <div key={i} style={{flex:1,padding:'16px 12px',textAlign:'center',borderRight:i<2?'1px solid rgba(255,255,255,0.1)':'none'}}>
+                <div style={{fontSize:'16px',fontWeight:800,color:'#c8f135',marginBottom:'3px'}}>{big}</div>
+                <div style={{fontSize:'10px',color:'rgba(255,255,255,0.5)',lineHeight:1.4}}>{small}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
