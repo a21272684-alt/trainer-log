@@ -652,7 +652,7 @@ export default function TrainerApp() {
         const { error } = await supabase.from('workout_sessions').update({ title: f.title||null, workout_date: f.date, duration_min: parseInt(f.duration_min)||null, memo: f.memo||null, exercises, total_volume }).eq('id', workoutEditId)
         if (error) throw error
       } else {
-        const { error } = await supabase.from('workout_sessions').insert({ member_id: currentMemberId, trainer_id: trainer.id, title: f.title||null, workout_date: f.date, duration_min: parseInt(f.duration_min)||null, memo: f.memo||null, exercises, total_volume })
+        const { error } = await supabase.from('workout_sessions').insert({ member_id: currentMemberId, trainer_id: trainer.id, source: 'trainer', title: f.title||null, workout_date: f.date, duration_min: parseInt(f.duration_min)||null, memo: f.memo||null, exercises, total_volume })
         if (error) throw error
       }
       await loadWorkoutSessions(currentMemberId)
@@ -1349,6 +1349,7 @@ export default function TrainerApp() {
                             <span style={{fontSize:'13px',fontWeight:600}}>{s.title||'운동'}</span>
                             <span style={{fontSize:'11px',color:'var(--text-dim)'}}>{dateStr}</span>
                             {s.duration_min && <span style={{fontSize:'11px',color:'var(--text-dim)'}}>⏱ {s.duration_min}분</span>}
+                            {s.source === 'member' && <span style={{fontSize:'10px',padding:'1px 6px',borderRadius:'4px',background:'rgba(34,197,94,0.12)',color:'#16a34a',border:'1px solid rgba(34,197,94,0.3)'}}>회원 기록</span>}
                           </div>
                           <div style={{display:'flex',gap:'6px',flexWrap:'wrap',marginBottom:'4px'}}>
                             {muscles.map(mg=>(

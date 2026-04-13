@@ -277,7 +277,7 @@ export default function MemberPortal() {
         const { error } = await supabase.from('workout_sessions').update({ title: f.title||null, workout_date: f.date, duration_min: parseInt(f.duration_min)||null, memo: f.memo||null, exercises, total_volume }).eq('id', workoutEditId)
         if (error) throw error
       } else {
-        const { error } = await supabase.from('workout_sessions').insert({ member_id: member.id, trainer_id: member.trainer_id||null, title: f.title||null, workout_date: f.date, duration_min: parseInt(f.duration_min)||null, memo: f.memo||null, exercises, total_volume })
+        const { error } = await supabase.from('workout_sessions').insert({ member_id: member.id, trainer_id: member.trainer_id||null, source: 'member', title: f.title||null, workout_date: f.date, duration_min: parseInt(f.duration_min)||null, memo: f.memo||null, exercises, total_volume })
         if (error) throw error
       }
       await loadWorkoutSessions()
@@ -337,7 +337,7 @@ export default function MemberPortal() {
         .eq('trainer_id', member.trainer_id)
         .order('created_at', { ascending: false })
         .limit(50)
-      if (error) throw error
+      if (error) { setPosts([]); return }  // 테이블 미생성 등 오류 시 빈 피드로 표시
       setPosts(postsData || [])
       if (postsData?.length) {
         const ids = postsData.map(p => p.id)
@@ -356,7 +356,7 @@ export default function MemberPortal() {
           setMyReactions(mine)
         }
       }
-    } catch(e) { showToast('커뮤니티를 불러오지 못했어요') }
+    } catch(e) { setPosts([]) }  // 오류 시 토스트 없이 빈 피드
   }
   async function createPost() {
     if (!postContent.trim() && !postPhotoFile) { showToast('내용이나 사진을 추가해주세요'); return }
@@ -690,7 +690,7 @@ export default function MemberPortal() {
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'14px'}}>
             <div>
               <div style={{fontSize:'15px',fontWeight:700}}>운동 일상 공유</div>
-              <div style={{fontSize:'12px',color:'var(--m-text-dim)',marginTop:'2px'}}>같은 센터 회원들과 일상을 나눠보세요</div>
+              <div style={{fontSize:'12px',color:'var(--m-text-dim)',marginTop:'2px'}}>나의 일상을 나눠보세요☺️</div>
             </div>
             <button className="btn btn-primary btn-sm" onClick={()=>setPostModal(true)} style={{fontSize:'12px'}}>+ 글쓰기</button>
           </div>
