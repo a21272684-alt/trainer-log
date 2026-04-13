@@ -18,7 +18,19 @@ const MEMBER_FEATURES = [
 
 export default function Landing() {
   return (
-    <div style={{background:'#0d0d0d',color:'#fff',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden'}}>
+    <div style={{background:'#0d0d0d',color:'#fff',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden',position:'relative'}}>
+
+      {/* ── 앰비언트 글로우 블롭 (스크롤 내내 배경에 깔림) ── */}
+      <div style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:0,overflow:'hidden'}}>
+        {/* 왼쪽 위 — 초록 (트레이너 섹션) */}
+        <div style={{position:'absolute',top:'20%',left:'-15%',width:'700px',height:'600px',background:'radial-gradient(ellipse,rgba(200,241,53,0.055) 0%,transparent 65%)',transform:'rotate(-20deg)'}}/>
+        {/* 오른쪽 중간 — 하늘색 (회원 섹션) */}
+        <div style={{position:'absolute',top:'55%',right:'-12%',width:'650px',height:'600px',background:'radial-gradient(ellipse,rgba(79,195,247,0.045) 0%,transparent 65%)'}}/>
+        {/* 하단 중앙 — 주황 (커뮤니티 / 포털 섹션) */}
+        <div style={{position:'absolute',bottom:'8%',left:'25%',width:'600px',height:'400px',background:'radial-gradient(ellipse,rgba(255,152,0,0.03) 0%,transparent 65%)'}}/>
+        {/* 전체 노이즈 텍스처 (CSS SVG 패턴) */}
+        <div style={{position:'absolute',inset:0,opacity:0.018,backgroundImage:`url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,backgroundSize:'200px'}}/>
+      </div>
 
       {/* ── HERO ─────────────────────────────────────── */}
       <section style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'60px 24px 40px',textAlign:'center',position:'relative',overflow:'hidden'}}>
