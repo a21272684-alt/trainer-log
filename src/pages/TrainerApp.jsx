@@ -79,7 +79,7 @@ function MemberRevenueCard({ m, mWeekLogs, mMonthLogs, attendRate, cancelledBloc
       </div>
       <div style={{display:'flex',justifyContent:'space-between',fontSize:'11px',color:'var(--text-muted)'}}>
         <span>{m.done_sessions}회 완료 · 잔여 {remain}회</span>
-        {price>0 && <span style={{color:'var(--accent)'}}>잔여 예상 수익 {(price*remain).toLocaleString()}원</span>}
+        {price>0 && <span style={{color:'var(--accent)'}}>미진행 세션 잔존가치 {(price*remain).toLocaleString()}원</span>}
       </div>
       {cancelledBlocks.length>0 && (
         <div style={{marginTop:'10px',paddingTop:'10px',borderTop:'1px solid var(--border)'}}>
@@ -824,7 +824,7 @@ export default function TrainerApp() {
               [weekRevenue,'이번 주 매출',weekLogs.length+'회 수업','var(--accent)'],
               [monthRevenue,'이번 달 매출',monthLogs.length+'회 수업','var(--accent)'],
               [projectedMonth,'월말 예상 매출',dayOfMonth+'/'+daysInMonth+'일 기준','#facc15'],
-              [remainRevenue,'잔여 예상 수익','남은 세션 기준','#60a5fa'],
+              [remainRevenue,'미진행 세션 잔존가치','남은 세션 기준','#60a5fa'],
             ].map(([v,label,sub,c],i)=>(
               <div key={i} className="card" style={{marginBottom:0,padding:'14px'}}>
                 <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'6px'}}>{label}</div>
