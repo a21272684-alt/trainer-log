@@ -332,7 +332,7 @@ export default function MemberPortal() {
     if (!member?.trainer_id) { setPosts([]); return }
     try {
       const { data: postsData, error } = await supabase
-        .from('community_posts')
+        .from('member_posts')
         .select('*')
         .eq('trainer_id', member.trainer_id)
         .order('created_at', { ascending: false })
@@ -341,7 +341,7 @@ export default function MemberPortal() {
       setPosts(postsData || [])
       if (postsData?.length) {
         const ids = postsData.map(p => p.id)
-        const { data: reactData } = await supabase.from('post_reactions').select('*').in('post_id', ids)
+        const { data: reactData } = await supabase.from('member_reactions').select('*').in('post_id', ids)
         if (reactData) {
           const counts = {}; const mine = {}
           for (const r of reactData) {
@@ -370,7 +370,7 @@ export default function MemberPortal() {
         const { data: { publicUrl } } = supabase.storage.from('community-photos').getPublicUrl(path)
         photo_url = publicUrl
       }
-      const { error } = await supabase.from('community_posts').insert({
+      const { error } = await supabase.from('member_posts').insert({
         member_id: member.id, member_name: member.name,
         trainer_id: member.trainer_id, content: postContent.trim() || null, photo_url,
       })
@@ -399,14 +399,14 @@ export default function MemberPortal() {
     })
     try {
       if (hasIt) {
-        await supabase.from('post_reactions').delete().eq('post_id', postId).eq('member_id', member.id).eq('reaction', reaction)
+        await supabase.from('member_reactions').delete().eq('post_id', postId).eq('member_id', member.id).eq('reaction', reaction)
       } else {
-        await supabase.from('post_reactions').upsert({ post_id: postId, member_id: member.id, reaction }, { onConflict: 'post_id,member_id,reaction' })
+        await supabase.from('member_reactions').upsert({ post_id: postId, member_id: member.id, reaction }, { onConflict: 'post_id,member_id,reaction' })
       }
     } catch(e) { showToast('오류가 발생했어요'); loadPosts() }
   }
   async function deletePost(postId) {
-    const { error } = await supabase.from('community_posts').delete().eq('id', postId)
+    const { error } = await supabase.from('member_posts').delete().eq('id', postId)
     if (!error) { await loadPosts(); showToast('삭제됐어요') }
     else showToast('오류: ' + error.message)
   }
