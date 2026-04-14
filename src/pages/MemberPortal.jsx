@@ -76,6 +76,7 @@ function MuscleDiagram({ primary = [], secondary = [] }) {
 
 export default function MemberPortal() {
   const showToast = useToast()
+  const [showLanding, setShowLanding] = useState(true)
   const [loggedIn, setLoggedIn] = useState(false)
   const [member, setMember] = useState(null)
   const [tab, setTab] = useState('logs')
@@ -418,6 +419,108 @@ export default function MemberPortal() {
   const lostPct = (member?.start_weight && lost) ? ((lost/member.start_weight)*100).toFixed(1) : 0
   const goalPct = (member?.start_weight && member?.target_weight && lost && member.start_weight !== member.target_weight) ? Math.min(100, Math.round((lost/(member.start_weight-member.target_weight))*100)) : 0
 
+  // === MEMBER LANDING ===
+  if (!loggedIn && showLanding) {
+    const FEATURES = [
+      { icon:'📋', title:'수업일지 열람', desc:'트레이너가 작성한 수업일지를 열람하고 PDF로 저장해요' },
+      { icon:'⚖️', title:'체중·건강 추적', desc:'공복/저녁 체중, 수면을 기록하고 14일 추이를 확인해요' },
+      { icon:'🏃', title:'개인운동 일지', desc:'60+ 종목 자동완성, 세트·볼륨 계산, 근육 다이어그램 제공' },
+      { icon:'🤝', title:'회원 커뮤니티', desc:'같은 센터 회원들과 운동 일상을 사진·이모지로 공유해요' },
+    ]
+    return (
+      <div style={{background:'#f5f5f3',color:'#111',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden'}}>
+        {/* 상단 바 */}
+        <div style={{background:'#111',padding:'18px 24px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div style={{fontSize:'16px',fontWeight:900,letterSpacing:'-1px',color:'#fff'}}>
+            TRAINER<span style={{color:'#c8f135'}}>LOG</span>
+          </div>
+          <Link to="/" style={{fontSize:'12px',color:'rgba(255,255,255,0.4)',textDecoration:'none'}}>← 메인으로</Link>
+        </div>
+
+        {/* 히어로 */}
+        <div style={{background:'#111',padding:'40px 24px 52px',textAlign:'center',position:'relative',overflow:'hidden'}}>
+          <div style={{position:'absolute',inset:0,
+            background:'radial-gradient(ellipse at 60% 50%,rgba(200,241,53,0.08) 0%,transparent 65%)',
+            pointerEvents:'none'}}/>
+          <div style={{position:'relative',zIndex:1,maxWidth:'480px',margin:'0 auto'}}>
+            <div style={{display:'inline-block',fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',
+              color:'#c8f135',background:'rgba(200,241,53,0.12)',padding:'5px 14px',borderRadius:'20px',
+              border:'1px solid rgba(200,241,53,0.25)',marginBottom:'20px'}}>
+              MEMBER PORTAL
+            </div>
+            <h1 style={{fontSize:'clamp(28px,7vw,44px)',fontWeight:900,letterSpacing:'-2px',lineHeight:1.1,
+              color:'#fff',margin:'0 0 14px'}}>
+              내 운동 기록을<br/>한눈에 확인
+            </h1>
+            <p style={{fontSize:'14px',color:'rgba(255,255,255,0.55)',lineHeight:1.85,margin:'0 auto 32px',maxWidth:'320px'}}>
+              트레이너와 연결된 나만의 건강 기록장.
+              수업일지·체중·식단·운동을 모두 여기서 관리하세요.
+            </p>
+            <button onClick={()=>setShowLanding(false)} style={{
+              background:'#c8f135',color:'#111',padding:'14px 36px',borderRadius:'12px',
+              fontWeight:800,fontSize:'15px',border:'none',cursor:'pointer',
+              boxShadow:'0 4px 20px rgba(200,241,53,0.4)',fontFamily:'inherit',
+              display:'block',width:'100%',maxWidth:'300px',marginLeft:'auto',marginRight:'auto',marginBottom:'10px'}}>
+              회원 로그인하기
+            </button>
+            <p style={{fontSize:'12px',color:'rgba(255,255,255,0.3)',margin:0}}>트레이너에게 등록된 회원만 입장할 수 있어요</p>
+          </div>
+        </div>
+
+        {/* 기능 카드 */}
+        <div style={{maxWidth:'640px',margin:'0 auto',padding:'40px 20px 60px'}}>
+          <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.1em',color:'#aaa',
+            textAlign:'center',marginBottom:'20px'}}>회원 포털 주요 기능</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'32px'}}>
+            {FEATURES.map((f,i)=>(
+              <div key={i} style={{background:'#fff',border:'1px solid #e5e5e0',borderRadius:'16px',padding:'20px',
+                boxShadow:'0 2px 8px rgba(0,0,0,0.04)'}}>
+                <div style={{fontSize:'26px',marginBottom:'10px'}}>{f.icon}</div>
+                <div style={{fontSize:'13px',fontWeight:700,color:'#111',marginBottom:'6px'}}>{f.title}</div>
+                <div style={{fontSize:'11px',color:'#888',lineHeight:1.65}}>{f.desc}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* 근육 미리보기 배너 */}
+          <div style={{background:'#111',borderRadius:'16px',padding:'22px',display:'flex',
+            alignItems:'center',gap:'20px',marginBottom:'24px'}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:'11px',fontWeight:700,color:'#c8f135',letterSpacing:'0.08em',marginBottom:'8px'}}>PERSONAL WORKOUT</div>
+              <div style={{fontSize:'14px',fontWeight:700,color:'#fff',marginBottom:'6px',lineHeight:1.4}}>
+                근육 다이어그램으로<br/>오늘 운동 한눈에 확인
+              </div>
+              <div style={{display:'flex',gap:'5px',flexWrap:'wrap'}}>
+                {['가슴','등','어깨','하체','코어'].map((m,i)=>{
+                  const c=['#ef4444','#3b82f6','#8b5cf6','#22c55e','#eab308'][i]
+                  return <span key={m} style={{fontSize:'10px',padding:'2px 7px',borderRadius:'5px',
+                    background:c+'22',color:c,border:`1px solid ${c}44`,fontWeight:600}}>{m}</span>
+                })}
+              </div>
+            </div>
+            <svg width="44" height="100" viewBox="0 0 80 180">
+              <circle cx="40" cy="12" r="11" fill="#2a2a2a"/>
+              <rect x="35" y="22" width="10" height="8" rx="2" fill="#2a2a2a"/>
+              <ellipse cx="21" cy="38" rx="9" ry="8" fill="#8b5cf6"/>
+              <ellipse cx="59" cy="38" rx="9" ry="8" fill="#8b5cf6"/>
+              <path d="M30 32 Q40 37 50 32 L52 65 Q40 69 28 65 Z" fill="#ef4444"/>
+              <rect x="29" y="65" width="22" height="28" rx="3" fill="#eab308"/>
+              <ellipse cx="32" cy="120" rx="11" ry="19" fill="#22c55e"/>
+              <ellipse cx="48" cy="120" rx="11" ry="19" fill="#22c55e"/>
+            </svg>
+          </div>
+
+          <button onClick={()=>setShowLanding(false)} style={{
+            width:'100%',background:'#111',border:'none',color:'#fff',
+            padding:'14px',borderRadius:'12px',fontWeight:700,fontSize:'14px',
+            cursor:'pointer',fontFamily:'inherit'}}>
+            로그인하고 시작하기 →
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   // === LOGIN ===
   if (!loggedIn) {
     return (
@@ -428,7 +531,9 @@ export default function MemberPortal() {
           <div className="form-group"><label>이름</label><input type="text" value={loginName} onChange={e=>setLoginName(e.target.value)} placeholder="홍길동" /></div>
           <div className="form-group"><label>전화번호 뒷 4자리</label><input type="password" value={loginPhone} onChange={e=>setLoginPhone(e.target.value)} placeholder="1234" maxLength={4} onKeyDown={e=>e.key==='Enter'&&login()} /></div>
           <button className="btn btn-primary" style={{width:'100%',marginTop:'8px'}} onClick={login}>로그인</button>
-          <div style={{textAlign:'center',marginTop:'14px'}}><Link to="/" style={{fontSize:'12px',color:'var(--m-text-dim)',textDecoration:'none'}}>← 메인으로</Link></div>
+          <div style={{textAlign:'center',marginTop:'14px'}}>
+            <span style={{fontSize:'12px',color:'var(--m-text-dim)',cursor:'pointer'}} onClick={()=>setShowLanding(true)}>← 뒤로</span>
+          </div>
         </div>
       </div>
     )

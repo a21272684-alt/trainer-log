@@ -101,7 +101,7 @@ const SH=0,EH=24,SMIN=5,SPX=4
 
 export default function TrainerApp() {
   const showToast = useToast()
-  const [screen, setScreen] = useState('login') // login, reg, app
+  const [screen, setScreen] = useState('landing') // landing, login, reg, app
   const [trainer, setTrainer] = useState(null)
   const [members, setMembers] = useState([])
   const [logs, setLogs] = useState([])
@@ -558,13 +558,16 @@ export default function TrainerApp() {
     const key = apiKey || trainer.api_key
     if (!key) { showToast('설정에서 Gemini API 키를 먼저 입력해주세요'); setSettingsModal(true); return }
     const m = currentMember; const remain = Math.max(0, m.total_sessions - m.done_sessions - 1)
-    setGenerating(true); setShowPreview(false)
+    setGenerating(true); setShowPreview(false); setShowSend(false)
+    let timeoutId
     const exStr = exercises.map(ex => {
       const setsStr = ex.sets.map((s,i) => '  '+(i+1)+'세트 '+s.reps+'회'+(s.rir!==''?' (RIR '+s.rir+')':'')+(s.feel?' → '+s.feel:'')).join('\n')
       return '- '+ex.name+':\n'+setsStr
     }).join('\n')
     const prompt = '당신은 전문 퍼스널 트레이너의 수업일지 작성 도우미입니다.\n\n⚠️ 중요 규칙:\n1. 음성에 수업과 무관한 사적 대화가 포함되어 있을 수 있습니다. 이런 내용은 완전히 무시하세요.\n2. 세트별 RIR과 감각 정보를 반드시 포함하세요.\n3. 중복 내용 제거, 운동별 분류, 친근하고 전문적인 톤, 이모지 사용\n\n[트레이너]: '+trainer.name+'\n[회원]: '+m.name+'\n[세션]: '+(m.done_sessions+1)+'회차 (전체 '+m.total_sessions+'회, 남은 '+remain+'회)\n'+(exStr?'\n[운동 기록]:\n'+exStr:'')+(rawInput?'\n[추가 메모]:\n'+rawInput:'')+'\n\n아래 형식으로 작성:\n📋 수업일지 - '+m.name+' 회원님\n📅 '+new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric'})+' | '+(m.done_sessions+1)+'/'+m.total_sessions+'회차\n\n🏋️ 오늘의 운동\n[운동별 세트 기록]\n\n💬 트레이너 코멘트\n[피드백]\n\n🎯 다음 수업 목표\n[2~3가지]\n\n📌 세션 현황: '+(m.done_sessions+1)+'/'+m.total_sessions+'회 완료 · 남은 '+remain+'회\n— '+trainer.name+' 드림'
     try {
+      const controller = new AbortController()
+      timeoutId = window.setTimeout(() => controller.abort(), 45000)
       let parts = []
       if (audioData) {
         setAiStatus('AI가 수업 녹음을 분석하는 중...')
@@ -573,14 +576,28 @@ export default function TrainerApp() {
       } else { parts.push({text:prompt}) }
       setAiStatus('AI가 수업일지를 작성하는 중...')
       const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+GEMINI_MODEL+':generateContent?key='+key,{
-        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts}]})
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({contents:[{parts}]}),
+        signal: controller.signal
       })
+      window.clearTimeout(timeoutId)
       const data = await res.json()
-      if (data.error) throw new Error(data.error.message)
+      if (!res.ok || data.error) throw new Error(data.error?.message || 'AI 요청에 실패했습니다')
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
-      setGenerating(false); setShowPreview(true); setPreviewContent(text); setFinalContent(text); setShowSend(true)
+      if (!text.trim()) throw new Error('AI 응답이 비어 있습니다. 잠시 후 다시 시도해주세요')
+      setShowPreview(true); setPreviewContent(text); setFinalContent(text); setShowSend(true)
       showToast('✦ 수업일지 생성 완료!')
-    } catch(e) { setGenerating(false); showToast('오류: ' + e.message) }
+    } catch(e) {
+      const message = e.name === 'AbortError'
+        ? 'AI 응답이 지연되어 요청을 종료했습니다. 다시 시도해주세요'
+        : e.message
+      showToast('오류: ' + message)
+    } finally {
+      if (timeoutId) window.clearTimeout(timeoutId)
+      setGenerating(false)
+      setAiStatus('')
+    }
   }
 
   // === SEND ===
@@ -857,6 +874,102 @@ export default function TrainerApp() {
               trainerId={trainer?.id} />
           )
         })}
+      </div>
+    )
+  }
+
+  // === TRAINER LANDING SCREEN ===
+  if (screen === 'landing') {
+    const FEATURES = [
+      { icon:'✦', title:'AI 수업일지 자동 생성', desc:'녹음 업로드 → AI 분석 → 카카오 발송까지 자동' },
+      { icon:'👥', title:'회원 관리 올인원', desc:'결제·정지·방문경로·상태 배지까지 한 곳에' },
+      { icon:'📅', title:'주간 스케줄', desc:'수업·개인 일정 블록 관리, 수업 전 푸시 알림' },
+      { icon:'📊', title:'매출 자동 분석', desc:'세션 단가 기반 수익 & 잔존가치 실시간 계산' },
+      { icon:'⏸', title:'정지(홀딩) 관리', desc:'기간·사유·사진 기록, 회원 상태 자동 반영' },
+      { icon:'🔔', title:'브라우저 종료 알림', desc:'VAPID 푸시로 앱 닫아도 수업 알림 수신' },
+    ]
+    return (
+      <div style={{background:'#0a0f1a',color:'#fff',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden'}}>
+        {/* 배경 글로우 */}
+        <div style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:0,overflow:'hidden'}}>
+          <div style={{position:'absolute',top:'-10%',left:'-10%',width:'600px',height:'500px',
+            background:'radial-gradient(ellipse,rgba(200,241,53,0.06) 0%,transparent 65%)'}}/>
+          <div style={{position:'absolute',bottom:'10%',right:'-10%',width:'500px',height:'400px',
+            background:'radial-gradient(ellipse,rgba(132,204,22,0.04) 0%,transparent 65%)'}}/>
+        </div>
+
+        {/* 상단 바 */}
+        <div style={{position:'relative',zIndex:1,padding:'20px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+          <div style={{fontSize:'17px',fontWeight:900,letterSpacing:'-1px'}}>TRAINER<span style={{color:'#c8f135'}}>LOG</span></div>
+          <Link to="/" style={{fontSize:'12px',color:'rgba(255,255,255,0.4)',textDecoration:'none'}}>← 메인으로</Link>
+        </div>
+
+        <div style={{position:'relative',zIndex:1,maxWidth:'640px',margin:'0 auto',padding:'48px 24px 80px'}}>
+          {/* 히어로 */}
+          <div style={{textAlign:'center',marginBottom:'52px'}}>
+            <div style={{display:'inline-block',fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',
+              color:'#c8f135',background:'rgba(200,241,53,0.1)',padding:'5px 14px',borderRadius:'20px',
+              border:'1px solid rgba(200,241,53,0.25)',marginBottom:'20px'}}>
+              TRAINER APP
+            </div>
+            <h1 style={{fontSize:'clamp(32px,7vw,52px)',fontWeight:900,letterSpacing:'-2px',lineHeight:1.05,margin:'0 0 16px'}}>
+              트레이너의 모든 것<br/><span style={{color:'#c8f135'}}>하나로 연결</span>
+            </h1>
+            <p style={{fontSize:'14px',color:'rgba(255,255,255,0.55)',lineHeight:1.85,maxWidth:'360px',margin:'0 auto 36px'}}>
+              AI 수업일지부터 매출 분석까지, 수업에만 집중할 수 있도록
+              나머지는 TrainerLog가 처리합니다.
+            </p>
+            <button onClick={()=>setScreen('login')} style={{
+              background:'#c8f135',color:'#0a0f1a',padding:'15px 36px',borderRadius:'12px',
+              fontWeight:800,fontSize:'16px',border:'none',cursor:'pointer',
+              boxShadow:'0 4px 24px rgba(200,241,53,0.4)',letterSpacing:'-0.3px',
+              fontFamily:'inherit',marginBottom:'12px',display:'block',width:'100%',maxWidth:'320px',marginLeft:'auto',marginRight:'auto'}}>
+              트레이너 로그인 / 등록하기
+            </button>
+            <p style={{fontSize:'12px',color:'rgba(255,255,255,0.3)',margin:0}}>이미 등록된 트레이너라면 바로 로그인하세요</p>
+          </div>
+
+          {/* 기능 그리드 */}
+          <div style={{marginBottom:'32px'}}>
+            <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.1em',color:'rgba(255,255,255,0.3)',
+              textAlign:'center',marginBottom:'20px'}}>핵심 기능 6가지</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}}>
+              {FEATURES.map((f,i)=>(
+                <div key={i} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',
+                  borderRadius:'14px',padding:'18px',backdropFilter:'blur(8px)'}}>
+                  <div style={{fontSize:'22px',marginBottom:'8px'}}>{f.icon}</div>
+                  <div style={{fontSize:'13px',fontWeight:700,marginBottom:'5px',letterSpacing:'-0.2px'}}>{f.title}</div>
+                  <div style={{fontSize:'11px',color:'rgba(255,255,255,0.45)',lineHeight:1.6}}>{f.desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* AI 하이라이트 배너 */}
+          <div style={{background:'linear-gradient(135deg,rgba(200,241,53,0.08),rgba(132,204,22,0.04))',
+            border:'1px solid rgba(200,241,53,0.2)',borderRadius:'16px',padding:'24px',marginBottom:'32px'}}>
+            <div style={{fontSize:'12px',fontWeight:700,color:'#c8f135',letterSpacing:'0.08em',marginBottom:'10px'}}>✦ AI POWERED</div>
+            <div style={{fontSize:'15px',fontWeight:700,marginBottom:'8px',lineHeight:1.4}}>
+              녹음 파일 하나로<br/>수업일지 완성 + 카카오 발송
+            </div>
+            <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+              {['녹음 업로드','AI 분석','일지 생성','카카오 발송'].map((s,i)=>(
+                <span key={i} style={{fontSize:'11px',padding:'4px 10px',borderRadius:'6px',
+                  background:'rgba(200,241,53,0.1)',color:'#c8f135',border:'1px solid rgba(200,241,53,0.2)'}}>
+                  {i+1}. {s}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* CTA 하단 */}
+          <button onClick={()=>setScreen('login')} style={{
+            width:'100%',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.15)',
+            color:'#fff',padding:'14px',borderRadius:'12px',fontWeight:600,fontSize:'14px',
+            cursor:'pointer',fontFamily:'inherit'}}>
+            지금 시작하기 →
+          </button>
+        </div>
       </div>
     )
   }

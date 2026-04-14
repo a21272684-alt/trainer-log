@@ -204,12 +204,12 @@ export default function CommunityPortal() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) handleAuthUser(session.user)
-      else setScreen('login')
+      else setScreen('landing')
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session) handleAuthUser(session.user)
-      if (event === 'SIGNED_OUT') { setUser(null); setAuthUser(null); setScreen('login') }
+      if (event === 'SIGNED_OUT') { setUser(null); setAuthUser(null); setScreen('landing') }
     })
     return () => subscription.unsubscribe()
   }, [])
@@ -451,6 +451,109 @@ export default function CommunityPortal() {
       <div style={{ color: 'var(--text-dim)', fontSize: 14 }}>잠시만요...</div>
     </div>
   )
+
+  /* ── 커뮤니티 랜딩 ──────────────────────────────────────────── */
+  if (screen === 'landing') {
+    const COMM_FEATURES = [
+      { icon:'💼', title:'직원 구인', desc:'센터 대표·트레이너가 직원 모집 공고를 올려요', color:'#c8f135' },
+      { icon:'🏃', title:'트레이너 찾기', desc:'원하는 목표·시간·예산으로 나만의 트레이너를 찾아요', color:'#4fc3f7' },
+      { icon:'🏢', title:'트레이너 채용', desc:'센터 대표가 트레이너 채용 공고를 등록해요', color:'#e040fb' },
+      { icon:'🔍', title:'센터 구직', desc:'트레이너가 근무할 센터를 적극적으로 구해요', color:'#ff5c5c' },
+      { icon:'📚', title:'수강생 구인', desc:'교육강사가 수강생을 모집하는 공고를 올려요', color:'#ff9800' },
+      { icon:'🤝', title:'매칭 연결', desc:'관심 있는 공고에 연락해 직접 매칭을 성사시켜요', color:'#22c55e' },
+    ]
+    return (
+      <div style={{background:'#0c0c10',color:'#fff',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden'}}>
+        {/* 배경 글로우 */}
+        <div style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:0,overflow:'hidden'}}>
+          <div style={{position:'absolute',top:'5%',right:'-15%',width:'600px',height:'500px',
+            background:'radial-gradient(ellipse,rgba(224,64,251,0.05) 0%,transparent 65%)'}}/>
+          <div style={{position:'absolute',bottom:'15%',left:'-10%',width:'500px',height:'400px',
+            background:'radial-gradient(ellipse,rgba(79,195,247,0.04) 0%,transparent 65%)'}}/>
+        </div>
+
+        {/* 상단 바 */}
+        <div style={{position:'relative',zIndex:1,padding:'18px 24px',display:'flex',alignItems:'center',
+          justifyContent:'space-between',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+          <div style={{fontSize:'16px',fontWeight:900,letterSpacing:'-1px'}}>
+            TRAINER<span style={{color:'#c8f135'}}>LOG</span>
+            <span style={{fontSize:'11px',fontWeight:600,color:'rgba(255,255,255,0.4)',
+              marginLeft:'8px',letterSpacing:'0.08em'}}>COMMUNITY</span>
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={() => navigate('/')} style={{fontSize:'12px',color:'rgba(255,255,255,0.4)',background:'none',border:'none',cursor:'pointer',fontFamily:'inherit'}}>← 메인으로</button>
+        </div>
+
+        <div style={{position:'relative',zIndex:1,maxWidth:'640px',margin:'0 auto',padding:'48px 24px 80px'}}>
+          {/* 히어로 */}
+          <div style={{textAlign:'center',marginBottom:'52px'}}>
+            <div style={{display:'inline-block',fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',
+              color:'#ff9800',background:'rgba(255,152,0,0.1)',padding:'5px 14px',borderRadius:'20px',
+              border:'1px solid rgba(255,152,0,0.25)',marginBottom:'20px'}}>
+              FITNESS COMMUNITY
+            </div>
+            <h1 style={{fontSize:'clamp(30px,7vw,50px)',fontWeight:900,letterSpacing:'-2px',lineHeight:1.1,margin:'0 0 16px'}}>
+              피트니스 업계의<br/><span style={{color:'#ff9800'}}>구인·구직 커뮤니티</span>
+            </h1>
+            <p style={{fontSize:'14px',color:'rgba(255,255,255,0.5)',lineHeight:1.85,maxWidth:'360px',margin:'0 auto 36px'}}>
+              트레이너·회원·교육강사·센터 대표가 함께하는
+              피트니스 전문 매칭 플랫폼입니다.
+            </p>
+            <button onClick={()=>setScreen('login')} style={{
+              background:'linear-gradient(135deg,#ff9800,#f57c00)',color:'#fff',
+              padding:'15px 36px',borderRadius:'12px',fontWeight:800,fontSize:'15px',
+              border:'none',cursor:'pointer',boxShadow:'0 4px 24px rgba(255,152,0,0.35)',
+              fontFamily:'inherit',display:'block',width:'100%',
+              maxWidth:'300px',marginLeft:'auto',marginRight:'auto',marginBottom:'12px'}}>
+              Google로 시작하기
+            </button>
+            <p style={{fontSize:'12px',color:'rgba(255,255,255,0.3)',margin:0}}>Google 계정으로 5초 만에 가입할 수 있어요</p>
+          </div>
+
+          {/* 카테고리 그리드 */}
+          <div style={{marginBottom:'36px'}}>
+            <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.1em',color:'rgba(255,255,255,0.3)',
+              textAlign:'center',marginBottom:'20px'}}>커뮤니티 카테고리 6가지</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}}>
+              {COMM_FEATURES.map((f,i)=>(
+                <div key={i} style={{background:'rgba(255,255,255,0.04)',border:`1px solid ${f.color}25`,
+                  borderRadius:'14px',padding:'18px',backdropFilter:'blur(8px)'}}>
+                  <div style={{fontSize:'22px',marginBottom:'8px'}}>{f.icon}</div>
+                  <div style={{fontSize:'13px',fontWeight:700,color:f.color,marginBottom:'5px'}}>{f.title}</div>
+                  <div style={{fontSize:'11px',color:'rgba(255,255,255,0.4)',lineHeight:1.6}}>{f.desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 역할별 접근 배너 */}
+          <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',
+            borderRadius:'16px',padding:'24px',marginBottom:'32px'}}>
+            <div style={{fontSize:'12px',fontWeight:700,color:'rgba(255,255,255,0.5)',
+              letterSpacing:'0.08em',marginBottom:'14px'}}>역할별 맞춤 접근</div>
+            <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+              {[['💪 트레이너','#c8f135'],['🏃 회원','#4fc3f7'],['📚 교육강사','#ff9800'],['🏢 센터 대표','#e040fb']].map(([label,color])=>(
+                <span key={label} style={{fontSize:'12px',padding:'5px 12px',borderRadius:'8px',
+                  background:color+'15',color:color,border:`1px solid ${color}30`,fontWeight:600}}>
+                  {label}
+                </span>
+              ))}
+            </div>
+            <div style={{fontSize:'12px',color:'rgba(255,255,255,0.35)',marginTop:'12px',lineHeight:1.7}}>
+              역할에 따라 볼 수 있는 카테고리와 글쓰기 권한이 달라져요.
+            </div>
+          </div>
+
+          <button onClick={()=>setScreen('login')} style={{
+            width:'100%',background:'rgba(255,255,255,0.06)',
+            border:'1px solid rgba(255,255,255,0.15)',color:'#fff',
+            padding:'14px',borderRadius:'12px',fontWeight:600,fontSize:'14px',
+            cursor:'pointer',fontFamily:'inherit'}}>
+            커뮤니티 입장하기 →
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   /* ── 로그인 (Google OAuth) ────────────────────────────────── */
   if (screen === 'login') return (
