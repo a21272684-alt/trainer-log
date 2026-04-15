@@ -2,97 +2,40 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../components/common/Toast'
+import {
+  COMMUNITY_ACCESS,
+  ROLE_META,
+  PHOTO_REQUIRED_ROLES,
+  PROFESSIONAL_ROLES,
+  getViewableCategories,
+  getWritableCategories,
+} from '../lib/permissions'
 import '../styles/community.css'
 
 /* ============================================================
-   카테고리 정의
-   viewAccess  : 해당 카테고리 게시글을 볼 수 있는 역할
-   writeAccess : 해당 카테고리에 글을 쓸 수 있는 역할
+   카테고리 & 역할 권한 — src/lib/permissions.js 에서 중앙 관리
+   ┌─────────────────────┬──────────────────────────┬──────────────────────┐
+   │ 카테고리             │ view                     │ write                │
+   ├─────────────────────┼──────────────────────────┼──────────────────────┤
+   │ 직원 구인            │ gym_owner, trainer       │ gym_owner, trainer   │
+   │ 트레이너 찾기        │ member, trainer, owner   │ member               │
+   │ 수강생 구인(교육)    │ 전체                     │ educator, instructor │
+   │ 트레이너 채용        │ gym_owner, trainer       │ gym_owner            │
+   │ 센터 구직            │ gym_owner                │ trainer              │
+   │ 센터 제휴·협력 (신규)│ gym_owner                │ gym_owner            │
+   │ 교육 과정 홍보 (신규)│ trainer, educator, owner │ educator, instructor │
+   └─────────────────────┴──────────────────────────┴──────────────────────┘
    ============================================================ */
-/*
-  ┌──────────────────────┬─────────────────────────┬──────────────────────────┐
-  │ 카테고리              │ 볼 수 있는 역할(view)   │ 쓸 수 있는 역할(write)   │
-  ├──────────────────────┼─────────────────────────┼──────────────────────────┤
-  │ 직원 구인            │ 센터대표, 트레이너       │ 센터대표, 트레이너       │
-  │ 나만의 트레이너 찾기 │ 회원, 트레이너          │ 회원                     │
-  │ 수강생 구인(교육)    │ 전체                    │ 교육강사                 │
-  │ 트레이너 채용        │ 센터대표, 트레이너       │ 센터대표                 │
-  │ 센터 구직            │ 센터대표                │ 트레이너                 │
-  └──────────────────────┴─────────────────────────┴──────────────────────────┘
-*/
-const CATEGORIES = {
-  trainer_seeks_member: {
-    label: '직원 구인',
-    desc: '직원 모집',
-    emoji: '💼',
-    color: '#c8f135',
-    bg: 'rgba(200,241,53,0.12)',
-    hint: '모집 조건, 전문 분야, 근무 지역 등을 적어주세요',
-    viewAccess:  ['gym_owner', 'trainer'],   // 센터대표 + 트레이너만
-    writeAccess: ['gym_owner', 'trainer'],
-  },
-  member_seeks_trainer: {
-    label: '나만의 트레이너 찾기',
-    desc: '트레이너 구인',
-    emoji: '🏃',
-    color: '#4fc3f7',
-    bg: 'rgba(79,195,247,0.12)',
-    hint: '원하는 운동 목표, 가능한 시간대, 예산 등을 적어주세요',
-    viewAccess:  ['member', 'trainer'],      // 회원 + 트레이너만
-    writeAccess: ['member'],
-  },
-  instructor_seeks_student: {
-    label: '수강생 구인(교육)',
-    desc: '수강생 모집',
-    emoji: '📚',
-    color: '#ff9800',
-    bg: 'rgba(255,152,0,0.12)',
-    hint: '강의 주제, 대상 (트레이너/관장 등), 일정 등을 적어주세요',
-    viewAccess:  ['trainer', 'member', 'instructor', 'gym_owner'], // 전체
-    writeAccess: ['instructor'],
-  },
-  gym_seeks_trainer: {
-    label: '트레이너 채용',
-    desc: '채용 공고',
-    emoji: '🏢',
-    color: '#e040fb',
-    bg: 'rgba(224,64,251,0.12)',
-    hint: '센터 위치, 근무 조건, 우대사항 등을 적어주세요',
-    viewAccess:  ['gym_owner', 'trainer'],   // 센터대표 + 트레이너 (구직 공고 확인)
-    writeAccess: ['gym_owner'],
-  },
-  trainer_seeks_gym: {
-    label: '센터 구직',
-    desc: '근무 센터 구함',
-    emoji: '🔍',
-    color: '#ff5c5c',
-    bg: 'rgba(255,92,92,0.12)',
-    hint: '가능 지역, 경력, 전문 분야 등을 적어주세요',
-    viewAccess:  ['gym_owner'],              // 센터대표만 열람 (트레이너는 내 활동에서 관리)
-    writeAccess: ['trainer'],
-  },
-}
+// permissions.js 에서 COMMUNITY_ACCESS, ROLE_META, PHOTO_REQUIRED_ROLES,
+// PROFESSIONAL_ROLES, getViewableCategories, getWritableCategories 를 import
+// (파일 상단 참고)
 
-const ROLES = {
-  trainer:    { label: '트레이너',    emoji: '💪' },
-  member:     { label: '회원',        emoji: '🏃' },
-  instructor: { label: '교육강사',    emoji: '📚' },
-  gym_owner:  { label: '헬스장 대표', emoji: '🏢' },
-}
+// 하위 호환 별칭 (기존 코드 참조 방식 유지)
+const CATEGORIES = COMMUNITY_ACCESS
+const ROLES = ROLE_META
 
-// 이 역할은 프로필 사진 필수
-const PHOTO_REQUIRED_ROLES = ['trainer', 'instructor']
-
-function getVisibleCats(role) {
-  return Object.entries(CATEGORIES)
-    .filter(([, c]) => c.viewAccess.includes(role))
-    .map(([k]) => k)
-}
-function getWritableCats(role) {
-  return Object.entries(CATEGORIES)
-    .filter(([, c]) => c.writeAccess.includes(role))
-    .map(([k]) => k)
-}
+function getVisibleCats(role)  { return getViewableCategories(role) }
+function getWritableCats(role) { return getWritableCategories(role) }
 
 function timeAgo(d) {
   const diff = Date.now() - new Date(d).getTime()
@@ -106,7 +49,7 @@ function timeAgo(d) {
 
 /* ── 뱃지 컴포넌트 ─────────────────────────────────────────── */
 function CatBadge({ cat }) {
-  const c = CATEGORIES[cat]; if (!c) return null
+  const c = COMMUNITY_ACCESS[cat]; if (!c) return null
   return (
     <span className="cat-badge" style={{ background: c.bg, color: c.color, border: `1px solid ${c.color}33` }}>
       {c.emoji} {c.label}
@@ -114,7 +57,7 @@ function CatBadge({ cat }) {
   )
 }
 function RoleBadge({ role }) {
-  const r = ROLES[role]; if (!r) return null
+  const r = ROLE_META[role]; if (!r) return null
   return <span className="role-badge">{r.emoji} {r.label}</span>
 }
 function StatusBadge({ status }) {
@@ -454,14 +397,9 @@ export default function CommunityPortal() {
 
   /* ── 커뮤니티 랜딩 ──────────────────────────────────────────── */
   if (screen === 'landing') {
-    const COMM_FEATURES = [
-      { icon:'💼', title:'직원 구인', desc:'센터 대표·트레이너가 직원 모집 공고를 올려요', color:'#c8f135' },
-      { icon:'🏃', title:'트레이너 찾기', desc:'원하는 목표·시간·예산으로 나만의 트레이너를 찾아요', color:'#4fc3f7' },
-      { icon:'🏢', title:'트레이너 채용', desc:'센터 대표가 트레이너 채용 공고를 등록해요', color:'#e040fb' },
-      { icon:'🔍', title:'센터 구직', desc:'트레이너가 근무할 센터를 적극적으로 구해요', color:'#ff5c5c' },
-      { icon:'📚', title:'수강생 구인', desc:'교육강사가 수강생을 모집하는 공고를 올려요', color:'#ff9800' },
-      { icon:'🤝', title:'매칭 연결', desc:'관심 있는 공고에 연락해 직접 매칭을 성사시켜요', color:'#22c55e' },
-    ]
+    const COMM_FEATURES = Object.values(COMMUNITY_ACCESS).map(c => ({
+      icon: c.emoji, title: c.label, desc: c.desc, color: c.color,
+    }))
     return (
       <div style={{background:'#0c0c10',color:'#fff',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden'}}>
         {/* 배경 글로우 */}
@@ -525,20 +463,22 @@ export default function CommunityPortal() {
             </div>
           </div>
 
-          {/* 역할별 접근 배너 */}
+          {/* 역할별 접근 배너 — permissions.js ROLE_META 기반 동적 렌더 */}
           <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',
             borderRadius:'16px',padding:'24px',marginBottom:'32px'}}>
             <div style={{fontSize:'12px',fontWeight:700,color:'rgba(255,255,255,0.5)',
               letterSpacing:'0.08em',marginBottom:'14px'}}>역할별 맞춤 접근</div>
-            <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
-              {[['💪 트레이너','#c8f135'],['🏃 회원','#4fc3f7'],['📚 교육강사','#ff9800'],['🏢 센터 대표','#e040fb']].map(([label,color])=>(
-                <span key={label} style={{fontSize:'12px',padding:'5px 12px',borderRadius:'8px',
-                  background:color+'15',color:color,border:`1px solid ${color}30`,fontWeight:600}}>
-                  {label}
-                </span>
-              ))}
+            <div style={{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'12px'}}>
+              {Object.entries(ROLE_META)
+                .filter(([key]) => key !== 'instructor')  // educator 별칭 중복 제거
+                .map(([key, r]) => (
+                  <span key={key} style={{fontSize:'12px',padding:'5px 12px',borderRadius:'8px',
+                    background:r.color+'15',color:r.color,border:`1px solid ${r.color}30`,fontWeight:600}}>
+                    {r.emoji} {r.label}
+                  </span>
+                ))}
             </div>
-            <div style={{fontSize:'12px',color:'rgba(255,255,255,0.35)',marginTop:'12px',lineHeight:1.7}}>
+            <div style={{fontSize:'12px',color:'rgba(255,255,255,0.35)',lineHeight:1.7}}>
               역할에 따라 볼 수 있는 카테고리와 글쓰기 권한이 달라져요.
             </div>
           </div>
@@ -625,21 +565,27 @@ export default function CommunityPortal() {
           <input type="text" placeholder="홍길동" value={regName} onChange={e => setRegName(e.target.value)} />
         </div>
 
-        {/* 역할 선택 */}
+        {/* 역할 선택 — 커뮤니티(Google OAuth)용 역할만 표시 */}
         <div className="form-group">
           <label>역할을 선택해주세요</label>
           <div className="role-grid">
-            {Object.entries(ROLES).map(([key, r]) => (
-              <div key={key}
-                className={`role-card ${regRole === key ? 'selected' : ''}`}
-                onClick={() => setRegRole(key)}>
-                <div className="role-card-icon">{r.emoji}</div>
-                <div className="role-card-label">{r.label}</div>
-                {PHOTO_REQUIRED_ROLES.includes(key) && (
-                  <div style={{ fontSize: 9, color: 'var(--comm)', marginTop: 3 }}>사진 필수</div>
-                )}
-              </div>
-            ))}
+            {Object.entries(ROLE_META)
+              // instructor 는 educator 의 별칭이므로 등록 화면에서 제외
+              .filter(([key, r]) => r.auth === 'google' && key !== 'instructor')
+              .map(([key, r]) => (
+                <div key={key}
+                  className={`role-card ${regRole === key ? 'selected' : ''}`}
+                  onClick={() => setRegRole(key)}>
+                  <div className="role-card-icon">{r.emoji}</div>
+                  <div className="role-card-label">{r.label}</div>
+                  <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 3, lineHeight: 1.4 }}>
+                    {r.desc}
+                  </div>
+                  {PHOTO_REQUIRED_ROLES.includes(key) && (
+                    <div style={{ fontSize: 9, color: 'var(--comm)', marginTop: 2 }}>사진 필수</div>
+                  )}
+                </div>
+              ))}
           </div>
         </div>
 
@@ -834,7 +780,7 @@ export default function CommunityPortal() {
   if (screen === 'detail' && selectedPost) {
     const isMyPost = selectedPost.user_id === user?.id
     const isClosed = selectedPost.status === 'closed'
-    const authorIsProf = ['trainer', 'instructor'].includes(selectedPost.author?.role)
+    const authorIsProf = PROFESSIONAL_ROLES.includes(selectedPost.author?.role)
 
     return (
       <div className="comm-portal">
