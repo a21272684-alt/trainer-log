@@ -7,6 +7,14 @@ import { Link } from 'react-router-dom'
 import '../styles/trainer.css'
 import { computeStats, buildInsightPrompt, callGeminiInsight } from '../lib/memberInsights'
 import { computeRiskScore, getRiskLevel, RISK_LEVELS } from '../lib/churnRisk'
+import {
+  generateWeeklyReport,
+  checkAndEnsurePendingReport,
+  fetchRecentReports,
+  parseReportSections,
+  collectWeeklyStats,
+  getPrevMondayStr,
+} from '../lib/gymReport'
 
 // 통합 매출 내역 (revenue 탭용)
 function RevenuePaymentList({ trainerId, members }) {
@@ -92,6 +100,229 @@ function MemberRevenueCard({ m, mWeekLogs, mMonthLogs, attendRate, cancelledBloc
             </div>
           ))}
         </div>
+      )}
+    </div>
+  )
+}
+
+// ── 센터 주간 리포트 컴포넌트 ────────────────────────────────
+function WeeklyReportPanel({ gymId, apiKey }) {
+  const [reports,   setReports]   = useState([])
+  const [selected,  setSelected]  = useState(null)   // 보고 있는 레코드
+  const [phase,     setPhase]     = useState('idle')  // idle|loading|done|error
+  const [statusMsg, setStatus]    = useState('')
+  const [errMsg,    setErrMsg]    = useState('')
+  const showToast = useToast()
+
+  const mono = { fontFamily: "'DM Mono',monospace" }
+
+  // ── 리포트 목록 로드 ──────────────────────────────────────
+  async function loadReports() {
+    if (!gymId) return
+    setPhase('loading'); setStatus('리포트 목록을 불러오는 중...')
+    try {
+      const list = await fetchRecentReports(supabase, gymId)
+      setReports(list)
+      if (list.length > 0) setSelected(list[0])
+      setPhase('idle')
+    } catch (e) {
+      setPhase('error'); setErrMsg(e.message)
+    }
+  }
+
+  useEffect(() => { loadReports() }, [gymId])
+
+  // ── 리포트 생성 ───────────────────────────────────────────
+  async function handleGenerate(existingReport = null) {
+    if (!apiKey) { showToast('설정에서 Gemini API 키를 먼저 입력해주세요'); return }
+    if (!gymId)  { showToast('센터 정보가 없어요. 트레이너 설정에서 gym_id를 확인해주세요'); return }
+
+    setPhase('loading'); setErrMsg('')
+
+    try {
+      let reportRow = existingReport
+
+      // pending 레코드가 없으면 새로 생성
+      if (!reportRow) {
+        const { data } = await supabase.rpc('create_pending_weekly_report', { p_gym_id: gymId })
+        if (data) {
+          const { data: row } = await supabase
+            .from('gym_weekly_reports').select('*').eq('id', data).single()
+          reportRow = row
+        }
+        if (!reportRow) { setPhase('error'); setErrMsg('리포트 레코드 생성 실패'); return }
+      }
+
+      const { reportText } = await generateWeeklyReport({
+        supabase,
+        apiKey,
+        model:     GEMINI_MODEL,
+        gymId,
+        reportId:  reportRow.id,
+        weekStart: reportRow.week_start || getPrevMondayStr(),
+        onStatus:  setStatus,
+      })
+
+      showToast('✓ 주간 리포트가 생성됐어요')
+      await loadReports()
+      setPhase('done')
+    } catch (e) {
+      setPhase('error'); setErrMsg(e.message)
+    }
+  }
+
+  // ── 리포트 텍스트 렌더링 ──────────────────────────────────
+  function renderReport(text) {
+    return parseReportSections(text).map((sec, i) => {
+      if (!sec.emoji) {
+        return <p key={i} style={{fontSize:'12px',color:'var(--text-muted)',marginBottom:'8px'}}>{sec.body}</p>
+      }
+      return (
+        <div key={i} style={{background: sec.style.bg, border:`1px solid ${sec.style.border}`,
+          borderRadius:'10px', padding:'12px', marginBottom:'10px'}}>
+          <pre style={{margin:0, fontSize:'13px', lineHeight:1.7, color:'var(--text)',
+            whiteSpace:'pre-wrap', fontFamily:"'Noto Sans KR',sans-serif"}}>
+            {sec.body}
+          </pre>
+        </div>
+      )
+    })
+  }
+
+  // ── 통계 요약 카드 (생성된 리포트의 snapshot) ────────────
+  function StatsGrid({ stats }) {
+    if (!stats) return null
+    const items = [
+      ['이번 주 출석', stats.attendance?.this_week + '회', '#60a5fa'],
+      ['신규 회원',    stats.members?.new_this_week + '명', '#4ade80'],
+      ['이번 주 매출', (Number(stats.revenue?.this_week || 0) / 10000).toFixed(0) + '만', '#c8f135'],
+      ['이탈 위험',   stats.members?.at_risk + '명',    stats.members?.at_risk > 0 ? '#f87171' : '#9ca3af'],
+      ['만료 예정',   stats.members?.expiring + '명',   stats.members?.expiring > 0 ? '#fb923c' : '#9ca3af'],
+      ['수업 완료',   stats.sessions?.this_week + '회', '#a78bfa'],
+    ]
+    return (
+      <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'6px', marginBottom:'14px'}}>
+        {items.map(([label, val, color]) => (
+          <div key={label} style={{background:'var(--surface2)', borderRadius:'8px', padding:'8px 10px', textAlign:'center'}}>
+            <div style={{...mono, fontSize:'14px', fontWeight:700, color}}>{val}</div>
+            <div style={{fontSize:'9px', color:'var(--text-dim)', marginTop:'2px'}}>{label}</div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // ── 렌더 ─────────────────────────────────────────────────
+  const pendingReports = reports.filter(r => r.status === 'pending' || r.status === 'error')
+  const doneReports    = reports.filter(r => r.status === 'done')
+
+  return (
+    <div>
+      {/* pending / 자동 알림 배너 */}
+      {pendingReports.map(r => (
+        <div key={r.id} style={{background:'rgba(250,204,21,0.08)',border:'1px solid rgba(250,204,21,0.25)',
+          borderRadius:'10px',padding:'12px',marginBottom:'12px'}}>
+          <div style={{fontSize:'12px',fontWeight:700,color:'#facc15',marginBottom:'6px'}}>
+            {r.status === 'error' ? '⚠️ 생성 실패 — 재시도 필요' : '📋 새 주간 리포트 대기 중'}
+          </div>
+          <div style={{fontSize:'11px',color:'var(--text-muted)',marginBottom:'8px'}}>
+            기준 기간: {r.week_start} ~ {r.week_end || ''}
+          </div>
+          {r.error_message && (
+            <div style={{fontSize:'11px',color:'#f87171',marginBottom:'8px'}}>{r.error_message}</div>
+          )}
+          <button onClick={() => handleGenerate(r)} disabled={phase === 'loading'}
+            style={{width:'100%',padding:'8px',borderRadius:'8px',border:'none',fontWeight:700,
+              fontSize:'12px',cursor:'pointer',fontFamily:'inherit',
+              background:'#facc15',color:'#0f0f0f'}}>
+            {phase === 'loading' ? statusMsg : '🤖 AI 리포트 지금 생성'}
+          </button>
+        </div>
+      ))}
+
+      {/* 리포트 없고 pending도 없을 때 수동 생성 */}
+      {reports.length === 0 && phase !== 'loading' && (
+        <div style={{textAlign:'center',padding:'20px 0',marginBottom:'12px'}}>
+          <div style={{fontSize:'28px',marginBottom:'8px'}}>📄</div>
+          <div style={{fontSize:'12px',color:'var(--text-dim)',marginBottom:'12px'}}>
+            아직 생성된 리포트가 없어요.<br/>직전 주 데이터로 리포트를 생성할 수 있어요.
+          </div>
+          <button onClick={() => handleGenerate()}
+            style={{padding:'10px 20px',borderRadius:'8px',border:'none',background:'var(--accent)',
+              color:'#0f0f0f',fontWeight:700,fontSize:'13px',cursor:'pointer',fontFamily:'inherit'}}>
+            📊 첫 리포트 생성
+          </button>
+        </div>
+      )}
+
+      {/* 로딩 */}
+      {phase === 'loading' && (
+        <div style={{textAlign:'center',padding:'16px',color:'var(--text-dim)',fontSize:'13px',marginBottom:'12px'}}>
+          <div style={{fontSize:'22px',marginBottom:'6px',display:'inline-block',
+            animation:'spin 1.5s linear infinite'}}>✦</div>
+          <div>{statusMsg}</div>
+        </div>
+      )}
+
+      {/* 에러 */}
+      {phase === 'error' && errMsg && (
+        <div style={{background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',
+          borderRadius:'10px',padding:'12px',marginBottom:'12px',fontSize:'12px',color:'#f87171'}}>
+          ⚠️ {errMsg}
+        </div>
+      )}
+
+      {/* 리포트 목록 탭 */}
+      {doneReports.length > 0 && (
+        <>
+          <div style={{display:'flex',gap:'6px',overflowX:'auto',marginBottom:'12px',paddingBottom:'2px'}}>
+            {doneReports.map(r => (
+              <button key={r.id} onClick={() => setSelected(r)}
+                style={{flexShrink:0,padding:'5px 10px',borderRadius:'8px',border:'1px solid',fontSize:'10px',
+                  fontWeight:600,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap',
+                  background: selected?.id === r.id ? 'var(--accent)' : 'var(--surface2)',
+                  color:      selected?.id === r.id ? '#0f0f0f' : 'var(--text-muted)',
+                  borderColor: selected?.id === r.id ? 'var(--accent)' : 'var(--border)'}}>
+                {r.week_start}
+              </button>
+            ))}
+          </div>
+
+          {selected && selected.status === 'done' && (
+            <div>
+              {/* 기간 헤더 */}
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
+                <div>
+                  <div style={{fontSize:'13px',fontWeight:700}}>{selected.week_start} ~ {selected.week_end}</div>
+                  <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'2px'}}>
+                    생성: {selected.generated_at ? new Date(selected.generated_at).toLocaleString('ko-KR') : '-'}
+                  </div>
+                </div>
+                <button onClick={() => handleGenerate({ ...selected, status: 'pending' })}
+                  style={{padding:'6px 10px',borderRadius:'6px',border:'1px solid var(--border)',
+                    background:'transparent',color:'var(--text-dim)',fontSize:'11px',cursor:'pointer',fontFamily:'inherit'}}>
+                  🔄 재생성
+                </button>
+              </div>
+
+              {/* 통계 요약 */}
+              <StatsGrid stats={selected.stats_snapshot} />
+
+              {/* 리포트 본문 */}
+              {renderReport(selected.report_text || '')}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* 새 리포트 생성 버튼 (리포트가 있을 때) */}
+      {doneReports.length > 0 && pendingReports.length === 0 && phase !== 'loading' && (
+        <button onClick={() => handleGenerate()}
+          style={{width:'100%',marginTop:'10px',padding:'9px',borderRadius:'8px',
+            border:'1px solid var(--border)',background:'transparent',color:'var(--text-dim)',
+            fontSize:'12px',cursor:'pointer',fontFamily:'inherit'}}>
+          + 이번 주 리포트 수동 생성
+        </button>
       )}
     </div>
   )
@@ -1540,6 +1771,9 @@ export default function TrainerApp() {
             ))}
           </div>
         </div>
+
+        <div className="section-label">📋 센터 주간 리포트</div>
+        <WeeklyReportPanel gymId={trainer?.gym_id} apiKey={apiKey || trainer?.api_key || ''} />
 
         <div className="section-label">정산 분석</div>
         <SettlementBreakdown trainerId={trainer?.id} showToast={showToast} />
