@@ -95,6 +95,282 @@ function MemberRevenueCard({ m, mWeekLogs, mMonthLogs, attendRate, cancelledBloc
   )
 }
 
+// ── 정산 분석 컴포넌트 ───────────────────────────────────────
+function SettlementBreakdown({ trainerId, showToast }) {
+  const now = new Date()
+  const [year,  setYear]       = useState(now.getFullYear())
+  const [month, setMonth]      = useState(now.getMonth() + 1)
+  const [snap,  setSnap]       = useState(null)   // get_snapshot_preview 결과
+  const [settle, setSettle]    = useState(null)   // settlements row
+  const [rankInfo, setRankInfo]= useState(null)   // trainers + trainer_ranks join
+  const [loading, setLoading]  = useState(false)
+  const [calculating, setCalc] = useState(false)
+  const [showDetail, setShowDetail] = useState(false)
+
+  useEffect(() => { if (trainerId) load() }, [trainerId, year, month])
+
+  async function load() {
+    setLoading(true)
+    const [snapRes, settleRes, rankRes] = await Promise.all([
+      supabase.rpc('get_snapshot_preview', { p_trainer_id: trainerId, p_year: year, p_month: month }),
+      supabase.from('settlements').select('*')
+        .eq('trainer_id', trainerId).eq('period_year', year).eq('period_month', month)
+        .maybeSingle(),
+      supabase.from('trainers').select('*, trainer_ranks(*)').eq('id', trainerId).maybeSingle(),
+    ])
+    setSnap(snapRes.data || [])
+    setSettle(settleRes.data || null)
+    setRankInfo(rankRes.data || null)
+    setLoading(false)
+  }
+
+  async function handleCalculate() {
+    setCalc(true)
+    const { data, error } = await supabase.rpc('calculate_settlement',
+      { p_trainer_id: trainerId, p_year: year, p_month: month })
+    setCalc(false)
+    if (error) { showToast('오류: ' + error.message); return }
+    setSettle(data)
+    showToast('✓ 정산이 계산됐어요')
+  }
+
+  function prevMonth() {
+    if (month === 1) { setYear(y => y - 1); setMonth(12) }
+    else setMonth(m => m - 1)
+  }
+  function nextMonth() {
+    const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1
+    if (isCurrentMonth) return
+    if (month === 12) { setYear(y => y + 1); setMonth(1) }
+    else setMonth(m => m + 1)
+  }
+
+  // ── 숫자 계산 ──────────────────────────────────────────────
+  const paySnap        = (snap || []).find(s => s.snapshot_type === 'payment')
+  const lessonSnap     = (snap || []).find(s => s.snapshot_type === 'lesson')
+  const rank           = rankInfo?.trainer_ranks
+
+  // 이번 달 결제 합계 (센터 전체 매출)
+  const totalPayments  = settle?.incentive_base
+                      ?? paySnap?.base_amount_total
+                      ?? 0
+
+  // 트레이너 기본급
+  const baseSalary     = settle?.base_salary ?? rank?.base_salary ?? 0
+
+  // 인센티브율 (개인설정 > 직급기본 > 10%)
+  const incentiveRate  = settle?.incentive_rate
+                      ?? rankInfo?.incentive_rate
+                      ?? rank?.default_incentive_rate
+                      ?? 0.10
+
+  // 트레이너 인센티브 (결제금액 × 요율)
+  const incentiveAmt   = settle?.incentive_amount
+                      ?? paySnap?.incentive_amount_total
+                      ?? Math.round(totalPayments * incentiveRate)
+
+  // 세금 3.3% (기본급 + 인센티브 기준 원천징수)
+  const taxAmt         = settle?.tax_amount
+                      ?? Math.round((baseSalary + incentiveAmt) * 0.033)
+
+  // 센터 수익 = 총 결제액 - 트레이너 인센티브 (센터 귀속분)
+  const centerRevenue  = totalPayments - incentiveAmt
+
+  // 트레이너 실수령 = 기본급 + 인센티브 - 세금
+  const trainerPayout  = baseSalary + incentiveAmt - taxAmt
+
+  const payCount       = paySnap?.event_count   ?? 0
+  const lessonCount    = lessonSnap?.event_count ?? 0
+  const status         = settle?.status ?? 'none'
+
+  const STATUS_META = {
+    none:      { label:'계산 전',  color:'var(--text-dim)',    bg:'var(--surface2)' },
+    draft:     { label:'초안',     color:'#facc15',            bg:'rgba(250,204,21,0.12)' },
+    confirmed: { label:'확정',     color:'#60a5fa',            bg:'rgba(96,165,250,0.12)' },
+    paid:      { label:'지급완료', color:'var(--accent)',      bg:'rgba(200,241,53,0.12)' },
+  }
+  const sm = STATUS_META[status] || STATUS_META.none
+
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1
+  const mono = { fontFamily:"'DM Mono',monospace" }
+
+  return (
+    <div className="card" style={{marginBottom:'16px',padding:'16px'}}>
+
+      {/* 헤더: 월 선택 + 상태 배지 */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'14px'}}>
+        <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+          <button onClick={prevMonth}
+            style={{background:'none',border:'none',color:'var(--text-muted)',fontSize:'18px',cursor:'pointer',lineHeight:1,padding:'0 4px'}}>‹</button>
+          <span style={{fontSize:'14px',fontWeight:700,minWidth:'90px',textAlign:'center'}}>
+            {year}년 {month}월
+          </span>
+          <button onClick={nextMonth} disabled={isCurrentMonth}
+            style={{background:'none',border:'none',fontSize:'18px',cursor:'pointer',lineHeight:1,padding:'0 4px',
+              color: isCurrentMonth ? 'var(--border)' : 'var(--text-muted)'}}>›</button>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+          {rankInfo && (
+            <span style={{fontSize:'11px',color:'var(--text-dim)',background:'var(--surface2)',
+              borderRadius:'6px',padding:'3px 8px'}}>
+              {rank?.label ?? '직급 미설정'} · {Math.round(incentiveRate * 100)}%
+            </span>
+          )}
+          <span style={{fontSize:'11px',fontWeight:600,borderRadius:'6px',padding:'3px 8px',
+            color: sm.color, background: sm.bg}}>{sm.label}</span>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{textAlign:'center',padding:'20px',color:'var(--text-dim)',fontSize:'13px'}}>불러오는 중...</div>
+      ) : (
+        <>
+          {/* ── 3대 수치 카드 ── */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:'12px'}}>
+
+            {/* 센터 수익 */}
+            <div style={{background:'rgba(96,165,250,0.08)',border:'1px solid rgba(96,165,250,0.2)',
+              borderRadius:'10px',padding:'12px 10px',textAlign:'center'}}>
+              <div style={{fontSize:'9px',color:'#60a5fa',fontWeight:600,letterSpacing:'0.5px',marginBottom:'6px'}}>센터 수익</div>
+              <div style={{...mono,fontSize:'15px',fontWeight:700,color:'#60a5fa',lineHeight:1.2}}>
+                {centerRevenue.toLocaleString()}
+              </div>
+              <div style={{fontSize:'9px',color:'var(--text-dim)',marginTop:'4px'}}>원</div>
+              {totalPayments > 0 && (
+                <div style={{fontSize:'9px',color:'var(--text-dim)',marginTop:'3px'}}>
+                  {Math.round((centerRevenue / totalPayments) * 100)}% 귀속
+                </div>
+              )}
+            </div>
+
+            {/* 트레이너 수익 */}
+            <div style={{background:'rgba(200,241,53,0.08)',border:'1px solid rgba(200,241,53,0.2)',
+              borderRadius:'10px',padding:'12px 10px',textAlign:'center'}}>
+              <div style={{fontSize:'9px',color:'var(--accent)',fontWeight:600,letterSpacing:'0.5px',marginBottom:'6px'}}>트레이너 수익</div>
+              <div style={{...mono,fontSize:'15px',fontWeight:700,color:'var(--accent)',lineHeight:1.2}}>
+                {trainerPayout.toLocaleString()}
+              </div>
+              <div style={{fontSize:'9px',color:'var(--text-dim)',marginTop:'4px'}}>원</div>
+              <div style={{fontSize:'9px',color:'var(--text-dim)',marginTop:'3px'}}>
+                기본급+인센티브-세금
+              </div>
+            </div>
+
+            {/* 세금 3.3% */}
+            <div style={{background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',
+              borderRadius:'10px',padding:'12px 10px',textAlign:'center'}}>
+              <div style={{fontSize:'9px',color:'#f87171',fontWeight:600,letterSpacing:'0.5px',marginBottom:'6px'}}>세금 3.3%</div>
+              <div style={{...mono,fontSize:'15px',fontWeight:700,color:'#f87171',lineHeight:1.2}}>
+                {taxAmt.toLocaleString()}
+              </div>
+              <div style={{fontSize:'9px',color:'var(--text-dim)',marginTop:'4px'}}>원</div>
+              <div style={{fontSize:'9px',color:'var(--text-dim)',marginTop:'3px'}}>원천징수</div>
+            </div>
+          </div>
+
+          {/* ── 총 결제액 요약바 ── */}
+          {totalPayments > 0 && (
+            <div style={{marginBottom:'12px'}}>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:'11px',
+                color:'var(--text-muted)',marginBottom:'5px'}}>
+                <span>총 결제액 <span style={{...mono,color:'var(--text)',fontWeight:600}}>
+                  {totalPayments.toLocaleString()}원</span></span>
+                <span style={{color:'var(--text-dim)'}}>{payCount}건</span>
+              </div>
+              {/* 스택 프로그레스바: 센터 / 트레이너 인센티브 */}
+              <div style={{height:'6px',borderRadius:'3px',background:'var(--border)',overflow:'hidden',display:'flex'}}>
+                <div style={{width:(centerRevenue/totalPayments*100)+'%',background:'#60a5fa',transition:'width 0.4s'}}/>
+                <div style={{width:(incentiveAmt/totalPayments*100)+'%',background:'var(--accent)',transition:'width 0.4s'}}/>
+              </div>
+              <div style={{display:'flex',gap:'12px',marginTop:'5px'}}>
+                {[['#60a5fa','센터',centerRevenue],['var(--accent)','인센티브',incentiveAmt]].map(([c,l,v])=>(
+                  <div key={l} style={{display:'flex',alignItems:'center',gap:'4px',fontSize:'10px',color:'var(--text-dim)'}}>
+                    <div style={{width:'8px',height:'8px',borderRadius:'2px',background:c,flexShrink:0}}/>
+                    {l} {v.toLocaleString()}원
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── 상세 토글 ── */}
+          <button onClick={() => setShowDetail(d => !d)}
+            style={{width:'100%',background:'none',border:'none',color:'var(--text-dim)',
+              fontSize:'11px',cursor:'pointer',textAlign:'left',padding:'4px 0',marginBottom:'4px'}}>
+            {showDetail ? '▲' : '▼'} 상세 내역
+          </button>
+
+          {showDetail && (
+            <div style={{background:'var(--surface2)',borderRadius:'8px',padding:'12px',
+              marginBottom:'12px',fontSize:'12px'}}>
+              {[
+                ['기본급',       baseSalary,     '직급 월 고정급여'],
+                ['결제 합계',    totalPayments,  `${payCount}건 결제`],
+                ['인센티브율',   null,           `${Math.round(incentiveRate*100)}%`],
+                ['인센티브액',   incentiveAmt,   `결제액 × ${Math.round(incentiveRate*100)}%`],
+                ['세전 합계',    baseSalary+incentiveAmt, '기본급 + 인센티브'],
+                ['원천징수(3.3%)', taxAmt,       '세전 합계 × 3.3%'],
+                ['─────────',   null,           ''],
+                ['트레이너 실수령', trainerPayout, '세후 지급액'],
+                ['센터 귀속',    centerRevenue,  `결제액의 ${totalPayments>0?Math.round(centerRevenue/totalPayments*100):0}%`],
+              ].map(([label, value, sub], i) => label.startsWith('─') ? (
+                <div key={i} style={{borderTop:'1px solid var(--border)',margin:'8px 0'}}/>
+              ) : (
+                <div key={i} style={{display:'flex',justifyContent:'space-between',
+                  alignItems:'baseline',padding:'3px 0',
+                  borderBottom: i < 8 ? '1px solid rgba(255,255,255,0.04)' : 'none'}}>
+                  <span style={{color:'var(--text-muted)'}}>{label}</span>
+                  <span style={{textAlign:'right'}}>
+                    {value !== null
+                      ? <span style={{...mono,fontWeight:600,color:'var(--text)'}}>{value.toLocaleString()}원</span>
+                      : <span style={{color:'var(--accent)',fontWeight:600}}>{sub}</span>
+                    }
+                    {value !== null && sub &&
+                      <span style={{fontSize:'10px',color:'var(--text-dim)',marginLeft:'6px'}}>{sub}</span>}
+                  </span>
+                </div>
+              ))}
+              {lessonCount > 0 && (
+                <div style={{marginTop:'8px',paddingTop:'8px',borderTop:'1px solid var(--border)',
+                  color:'var(--text-dim)',fontSize:'11px'}}>
+                  📋 수업 완료 {lessonCount}회 스냅샷 기록됨
+                  {lessonSnap && <span style={{marginLeft:'6px'}}>
+                    (예상 인센티브 {Number(lessonSnap.incentive_amount_total).toLocaleString()}원)
+                  </span>}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── 정산 계산 버튼 ── */}
+          {(status === 'none' || status === 'draft') && (
+            <button onClick={handleCalculate} disabled={calculating}
+              style={{width:'100%',padding:'11px',borderRadius:'8px',border:'none',
+                background: calculating ? 'var(--surface2)' : 'var(--accent)',
+                color: calculating ? 'var(--text-dim)' : '#0f0f0f',
+                fontWeight:700,fontSize:'13px',cursor: calculating ? 'default' : 'pointer',
+                fontFamily:'inherit',transition:'all 0.2s'}}>
+              {calculating ? '계산 중...' : status === 'draft' ? '🔄 재계산' : '📊 정산 계산하기'}
+            </button>
+          )}
+          {status === 'confirmed' && (
+            <div style={{textAlign:'center',fontSize:'12px',color:'#60a5fa',padding:'8px',
+              background:'rgba(96,165,250,0.08)',borderRadius:'8px'}}>
+              ✅ 정산이 확정됐어요. 지급 처리 후 '지급완료' 로 변경해주세요.
+            </div>
+          )}
+          {status === 'paid' && (
+            <div style={{textAlign:'center',fontSize:'12px',color:'var(--accent)',padding:'8px',
+              background:'rgba(200,241,53,0.08)',borderRadius:'8px'}}>
+              🎉 지급 완료된 정산입니다.
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 const COLORS=[{id:'green',bg:'#c8f135',tx:'#1a3300'},{id:'blue',bg:'#60a5fa',tx:'#1e3a5f'},{id:'purple',bg:'#a78bfa',tx:'#2e1065'},{id:'coral',bg:'#fb923c',tx:'#431407'},{id:'pink',bg:'#f472b6',tx:'#500724'},{id:'teal',bg:'#2dd4bf',tx:'#134e4a'},{id:'yellow',bg:'#facc15',tx:'#422006'},{id:'gray',bg:'#94a3b8',tx:'#1e293b'}]
 const DAYS=['월','화','수','목','금','토','일']
 const SH=0,EH=24,SMIN=5,SPX=4
@@ -851,6 +1127,9 @@ export default function TrainerApp() {
             ))}
           </div>
         </div>
+
+        <div className="section-label">정산 분석</div>
+        <SettlementBreakdown trainerId={trainer?.id} showToast={showToast} />
 
         <div className="section-label">통합 매출 내역</div>
         <RevenuePaymentList trainerId={trainer?.id} members={members} />
