@@ -6,6 +6,7 @@ import Modal from '../components/common/Modal'
 import { Link } from 'react-router-dom'
 import '../styles/trainer.css'
 import { computeStats, buildInsightPrompt, callGeminiInsight } from '../lib/memberInsights'
+import { computeRiskScore, getRiskLevel, RISK_LEVELS } from '../lib/churnRisk'
 
 // 통합 매출 내역 (revenue 탭용)
 function RevenuePaymentList({ trainerId, members }) {
@@ -579,6 +580,184 @@ function AiInsightPanel({ member, apiKey }) {
   )
 }
 
+// ── 이탈 위험 분석 패널 ───────────────────────────────────────
+function RiskPanel({ member }) {
+  const [phase, setPhase]     = useState('idle')  // idle | loading | done | error
+  const [result, setResult]   = useState(null)
+  const [rating, setRating]   = useState(0)       // 새 평점 입력
+  const [saving, setSaving]   = useState(false)
+  const showToast = useToast()
+
+  async function analyze() {
+    setPhase('loading')
+    try {
+      const [logsRes, healthRes, attendRes] = await Promise.all([
+        supabase.from('logs').select('*').eq('member_id', member.id)
+          .order('created_at', { ascending: false }).limit(100),
+        supabase.from('health_records').select('*').eq('member_id', member.id)
+          .order('record_date', { ascending: false }).limit(60),
+        supabase.from('attendance').select('*').eq('member_id', member.id),
+      ])
+      const r = computeRiskScore(
+        member,
+        logsRes.data  || [],
+        healthRes.data || [],
+        attendRes.data || [],
+      )
+      setResult(r)
+      setPhase('done')
+    } catch (e) {
+      setPhase('error')
+    }
+  }
+
+  async function saveRating() {
+    if (!rating) return
+    setSaving(true)
+    // 가장 최근 로그에 평점 업데이트
+    const { data: latestLog } = await supabase
+      .from('logs').select('id').eq('member_id', member.id)
+      .order('created_at', { ascending: false }).limit(1).single()
+    if (latestLog) {
+      await supabase.from('logs').update({ session_rating: rating }).eq('id', latestLog.id)
+      showToast('✓ 수업 평점이 저장됐어요')
+      setRating(0)
+      if (phase === 'done') analyze() // 결과 갱신
+    } else {
+      showToast('최근 수업 기록이 없어요')
+    }
+    setSaving(false)
+  }
+
+  const mono = { fontFamily:"'DM Mono',monospace" }
+
+  // 점수 바 컴포넌트
+  function ScoreBar({ label, score, max, color }) {
+    const pct = Math.round((score / max) * 100)
+    return (
+      <div style={{marginBottom:'10px'}}>
+        <div style={{display:'flex',justifyContent:'space-between',marginBottom:'4px'}}>
+          <span style={{fontSize:'11px',color:'var(--text-muted)'}}>{label}</span>
+          <span style={{...mono,fontSize:'11px',color,fontWeight:700}}>{score} / {max}</span>
+        </div>
+        <div style={{height:'5px',borderRadius:'3px',background:'var(--surface2)'}}>
+          <div style={{height:'100%',borderRadius:'3px',width:`${pct}%`,background:color,transition:'width 0.4s'}} />
+        </div>
+      </div>
+    )
+  }
+
+  const level = result ? getRiskLevel(result.riskScore) : null
+
+  return (
+    <div>
+      {/* ── 수업 평점 입력 ── */}
+      <div style={{background:'var(--surface2)',borderRadius:'10px',padding:'12px',marginBottom:'14px'}}>
+        <div style={{fontSize:'11px',color:'var(--text-dim)',marginBottom:'8px'}}>최근 수업 평점 입력 (1–5점)</div>
+        <div style={{display:'flex',gap:'6px',marginBottom:'8px'}}>
+          {[1,2,3,4,5].map(n => (
+            <button key={n} onClick={() => setRating(n)}
+              style={{flex:1,padding:'8px 0',borderRadius:'8px',border:'1px solid',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'inherit',transition:'all 0.15s',
+                background: rating === n ? 'var(--accent)' : 'transparent',
+                color: rating === n ? '#0f0f0f' : 'var(--text-muted)',
+                borderColor: rating === n ? 'var(--accent)' : 'var(--border)'}}>
+              {n}
+            </button>
+          ))}
+        </div>
+        <button onClick={saveRating} disabled={!rating || saving}
+          style={{width:'100%',padding:'8px',borderRadius:'8px',border:'none',fontSize:'12px',fontWeight:600,cursor: rating ? 'pointer' : 'not-allowed',fontFamily:'inherit',
+            background: rating ? 'var(--accent)' : 'var(--surface)',
+            color: rating ? '#0f0f0f' : 'var(--text-dim)',opacity: rating ? 1 : 0.5}}>
+          {saving ? '저장 중...' : '평점 저장'}
+        </button>
+      </div>
+
+      {/* ── 분석 결과 ── */}
+      {phase === 'done' && result && level && (
+        <div>
+          {/* 종합 점수 카드 */}
+          <div style={{background: level.bg, border:`1px solid ${level.color}44`,
+            borderRadius:'12px',padding:'16px',marginBottom:'14px',textAlign:'center'}}>
+            <div style={{fontSize:'28px',marginBottom:'4px'}}>{level.emoji}</div>
+            <div style={{...mono,fontSize:'36px',fontWeight:800,color: level.color,marginBottom:'4px'}}>
+              {result.riskScore}
+              <span style={{fontSize:'16px',fontWeight:400,color:'var(--text-dim)'}}>/ 100</span>
+            </div>
+            <div style={{fontSize:'14px',fontWeight:700,color: level.color}}>{level.label}</div>
+          </div>
+
+          {/* 세부 점수 바 */}
+          <div style={{marginBottom:'14px'}}>
+            <div style={{fontSize:'11px',color:'var(--text-dim)',marginBottom:'8px',fontWeight:600}}>세부 점수</div>
+            <ScoreBar label="출석 위험도"   score={result.attendScore} max={40} color='#f97316' />
+            <ScoreBar label="건강기록 중단" score={result.healthScore} max={30} color='#eab308' />
+            <ScoreBar label="수업 평점 저하" score={result.ratingScore} max={30} color='#a78bfa' />
+          </div>
+
+          {/* 진단 근거 */}
+          {result.flags.length > 0 && (
+            <div style={{marginBottom:'14px'}}>
+              <div style={{fontSize:'11px',color:'var(--text-dim)',marginBottom:'8px',fontWeight:600}}>⚠️ 위험 신호</div>
+              {result.flags.map((f, i) => (
+                <div key={i} style={{display:'flex',alignItems:'center',gap:'8px',
+                  background:'rgba(249,115,22,0.08)',border:'1px solid rgba(249,115,22,0.2)',
+                  borderRadius:'8px',padding:'8px 10px',marginBottom:'6px',fontSize:'12px',color:'#fb923c'}}>
+                  <span>⚠</span><span>{f}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {result.flags.length === 0 && (
+            <div style={{textAlign:'center',padding:'12px',fontSize:'12px',color:'#22c55e'}}>
+              🟢 현재 이탈 위험 신호 없음
+            </div>
+          )}
+
+          {/* 세부 데이터 */}
+          <div style={{background:'var(--surface2)',borderRadius:'8px',padding:'10px',fontSize:'11px',color:'var(--text-dim)',lineHeight:1.8}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'4px 12px'}}>
+              <span>최근 2주 출석</span><span style={{...mono,color:'var(--text)'}}>{result.detail.recentAttend}회</span>
+              <span>이전 2주 출석</span><span style={{...mono,color:'var(--text)'}}>{result.detail.prevAttend}회</span>
+              {result.detail.daysSinceLast !== null && (
+                <><span>마지막 출석</span><span style={{...mono,color:'var(--text)'}}>{result.detail.daysSinceLast}일 전</span></>
+              )}
+              <span>최근 2주 건강기록</span><span style={{...mono,color:'var(--text)'}}>{result.detail.recentHealthCount}건</span>
+              {result.detail.recentRatingAvg !== null && (
+                <><span>최근 평점 평균</span><span style={{...mono,color:'var(--text)'}}>{result.detail.recentRatingAvg?.toFixed(1)}/5</span></>
+              )}
+              {result.detail.ratedCount > 0 && (
+                <><span>평점 기록 수</span><span style={{...mono,color:'var(--text)'}}>{result.detail.ratedCount}건</span></>
+              )}
+            </div>
+          </div>
+
+          <button onClick={analyze}
+            style={{width:'100%',marginTop:'10px',padding:'9px',borderRadius:'8px',border:'1px solid var(--border)',
+              background:'transparent',color:'var(--text-dim)',fontSize:'12px',cursor:'pointer',fontFamily:'inherit'}}>
+            🔄 다시 분석
+          </button>
+        </div>
+      )}
+
+      {phase === 'error' && (
+        <div style={{color:'#f87171',fontSize:'12px',textAlign:'center',padding:'12px'}}>분석 중 오류가 발생했어요</div>
+      )}
+
+      {(phase === 'idle' || phase === 'loading') && (
+        <button onClick={analyze} disabled={phase === 'loading'}
+          style={{width:'100%',padding:'12px',borderRadius:'8px',border:'none',
+            background: phase === 'loading' ? 'var(--surface2)' : '#f97316',
+            color: phase === 'loading' ? 'var(--text-dim)' : '#fff',
+            fontWeight:700,fontSize:'13px',cursor: phase === 'loading' ? 'not-allowed' : 'pointer',fontFamily:'inherit'}}>
+          {phase === 'loading' ? '분석 중...' : '📊 이탈 위험 분석 시작'}
+        </button>
+      )}
+    </div>
+  )
+}
+
 const COLORS=[{id:'green',bg:'#c8f135',tx:'#1a3300'},{id:'blue',bg:'#60a5fa',tx:'#1e3a5f'},{id:'purple',bg:'#a78bfa',tx:'#2e1065'},{id:'coral',bg:'#fb923c',tx:'#431407'},{id:'pink',bg:'#f472b6',tx:'#500724'},{id:'teal',bg:'#2dd4bf',tx:'#134e4a'},{id:'yellow',bg:'#facc15',tx:'#422006'},{id:'gray',bg:'#94a3b8',tx:'#1e293b'}]
 const DAYS=['월','화','수','목','금','토','일']
 const SH=0,EH=24,SMIN=5,SPX=4
@@ -613,6 +792,7 @@ export default function TrainerApp() {
   // Add member form
   const [addForm, setAddForm] = useState({name:'',kakao_phone:'',phone:'',birthdate:'',address:'',email:'',special_notes:'',purpose:'체형교정',visit_source:'',visit_source_memo:'',total:'',done:'0',price:'',memo:''})
   const [memberFilter, setMemberFilter] = useState('전체')
+  const [riskMap, setRiskMap]           = useState({})  // { [memberId]: riskResult }
 
   // Edit member modal
   const [editMemberModal, setEditMemberModal] = useState(false)
@@ -790,6 +970,31 @@ export default function TrainerApp() {
   async function loadMembers() {
     const { data } = await supabase.from('members').select('*').eq('trainer_id', trainer.id).order('created_at', { ascending: false })
     setMembers(data || [])
+    // 회원 목록 로드 후 백그라운드에서 리스크 점수 일괄 계산
+    computeAllRiskScores(data || [])
+  }
+
+  async function computeAllRiskScores(memberList) {
+    const active = memberList.filter(m => !m.suspended)
+    if (!active.length) return
+    try {
+      const [logsAll, healthAll, attendAll] = await Promise.all([
+        supabase.from('logs').select('id,member_id,created_at,session_rating,exercises_data')
+          .eq('trainer_id', trainer.id).order('created_at', { ascending: false }).limit(500),
+        supabase.from('health_records').select('id,member_id,record_date,morning_weight,sleep_level')
+          .in('member_id', active.map(m => m.id)),
+        supabase.from('attendance').select('member_id,attended_date')
+          .in('member_id', active.map(m => m.id)),
+      ])
+      const map = {}
+      active.forEach(m => {
+        const mLogs    = (logsAll.data  || []).filter(l => l.member_id === m.id)
+        const mHealth  = (healthAll.data || []).filter(r => r.member_id === m.id)
+        const mAttend  = (attendAll.data || []).filter(a => a.member_id === m.id)
+        map[m.id] = computeRiskScore(m, mLogs, mHealth, mAttend)
+      })
+      setRiskMap(map)
+    } catch (_) { /* 백그라운드 계산 실패 시 무시 */ }
   }
   async function loadLogs() {
     const { data } = await supabase.from('logs').select('*').eq('trainer_id', trainer.id).order('created_at', { ascending: false }).limit(50)
@@ -1537,16 +1742,21 @@ export default function TrainerApp() {
               if (memberFilter === '활성') return s === 'active' || s === 'expiring'
               if (memberFilter === '만료') return s === 'expired'
               if (memberFilter === '정지') return s === 'suspended'
+              if (memberFilter === '이탈위험') {
+                const rs = riskMap[m.id]
+                return rs && (rs.riskLevel === 'risk' || rs.riskLevel === 'critical')
+              }
               return true
             }).sort((a,b) => {
               if (memberSort === 'name') return a.name.localeCompare(b.name, 'ko')
               if (memberSort === 'expire') return (a.total_sessions-a.done_sessions) - (b.total_sessions-b.done_sessions)
+              if (memberSort === 'risk') return (riskMap[b.id]?.riskScore ?? 0) - (riskMap[a.id]?.riskScore ?? 0)
               return new Date(b.created_at) - new Date(a.created_at)
             })
             return (
               <>
                 {/* 상태 필터 */}
-                <div style={{display:'flex',gap:'6px',marginBottom:'8px'}}>
+                <div style={{display:'flex',gap:'6px',marginBottom:'6px',flexWrap:'wrap'}}>
                   {['전체','활성','만료','정지'].map(f => (
                     <button key={f} onClick={()=>setMemberFilter(f)}
                       style={{flex:1,padding:'6px 4px',borderRadius:'8px',border:'1px solid',fontSize:'11px',fontWeight:500,cursor:'pointer',fontFamily:'inherit',transition:'all 0.15s',
@@ -1556,10 +1766,26 @@ export default function TrainerApp() {
                       {f}
                     </button>
                   ))}
+                  {/* 이탈위험 필터 */}
+                  {Object.keys(riskMap).length > 0 && (() => {
+                    const riskCount = members.filter(m => {
+                      const rs = riskMap[m.id]
+                      return rs && (rs.riskLevel === 'risk' || rs.riskLevel === 'critical')
+                    }).length
+                    return (
+                      <button onClick={()=>setMemberFilter('이탈위험')}
+                        style={{padding:'6px 8px',borderRadius:'8px',border:'1px solid',fontSize:'11px',fontWeight:600,cursor:'pointer',fontFamily:'inherit',transition:'all 0.15s',whiteSpace:'nowrap',
+                          background: memberFilter==='이탈위험' ? '#ef4444' : 'rgba(239,68,68,0.1)',
+                          color: memberFilter==='이탈위험' ? '#fff' : '#ef4444',
+                          borderColor: '#ef444444'}}>
+                        🔴 이탈위험 {riskCount > 0 ? `(${riskCount})` : ''}
+                      </button>
+                    )
+                  })()}
                 </div>
                 {/* 정렬 */}
                 <div style={{display:'flex',gap:'6px',marginBottom:'12px'}}>
-                  {[['created','등록일자순'],['name','이름순'],['expire','만료예정순']].map(([key,label])=>(
+                  {[['created','등록일자순'],['name','이름순'],['expire','만료예정순'],['risk','위험도순']].map(([key,label])=>(
                     <button key={key} onClick={()=>setMemberSort(key)}
                       style={{flex:1,padding:'6px 4px',borderRadius:'8px',border:'1px solid',fontSize:'11px',fontWeight:500,cursor:'pointer',fontFamily:'inherit',transition:'all 0.15s',
                         background: memberSort===key ? 'var(--surface2)' : 'transparent',
@@ -1574,14 +1800,23 @@ export default function TrainerApp() {
                   const status = getStatus(m)
                   const pct = m.total_sessions>0?Math.round((m.done_sessions/m.total_sessions)*100):0
                   const remain = m.total_sessions-m.done_sessions; const low = remain<=3
+                  const riskResult = riskMap[m.id]
+                  const riskLv = riskResult ? getRiskLevel(riskResult.riskScore) : null
                   return (
                     <div key={m.id} className="member-card" onClick={()=>openRecord(m.id)}>
-                      <div className="member-avatar">{m.name[0]}</div>
+                      <div className="member-avatar" style={riskLv && riskResult.riskLevel !== 'safe' ? {boxShadow:`0 0 0 2px ${riskLv.color}66`} : {}}>
+                        {m.name[0]}
+                      </div>
                       <div className="member-info">
-                        <div className="member-name" style={{display:'flex',alignItems:'center',gap:'6px'}}>
+                        <div className="member-name" style={{display:'flex',alignItems:'center',gap:'6px',flexWrap:'wrap'}}>
                           <span style={{fontSize:'10px',fontWeight:600,padding:'1px 6px',borderRadius:'4px',background: STATUS_COLOR[status]+'22',color: STATUS_COLOR[status],border:`1px solid ${STATUS_COLOR[status]}44`,flexShrink:0}}>
                             {STATUS_LABEL[status]}
                           </span>
+                          {riskLv && riskResult.riskLevel !== 'safe' && (
+                            <span style={{fontSize:'10px',fontWeight:700,padding:'1px 5px',borderRadius:'4px',background: riskLv.bg,color: riskLv.color,border:`1px solid ${riskLv.color}44`,flexShrink:0}}>
+                              {riskLv.emoji} {riskResult.riskScore}
+                            </span>
+                          )}
                           {m.name}
                         </div>
                         <div className="member-meta">📱 {m.phone}{m.lesson_purpose?' · '+m.lesson_purpose:''}</div>
@@ -2076,7 +2311,23 @@ export default function TrainerApp() {
           )}
 
           {rtab === 'insight' && (
-            <AiInsightPanel member={currentMember} apiKey={apiKey || trainer?.api_key || ''} />
+            <div>
+              {/* 이탈 위험 분석 */}
+              <div style={{marginBottom:'18px'}}>
+                <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',marginBottom:'10px',display:'flex',alignItems:'center',gap:'6px'}}>
+                  <span>📊 이탈 위험 분석</span>
+                  {riskMap[currentMember?.id] && (() => {
+                    const lv = getRiskLevel(riskMap[currentMember.id].riskScore)
+                    return <span style={{fontSize:'10px',padding:'1px 7px',borderRadius:'4px',background:lv.bg,color:lv.color,border:`1px solid ${lv.color}33`}}>{lv.emoji} {lv.label} ({riskMap[currentMember.id].riskScore}점)</span>
+                  })()}
+                </div>
+                <RiskPanel member={currentMember} />
+              </div>
+              <div style={{height:'1px',background:'var(--border)',marginBottom:'18px'}} />
+              {/* AI 인사이트 */}
+              <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',marginBottom:'10px'}}>🤖 AI 인사이트</div>
+              <AiInsightPanel member={currentMember} apiKey={apiKey || trainer?.api_key || ''} />
+            </div>
           )}
         </div>
       )}
