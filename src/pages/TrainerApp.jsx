@@ -5,6 +5,7 @@ import { useToast } from '../components/common/Toast'
 import Modal from '../components/common/Modal'
 import { Link } from 'react-router-dom'
 import '../styles/trainer.css'
+import { computeStats, buildInsightPrompt, callGeminiInsight } from '../lib/memberInsights'
 
 // 통합 매출 내역 (revenue 탭용)
 function RevenuePaymentList({ trainerId, members }) {
@@ -366,6 +367,213 @@ function SettlementBreakdown({ trainerId, showToast }) {
             </div>
           )}
         </>
+      )}
+    </div>
+  )
+}
+
+// ── AI 인사이트 패널 컴포넌트 ────────────────────────────────
+function AiInsightPanel({ member, apiKey }) {
+  const [phase, setPhase]       = useState('idle')   // idle | loading | done | error
+  const [statusMsg, setStatus]  = useState('')
+  const [stats, setStats]       = useState(null)
+  const [insight, setInsight]   = useState('')
+  const [errMsg, setErrMsg]     = useState('')
+  const [showStats, setShowStats] = useState(false)
+
+  async function generate() {
+    if (!apiKey) {
+      setPhase('error'); setErrMsg('설정에서 Gemini API 키를 먼저 입력해주세요'); return
+    }
+    setPhase('loading'); setInsight(''); setErrMsg(''); setStats(null)
+
+    try {
+      // ── 데이터 로드 ──────────────────────────────────────────
+      setStatus('데이터를 불러오는 중...')
+      const [logsRes, healthRes, attendRes] = await Promise.all([
+        supabase.from('logs').select('*').eq('member_id', member.id)
+          .order('created_at', { ascending: false }).limit(100),
+        supabase.from('health_records').select('*').eq('member_id', member.id)
+          .order('record_date', { ascending: false }).limit(60),
+        supabase.from('attendance').select('*').eq('member_id', member.id)
+          .order('attended_date', { ascending: false }),
+      ])
+
+      // ── 통계 계산 ────────────────────────────────────────────
+      setStatus('데이터를 분석하는 중...')
+      const computed = computeStats(
+        member,
+        logsRes.data  || [],
+        healthRes.data || [],
+        attendRes.data || [],
+      )
+      setStats(computed)
+
+      // ── Gemini 호출 ──────────────────────────────────────────
+      setStatus('AI가 인사이트를 생성하는 중...')
+      const prompt = buildInsightPrompt(member, computed)
+      const text   = await callGeminiInsight(apiKey, GEMINI_MODEL, prompt)
+      setInsight(text)
+      setPhase('done')
+    } catch (e) {
+      setErrMsg(e.message || 'AI 요청 중 오류가 발생했어요')
+      setPhase('error')
+    }
+  }
+
+  const mono = { fontFamily:"'DM Mono',monospace" }
+
+  // ── 통계 요약 미니카드 ──────────────────────────────────────
+  function StatChip({ label, value, color = 'var(--text)' }) {
+    return (
+      <div style={{background:'var(--surface2)',borderRadius:'8px',padding:'8px 10px',textAlign:'center',minWidth:'64px'}}>
+        <div style={{...mono,fontSize:'14px',fontWeight:700,color}}>{value ?? '—'}</div>
+        <div style={{fontSize:'9px',color:'var(--text-dim)',marginTop:'3px'}}>{label}</div>
+      </div>
+    )
+  }
+
+  // ── AI 응답 파싱: 섹션별 색상 렌더링 ───────────────────────
+  function renderInsight(text) {
+    const SECTION_STYLES = {
+      '✅': { color: '#4ade80', bg: 'rgba(74,222,128,0.08)', border: 'rgba(74,222,128,0.2)' },
+      '⚠️': { color: '#facc15', bg: 'rgba(250,204,21,0.08)', border: 'rgba(250,204,21,0.2)' },
+      '💡': { color: '#60a5fa', bg: 'rgba(96,165,250,0.08)', border: 'rgba(96,165,250,0.2)' },
+      '💪': { color: 'var(--accent)', bg: 'rgba(200,241,53,0.08)', border: 'rgba(200,241,53,0.2)' },
+    }
+    // 섹션 분리
+    const sections = []
+    let current = null
+    text.split('\n').forEach(line => {
+      const emoji = ['✅','⚠️','💡','💪'].find(e => line.startsWith(e))
+      if (emoji) {
+        if (current) sections.push(current)
+        current = { emoji, style: SECTION_STYLES[emoji], lines: [line] }
+      } else if (current) {
+        current.lines.push(line)
+      } else {
+        sections.push({ emoji: null, style: null, lines: [line] })
+      }
+    })
+    if (current) sections.push(current)
+
+    return sections.map((sec, i) => {
+      const body = sec.lines.join('\n').trim()
+      if (!body) return null
+      if (!sec.emoji) {
+        return <p key={i} style={{fontSize:'12px',color:'var(--text-muted)',marginBottom:'8px'}}>{body}</p>
+      }
+      return (
+        <div key={i} style={{background: sec.style.bg, border:`1px solid ${sec.style.border}`,
+          borderRadius:'10px',padding:'12px',marginBottom:'10px'}}>
+          <pre style={{margin:0,fontSize:'13px',lineHeight:1.65,color:'var(--text)',
+            whiteSpace:'pre-wrap',fontFamily:"'Noto Sans KR',sans-serif"}}>
+            {body}
+          </pre>
+        </div>
+      )
+    })
+  }
+
+  return (
+    <div>
+      {/* ── 통계 요약 (로드 후 표시) ── */}
+      {stats && (
+        <div>
+          <button onClick={() => setShowStats(s => !s)}
+            style={{background:'none',border:'none',color:'var(--text-dim)',fontSize:'11px',
+              cursor:'pointer',padding:'4px 0',marginBottom:'8px'}}>
+            {showStats ? '▲' : '▼'} 데이터 요약
+          </button>
+          {showStats && (
+            <div style={{marginBottom:'14px'}}>
+              <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'6px'}}>출석</div>
+              <div style={{display:'flex',gap:'6px',flexWrap:'wrap',marginBottom:'10px'}}>
+                <StatChip label="누적" value={stats.totalAttend + '회'} />
+                <StatChip label="최근4주" value={stats.recent4wAttend + '회'}
+                  color={stats.attendTrend >= 0 ? 'var(--accent)' : '#f87171'} />
+                <StatChip label="주평균" value={stats.weeklyAvg + '회'} />
+                <StatChip label="최대연속" value={stats.maxStreak + '회'} color='var(--accent)' />
+                {stats.daysSinceLast !== null && (
+                  <StatChip label="마지막출석" value={stats.daysSinceLast + '일전'}
+                    color={stats.daysSinceLast >= 7 ? '#f87171' : 'var(--text)'} />
+                )}
+              </div>
+              {stats.latestWeight && (
+                <>
+                  <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'6px'}}>체중/건강</div>
+                  <div style={{display:'flex',gap:'6px',flexWrap:'wrap',marginBottom:'10px'}}>
+                    <StatChip label="현재체중" value={stats.latestWeight + 'kg'} />
+                    {member.start_weight && <StatChip label="변화"
+                      value={(stats.latestWeight - member.start_weight).toFixed(1) + 'kg'}
+                      color={(stats.latestWeight - member.start_weight) <= 0 ? 'var(--accent)' : '#f87171'} />}
+                    {stats.trend4w && <StatChip label="주당추세"
+                      value={(parseFloat(stats.trend4w) > 0 ? '+' : '') + stats.trend4w + 'kg'}
+                      color={parseFloat(stats.trend4w) <= 0 ? 'var(--accent)' : '#facc15'} />}
+                    {stats.avgSleep4w && <StatChip label="수면품질" value={stats.avgSleep4w + '/5'}
+                      color={parseFloat(stats.avgSleep4w) >= 3.5 ? 'var(--accent)' : '#f87171'} />}
+                  </div>
+                </>
+              )}
+              <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'6px'}}>수업</div>
+              <div style={{display:'flex',gap:'6px',flexWrap:'wrap',marginBottom:'10px'}}>
+                <StatChip label="누적" value={stats.totalLogs + '회'} />
+                <StatChip label="최근4주" value={stats.recent4wLogs + '회'}
+                  color={stats.logTrend >= 0 ? 'var(--accent)' : '#f87171'} />
+                {stats.avgGapDays && <StatChip label="평균간격" value={stats.avgGapDays + '일'} />}
+                {stats.avgVolume > 0 && <StatChip label="평균볼륨" value={(stats.avgVolume/1000).toFixed(1) + 't'} color='#a78bfa' />}
+              </div>
+              {stats.topExercises.length > 0 && (
+                <div style={{fontSize:'11px',color:'var(--text-muted)',lineHeight:1.7}}>
+                  <span style={{color:'var(--text-dim)'}}>주요 종목 </span>
+                  {stats.topExercises.map((e, i) => (
+                    <span key={i} style={{marginRight:'8px'}}>
+                      <span style={{color:'var(--text)'}}>{e.name}</span>
+                      <span style={{color:'var(--accent)',fontSize:'10px',marginLeft:'2px'}}>{e.cnt}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── AI 인사이트 결과 ── */}
+      {phase === 'done' && insight && (
+        <div style={{marginBottom:'14px'}}>
+          <div style={{display:'flex',alignItems:'center',gap:'6px',marginBottom:'12px'}}>
+            <span style={{fontSize:'13px',fontWeight:700}}>AI 인사이트</span>
+            <span style={{fontSize:'10px',color:'var(--text-dim)',background:'var(--surface2)',
+              padding:'2px 8px',borderRadius:'4px'}}>Gemini</span>
+          </div>
+          {renderInsight(insight)}
+        </div>
+      )}
+
+      {/* ── 에러 ── */}
+      {phase === 'error' && (
+        <div style={{background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',
+          borderRadius:'10px',padding:'12px',marginBottom:'12px',fontSize:'12px',color:'#f87171'}}>
+          ⚠️ {errMsg}
+        </div>
+      )}
+
+      {/* ── 로딩 / 버튼 ── */}
+      {phase === 'loading' ? (
+        <div style={{textAlign:'center',padding:'20px',color:'var(--text-dim)',fontSize:'13px'}}>
+          <div style={{fontSize:'24px',marginBottom:'8px',animation:'spin 1.5s linear infinite',
+            display:'inline-block'}}>✦</div>
+          <div>{statusMsg}</div>
+        </div>
+      ) : (
+        <button onClick={generate}
+          style={{width:'100%',padding:'11px',borderRadius:'8px',border:'none',
+            background: phase === 'done' ? 'var(--surface2)' : 'var(--accent)',
+            color: phase === 'done' ? 'var(--text-muted)' : '#0f0f0f',
+            fontWeight:700,fontSize:'13px',cursor:'pointer',fontFamily:'inherit'}}>
+          {phase === 'done' ? '🔄 다시 분석하기' : '🤖 AI 인사이트 생성'}
+        </button>
       )}
     </div>
   )
@@ -1554,6 +1762,7 @@ export default function TrainerApp() {
             <button className={`btn ${rtab==='health'?'btn-primary':'btn-ghost'} btn-sm`} onClick={()=>setRtab('health')} style={{fontSize:'12px'}}>⚖️ 건강기록</button>
             <button className={`btn ${rtab==='holds'?'btn-primary':'btn-ghost'} btn-sm`} onClick={()=>{setRtab('holds');loadHolds(currentMemberId)}} style={{fontSize:'12px'}}>⏸ 정지기록</button>
             <button className={`btn ${rtab==='personal'?'btn-primary':'btn-ghost'} btn-sm`} onClick={()=>setRtab('personal')} style={{fontSize:'12px'}}>🏃 개인운동</button>
+            <button className={`btn ${rtab==='insight'?'btn-primary':'btn-ghost'} btn-sm`} onClick={()=>setRtab('insight')} style={{fontSize:'12px'}}>🤖 AI 분석</button>
           </div>
 
           {rtab === 'attendance' && (() => {
@@ -1864,6 +2073,10 @@ export default function TrainerApp() {
                 </div>
               )}
             </div>
+          )}
+
+          {rtab === 'insight' && (
+            <AiInsightPanel member={currentMember} apiKey={apiKey || trainer?.api_key || ''} />
           )}
         </div>
       )}
