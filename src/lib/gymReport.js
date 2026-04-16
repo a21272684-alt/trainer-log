@@ -61,109 +61,14 @@ export function isMonday() {
 
 // ── 2. Gemini 프롬프트 생성 ─────────────────────────────────
 
-/**
- * 주간 통계 JSON → 센터 운영 요약 리포트 Gemini 프롬프트
- * @param {object} stats - collectWeeklyStats() 반환값
- */
-export function buildWeeklyReportPrompt(stats) {
-  const fmt = n => Number(n).toLocaleString('ko-KR')
-  const pct = (a, b) => b === 0 ? '-' : `${a >= b ? '+' : ''}${Math.round((a-b)/b*100)}%`
-  const arrow = n => n > 0 ? `▲${Math.abs(n)}` : n < 0 ? `▼${Math.abs(n)}` : '→0'
+// ── 프롬프트 생성 + API 호출 → ai_templates.js 로 위임 ────────
+// 하위 호환을 위해 re-export
+export {
+  buildGymWeeklyReportPrompt as buildWeeklyReportPrompt,
+  callGemini as callGeminiReport,
+} from './ai_templates'
 
-  const weekLabel = `${stats.week_start} ~ ${stats.week_end}`
-
-  // 트레이너별 현황 섹션
-  const trainerSection = (stats.trainers || []).map(t =>
-    `  · ${t.trainer_name}(${t.rank || '미설정'}): 회원 ${t.member_count}명, ` +
-    `이번 주 수업 ${t.sessions_week}회, 매출 ${fmt(t.revenue_week)}원`
-  ).join('\n') || '  없음'
-
-  // 이탈 위험 회원
-  const riskSection = (stats.risk_members || []).map(m =>
-    `  · ${m.name} — 위험점수 ${m.risk_score}/100 (${
-      (m.flags || []).slice(0, 2).join(', ')
-    })`
-  ).join('\n') || '  없음'
-
-  // 만료 예정 회원
-  const expiringSection = (stats.expiring_members || []).map(m =>
-    `  · ${m.name} — 잔여 ${m.remain}회 (담당: ${m.trainer || '미배정'})`
-  ).join('\n') || '  없음'
-
-  // 매출 트렌드
-  const revTrend = stats.revenue.trend >= 0
-    ? `전주 대비 +${fmt(stats.revenue.trend)}원 증가`
-    : `전주 대비 ${fmt(Math.abs(stats.revenue.trend))}원 감소`
-
-  return `당신은 헬스센터 운영을 분석하는 AI 어시스턴트입니다.
-아래 데이터를 바탕으로 센터 대표(gym_owner)에게 전달할 주간 운영 요약 리포트를 작성해주세요.
-
-[센터 정보]
-센터명: ${stats.gym_name}
-기준 기간: ${weekLabel}
-소속 트레이너: ${stats.trainer_count}명
-
-[출석 현황]
-- 이번 주 총 출석: ${stats.attendance.this_week}회 (전주 ${stats.attendance.prev_week}회, ${arrow(stats.attendance.trend)})
-
-[회원 현황]
-- 활성 회원: ${stats.members.total}명
-- 이번 주 신규 등록: ${stats.members.new_this_week}명
-- 만료 예정 (잔여 3회 이하): ${stats.members.expiring}명
-- 세션 소진: ${stats.members.expired}명
-- 이탈 위험 (위험점수 50+): ${stats.members.at_risk}명
-
-[수업 완료]
-- 이번 주: ${stats.sessions.this_week}회 (전주 ${stats.sessions.prev_week}회, ${arrow(stats.sessions.trend)})
-
-[매출]
-- 이번 주: ${fmt(stats.revenue.this_week)}원
-- 전주: ${fmt(stats.revenue.prev_week)}원 (${revTrend}, ${pct(stats.revenue.this_week, stats.revenue.prev_week)})
-
-[트레이너별 현황]
-${trainerSection}
-
-[⚠️ 이탈 위험 회원 (즉시 케어 필요)]
-${riskSection}
-
-[만료 예정 회원 (재등록 유도 필요)]
-${expiringSection}
-
-위 데이터를 바탕으로 아래 형식에 맞게 센터 운영 요약 리포트를 한국어로 작성해주세요.
-각 항목은 구체적인 수치 포함, 간결하고 실용적으로 작성:
-
-📊 이번 주 핵심 지표 요약 (3줄 이내)
-✅ 긍정적 운영 성과 (2가지)
-⚠️ 운영 주의사항 (2가지, 이탈 위험·만료 회원 관련 포함)
-💡 다음 주 운영 제안 (트레이너 관리 + 회원 케어 관점, 2가지)
-💬 센터 대표에게 한마디 (동기부여 한 문장)`
-}
-
-// ── 3. Gemini API 호출 ──────────────────────────────────────
-
-/**
- * Gemini API를 호출하여 리포트 텍스트 반환
- * @param {string} apiKey
- * @param {string} model       - GEMINI_MODEL 상수 사용
- * @param {string} prompt
- */
-export async function callGeminiReport(apiKey, model, prompt) {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-    }
-  )
-  const data = await res.json()
-  if (!res.ok || data.error) throw new Error(data.error?.message || 'Gemini API 오류')
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text
-  if (!text?.trim()) throw new Error('AI 응답이 비어 있습니다')
-  return text
-}
-
-// ── 4. 전체 파이프라인 ──────────────────────────────────────
+// ── 전체 파이프라인 ──────────────────────────────────────────
 
 /**
  * 주간 리포트 생성 전체 파이프라인
@@ -196,11 +101,11 @@ export async function generateWeeklyReport({
     onStatus('📊 운영 데이터 수집 중...')
     const stats = await collectWeeklyStats(supabase, gymId, weekStart)
 
-    // ③ 프롬프트 생성
+    // ③ 프롬프트 생성 (ai_templates.buildGymWeeklyReportPrompt)
     onStatus('✍️ 리포트 프롬프트 생성 중...')
     const prompt = buildWeeklyReportPrompt(stats)
 
-    // ④ Gemini 호출
+    // ④ Gemini 호출 (ai_templates.callGemini)
     onStatus('🤖 AI 리포트 생성 중...')
     const reportText = await callGeminiReport(apiKey, model, prompt)
 

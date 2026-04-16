@@ -15,6 +15,11 @@ import {
   collectWeeklyStats,
   getPrevMondayStr,
 } from '../lib/gymReport'
+import {
+  callGemini,
+  callGeminiMultipart,
+  buildSessionLogPrompt,
+} from '../lib/ai_templates'
 
 // 통합 매출 내역 (revenue 탭용)
 function RevenuePaymentList({ trainerId, members }) {
@@ -1477,44 +1482,37 @@ export default function TrainerApp() {
     if (!audioData && !rawInput && !exercises.length) { showToast('녹음 파일을 업로드하거나 내용을 입력해주세요'); return }
     const key = apiKey || trainer.api_key
     if (!key) { showToast('설정에서 Gemini API 키를 먼저 입력해주세요'); setSettingsModal(true); return }
-    const m = currentMember; const remain = Math.max(0, m.total_sessions - m.done_sessions - 1)
+    const m = currentMember
     setGenerating(true); setShowPreview(false); setShowSend(false)
-    let timeoutId
-    const exStr = exercises.map(ex => {
-      const setsStr = ex.sets.map((s,i) => '  '+(i+1)+'세트 '+s.reps+'회'+(s.rir!==''?' (RIR '+s.rir+')':'')+(s.feel?' → '+s.feel:'')).join('\n')
-      return '- '+ex.name+':\n'+setsStr
-    }).join('\n')
-    const prompt = '당신은 전문 퍼스널 트레이너의 수업일지 작성 도우미입니다.\n\n⚠️ 중요 규칙:\n1. 음성에 수업과 무관한 사적 대화가 포함되어 있을 수 있습니다. 이런 내용은 완전히 무시하세요.\n2. 세트별 RIR과 감각 정보를 반드시 포함하세요.\n3. 중복 내용 제거, 운동별 분류, 친근하고 전문적인 톤, 이모지 사용\n\n[트레이너]: '+trainer.name+'\n[회원]: '+m.name+'\n[세션]: '+(m.done_sessions+1)+'회차 (전체 '+m.total_sessions+'회, 남은 '+remain+'회)\n'+(exStr?'\n[운동 기록]:\n'+exStr:'')+(rawInput?'\n[추가 메모]:\n'+rawInput:'')+'\n\n아래 형식으로 작성:\n📋 수업일지 - '+m.name+' 회원님\n📅 '+new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric'})+' | '+(m.done_sessions+1)+'/'+m.total_sessions+'회차\n\n🏋️ 오늘의 운동\n[운동별 세트 기록]\n\n💬 트레이너 코멘트\n[피드백]\n\n🎯 다음 수업 목표\n[2~3가지]\n\n📌 세션 현황: '+(m.done_sessions+1)+'/'+m.total_sessions+'회 완료 · 남은 '+remain+'회\n— '+trainer.name+' 드림'
     try {
-      const controller = new AbortController()
-      timeoutId = window.setTimeout(() => controller.abort(), 45000)
-      let parts = []
-      if (audioData) {
-        setAiStatus('AI가 수업 녹음을 분석하는 중...')
-        parts.push({inline_data:{mime_type:audioMime,data:audioData}})
-        parts.push({text:'\n위 음성에서 운동/수업 관련 내용만 추출하세요.\n\n'+prompt})
-      } else { parts.push({text:prompt}) }
-      setAiStatus('AI가 수업일지를 작성하는 중...')
-      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+GEMINI_MODEL+':generateContent?key='+key,{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({contents:[{parts}]}),
-        signal: controller.signal
+      // ai_templates.buildSessionLogPrompt 로 프롬프트 생성
+      const prompt = buildSessionLogPrompt({
+        trainer,
+        member:   m,
+        exercises,
+        rawInput,
+        hasAudio: !!audioData,
       })
-      window.clearTimeout(timeoutId)
-      const data = await res.json()
-      if (!res.ok || data.error) throw new Error(data.error?.message || 'AI 요청에 실패했습니다')
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
-      if (!text.trim()) throw new Error('AI 응답이 비어 있습니다. 잠시 후 다시 시도해주세요')
+
+      let text
+      if (audioData) {
+        // 멀티파트(오디오 + 텍스트) — ai_templates.callGeminiMultipart
+        setAiStatus('AI가 수업 녹음을 분석하는 중...')
+        text = await callGeminiMultipart(key, GEMINI_MODEL, [
+          { inline_data: { mime_type: audioMime, data: audioData } },
+          { text: prompt },
+        ])
+      } else {
+        // 텍스트 전용 — ai_templates.callGemini
+        setAiStatus('AI가 수업일지를 작성하는 중...')
+        text = await callGemini(key, GEMINI_MODEL, prompt, { timeoutMs: 45000 })
+      }
+
       setShowPreview(true); setPreviewContent(text); setFinalContent(text); setShowSend(true)
       showToast('✦ 수업일지 생성 완료!')
     } catch(e) {
-      const message = e.name === 'AbortError'
-        ? 'AI 응답이 지연되어 요청을 종료했습니다. 다시 시도해주세요'
-        : e.message
-      showToast('오류: ' + message)
+      showToast('오류: ' + e.message)
     } finally {
-      if (timeoutId) window.clearTimeout(timeoutId)
       setGenerating(false)
       setAiStatus('')
     }
