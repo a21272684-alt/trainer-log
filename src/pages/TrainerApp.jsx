@@ -1056,6 +1056,7 @@ export default function TrainerApp() {
   const emptyWEx = () => ({localId:Date.now().toString(),name:'',muscle_group:'',sets:[{weight:'',reps:'',rest_sec:''}]})
   const [workoutSessions, setWorkoutSessions] = useState([])
   const [workoutRoutines, setWorkoutRoutines] = useState([])
+  const [trainerLibraryRoutines, setTrainerLibraryRoutines] = useState([]) // 마켓 구매 루틴 (member_id IS NULL)
   const [workoutModal, setWorkoutModal] = useState(false)
   const [workoutEditId, setWorkoutEditId] = useState(null)
   const [workoutForm, setWorkoutForm] = useState({date:'',title:'',duration_min:'',memo:'',exercises:[emptyWEx()]})
@@ -1188,6 +1189,12 @@ export default function TrainerApp() {
       if (!data?.length) { showToast('등록된 트레이너 정보가 없어요'); return }
       setTrainer(data[0]); setApiKey(data[0].api_key || ''); setScreen('app')
       showToast('✓ 환영해요, ' + data[0].name + ' 트레이너님!')
+      // 마켓 구매 루틴 라이브러리 로드
+      const { data: libData } = await supabase
+        .from('workout_routines').select('*')
+        .eq('trainer_id', data[0].id).is('member_id', null)
+        .order('created_at', { ascending: false })
+      setTrainerLibraryRoutines(libData || [])
     } catch(e) { showToast('오류: ' + e.message) }
   }
 
@@ -1562,6 +1569,16 @@ export default function TrainerApp() {
     const { data, error } = await supabase.from('workout_routines').select('*').eq('member_id', memberId).order('created_at', { ascending: false })
     if (!error) setWorkoutRoutines(data || [])
   }
+  async function loadTrainerLibraryRoutines() {
+    if (!trainer?.id) return
+    const { data } = await supabase
+      .from('workout_routines')
+      .select('*')
+      .eq('trainer_id', trainer.id)
+      .is('member_id', null)
+      .order('created_at', { ascending: false })
+    setTrainerLibraryRoutines(data || [])
+  }
   function openWorkoutModal(session = null) {
     const today = new Date().toISOString().split('T')[0]
     if (session) {
@@ -1610,6 +1627,26 @@ export default function TrainerApp() {
   async function deleteWorkoutRoutine(id) {
     const { error } = await supabase.from('workout_routines').delete().eq('id', id)
     if (!error) { await loadWorkoutRoutines(currentMemberId); showToast('루틴이 삭제됐어요') }
+  }
+  // 마켓 라이브러리 루틴 → 현재 회원에게 복사 적용
+  async function applyLibraryRoutineToMember(libRoutine) {
+    if (!currentMemberId) { showToast('회원을 먼저 선택해주세요'); return }
+    const memberName = currentMember?.name || '회원'
+    const { error } = await supabase.from('workout_routines').insert({
+      trainer_id: trainer.id,
+      member_id:  currentMemberId,
+      name:       libRoutine.name.replace(/^\[마켓\]\s*/, '') + ` (${memberName})`,
+      exercises:  libRoutine.exercises,
+    })
+    if (error) { showToast('오류: ' + error.message); return }
+    await loadWorkoutRoutines(currentMemberId)
+    setWorkoutRoutineModal(false)
+    showToast(`✅ "${libRoutine.name.replace(/^\[마켓\]\s*/, '')}" 루틴을 ${memberName} 회원에게 적용했어요`)
+  }
+  async function deleteLibraryRoutine(id) {
+    if (!window.confirm('마켓 루틴을 보관함에서 삭제할까요?')) return
+    const { error } = await supabase.from('workout_routines').delete().eq('id', id)
+    if (!error) { await loadTrainerLibraryRoutines(); showToast('보관함에서 삭제됐어요') }
   }
   function loadRoutineIntoForm(routine) {
     const today = new Date().toISOString().split('T')[0]
@@ -2396,8 +2433,10 @@ export default function TrainerApp() {
                 </div>
                 {/* 버튼 행 */}
                 <div style={{display:'flex',gap:'8px',marginBottom:'14px'}}>
-                  {workoutRoutines.length > 0 && (
-                    <button className="btn btn-ghost btn-sm" style={{flex:1,fontSize:'12px'}} onClick={()=>setWorkoutRoutineModal(true)}>📋 루틴 불러오기</button>
+                  {(workoutRoutines.length > 0 || trainerLibraryRoutines.length > 0) && (
+                    <button className="btn btn-ghost btn-sm" style={{flex:1,fontSize:'12px'}} onClick={()=>setWorkoutRoutineModal(true)}>
+                      📋 루틴 불러오기{trainerLibraryRoutines.length > 0 ? ` · 🛒${trainerLibraryRoutines.length}` : ''}
+                    </button>
                   )}
                   <button className="btn btn-primary btn-sm" style={{flex:1,fontSize:'12px'}} onClick={()=>openWorkoutModal()}>+ 운동 기록</button>
                 </div>
@@ -2771,7 +2810,62 @@ export default function TrainerApp() {
 
       {/* WORKOUT ROUTINE MODAL */}
       <Modal open={workoutRoutineModal} onClose={()=>setWorkoutRoutineModal(false)} title="루틴 불러오기">
-        {!workoutRoutines.length && <div className="empty"><p>저장된 루틴이 없어요</p></div>}
+        {/* ── 🛒 마켓 루틴 보관함 ── */}
+        {trainerLibraryRoutines.length > 0 && (
+          <>
+            <div style={{fontSize:'11px',fontWeight:700,color:'#34d399',letterSpacing:'0.08em',marginBottom:'8px',display:'flex',alignItems:'center',gap:'6px'}}>
+              🛒 마켓 루틴 보관함
+              <span style={{fontSize:'10px',color:'var(--text-dim)',fontWeight:400}}>— 구매한 교육자 루틴</span>
+            </div>
+            {trainerLibraryRoutines.map(r => (
+              <div key={r.id} style={{background:'rgba(52,211,153,0.06)',border:'1px solid rgba(52,211,153,0.25)',borderRadius:'10px',padding:'12px',marginBottom:'8px'}}>
+                <div style={{display:'flex',alignItems:'flex-start',gap:'10px'}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:'13px',fontWeight:700,marginBottom:'4px',color:'var(--text)'}}>
+                      {r.name.replace(/^\[마켓\]\s*/, '')}
+                    </div>
+                    <div style={{fontSize:'11px',color:'var(--text-dim)'}}>
+                      {(r.exercises||[]).length}종목 · {(r.exercises||[]).map(e=>e.name).filter(Boolean).join(', ').slice(0,50)}
+                    </div>
+                  </div>
+                </div>
+                <div style={{display:'flex',gap:'6px',marginTop:'10px'}}>
+                  {/* 이 회원에게 적용: workout_routines 복사본 생성 */}
+                  <button
+                    className="btn btn-primary btn-sm"
+                    style={{flex:2,fontSize:'11px',background:'#34d399',color:'#0a0a0a',fontWeight:700}}
+                    onClick={()=>applyLibraryRoutineToMember(r)}>
+                    ✅ {currentMember?.name || '회원'}에게 적용
+                  </button>
+                  {/* 세션 폼에 바로 불러오기 */}
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{flex:1,fontSize:'11px'}}
+                    onClick={()=>loadRoutineIntoForm(r)}>
+                    폼에 불러오기
+                  </button>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{flexShrink:0,fontSize:'11px',color:'var(--danger)',padding:'4px 8px'}}
+                    onClick={()=>deleteLibraryRoutine(r.id)}>×</button>
+                </div>
+              </div>
+            ))}
+            {workoutRoutines.length > 0 && (
+              <div style={{borderTop:'1px solid var(--border)',margin:'12px 0 10px'}} />
+            )}
+          </>
+        )}
+
+        {/* ── 회원별 저장 루틴 ── */}
+        {workoutRoutines.length > 0 && (
+          <div style={{fontSize:'11px',fontWeight:700,color:'var(--text-dim)',letterSpacing:'0.08em',marginBottom:'8px'}}>
+            📋 저장된 루틴
+          </div>
+        )}
+        {!workoutRoutines.length && !trainerLibraryRoutines.length && (
+          <div className="empty"><p>저장된 루틴이 없어요</p></div>
+        )}
         {workoutRoutines.map(r=>(
           <div key={r.id} style={{display:'flex',alignItems:'center',gap:'10px',padding:'12px',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'8px',marginBottom:'8px'}}>
             <div style={{flex:1,minWidth:0}}>

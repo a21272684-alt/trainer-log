@@ -565,7 +565,58 @@ export default function CommunityPortal() {
       if (error) throw error
       if (!data?.ok) throw new Error(data?.error || '구매 처리 실패')
       setMyPurchases(prev => [...prev, item.id])
-      showToast(item.price === 0 ? '✓ 무료 상품을 받았어요' : '✓ 구매가 완료됐어요')
+
+      // ── 루틴 타입: 트레이너 앱 workout_routines 에 즉시 복사 ──
+      if (item.market_type === 'routine' && user.role === 'trainer') {
+        try {
+          // trainer.id 조회 (authUser.id 기반)
+          let tId = trainerId
+          if (!tId && authUser?.id) {
+            const { data: tRow } = await supabase
+              .from('trainers').select('id').eq('user_id', authUser.id).maybeSingle()
+            if (tRow) { tId = tRow.id; setTrainerId(tRow.id) }
+          }
+          if (tId) {
+            // routine_templates 에서 exercises 추출
+            const { data: rt } = await supabase
+              .from('routine_templates')
+              .select('weeks_data, preview_day')
+              .eq('post_id', item.id)
+              .maybeSingle()
+
+            // 첫 번째 주차 첫 번째 날의 exercises → workout_routines 포맷으로 변환
+            const exercises = (() => {
+              const week1 = rt?.weeks_data?.[0]
+              const day1  = week1?.days?.[0]
+              if (day1?.exercises?.length) {
+                return day1.exercises.map(ex => ({
+                  name: ex.name,
+                  sets: (ex.sets || []).map(s => ({
+                    weight:   s.weight_note || '',
+                    reps:     s.reps || '10',
+                    rest_sec: s.rest_sec || 90,
+                  })),
+                }))
+              }
+              // fallback: preview_day (already in workout_routines format)
+              return rt?.preview_day || []
+            })()
+
+            await supabase.from('workout_routines').insert({
+              trainer_id: tId,
+              member_id:  null,       // 트레이너 보관함 (회원 미지정)
+              name:       `[마켓] ${item.title}`,
+              exercises,
+            })
+          }
+        } catch { /* 루틴 복사 실패는 무시 — 구매 자체는 성공 */ }
+      }
+
+      showToast(
+        item.market_type === 'routine' && user.role === 'trainer'
+          ? '✅ 구매 완료! 트레이너 앱 루틴 보관함에 저장됐어요'
+          : item.price === 0 ? '✓ 무료 상품을 받았어요' : '✓ 구매가 완료됐어요'
+      )
       // 전문 콘텐츠 로드
       const { data: content } = await supabase
         .from('market_item_contents')
