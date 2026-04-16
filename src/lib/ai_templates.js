@@ -456,6 +456,126 @@ ${progressLines}
 }
 
 // ══════════════════════════════════════════════════════════════
+// Template 6. buildRoutineAnalysisPrompt — 루틴 밸런스·볼륨 분석
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * educator 가 제작한 루틴 템플릿의 구조를 분석하고
+ * 밸런스·볼륨·강도 피드백을 생성하는 프롬프트.
+ *
+ * @param {object} params
+ * @param {string}  params.title
+ * @param {string}  params.goal       — 'strength'|'hypertrophy'|'fat_loss'|'endurance'|'rehab'
+ * @param {string}  params.level      — 'beginner'|'intermediate'|'advanced'
+ * @param {number}  params.durationWeeks
+ * @param {number}  params.daysPerWeek
+ * @param {Array}   params.weeksData  — weeks_data JSONB 배열
+ * @param {string}  [params.lang='ko']
+ */
+export function buildRoutineAnalysisPrompt({
+  title,
+  goal,
+  level,
+  durationWeeks,
+  daysPerWeek,
+  weeksData,
+  lang = 'ko',
+}) {
+  const GOAL_KR = { strength:'근력 향상', hypertrophy:'근비대', fat_loss:'다이어트·체지방 감소', endurance:'체력·지구력', rehab:'재활·교정' }
+  const LEVEL_KR = { beginner:'초급', intermediate:'중급', advanced:'고급' }
+
+  // 근육 그룹별 세트 수 집계
+  const muscleSetMap = {}
+  let totalSets = 0
+
+  weeksData.forEach(week => {
+    week.days?.forEach(day => {
+      day.exercises?.forEach(ex => {
+        const sets = ex.sets?.length || 0
+        totalSets += sets
+        const muscles = ex.primary_muscles || []
+        muscles.forEach(m => {
+          muscleSetMap[m] = (muscleSetMap[m] || 0) + sets
+        })
+      })
+    })
+  })
+
+  // 주당 평균으로 환산
+  const weeklyMuscleMap = {}
+  Object.entries(muscleSetMap).forEach(([m, s]) => {
+    weeklyMuscleMap[m] = (s / (durationWeeks || 1)).toFixed(1)
+  })
+
+  // 종목 목록
+  const exerciseNames = new Set()
+  weeksData.forEach(week =>
+    week.days?.forEach(day =>
+      day.exercises?.forEach(ex => ex.name && exerciseNames.add(ex.name))
+    )
+  )
+
+  // 1주차 요약
+  const week1 = weeksData[0]
+  const week1Summary = (week1?.days || []).map(d =>
+    `  · ${d.label}: ${(d.exercises || []).map(e => `${e.name}(${e.sets?.length || 0}세트)`).join(', ')}`
+  ).join('\n')
+
+  return `당신은 퍼스널 트레이닝 전문가이자 운동 프로그래밍 코치입니다.
+아래 루틴 템플릿을 분석하고 전문적인 피드백을 제공해주세요.
+
+──────────────────────────────────────
+📋 루틴 정보
+──────────────────────────────────────
+제목: ${title}
+목표: ${GOAL_KR[goal] || goal}
+레벨: ${LEVEL_KR[level] || level}
+기간: ${durationWeeks}주 / 주 ${daysPerWeek}일
+총 종목 수: ${exerciseNames.size}가지
+주당 평균 총 세트: ${(totalSets / (durationWeeks || 1)).toFixed(0)}세트
+
+──────────────────────────────────────
+💪 근육 그룹별 주당 평균 세트
+──────────────────────────────────────
+${Object.entries(weeklyMuscleMap).map(([m, s]) => `${m}: ${s}세트`).join('\n') || '데이터 없음'}
+
+──────────────────────────────────────
+📅 1주차 구성
+──────────────────────────────────────
+${week1Summary || '1주차 데이터 없음'}
+
+──────────────────────────────────────
+🎯 사용 종목
+──────────────────────────────────────
+${[...exerciseNames].join(', ') || '없음'}
+
+⚠️ 분석 지침:
+- 목표(${GOAL_KR[goal] || goal})와 레벨(${LEVEL_KR[level] || level})에 맞는 프로그래밍인지 검토하세요.
+- 근육 그룹 간 밸런스 (전면/후면, 상체/하체, 밀기/당기기)를 평가하세요.
+- 볼륨이 너무 적거나 많은 근육 그룹을 지적하세요.
+- 구체적인 개선 제안을 2~3가지 제시하세요.
+- 긍정적인 강점도 반드시 언급하세요.
+- 한국 피트니스 현장 용어를 사용하세요.
+
+아래 형식으로 작성해주세요:
+
+✅ 강점 분석 (2~3가지)
+[루틴의 잘된 점, 목표 달성에 적합한 요소]
+
+⚖️ 밸런스 평가
+[근육 그룹별 볼륨 밸런스, 전면/후면 비율 등]
+
+⚠️ 개선 포인트 (2~3가지)
+[부족한 부분, 조정이 필요한 세트/반복 수 등]
+
+💡 개선 제안
+[구체적인 종목 추가·교체·세트 조정 방안]
+
+📊 종합 평가
+[한 문장으로 이 루틴의 전반적인 퀄리티 평가]`
+}
+
+// ══════════════════════════════════════════════════════════════
 // 확장 가이드
 // ══════════════════════════════════════════════════════════════
 //

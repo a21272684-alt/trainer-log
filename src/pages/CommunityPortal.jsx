@@ -10,6 +10,19 @@ import {
   getViewableCategories,
   getWritableCategories,
 } from '../lib/permissions'
+import {
+  publishRoutineTemplate,
+  getRoutineTemplate,
+  makeEmptyWeek,
+  makeEmptyDay,
+  ROUTINE_GOALS,
+  ROUTINE_LEVELS,
+  weeksToPreviewDay,
+} from '../lib/routineTemplates'
+import RoutineTemplateBuilder from '../components/community/RoutineTemplateBuilder'
+import RoutineTemplateViewer from '../components/community/RoutineTemplateViewer'
+import ApplyRoutineModal from '../components/community/ApplyRoutineModal'
+import { buildRoutineAnalysisPrompt, callGemini } from '../lib/ai_templates'
 import '../styles/community.css'
 
 /* ============================================================
@@ -158,6 +171,24 @@ export default function CommunityPortal() {
   const [writeFullContent, setWriteFullContent] = useState('')
   const [myPurchasedItems, setMyPurchasedItems] = useState([]) // 구매한 마켓 상품 (post 포함)
   const [mySellerStats,    setMySellerStats]    = useState(null) // 마이페이지용 판매 통계
+
+  // ── 루틴 템플릿 빌더 ──────────────────────────────────────
+  const [routineWeeksData,   setRoutineWeeksData]   = useState([makeEmptyWeek(1)])
+  const [routineGoal,        setRoutineGoal]        = useState('hypertrophy')
+  const [routineLevel,       setRoutineLevel]       = useState('intermediate')
+  const [routineDurationW,   setRoutineDurationW]   = useState(4)
+  const [routineDaysPerW,    setRoutineDaysPerW]    = useState(3)
+  const [routineEquipment,   setRoutineEquipment]   = useState([])
+  // ── 루틴 상세 뷰어 ────────────────────────────────────────
+  const [routineTemplate,    setRoutineTemplate]    = useState(null) // get_routine_template() 결과
+  const [routineLoading,     setRoutineLoading]     = useState(false)
+  const [showApplyModal,     setShowApplyModal]     = useState(false)
+  const [applyWeekNum,       setApplyWeekNum]       = useState(1)
+  const [trainerMembers,     setTrainerMembers]     = useState([]) // 적용 대상 회원 목록
+  const [trainerId,          setTrainerId]          = useState(null) // trainers.id (트레이너 역할)
+  // ── AI 루틴 분석 ──────────────────────────────────────────
+  const [routineAnalysis,    setRoutineAnalysis]    = useState('')
+  const [analyzingRoutine,   setAnalyzingRoutine]   = useState(false)
 
   /* ── 앱 시작 시 인증 확인 ─────────────────────────────────── */
   useEffect(() => {
@@ -466,6 +497,61 @@ export default function CommunityPortal() {
       const { data } = await supabase.rpc('get_seller_stats', { p_seller_id: user.id })
       setSellerStats(data)
     }
+    // 루틴 타입이면 템플릿 데이터 로드
+    if (selectedMarket?.market_type === 'routine') {
+      await loadRoutineTemplate(selectedMarket.id)
+      // 트레이너 역할이면 회원 목록 + trainer ID 로드
+      if (user?.role === 'trainer') {
+        const { data: trainerRow } = await supabase
+          .from('trainers')
+          .select('id')
+          .eq('user_id', supabase.auth.getUser ? (await supabase.auth.getUser()).data?.user?.id : null)
+          .maybeSingle()
+        if (trainerRow) {
+          setTrainerId(trainerRow.id)
+          const { data: memberRows } = await supabase
+            .from('members')
+            .select('id, name, goal')
+            .eq('trainer_id', trainerRow.id)
+            .eq('status', 'active')
+            .order('name')
+          setTrainerMembers(memberRows || [])
+        }
+      }
+    }
+  }
+
+  /* ── 루틴 템플릿 상세 로드 ──────────────────────────────── */
+  async function loadRoutineTemplate(postId) {
+    setRoutineLoading(true)
+    setRoutineTemplate(null)
+    try {
+      const data = await getRoutineTemplate(postId, user?.id)
+      setRoutineTemplate(data?.ok ? data : null)
+    } catch { /* 템플릿 없는 상품은 무시 */ }
+    setRoutineLoading(false)
+  }
+
+  /* ── 루틴 AI 분석 ───────────────────────────────────────── */
+  async function analyzeRoutine() {
+    if (!routineTemplate || analyzingRoutine) return
+    const apiKey = localStorage.getItem('gemini_api_key')
+    if (!apiKey) return showToast('Gemini API 키가 없습니다')
+    setAnalyzingRoutine(true)
+    setRoutineAnalysis('')
+    try {
+      const prompt = buildRoutineAnalysisPrompt({
+        title:         selectedMarket?.title || '',
+        goal:          routineTemplate.goal,
+        level:         routineTemplate.level,
+        durationWeeks: routineTemplate.duration_weeks,
+        daysPerWeek:   routineTemplate.days_per_week,
+        weeksData:     routineTemplate.weeks_data || [],
+      })
+      const result = await callGemini(apiKey, 'gemini-2.5-flash-lite', prompt, { timeoutMs: 45000 })
+      setRoutineAnalysis(result)
+    } catch (e) { showToast('AI 분석 실패: ' + e.message) }
+    setAnalyzingRoutine(false)
   }
 
   async function purchaseItem(item) {
@@ -495,7 +581,39 @@ export default function CommunityPortal() {
     if (!writeTitle.trim())   return showToast('제목을 입력해주세요')
     if (!writeContent.trim()) return showToast('미리보기 내용을 입력해주세요')
     if (writePrice < 0)       return showToast('가격을 확인해주세요')
-    // 게시글 등록
+
+    // ── 루틴 타입: publishRoutineTemplate 사용 ──────────────
+    if (writeMarketType === 'routine') {
+      const hasExercises = routineWeeksData.some(w =>
+        w.days?.some(d => d.exercises?.some(e => e.name?.trim()))
+      )
+      if (!hasExercises) return showToast('최소 1개 이상의 종목을 추가해주세요')
+      try {
+        await publishRoutineTemplate({
+          sellerCommunityId: user.id,
+          title:             writeTitle.trim(),
+          previewText:       writeContent.trim(),
+          price:             writePrice,
+          tags:              writeTags.length > 0 ? writeTags : null,
+          goal:              routineGoal,
+          level:             routineLevel,
+          durationWeeks:     routineDurationW,
+          daysPerWeek:       routineDaysPerW,
+          equipment:         routineEquipment,
+          weeksData:         routineWeeksData,
+        })
+        showToast('🛒 루틴 템플릿이 마켓에 등록됐어요!')
+        setWriteTitle(''); setWriteContent(''); setWriteTags([])
+        setWritePrice(0); setWriteMarketType('routine'); setWriteFullContent('')
+        setRoutineWeeksData([makeEmptyWeek(1)])
+        setRoutineGoal('hypertrophy'); setRoutineLevel('intermediate')
+        setRoutineEquipment([]); setRoutineDurationW(4); setRoutineDaysPerW(3)
+        setScreen('market')
+      } catch { showToast('등록 중 오류가 발생했습니다') }
+      return
+    }
+
+    // ── 기타 타입: 기존 로직 ───────────────────────────────
     const { data: post, error } = await supabase
       .from('community_posts')
       .insert({
@@ -975,38 +1093,122 @@ export default function CommunityPortal() {
             {item.content}
           </div>
 
-          {/* 전문 콘텐츠 (구매 후 열람) */}
-          {hasAccess ? (
-            marketContent ? (
-              <div>
-                <div style={{ fontSize: 12, color: '#34d399', fontWeight: 700, marginBottom: 8 }}>
-                  ✅ {isFree ? '무료 전문 콘텐츠' : isMine ? '📦 전문 콘텐츠 (본인)' : '🔓 구매 완료 — 전문 콘텐츠'}
+          {/* ── 루틴 타입 — RoutineTemplateViewer ── */}
+          {item.market_type === 'routine' ? (
+            <div>
+              {routineLoading ? (
+                <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-dim)', fontSize: 13 }}>
+                  루틴 데이터 불러오는 중...
                 </div>
-                <div style={{ background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.25)',
-                  borderRadius: 10, padding: '14px', fontSize: 14, lineHeight: 1.8,
-                  whiteSpace: 'pre-wrap', color: 'var(--text)', marginBottom: 16 }}>
-                  {marketContent.full_content}
+              ) : (
+                <>
+                  {/* 구매 버튼 (미구매 + 유료 상품) */}
+                  {!hasAccess && (
+                    <div style={{
+                      background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.2)',
+                      borderRadius: 10, padding: '16px', textAlign: 'center', marginBottom: 16,
+                    }}>
+                      <button onClick={() => purchaseItem(item)} disabled={purchasing}
+                        style={{
+                          width: '100%', padding: '13px', borderRadius: 10, border: 'none',
+                          fontWeight: 800, fontSize: 15, cursor: purchasing ? 'not-allowed' : 'pointer',
+                          fontFamily: 'inherit', background: '#34d399', color: '#0a0a0a',
+                          opacity: purchasing ? 0.7 : 1,
+                        }}>
+                        {purchasing ? '처리 중...' : item.price === 0 ? '무료로 받기' : `${item.price.toLocaleString()}원 구매하기`}
+                      </button>
+                    </div>
+                  )}
+
+                  <RoutineTemplateViewer
+                    templateData={routineTemplate}
+                    post={item}
+                    isOwner={isMine}
+                    canApply={user?.role === 'trainer' && hasAccess}
+                    onApply={weekNum => {
+                      setApplyWeekNum(weekNum)
+                      setShowApplyModal(true)
+                    }}
+                  />
+
+                  {/* AI 분석 버튼 (교육자 본인 + 구매자) */}
+                  {hasAccess && routineTemplate?.has_access && (
+                    <div style={{ marginTop: 16 }}>
+                      <button onClick={analyzeRoutine} disabled={analyzingRoutine}
+                        style={{
+                          width: '100%', padding: '11px', borderRadius: 10,
+                          border: '1px solid rgba(200,241,53,0.3)',
+                          background: 'rgba(200,241,53,0.08)', color: '#c8f135',
+                          fontWeight: 700, fontSize: 13, cursor: analyzingRoutine ? 'not-allowed' : 'pointer',
+                          fontFamily: 'inherit', opacity: analyzingRoutine ? 0.7 : 1,
+                        }}>
+                        {analyzingRoutine ? '🤖 AI 분석 중...' : '🤖 AI 루틴 밸런스 분석'}
+                      </button>
+                      {routineAnalysis && (
+                        <div style={{
+                          marginTop: 12, background: 'rgba(200,241,53,0.05)',
+                          border: '1px solid rgba(200,241,53,0.15)',
+                          borderRadius: 10, padding: '14px',
+                          fontSize: 13, lineHeight: 1.8, whiteSpace: 'pre-wrap', color: 'var(--text)',
+                        }}>
+                          {routineAnalysis}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          ) : (
+            /* ── 기타 타입 — 기존 전문 콘텐츠 ── */
+            hasAccess ? (
+              marketContent ? (
+                <div>
+                  <div style={{ fontSize: 12, color: '#34d399', fontWeight: 700, marginBottom: 8 }}>
+                    ✅ {isFree ? '무료 전문 콘텐츠' : isMine ? '📦 전문 콘텐츠 (본인)' : '🔓 구매 완료 — 전문 콘텐츠'}
+                  </div>
+                  <div style={{ background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.25)',
+                    borderRadius: 10, padding: '14px', fontSize: 14, lineHeight: 1.8,
+                    whiteSpace: 'pre-wrap', color: 'var(--text)', marginBottom: 16 }}>
+                    {marketContent.full_content}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-dim)', fontSize: 13 }}>
+                  {isFree ? '전문 콘텐츠가 없습니다' : '전문 콘텐츠를 불러오는 중...'}
+                </div>
+              )
             ) : (
-              <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-dim)', fontSize: 13 }}>
-                {isFree ? '전문 콘텐츠가 없습니다' : '전문 콘텐츠를 불러오는 중...'}
+              <div style={{ background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.2)',
+                borderRadius: 10, padding: '20px', textAlign: 'center', marginBottom: 16 }}>
+                <div style={{ fontSize: 24, marginBottom: 8 }}>🔒</div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
+                  구매하면 전문 콘텐츠를 열람할 수 있습니다
+                </div>
+                <button onClick={() => purchaseItem(item)} disabled={purchasing}
+                  style={{ padding: '12px 32px', borderRadius: 10, border: 'none', fontWeight: 800,
+                    fontSize: 15, cursor: purchasing ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                    background: '#34d399', color: '#0a0a0a', opacity: purchasing ? 0.7 : 1 }}>
+                  {purchasing ? '처리 중...' : item.price === 0 ? '무료로 받기' : `${item.price.toLocaleString()}원 구매하기`}
+                </button>
               </div>
             )
-          ) : (
-            <div style={{ background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.2)',
-              borderRadius: 10, padding: '20px', textAlign: 'center', marginBottom: 16 }}>
-              <div style={{ fontSize: 24, marginBottom: 8 }}>🔒</div>
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
-                구매하면 전문 콘텐츠를 열람할 수 있습니다
-              </div>
-              <button onClick={() => purchaseItem(item)} disabled={purchasing}
-                style={{ padding: '12px 32px', borderRadius: 10, border: 'none', fontWeight: 800,
-                  fontSize: 15, cursor: purchasing ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-                  background: '#34d399', color: '#0a0a0a', opacity: purchasing ? 0.7 : 1 }}>
-                {purchasing ? '처리 중...' : item.price === 0 ? '무료로 받기' : `${item.price.toLocaleString()}원 구매하기`}
-              </button>
-            </div>
+          )}
+
+          {/* 적용 모달 (트레이너 전용) */}
+          {showApplyModal && routineTemplate && (
+            <ApplyRoutineModal
+              templateData={routineTemplate}
+              post={item}
+              trainerId={trainerId}
+              members={trainerMembers}
+              initialWeek={applyWeekNum}
+              onApplied={(routineId, memberId) => {
+                setShowApplyModal(false)
+                showToast('✅ 루틴이 회원에게 적용됐어요!')
+              }}
+              onClose={() => setShowApplyModal(false)}
+            />
           )}
 
           {/* 판매자 전용 — 구매자 목록 */}
@@ -1141,22 +1343,49 @@ export default function CommunityPortal() {
               <div className="char-count">{writeContent.length}/400</div>
             </div>
 
-            {/* 전문 콘텐츠 (구매 후 열람) */}
-            <div className="form-group">
-              <label>
-                전문 콘텐츠
-                <span style={{ fontSize: 10, color: '#34d399', marginLeft: 6, fontWeight: 400 }}>
-                  구매자에게만 공개됩니다
-                </span>
-              </label>
-              <textarea rows={8}
-                placeholder={`구매 후 공개할 상세 내용을 입력하세요.\n\n예시:\n■ 1주차: 기초 체력 평가 → 스쿼트 3×12, 데드리프트 3×10...\n■ 2주차: 볼륨 증가 → ...`}
-                value={writeFullContent}
-                onChange={e => setWriteFullContent(e.target.value)} />
-              <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>
-                빈 칸이면 전문 콘텐츠 없이 등록됩니다
+            {/* 루틴 타입 → 빌더 / 나머지 → 전문 콘텐츠 textarea */}
+            {writeMarketType === 'routine' ? (
+              <div className="form-group">
+                <label style={{ display: 'block', marginBottom: 8 }}>
+                  🏋️ 루틴 구성
+                  <span style={{ fontSize: 10, color: '#34d399', marginLeft: 6, fontWeight: 400 }}>
+                    구매자에게 공개되는 운동 프로그램
+                  </span>
+                </label>
+                <RoutineTemplateBuilder
+                  weeksData={routineWeeksData}
+                  onChange={setRoutineWeeksData}
+                  durationWeeks={routineDurationW}
+                  daysPerWeek={routineDaysPerW}
+                  goal={routineGoal}
+                  level={routineLevel}
+                  equipment={routineEquipment}
+                  onMetaChange={meta => {
+                    if (meta.goal          !== undefined) setRoutineGoal(meta.goal)
+                    if (meta.level         !== undefined) setRoutineLevel(meta.level)
+                    if (meta.durationWeeks !== undefined) setRoutineDurationW(meta.durationWeeks)
+                    if (meta.daysPerWeek   !== undefined) setRoutineDaysPerW(meta.daysPerWeek)
+                    if (meta.equipment     !== undefined) setRoutineEquipment(meta.equipment)
+                  }}
+                />
               </div>
-            </div>
+            ) : (
+              <div className="form-group">
+                <label>
+                  전문 콘텐츠
+                  <span style={{ fontSize: 10, color: '#34d399', marginLeft: 6, fontWeight: 400 }}>
+                    구매자에게만 공개됩니다
+                  </span>
+                </label>
+                <textarea rows={8}
+                  placeholder={`구매 후 공개할 상세 내용을 입력하세요.\n\n예시:\n■ 1주차: 기초 체력 평가 → 스쿼트 3×12, 데드리프트 3×10...\n■ 2주차: 볼륨 증가 → ...`}
+                  value={writeFullContent}
+                  onChange={e => setWriteFullContent(e.target.value)} />
+                <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>
+                  빈 칸이면 전문 콘텐츠 없이 등록됩니다
+                </div>
+              </div>
+            )}
 
             {/* 태그 */}
             <div className="form-group">
