@@ -143,6 +143,22 @@ export default function CommunityPortal() {
   const [sentContacts,      setSentContacts]      = useState([])
   const [receivedContacts,  setReceivedContacts]  = useState([])
 
+  // ── 마켓 ──────────────────────────────────────────────────
+  const [marketItems,      setMarketItems]      = useState([])
+  const [marketLoading,    setMarketLoading]    = useState(false)
+  const [marketFilter,     setMarketFilter]     = useState(null) // 'routine'|'program'|'nutrition'|'content'|null
+  const [selectedMarket,   setSelectedMarket]   = useState(null) // 상세 보기 중인 상품
+  const [marketContent,    setMarketContent]    = useState(null) // 구매 후 열람 가능한 전문
+  const [myPurchases,      setMyPurchases]      = useState([])   // 내가 구매한 post_id[]
+  const [purchasing,       setPurchasing]       = useState(false)
+  const [sellerStats,      setSellerStats]      = useState(null)
+  // 마켓 글쓰기 전용 필드
+  const [writePrice,       setWritePrice]       = useState(0)
+  const [writeMarketType,  setWriteMarketType]  = useState('routine')
+  const [writeFullContent, setWriteFullContent] = useState('')
+  const [myPurchasedItems, setMyPurchasedItems] = useState([]) // 구매한 마켓 상품 (post 포함)
+  const [mySellerStats,    setMySellerStats]    = useState(null) // 마이페이지용 판매 통계
+
   /* ── 앱 시작 시 인증 확인 ─────────────────────────────────── */
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -382,6 +398,127 @@ export default function CommunityPortal() {
         .order('created_at', { ascending: false })
       setReceivedContacts(rcvData || [])
     } else setReceivedContacts([])
+
+    // 구매한 마켓 상품 로드
+    const { data: purchaseData } = await supabase
+      .from('market_purchases')
+      .select('*, post:community_posts(*, author:community_users(*))')
+      .eq('buyer_id', user.id)
+      .order('purchased_at', { ascending: false })
+    setMyPurchasedItems((purchaseData || []).filter(p => p.post))
+    setMyPurchases((purchaseData || []).map(p => p.post_id))
+
+    // 판매자(educator/instructor)인 경우 판매 통계 로드
+    if (['educator', 'instructor'].includes(user.role)) {
+      const { data: statsData } = await supabase.rpc('get_seller_stats', { p_seller_id: user.id })
+      setMySellerStats(statsData)
+    }
+  }
+
+  /* ── 마켓 데이터 로드 ───────────────────────────────────── */
+  useEffect(() => {
+    if (screen === 'market' && user) loadMarketItems()
+  }, [screen, marketFilter, user])
+
+  useEffect(() => {
+    if (screen === 'market_detail' && selectedMarket) loadMarketDetail()
+  }, [screen, selectedMarket])
+
+  async function loadMarketItems() {
+    setMarketLoading(true)
+    try {
+      let q = supabase
+        .from('community_posts')
+        .select('*, author:community_users(*)')
+        .eq('category', 'educator_market')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+      if (marketFilter) q = q.eq('market_type', marketFilter)
+      const { data, error } = await q
+      if (error) throw error
+      setMarketItems(data || [])
+      // 내 구매 목록
+      const { data: purchased } = await supabase
+        .from('market_purchases')
+        .select('post_id')
+        .eq('buyer_id', user.id)
+      setMyPurchases((purchased || []).map(p => p.post_id))
+    } catch { showToast('마켓을 불러오지 못했습니다') }
+    setMarketLoading(false)
+  }
+
+  async function loadMarketDetail() {
+    // 전문 콘텐츠 (구매자 또는 판매자만 열람 가능)
+    const isSeller  = selectedMarket?.user_id === user?.id
+    const isPurchased = myPurchases.includes(selectedMarket?.id)
+    if (isSeller || isPurchased || selectedMarket?.price === 0) {
+      const { data } = await supabase
+        .from('market_item_contents')
+        .select('*')
+        .eq('post_id', selectedMarket.id)
+        .maybeSingle()
+      setMarketContent(data)
+    } else {
+      setMarketContent(null)
+    }
+    // 판매자인 경우 통계 로드
+    if (isSeller) {
+      const { data } = await supabase.rpc('get_seller_stats', { p_seller_id: user.id })
+      setSellerStats(data)
+    }
+  }
+
+  async function purchaseItem(item) {
+    if (purchasing) return
+    setPurchasing(true)
+    try {
+      const { data, error } = await supabase.rpc('purchase_market_item', {
+        p_post_id:  item.id,
+        p_buyer_id: user.id,
+      })
+      if (error) throw error
+      if (!data?.ok) throw new Error(data?.error || '구매 처리 실패')
+      setMyPurchases(prev => [...prev, item.id])
+      showToast(item.price === 0 ? '✓ 무료 상품을 받았어요' : '✓ 구매가 완료됐어요')
+      // 전문 콘텐츠 로드
+      const { data: content } = await supabase
+        .from('market_item_contents')
+        .select('*')
+        .eq('post_id', item.id)
+        .maybeSingle()
+      setMarketContent(content)
+    } catch (e) { showToast(e.message) }
+    setPurchasing(false)
+  }
+
+  async function createMarketPost() {
+    if (!writeTitle.trim())   return showToast('제목을 입력해주세요')
+    if (!writeContent.trim()) return showToast('미리보기 내용을 입력해주세요')
+    if (writePrice < 0)       return showToast('가격을 확인해주세요')
+    // 게시글 등록
+    const { data: post, error } = await supabase
+      .from('community_posts')
+      .insert({
+        user_id: user.id, category: 'educator_market',
+        title:   writeTitle.trim(), content: writeContent.trim(),
+        tags:    writeTags.length > 0 ? writeTags : null,
+        price:   writePrice,
+        market_type: writeMarketType,
+      })
+      .select('id')
+      .single()
+    if (error) return showToast('등록 중 오류가 발생했습니다')
+    // 전문 콘텐츠 저장
+    if (writeFullContent.trim()) {
+      await supabase.from('market_item_contents').insert({
+        post_id:      post.id,
+        full_content: writeFullContent.trim(),
+      })
+    }
+    showToast('🛒 상품이 마켓에 등록됐어요!')
+    setWriteTitle(''); setWriteContent(''); setWriteTags([])
+    setWritePrice(0); setWriteMarketType('routine'); setWriteFullContent('')
+    setScreen('market')
   }
 
   /* ============================================================
@@ -635,6 +772,11 @@ export default function CommunityPortal() {
           <div className="comm-header-actions">
             <Avatar user={user} size={28} />
             <RoleBadge role={user?.role} />
+            <button className="btn btn-ghost btn-sm"
+              style={{ fontSize: 12 }}
+              onClick={() => setScreen('market')}>
+              🛒 마켓
+            </button>
             {writableCats.length > 0 && (
               <button className="write-btn-comm"
                 onClick={() => { setWriteCat(writableCats[0]); setScreen('write') }}>
@@ -685,6 +827,387 @@ export default function CommunityPortal() {
           {posts.map(post => (
             <PostCard key={post.id} post={post} onOpen={() => openDetail(post)} myId={user.id} />
           ))}
+        </div>
+      </div>
+    )
+  }
+
+  /* ── 🛒 마켓 목록 화면 ─────────────────────────────────────── */
+  if (screen === 'market') {
+    const MARKET_TYPES = [
+      { key: 'routine',   label: '운동 루틴',  emoji: '🏋️' },
+      { key: 'program',   label: '트레이닝 프로그램', emoji: '📅' },
+      { key: 'nutrition', label: '식단 가이드', emoji: '🥗' },
+      { key: 'content',   label: '교육 콘텐츠', emoji: '📖' },
+    ]
+    const writableCats = getWritableCats(user.role)
+    const canSell = writableCats.includes('educator_market')
+
+    return (
+      <div className="comm-portal">
+        <div className="comm-header">
+          <button className="comm-back" onClick={() => setScreen('feed')}>←</button>
+          <div className="comm-header-logo" style={{ fontSize: 15 }}>🛒 교육자 마켓</div>
+          {canSell && (
+            <button className="write-btn-comm"
+              onClick={() => { setWriteCat('educator_market'); setScreen('market_write') }}>
+              + 상품 등록
+            </button>
+          )}
+        </div>
+
+        {/* 타입 필터 */}
+        <div className="cat-tabs-wrap">
+          <div className="cat-tabs">
+            <button className={`cat-tab ${!marketFilter ? 'active' : ''}`}
+              onClick={() => setMarketFilter(null)}>
+              전체
+            </button>
+            {MARKET_TYPES.map(t => (
+              <button key={t.key}
+                className={`cat-tab ${marketFilter === t.key ? 'active' : ''}`}
+                onClick={() => setMarketFilter(marketFilter === t.key ? null : t.key)}>
+                {t.emoji} {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="comm-feed">
+          <div className="feed-options">
+            <span className="feed-count">
+              {marketFilter ? MARKET_TYPES.find(t => t.key === marketFilter)?.label : '전체'} · {marketItems.length}개
+            </span>
+          </div>
+          {marketLoading && <div className="comm-loading">불러오는 중...</div>}
+          {!marketLoading && marketItems.length === 0 && (
+            <div className="comm-empty">
+              <div className="comm-empty-icon">🛒</div>
+              <div>등록된 상품이 없습니다</div>
+              {canSell && <div style={{ marginTop: 8, fontSize: 12 }}>첫 상품을 등록해보세요!</div>}
+            </div>
+          )}
+          {marketItems.map(item => (
+            <MarketCard key={item.id}
+              item={item}
+              isPurchased={myPurchases.includes(item.id)}
+              isMine={item.user_id === user.id}
+              onOpen={() => { setSelectedMarket(item); setMarketContent(null); setScreen('market_detail') }}
+            />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  /* ── 🛒 마켓 상세 화면 ──────────────────────────────────────── */
+  if (screen === 'market_detail' && selectedMarket) {
+    const item       = selectedMarket
+    const isMine     = item.user_id === user.id
+    const isPurchased = myPurchases.includes(item.id)
+    const isFree     = item.price === 0
+    const hasAccess  = isMine || isPurchased || isFree
+    const MARKET_TYPE_LABELS = { routine:'🏋️ 운동 루틴', program:'📅 트레이닝 프로그램', nutrition:'🥗 식단 가이드', content:'📖 교육 콘텐츠' }
+
+    return (
+      <div className="comm-portal">
+        <div className="comm-header">
+          <button className="comm-back" onClick={() => { setSelectedMarket(null); setScreen('market') }}>←</button>
+          <div className="comm-header-logo" style={{ fontSize: 14 }}>상품 상세</div>
+          {isMine && (
+            <button className="btn btn-ghost btn-sm" style={{ fontSize: 11 }}
+              onClick={() => deletePost(item.id)}>삭제</button>
+          )}
+        </div>
+
+        <div style={{ padding: '16px' }}>
+          {/* 뱃지 행 */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+              background: 'rgba(52,211,153,0.15)', color: '#34d399', border: '1px solid #34d39944' }}>
+              🛒 마켓
+            </span>
+            {item.market_type && (
+              <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20,
+                background: 'var(--surface2)', color: 'var(--text-muted)' }}>
+                {MARKET_TYPE_LABELS[item.market_type] || item.market_type}
+              </span>
+            )}
+            <span style={{ fontSize: 12, fontWeight: 800, padding: '3px 12px', borderRadius: 20, marginLeft: 'auto',
+              background: item.price === 0 ? 'rgba(52,211,153,0.2)' : 'rgba(200,241,53,0.2)',
+              color:      item.price === 0 ? '#34d399' : '#c8f135',
+              border:     `1px solid ${item.price === 0 ? '#34d39966' : '#c8f13566'}` }}>
+              {item.price === 0 ? '무료' : `${item.price.toLocaleString()}원`}
+            </span>
+          </div>
+
+          {/* 제목 */}
+          <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 12, lineHeight: 1.3 }}>{item.title}</div>
+
+          {/* 작성자 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
+            padding: '10px 12px', background: 'var(--surface2)', borderRadius: 10 }}>
+            <Avatar user={item.author} size={36} />
+            <div>
+              <RoleBadge role={item.author?.role} />
+              <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>{item.author?.name}</div>
+              {item.author?.location && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>📍 {item.author.location}</div>}
+            </div>
+            <div style={{ marginLeft: 'auto', textAlign: 'right', fontSize: 11, color: 'var(--text-dim)' }}>
+              <div>구매 {item.purchase_count || 0}회</div>
+              <div>{timeAgo(item.created_at)}</div>
+            </div>
+          </div>
+
+          {/* 태그 */}
+          {item.tags?.length > 0 && (
+            <div className="post-tags" style={{ marginBottom: 14 }}>
+              {item.tags.map(t => <span key={t} className="post-tag">#{t}</span>)}
+            </div>
+          )}
+
+          {/* 미리보기 */}
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600, marginBottom: 6 }}>
+            📋 미리보기
+          </div>
+          <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '14px', fontSize: 14,
+            lineHeight: 1.8, whiteSpace: 'pre-wrap', marginBottom: 16, color: 'var(--text)' }}>
+            {item.content}
+          </div>
+
+          {/* 전문 콘텐츠 (구매 후 열람) */}
+          {hasAccess ? (
+            marketContent ? (
+              <div>
+                <div style={{ fontSize: 12, color: '#34d399', fontWeight: 700, marginBottom: 8 }}>
+                  ✅ {isFree ? '무료 전문 콘텐츠' : isMine ? '📦 전문 콘텐츠 (본인)' : '🔓 구매 완료 — 전문 콘텐츠'}
+                </div>
+                <div style={{ background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.25)',
+                  borderRadius: 10, padding: '14px', fontSize: 14, lineHeight: 1.8,
+                  whiteSpace: 'pre-wrap', color: 'var(--text)', marginBottom: 16 }}>
+                  {marketContent.full_content}
+                </div>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-dim)', fontSize: 13 }}>
+                {isFree ? '전문 콘텐츠가 없습니다' : '전문 콘텐츠를 불러오는 중...'}
+              </div>
+            )
+          ) : (
+            <div style={{ background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.2)',
+              borderRadius: 10, padding: '20px', textAlign: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: 24, marginBottom: 8 }}>🔒</div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
+                구매하면 전문 콘텐츠를 열람할 수 있습니다
+              </div>
+              <button onClick={() => purchaseItem(item)} disabled={purchasing}
+                style={{ padding: '12px 32px', borderRadius: 10, border: 'none', fontWeight: 800,
+                  fontSize: 15, cursor: purchasing ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                  background: '#34d399', color: '#0a0a0a', opacity: purchasing ? 0.7 : 1 }}>
+                {purchasing ? '처리 중...' : item.price === 0 ? '무료로 받기' : `${item.price.toLocaleString()}원 구매하기`}
+              </button>
+            </div>
+          )}
+
+          {/* 판매자 전용 — 구매자 목록 */}
+          {isMine && sellerStats && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-dim)', marginBottom: 10 }}>
+                📊 판매 통계
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
+                {[
+                  ['총 판매', sellerStats.total_sales + '건'],
+                  ['총 수익', (sellerStats.total_revenue || 0).toLocaleString() + '원'],
+                  ['유료 상품', sellerStats.paid_items + '개'],
+                ].map(([l, v]) => (
+                  <div key={l} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '10px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#34d399' }}>{v}</div>
+                    <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 2 }}>{l}</div>
+                  </div>
+                ))}
+              </div>
+              {(sellerStats.recent_purchases || []).length > 0 && (
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 6 }}>최근 구매자</div>
+              )}
+              {(sellerStats.recent_purchases || []).map((p, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '8px 10px', background: 'var(--surface2)', borderRadius: 8, marginBottom: 6, fontSize: 12 }}>
+                  <span>{p.buyer_name}</span>
+                  <span style={{ color: '#34d399', fontWeight: 600 }}>
+                    {p.amount === 0 ? '무료' : p.amount.toLocaleString() + '원'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  /* ── 🛒 마켓 상품 등록 화면 ────────────────────────────────── */
+  if (screen === 'market_write') {
+    const MARKET_TYPES = [
+      { key: 'routine',   label: '운동 루틴',      emoji: '🏋️', desc: '운동 순서·세트·반복수 등의 운동 루틴' },
+      { key: 'program',   label: '트레이닝 프로그램', emoji: '📅', desc: '주차별 구조화된 트레이닝 계획' },
+      { key: 'nutrition', label: '식단 가이드',     emoji: '🥗', desc: '목표별 식단·칼로리·영양소 가이드' },
+      { key: 'content',   label: '교육 콘텐츠',     emoji: '📖', desc: '강의 자료·PDF·세미나 노트 등' },
+    ]
+    return (
+      <div className="comm-portal">
+        <div className="comm-header">
+          <button className="comm-back" onClick={() => setScreen('market')}>←</button>
+          <div className="comm-header-logo" style={{ fontSize: 15 }}>🛒 상품 등록</div>
+          <div style={{ width: 60 }} />
+        </div>
+        <div className="comm-write">
+          <div className="comm-write-card">
+            <div className="write-title-text">어떤 콘텐츠를 판매하시겠어요?</div>
+
+            {/* 상품 유형 */}
+            <div className="form-group">
+              <label>상품 유형 <span style={{ color: 'var(--danger)' }}>*</span></label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {MARKET_TYPES.map(t => (
+                  <div key={t.key}
+                    onClick={() => setWriteMarketType(t.key)}
+                    style={{
+                      padding: '12px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s',
+                      border: writeMarketType === t.key ? '2px solid #34d399' : '1px solid var(--border)',
+                      background: writeMarketType === t.key ? 'rgba(52,211,153,0.1)' : 'var(--surface2)',
+                    }}>
+                    <div style={{ fontSize: 20, marginBottom: 4 }}>{t.emoji}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: writeMarketType === t.key ? '#34d399' : 'var(--text)' }}>
+                      {t.label}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4 }}>
+                      {t.desc}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 가격 */}
+            <div className="form-group">
+              <label>가격 <span style={{ color: 'var(--danger)' }}>*</span></label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="number" min={0} step={1000}
+                  placeholder="0 = 무료"
+                  value={writePrice}
+                  onChange={e => setWritePrice(Math.max(0, parseInt(e.target.value) || 0))}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ fontSize: 13, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>원</span>
+                <button type="button"
+                  onClick={() => setWritePrice(0)}
+                  style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--border)',
+                    background: writePrice === 0 ? 'rgba(52,211,153,0.15)' : 'var(--surface2)',
+                    color: writePrice === 0 ? '#34d399' : 'var(--text-dim)',
+                    cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'inherit' }}>
+                  무료
+                </button>
+              </div>
+              {writePrice > 0 && (
+                <div style={{ fontSize: 11, color: '#c8f135', marginTop: 4 }}>
+                  💡 결제는 구매자와 직접 협의 후 처리해주세요 (현재 명예 과금 방식)
+                </div>
+              )}
+            </div>
+
+            {/* 제목 */}
+            <div className="form-group">
+              <label>상품명 <span style={{ color: 'var(--danger)' }}>*</span></label>
+              <input type="text" placeholder="예: 12주 벌크업 프로그램 (중급자용)" maxLength={50}
+                value={writeTitle} onChange={e => setWriteTitle(e.target.value)} />
+              <div className="char-count">{writeTitle.length}/50</div>
+            </div>
+
+            {/* 미리보기 (공개) */}
+            <div className="form-group">
+              <label>
+                미리보기 내용 <span style={{ color: 'var(--danger)' }}>*</span>
+                <span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 6, fontWeight: 400 }}>
+                  모든 사람에게 공개됩니다
+                </span>
+              </label>
+              <textarea rows={4}
+                placeholder="상품 소개, 구성 요약, 기대 효과 등을 적어주세요"
+                maxLength={400}
+                value={writeContent}
+                onChange={e => setWriteContent(e.target.value)} />
+              <div className="char-count">{writeContent.length}/400</div>
+            </div>
+
+            {/* 전문 콘텐츠 (구매 후 열람) */}
+            <div className="form-group">
+              <label>
+                전문 콘텐츠
+                <span style={{ fontSize: 10, color: '#34d399', marginLeft: 6, fontWeight: 400 }}>
+                  구매자에게만 공개됩니다
+                </span>
+              </label>
+              <textarea rows={8}
+                placeholder={`구매 후 공개할 상세 내용을 입력하세요.\n\n예시:\n■ 1주차: 기초 체력 평가 → 스쿼트 3×12, 데드리프트 3×10...\n■ 2주차: 볼륨 증가 → ...`}
+                value={writeFullContent}
+                onChange={e => setWriteFullContent(e.target.value)} />
+              <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>
+                빈 칸이면 전문 콘텐츠 없이 등록됩니다
+              </div>
+            </div>
+
+            {/* 태그 */}
+            <div className="form-group">
+              <label>태그 (Enter로 추가 · 최대 5개)</label>
+              <div className="tag-input-wrap">
+                {writeTags.map(tag => (
+                  <span key={tag} className="tag-chip">
+                    #{tag}
+                    <button onClick={() => setWriteTags(p => p.filter(t => t !== tag))}>×</button>
+                  </span>
+                ))}
+                <input className="tag-raw-input" type="text"
+                  placeholder={writeTags.length < 5 ? '예: 중급자, 벌크업' : ''}
+                  value={writeTagInput}
+                  onChange={e => setWriteTagInput(e.target.value)}
+                  onKeyDown={handleTagKey}
+                  disabled={writeTags.length >= 5} />
+              </div>
+            </div>
+
+            {/* 미리보기 요약 */}
+            {writeTitle && (
+              <div style={{ background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.2)',
+                borderRadius: 10, padding: 14, marginBottom: 4 }}>
+                <div style={{ fontSize: 10, color: '#34d399', fontWeight: 700, marginBottom: 8, letterSpacing: '0.06em' }}>
+                  등록 미리보기
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 12,
+                    background: 'rgba(52,211,153,0.15)', color: '#34d399', border: '1px solid #34d39944' }}>
+                    {MARKET_TYPES.find(t => t.key === writeMarketType)?.emoji} {MARKET_TYPES.find(t => t.key === writeMarketType)?.label}
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 800, padding: '2px 10px', borderRadius: 12,
+                    background: writePrice === 0 ? 'rgba(52,211,153,0.2)' : 'rgba(200,241,53,0.2)',
+                    color: writePrice === 0 ? '#34d399' : '#c8f135' }}>
+                    {writePrice === 0 ? '무료' : `${writePrice.toLocaleString()}원`}
+                  </span>
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, marginTop: 8 }}>{writeTitle}</div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button className="btn btn-ghost" style={{ flex: 1 }}
+                onClick={() => setScreen('market')}>취소</button>
+              <button className="write-btn-comm" style={{ flex: 2, background: '#34d399', color: '#0a0a0a' }}
+                onClick={createMarketPost}>
+                🛒 마켓에 등록하기
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -967,6 +1490,14 @@ export default function CommunityPortal() {
           <button className={`mypage-tab ${myTab === 'contacts' ? 'active' : ''}`} onClick={() => setMyTab('contacts')}>
             연락 내역
           </button>
+          <button className={`mypage-tab ${myTab === 'purchased' ? 'active' : ''}`} onClick={() => setMyTab('purchased')}>
+            내 구매 ({myPurchasedItems.length})
+          </button>
+          {['educator', 'instructor'].includes(user?.role) && (
+            <button className={`mypage-tab ${myTab === 'sales' ? 'active' : ''}`} onClick={() => setMyTab('sales')}>
+              판매 현황
+            </button>
+          )}
         </div>
 
         <div className="mypage-content">
@@ -990,6 +1521,134 @@ export default function CommunityPortal() {
                   )}
                 </div>
               ))}
+            </>
+          )}
+
+          {myTab === 'purchased' && (
+            <>
+              {myPurchasedItems.length === 0 && (
+                <div className="comm-empty">
+                  <div className="comm-empty-icon">🛒</div>
+                  <div>구매한 상품이 없습니다</div>
+                  <button className="btn btn-ghost btn-sm" style={{ marginTop: 12 }}
+                    onClick={() => setScreen('market')}>
+                    마켓 둘러보기 →
+                  </button>
+                </div>
+              )}
+              {myPurchasedItems.map(purchase => {
+                const item = purchase.post
+                if (!item) return null
+                const MARKET_TYPE_LABELS = { routine:'🏋️ 운동 루틴', program:'📅 프로그램', nutrition:'🥗 식단', content:'📖 콘텐츠' }
+                return (
+                  <div key={purchase.id}
+                    style={{ background: 'var(--surface2)', borderRadius: 12, padding: '14px', marginBottom: 10, cursor: 'pointer' }}
+                    onClick={() => {
+                      setSelectedMarket(item)
+                      setMarketContent(null)
+                      setScreen('market_detail')
+                    }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8, alignItems: 'center' }}>
+                      {item.market_type && (
+                        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10,
+                          background: 'rgba(52,211,153,0.12)', color: '#34d399' }}>
+                          {MARKET_TYPE_LABELS[item.market_type]}
+                        </span>
+                      )}
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
+                        background: purchase.amount_paid === 0 ? 'rgba(52,211,153,0.12)' : 'rgba(200,241,53,0.12)',
+                        color: purchase.amount_paid === 0 ? '#34d399' : '#c8f135' }}>
+                        {purchase.amount_paid === 0 ? '무료' : `${purchase.amount_paid.toLocaleString()}원`}
+                      </span>
+                      <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-dim)' }}>
+                        {timeAgo(purchase.purchased_at)}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>{item.title}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--comm)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#0a0a0a' }}>
+                        {item.author?.name?.[0] || '?'}
+                      </div>
+                      <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{item.author?.name}</span>
+                      <span style={{ fontSize: 10, color: '#34d399', marginLeft: 'auto' }}>🔓 열람 가능</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </>
+          )}
+
+          {myTab === 'sales' && ['educator', 'instructor'].includes(user?.role) && (
+            <>
+              {/* 판매 통계 요약 */}
+              {mySellerStats ? (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 16 }}>
+                    {[
+                      ['총 상품', (mySellerStats.total_items || 0) + '개', '#34d399'],
+                      ['총 판매', (mySellerStats.total_sales || 0) + '건', '#c8f135'],
+                      ['총 수익', ((mySellerStats.total_revenue || 0)).toLocaleString() + '원', '#ff9800'],
+                    ].map(([l, v, c]) => (
+                      <div key={l} style={{ background: 'var(--surface2)', borderRadius: 10, padding: '14px 10px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 18, fontWeight: 800, color: c }}>{v}</div>
+                        <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 3 }}>{l}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
+                    {[
+                      ['무료 상품', (mySellerStats.free_items || 0) + '개'],
+                      ['유료 상품', (mySellerStats.paid_items || 0) + '개'],
+                    ].map(([l, v]) => (
+                      <div key={l} style={{ background: 'var(--surface2)', borderRadius: 10, padding: '12px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{v}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>{l}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 최근 구매자 목록 */}
+                  {(mySellerStats.recent_purchases || []).length > 0 && (
+                    <>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', marginBottom: 8 }}>
+                        최근 구매 내역
+                      </div>
+                      {(mySellerStats.recent_purchases || []).map((p, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          padding: '10px 12px', background: 'var(--surface2)', borderRadius: 8, marginBottom: 6, fontSize: 12 }}>
+                          <div>
+                            <div style={{ fontWeight: 600, marginBottom: 2 }}>{p.buyer_name}</div>
+                            <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>{p.post_title}</div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontWeight: 700, color: p.amount === 0 ? '#34d399' : '#c8f135' }}>
+                              {p.amount === 0 ? '무료' : p.amount.toLocaleString() + '원'}
+                            </div>
+                            <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>{timeAgo(p.purchased_at)}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+
+                  <button className="write-btn-comm"
+                    style={{ width: '100%', marginTop: 12, background: '#34d399', color: '#0a0a0a' }}
+                    onClick={() => setScreen('market')}>
+                    🛒 내 마켓 관리하기
+                  </button>
+                </>
+              ) : (
+                <div className="comm-empty">
+                  <div className="comm-empty-icon">📊</div>
+                  <div>판매 데이터가 없습니다</div>
+                  <button className="write-btn-comm"
+                    style={{ marginTop: 12, background: '#34d399', color: '#0a0a0a' }}
+                    onClick={() => { setWriteMarketType('routine'); setScreen('market_write') }}>
+                    첫 상품 등록하기
+                  </button>
+                </div>
+              )}
             </>
           )}
 
@@ -1115,6 +1774,109 @@ function PostCard({ post, onOpen, myId }) {
           <span className="closed-badge-big">마감</span>
         </div>
       )}
+    </div>
+  )
+}
+
+/* ============================================================
+   MarketCard 컴포넌트
+   ============================================================ */
+function MarketCard({ item, isPurchased, isMine, onOpen }) {
+  const MARKET_TYPE_LABELS = {
+    routine:   { label: '운동 루틴',      emoji: '🏋️' },
+    program:   { label: '트레이닝 프로그램', emoji: '📅' },
+    nutrition: { label: '식단 가이드',     emoji: '🥗' },
+    content:   { label: '교육 콘텐츠',     emoji: '📖' },
+  }
+  const typeInfo = MARKET_TYPE_LABELS[item.market_type] || { label: item.market_type, emoji: '📦' }
+  const isFree   = item.price === 0
+
+  return (
+    <div
+      onClick={onOpen}
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 14,
+        padding: '16px',
+        marginBottom: 10,
+        cursor: 'pointer',
+        transition: 'border-color 0.15s',
+      }}
+      onMouseEnter={e => e.currentTarget.style.borderColor = '#34d39966'}
+      onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+    >
+      {/* 상단 뱃지 행 */}
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 10, fontWeight: 600,
+          background: 'rgba(52,211,153,0.12)', color: '#34d399', border: '1px solid rgba(52,211,153,0.25)' }}>
+          {typeInfo.emoji} {typeInfo.label}
+        </span>
+        {isMine && (
+          <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 10, fontWeight: 600,
+            background: 'rgba(167,139,250,0.12)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.25)' }}>
+            내 상품
+          </span>
+        )}
+        {isPurchased && !isMine && (
+          <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 10, fontWeight: 600,
+            background: 'rgba(52,211,153,0.2)', color: '#34d399' }}>
+            🔓 구매완료
+          </span>
+        )}
+        {/* 가격 — 오른쪽 정렬 */}
+        <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 800, padding: '3px 12px', borderRadius: 12,
+          background: isFree ? 'rgba(52,211,153,0.18)' : 'rgba(200,241,53,0.18)',
+          color:      isFree ? '#34d399' : '#c8f135',
+          border:     `1px solid ${isFree ? '#34d39944' : '#c8f13544'}` }}>
+          {isFree ? '무료' : `${item.price.toLocaleString()}원`}
+        </span>
+      </div>
+
+      {/* 제목 */}
+      <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, lineHeight: 1.3 }}>
+        {item.title}
+      </div>
+
+      {/* 미리보기 */}
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 12 }}>
+        {item.content?.length > 90 ? item.content.slice(0, 90) + '...' : item.content}
+      </div>
+
+      {/* 태그 */}
+      {item.tags?.length > 0 && (
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 10 }}>
+          {item.tags.map(t => (
+            <span key={t} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 8,
+              background: 'var(--surface2)', color: 'var(--text-dim)' }}>
+              #{t}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* 작성자 + 구매 수 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ width: 22, height: 22, borderRadius: '50%',
+          background: 'var(--comm)', color: '#0a0a0a',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>
+          {item.author?.name?.[0] || '?'}
+        </div>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.author?.name}</span>
+        {item.author?.role && (
+          <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 6,
+            background: (ROLE_META[item.author.role]?.color || '#888') + '18',
+            color: ROLE_META[item.author.role]?.color || '#888' }}>
+            {ROLE_META[item.author.role]?.emoji} {ROLE_META[item.author.role]?.label}
+          </span>
+        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, fontSize: 11, color: 'var(--text-dim)' }}>
+          {item.purchase_count > 0 && (
+            <span>🛒 {item.purchase_count}</span>
+          )}
+          <span>{timeAgo(item.created_at)}</span>
+        </div>
+      </div>
     </div>
   )
 }

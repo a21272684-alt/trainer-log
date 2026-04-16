@@ -185,6 +185,21 @@ export const COMMUNITY_ACCESS = {
     view:  ['trainer', 'educator', 'instructor', 'gym_owner'],
     write: ['educator', 'instructor'],
   },
+
+  // ── 교육자 마켓 ───────────────────────────────────────────────────────────
+  // educator / instructor 가 제작한 루틴·프로그램·콘텐츠를 유·무료로 배포
+
+  educator_market: {
+    label: '교육자 마켓',
+    desc:  '루틴·프로그램·콘텐츠 판매',
+    emoji: '🛒',
+    color: '#34d399',
+    bg:    'rgba(52,211,153,0.12)',
+    hint:  '판매할 루틴, 프로그램, 교육 콘텐츠를 등록해주세요. 미리보기와 전문 콘텐츠를 분리해서 작성해야 합니다.',
+    view:  ['trainer', 'member', 'educator', 'instructor', 'gym_owner'],
+    write: ['educator', 'instructor'],
+    isMarket: true,   // 마켓 전용 플래그 — CommunityPortal 에서 분기 처리
+  },
 }
 
 // ── 헬퍼 함수 ────────────────────────────────────────────────────────────────
