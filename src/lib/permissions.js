@@ -135,7 +135,7 @@ export const COMMUNITY_ACCESS = {
     bg:    'rgba(255,152,0,0.12)',
     hint:  '강의 주제, 대상(트레이너/관장 등), 일정 등을 적어주세요',
     view:  ['trainer', 'member', 'educator', 'instructor', 'gym_owner'],
-    write: ['educator', 'instructor'],
+    write: ['instructor'],   // educator 제외 — instructor 전용 교육 공고
   },
 
   gym_seeks_trainer: {

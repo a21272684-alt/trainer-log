@@ -379,6 +379,11 @@ export default function CommunityPortal() {
     if (!writeCat) return showToast('카테고리를 선택해주세요')
     if (!writeTitle.trim()) return showToast('제목을 입력해주세요')
     if (!writeContent.trim()) return showToast('내용을 입력해주세요')
+    // 카테고리별 write 권한 재검증 (UI 우회 방어)
+    const catCfg = COMMUNITY_ACCESS[writeCat]
+    if (catCfg && !catCfg.write.includes(user.role)) {
+      return showToast(`'${catCfg.label}' 카테고리에 글을 올릴 권한이 없습니다`)
+    }
     const { error } = await supabase.from('community_posts').insert({
       user_id: user.id, category: writeCat,
       title: writeTitle.trim(), content: writeContent.trim(),
