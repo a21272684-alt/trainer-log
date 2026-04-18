@@ -1354,6 +1354,7 @@ export default function TrainerApp() {
 
   // Member sort
   const [memberSort, setMemberSort] = useState('created') // 'name' | 'created' | 'expire'
+  const [showRiskInfo, setShowRiskInfo] = useState(false)
 
   // Add member form
   const [addForm, setAddForm] = useState({name:'',kakao_phone:'',phone:'',birthdate:'',address:'',email:'',special_notes:'',purpose:'체형교정',visit_source:'',visit_source_memo:'',total:'',done:'0',price:'',memo:''})
@@ -2402,6 +2403,112 @@ export default function TrainerApp() {
                     )
                   })()}
                 </div>
+
+                {/* 이탈위험이란? 버튼 + 설명 패널 */}
+                {memberFilter === '이탈위험' && (
+                  <div style={{marginBottom:'10px'}}>
+                    <button
+                      onClick={() => setShowRiskInfo(v => !v)}
+                      style={{
+                        display:'flex', alignItems:'center', gap:'5px',
+                        background:'none', border:'1px solid rgba(239,68,68,0.3)',
+                        borderRadius:'8px', padding:'6px 10px', cursor:'pointer',
+                        fontFamily:'inherit', fontSize:'11px',
+                        color:'#f87171', fontWeight:600, transition:'all 0.15s',
+                      }}>
+                      {showRiskInfo ? '▲' : '❓'} 이탈위험이란?
+                    </button>
+
+                    {showRiskInfo && (
+                      <div style={{
+                        marginTop:'8px', background:'rgba(239,68,68,0.06)',
+                        border:'1px solid rgba(239,68,68,0.2)', borderRadius:'12px',
+                        padding:'14px', fontSize:'12px', lineHeight:1.65,
+                      }}>
+                        {/* 위험 등급 */}
+                        <div style={{fontWeight:700, color:'#f87171', marginBottom:'10px', fontSize:'13px'}}>
+                          🔴 이탈위험 판단 기준
+                        </div>
+                        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'6px', marginBottom:'12px'}}>
+                          {[
+                            ['🟢 안전',      '0~29점',  '#22c55e'],
+                            ['🟡 관찰',      '30~49점', '#eab308'],
+                            ['🟠 위험',      '50~74점', '#f97316'],
+                            ['🔴 이탈 임박', '75~100점','#ef4444'],
+                          ].map(([label, range, color]) => (
+                            <div key={label} style={{
+                              background:'var(--surface2)', borderRadius:'8px',
+                              padding:'8px 10px', borderLeft:`3px solid ${color}`,
+                            }}>
+                              <div style={{fontWeight:700, color, fontSize:'11px'}}>{label}</div>
+                              <div style={{color:'var(--text-dim)', fontSize:'10px', marginTop:'2px'}}>{range}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* 3가지 신호 */}
+                        <div style={{fontWeight:700, color:'var(--text)', marginBottom:'8px', fontSize:'12px'}}>
+                          📊 3가지 신호로 0~100점 산출
+                        </div>
+
+                        {/* A. 출석 */}
+                        <div style={{
+                          background:'rgba(96,165,250,0.08)', border:'1px solid rgba(96,165,250,0.2)',
+                          borderRadius:'8px', padding:'10px', marginBottom:'8px',
+                        }}>
+                          <div style={{fontWeight:700, color:'#60a5fa', marginBottom:'6px'}}>
+                            A. 출석 위험도 <span style={{fontWeight:400, color:'var(--text-dim)'}}>0~40점</span>
+                          </div>
+                          <div style={{color:'var(--text-muted)'}}>
+                            · 마지막 출석 <b style={{color:'var(--text)'}}>7일</b> 경과 → +6점<br/>
+                            · 마지막 출석 <b style={{color:'var(--text)'}}>14일</b> 경과 → +13점<br/>
+                            · 마지막 출석 <b style={{color:'var(--text)'}}>21일</b> 경과 → +20점<br/>
+                            · 최근 2주 출석 0회 (이전 대비) → +20점<br/>
+                            · 출석 빈도 <b style={{color:'var(--text)'}}>50% 이상</b> 감소 → +12점
+                          </div>
+                        </div>
+
+                        {/* B. 건강기록 */}
+                        <div style={{
+                          background:'rgba(74,222,128,0.08)', border:'1px solid rgba(74,222,128,0.2)',
+                          borderRadius:'8px', padding:'10px', marginBottom:'8px',
+                        }}>
+                          <div style={{fontWeight:700, color:'#4ade80', marginBottom:'6px'}}>
+                            B. 건강기록 중단 <span style={{fontWeight:400, color:'var(--text-dim)'}}>0~30점</span>
+                          </div>
+                          <div style={{color:'var(--text-muted)'}}>
+                            · 최근 2주 체중/수면 기록 <b style={{color:'var(--text)'}}>전혀 없음</b> → +20점<br/>
+                            · 기록 빈도 50% 이상 감소 → +10점<br/>
+                            · 수면 품질 <b style={{color:'var(--text)'}}>2점 이하</b> (10점 만점) → +10점<br/>
+                            · 수면 품질 2점 이상 하락 → +6점
+                          </div>
+                        </div>
+
+                        {/* C. 수업 평점 */}
+                        <div style={{
+                          background:'rgba(250,204,21,0.08)', border:'1px solid rgba(250,204,21,0.2)',
+                          borderRadius:'8px', padding:'10px', marginBottom:'10px',
+                        }}>
+                          <div style={{fontWeight:700, color:'#facc15', marginBottom:'6px'}}>
+                            C. 수업 평점 저하 <span style={{fontWeight:400, color:'var(--text-dim)'}}>0~30점</span>
+                          </div>
+                          <div style={{color:'var(--text-muted)'}}>
+                            · 최근 3회 평점 <b style={{color:'var(--text)'}}>2점 이하</b> (5점 만점) → +20점<br/>
+                            · 최근 3회 평점 <b style={{color:'var(--text)'}}>3점 이하</b> → +10점<br/>
+                            · 이전 대비 평점 <b style={{color:'var(--text)'}}>1.5점 이상</b> 급락 → +10점<br/>
+                            · 1.0점 이상 하락 → +5점
+                          </div>
+                        </div>
+
+                        <div style={{fontSize:'10px', color:'var(--text-dim)', lineHeight:1.6}}>
+                          💡 <b>위험(50점 이상)</b> · <b>이탈임박(75점 이상)</b> 회원이 필터에 표시됩니다.<br/>
+                          💡 점수는 출석·건강기록·수업일지 데이터를 기반으로 자동 계산됩니다.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* 정렬 */}
                 <div style={{display:'flex',gap:'6px',marginBottom:'12px'}}>
                   {[['created','등록일자순'],['name','이름순'],['expire','만료예정순'],['risk','위험도순']].map(([key,label])=>(
