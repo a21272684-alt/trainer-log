@@ -5,6 +5,7 @@ import Modal from '../components/common/Modal'
 import { EXERCISE_DB } from '../lib/exercises'
 import { Link } from 'react-router-dom'
 import { Chart, registerables } from 'chart.js'
+import { callGeminiMultipart, buildFoodVisionParts, parseFoodVisionResult } from '../lib/ai_templates'
 import '../styles/member.css'
 
 Chart.register(...registerables)
@@ -124,6 +125,27 @@ export default function MemberPortal() {
   const [postPhotoFile, setPostPhotoFile] = useState(null)
   const [postPhotoPreview, setPostPhotoPreview] = useState('')
 
+  // Diet v2 state
+  const [trainerApiKey, setTrainerApiKey] = useState('')
+  const [dietLogs, setDietLogs] = useState([])
+  const [dietDate, setDietDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [showFoodModal, setShowFoodModal] = useState(false)
+  const [foodMealType, setFoodMealType] = useState('breakfast')
+  const [foodName, setFoodName] = useState('')
+  const [foodAmountG, setFoodAmountG] = useState('100')
+  const [foodCalPerG, setFoodCalPerG] = useState('')
+  const [foodProteinPerG, setFoodProteinPerG] = useState('')
+  const [foodCarbsPerG, setFoodCarbsPerG] = useState('')
+  const [foodFatPerG, setFoodFatPerG] = useState('')
+  const [foodFiberPerG, setFoodFiberPerG] = useState('')
+  const [foodSodiumPerG, setFoodSodiumPerG] = useState('')
+  const [foodSugarPerG, setFoodSugarPerG] = useState('')
+  const [foodPhotoFile, setFoodPhotoFile] = useState(null)
+  const [foodPhotoPreview, setFoodPhotoPreview] = useState('')
+  const [foodAiLoading, setFoodAiLoading] = useState(false)
+  const [foodAiConfidence, setFoodAiConfidence] = useState('')
+  const foodPhotoInputRef = useRef(null)
+
   const today = () => new Date().toISOString().split('T')[0]
   const formatDate = (str) => new Date(str+'T00:00:00').toLocaleDateString('ko-KR',{month:'short',day:'numeric'})
   const formatRelative = (str) => {
@@ -143,8 +165,13 @@ export default function MemberPortal() {
     try {
       const { data } = await supabase.from('members').select('*').eq('name', loginName).eq('phone', loginPhone)
       if (!data?.length) { showToast('등록된 회원 정보가 없어요. 트레이너에게 문의하세요'); return }
-      setMember(data[0]); setLoggedIn(true)
-      showToast('✓ 환영해요, '+data[0].name+'님!')
+      const m = data[0]
+      setMember(m); setLoggedIn(true)
+      if (m.trainer_id) {
+        const { data: tData } = await supabase.from('trainers').select('api_key').eq('id', m.trainer_id).single()
+        if (tData?.api_key) setTrainerApiKey(tData.api_key)
+      }
+      showToast('✓ 환영해요, '+m.name+'님!')
     } catch(e) { showToast('오류: ' + e.message) }
   }
 
@@ -184,6 +211,114 @@ export default function MemberPortal() {
   useEffect(() => {
     if (tab === 'community' && member) loadPosts()
   }, [tab])
+
+  useEffect(() => {
+    if (tab === 'diet' && member) loadDietLogs(dietDate)
+  }, [tab, dietDate])
+
+  // ── 식단 v2 함수 ─────────────────────────────────────────────
+
+  async function loadDietLogs(date) {
+    if (!member) return
+    const { data } = await supabase
+      .from('diet_logs')
+      .select('*')
+      .eq('member_id', member.id)
+      .eq('record_date', date)
+      .order('created_at', { ascending: true })
+    setDietLogs(data || [])
+  }
+
+  function openFoodModal(mealType) {
+    setFoodMealType(mealType)
+    setFoodName(''); setFoodAmountG('100')
+    setFoodCalPerG(''); setFoodProteinPerG(''); setFoodCarbsPerG('')
+    setFoodFatPerG(''); setFoodFiberPerG(''); setFoodSodiumPerG(''); setFoodSugarPerG('')
+    setFoodPhotoFile(null); setFoodPhotoPreview(''); setFoodAiConfidence('')
+    setShowFoodModal(true)
+  }
+
+  async function recognizeFoodFromPhoto(file) {
+    if (!trainerApiKey) { showToast('트레이너에게 AI 기능 활성화를 요청해주세요'); return }
+    setFoodAiLoading(true)
+    try {
+      const reader = new FileReader()
+      reader.onload = async (e) => {
+        try {
+          const dataUrl = e.target.result
+          const base64 = dataUrl.split(',')[1]
+          const mimeType = file.type || 'image/jpeg'
+          const parts = buildFoodVisionParts(base64, mimeType)
+          const GEMINI_MODEL = 'gemini-2.5-flash-lite'
+          const text = await callGeminiMultipart(trainerApiKey, GEMINI_MODEL, parts, { timeoutMs: 45000 })
+          const result = parseFoodVisionResult(text)
+          setFoodName(result.food_name)
+          setFoodAmountG(String(result.estimated_amount_g))
+          setFoodCalPerG(result.calories_per_g != null ? String(Number(result.calories_per_g).toFixed(6)) : '')
+          setFoodProteinPerG(result.protein_per_g != null ? String(Number(result.protein_per_g).toFixed(6)) : '')
+          setFoodCarbsPerG(result.carbs_per_g != null ? String(Number(result.carbs_per_g).toFixed(6)) : '')
+          setFoodFatPerG(result.fat_per_g != null ? String(Number(result.fat_per_g).toFixed(6)) : '')
+          setFoodFiberPerG(result.fiber_per_g != null ? String(Number(result.fiber_per_g).toFixed(6)) : '')
+          setFoodSodiumPerG(result.sodium_per_g != null ? String(Number(result.sodium_per_g).toFixed(6)) : '')
+          setFoodSugarPerG(result.sugar_per_g != null ? String(Number(result.sugar_per_g).toFixed(6)) : '')
+          setFoodAiConfidence(result.confidence)
+          showToast('✓ 음식을 인식했어요! 내용을 확인해주세요')
+        } catch (err) {
+          showToast('인식 실패: ' + err.message)
+        } finally {
+          setFoodAiLoading(false)
+        }
+      }
+      reader.readAsDataURL(file)
+    } catch (err) {
+      showToast('오류: ' + err.message)
+      setFoodAiLoading(false)
+    }
+  }
+
+  async function addFoodItem() {
+    if (!foodName.trim()) { showToast('음식 이름을 입력해주세요'); return }
+    const amtG = parseFloat(foodAmountG) || 100
+    try {
+      let photo_url = null
+      if (foodPhotoFile) {
+        const ext = foodPhotoFile.name.split('.').pop()
+        const path = `${member.id}/${Date.now()}.${ext}`
+        const { error: upErr } = await supabase.storage.from('diet-photos').upload(path, foodPhotoFile)
+        if (!upErr) {
+          const { data: { publicUrl } } = supabase.storage.from('diet-photos').getPublicUrl(path)
+          photo_url = publicUrl
+        }
+      }
+      const row = {
+        member_id:      member.id,
+        record_date:    dietDate,
+        meal_type:      foodMealType,
+        food_name:      foodName.trim(),
+        amount_g:       amtG,
+        calories_per_g: parseFloat(foodCalPerG) || null,
+        protein_per_g:  parseFloat(foodProteinPerG) || null,
+        carbs_per_g:    parseFloat(foodCarbsPerG) || null,
+        fat_per_g:      parseFloat(foodFatPerG) || null,
+        fiber_per_g:    parseFloat(foodFiberPerG) || null,
+        sodium_per_g:   parseFloat(foodSodiumPerG) || null,
+        sugar_per_g:    parseFloat(foodSugarPerG) || null,
+        photo_url,
+        ai_recognized: !!foodAiConfidence,
+      }
+      const { error } = await supabase.from('diet_logs').insert(row)
+      if (error) throw error
+      setShowFoodModal(false)
+      await loadDietLogs(dietDate)
+      showToast('✓ 음식이 추가됐어요!')
+    } catch (e) { showToast('오류: ' + e.message) }
+  }
+
+  async function removeFoodItem(id) {
+    const { error } = await supabase.from('diet_logs').delete().eq('id', id)
+    if (!error) { await loadDietLogs(dietDate); showToast('삭제됐어요') }
+    else showToast('오류: ' + error.message)
+  }
 
   function renderChart() {
     const records = healthRecords.filter(r => r.morning_weight).slice(0,14).reverse()
@@ -663,29 +798,280 @@ export default function MemberPortal() {
       )}
 
       {/* 식단기록 */}
-      {tab === 'diet' && (
-        <div className="m-page">
-          <div className="section-label">오늘의 식단 기록</div>
-          <div className="card">
-            <div className="form-group"><label>📅 날짜</label><input type="date" value={dDate} onChange={e=>setDDate(e.target.value)} /></div>
-            {[['🍳 아침',dBreakfast,setDBreakfast],['🍱 점심',dLunch,setDLunch],['🍽️ 저녁',dDinner,setDDinner],['🧃 간식',dSnack,setDSnack]].map(([label,val,setter]) => (
-              <div key={label} className="m-meal-section">
-                <div className="m-meal-label">{label}</div>
-                <textarea value={val} onChange={e=>setter(e.target.value)} placeholder="직접 입력하세요" rows={2}></textarea>
+      {tab === 'diet' && (() => {
+        const nutriVal = (item, key) => {
+          const perG = item[key]
+          return perG != null ? perG * item.amount_g : null
+        }
+        const sumNutri = (key) => dietLogs.reduce((acc, item) => {
+          const v = nutriVal(item, key)
+          return acc + (v != null ? v : 0)
+        }, 0)
+        const totalCal  = sumNutri('calories_per_g')
+        const totalProt = sumNutri('protein_per_g')
+        const totalCarb = sumNutri('carbs_per_g')
+        const totalFat  = sumNutri('fat_per_g')
+        const hasMacros = dietLogs.some(i => i.calories_per_g != null)
+        const MEAL_TYPES = [
+          { key: 'breakfast', label: '🍳 아침' },
+          { key: 'lunch',     label: '🍱 점심' },
+          { key: 'dinner',    label: '🍽️ 저녁' },
+          { key: 'snack',     label: '🧃 간식' },
+        ]
+        const mealCal = (key) => dietLogs
+          .filter(i => i.meal_type === key)
+          .reduce((a, i) => a + (i.calories_per_g != null ? i.calories_per_g * i.amount_g : 0), 0)
+
+        return (
+          <div className="m-page">
+            {/* 날짜 선택 */}
+            <div className="card" style={{padding:'12px 16px',marginBottom:'10px'}}>
+              <div className="form-group" style={{marginBottom:0}}>
+                <label>📅 날짜</label>
+                <input type="date" value={dietDate} onChange={e => setDietDate(e.target.value)} />
               </div>
-            ))}
-            <button className="btn btn-primary" style={{width:'100%'}} onClick={saveDiet}>식단 저장</button>
-          </div>
-          <div className="section-label">식단 기록 히스토리</div>
-          {!dietRecords.length && <div className="empty">식단 기록이 없어요.<br/>위에서 오늘 식단을 기록해보세요!</div>}
-          {dietRecords.map(r => (
-            <div key={r.id} className="m-diet-history-item">
-              <div style={{fontSize:'11px',color:'var(--m-text-dim)',fontFamily:"'DM Mono',monospace",marginBottom:'8px'}}>{formatDate(r.record_date)}</div>
-              <div style={{fontSize:'13px',lineHeight:'1.8',whiteSpace:'pre-wrap',color:'var(--m-text-muted)'}}>{r.diet_note}</div>
             </div>
-          ))}
-        </div>
-      )}
+
+            {/* 일일 영양소 요약 */}
+            {hasMacros && (
+              <div className="card" style={{marginBottom:'14px',padding:'14px 16px'}}>
+                <div style={{fontSize:'12px',fontWeight:700,color:'var(--m-text-dim)',marginBottom:'10px',textTransform:'uppercase',letterSpacing:'0.05em'}}>오늘 총 섭취</div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'8px',marginBottom:'12px'}}>
+                  {[
+                    { label:'칼로리', val: totalCal.toFixed(0), unit:'kcal', color:'#f97316' },
+                    { label:'단백질', val: totalProt.toFixed(1), unit:'g', color:'#3b82f6' },
+                    { label:'탄수화물', val: totalCarb.toFixed(1), unit:'g', color:'#eab308' },
+                    { label:'지방',   val: totalFat.toFixed(1), unit:'g', color:'#ef4444' },
+                  ].map(n => (
+                    <div key={n.label} style={{textAlign:'center',background:'#f8f8f6',borderRadius:'10px',padding:'8px 4px'}}>
+                      <div style={{fontSize:'16px',fontWeight:800,color:n.color,lineHeight:1}}>{n.val}</div>
+                      <div style={{fontSize:'9px',color:'var(--m-text-dim)',marginTop:'2px'}}>{n.unit}</div>
+                      <div style={{fontSize:'10px',color:'var(--m-text-muted)',marginTop:'1px'}}>{n.label}</div>
+                    </div>
+                  ))}
+                </div>
+                {/* 매크로 바 */}
+                {(() => {
+                  const total = totalProt + totalCarb + totalFat
+                  if (!total) return null
+                  const pProt = Math.round(totalProt / total * 100)
+                  const pCarb = Math.round(totalCarb / total * 100)
+                  const pFat  = 100 - pProt - pCarb
+                  return (
+                    <div>
+                      <div style={{display:'flex',borderRadius:'6px',overflow:'hidden',height:'8px',gap:'2px'}}>
+                        <div style={{flex:pProt,background:'#3b82f6',minWidth:pProt>0?'2px':0}} />
+                        <div style={{flex:pCarb,background:'#eab308',minWidth:pCarb>0?'2px':0}} />
+                        <div style={{flex:pFat, background:'#ef4444',minWidth:pFat>0?'2px':0}} />
+                      </div>
+                      <div style={{display:'flex',gap:'10px',marginTop:'5px',fontSize:'10px',color:'var(--m-text-dim)'}}>
+                        <span style={{color:'#3b82f6'}}>● 단백질 {pProt}%</span>
+                        <span style={{color:'#eab308'}}>● 탄수화물 {pCarb}%</span>
+                        <span style={{color:'#ef4444'}}>● 지방 {pFat}%</span>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
+
+            {/* 식사별 섹션 */}
+            {MEAL_TYPES.map(({ key, label }) => {
+              const items = dietLogs.filter(i => i.meal_type === key)
+              const cal   = mealCal(key)
+              return (
+                <div key={key} className="card" style={{marginBottom:'10px',padding:'12px 16px'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
+                      <span style={{fontSize:'14px',fontWeight:700}}>{label}</span>
+                      {cal > 0 && <span style={{fontSize:'11px',color:'#f97316',fontWeight:600}}>{cal.toFixed(0)} kcal</span>}
+                    </div>
+                    <button
+                      onClick={() => openFoodModal(key)}
+                      style={{background:'#111',color:'#c8f135',border:'none',borderRadius:'8px',padding:'5px 12px',fontSize:'12px',fontWeight:700,cursor:'pointer'}}
+                    >+ 추가</button>
+                  </div>
+                  {!items.length && (
+                    <div style={{fontSize:'12px',color:'var(--m-text-dim)',padding:'6px 0'}}>아직 기록이 없어요</div>
+                  )}
+                  {items.map(item => {
+                    const cal   = item.calories_per_g != null ? (item.calories_per_g * item.amount_g).toFixed(0) : null
+                    const prot  = item.protein_per_g  != null ? (item.protein_per_g  * item.amount_g).toFixed(1) : null
+                    const carb  = item.carbs_per_g    != null ? (item.carbs_per_g    * item.amount_g).toFixed(1) : null
+                    const fat   = item.fat_per_g      != null ? (item.fat_per_g      * item.amount_g).toFixed(1) : null
+                    return (
+                      <div key={item.id} style={{display:'flex',alignItems:'flex-start',gap:'10px',padding:'8px 0',borderTop:'1px solid #f0f0ee'}}>
+                        {item.photo_url && (
+                          <img src={item.photo_url} alt={item.food_name} style={{width:'48px',height:'48px',objectFit:'cover',borderRadius:'8px',flexShrink:0}} />
+                        )}
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:'flex',alignItems:'center',gap:'4px',marginBottom:'3px'}}>
+                            <span style={{fontSize:'13px',fontWeight:600,color:'#111'}}>{item.food_name}</span>
+                            {item.ai_recognized && <span style={{fontSize:'9px',background:'#e8f5e9',color:'#388e3c',borderRadius:'4px',padding:'1px 5px'}}>AI</span>}
+                          </div>
+                          <div style={{fontSize:'11px',color:'var(--m-text-dim)'}}>{item.amount_g}g</div>
+                          {(cal || prot || carb || fat) && (
+                            <div style={{fontSize:'11px',color:'var(--m-text-muted)',marginTop:'2px',display:'flex',gap:'8px',flexWrap:'wrap'}}>
+                              {cal  && <span style={{color:'#f97316'}}>{cal} kcal</span>}
+                              {prot && <span>단백질 {prot}g</span>}
+                              {carb && <span>탄수 {carb}g</span>}
+                              {fat  && <span>지방 {fat}g</span>}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => removeFoodItem(item.id)}
+                          style={{background:'none',border:'none',color:'#ccc',fontSize:'16px',cursor:'pointer',padding:'0 2px',flexShrink:0}}
+                        >×</button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })}
+
+            {/* 음식 추가 모달 */}
+            {showFoodModal && (
+              <Modal onClose={() => setShowFoodModal(false)}>
+                <div style={{padding:'4px 0'}}>
+                  <div style={{fontSize:'16px',fontWeight:800,marginBottom:'16px'}}>
+                    {{'breakfast':'🍳 아침','lunch':'🍱 점심','dinner':'🍽️ 저녁','snack':'🧃 간식'}[foodMealType]} 음식 추가
+                  </div>
+
+                  {/* 사진 업로드 + AI 인식 */}
+                  <div style={{marginBottom:'14px'}}>
+                    <input
+                      ref={foodPhotoInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      style={{display:'none'}}
+                      onChange={e => {
+                        const f = e.target.files?.[0]
+                        if (!f) return
+                        setFoodPhotoFile(f)
+                        setFoodPhotoPreview(URL.createObjectURL(f))
+                        recognizeFoodFromPhoto(f)
+                      }}
+                    />
+                    {!foodPhotoPreview ? (
+                      <button
+                        onClick={() => foodPhotoInputRef.current?.click()}
+                        style={{width:'100%',padding:'14px',border:'2px dashed #ddd',borderRadius:'12px',background:'none',cursor:'pointer',color:'var(--m-text-dim)',fontSize:'13px',display:'flex',alignItems:'center',justifyContent:'center',gap:'6px'}}
+                      >
+                        📸 사진으로 자동 인식
+                      </button>
+                    ) : (
+                      <div style={{position:'relative',marginBottom:'8px'}}>
+                        <img src={foodPhotoPreview} alt="food" style={{width:'100%',maxHeight:'160px',objectFit:'cover',borderRadius:'12px'}} />
+                        {foodAiLoading && (
+                          <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.55)',borderRadius:'12px',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:'13px',gap:'8px'}}>
+                            <span style={{fontSize:'20px',animation:'spin 1s linear infinite',display:'inline-block'}}>⟳</span> AI 분석 중...
+                          </div>
+                        )}
+                        {foodAiConfidence && !foodAiLoading && (
+                          <div style={{position:'absolute',top:'8px',right:'8px',background:'rgba(56,142,60,0.9)',color:'#fff',borderRadius:'8px',padding:'2px 8px',fontSize:'11px'}}>
+                            {{'high':'정확도 높음','medium':'정확도 보통','low':'정확도 낮음'}[foodAiConfidence] || foodAiConfidence}
+                          </div>
+                        )}
+                        <button
+                          onClick={() => { setFoodPhotoFile(null); setFoodPhotoPreview(''); setFoodAiConfidence('') }}
+                          style={{position:'absolute',top:'8px',left:'8px',background:'rgba(0,0,0,0.5)',border:'none',color:'#fff',borderRadius:'6px',width:'24px',height:'24px',cursor:'pointer',fontSize:'14px'}}
+                        >×</button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 음식 이름 + 양 */}
+                  <div className="two-col" style={{marginBottom:'10px'}}>
+                    <div className="form-group" style={{marginBottom:0}}>
+                      <label>음식 이름</label>
+                      <input type="text" value={foodName} onChange={e=>setFoodName(e.target.value)} placeholder="닭가슴살 샐러드" />
+                    </div>
+                    <div className="form-group" style={{marginBottom:0}}>
+                      <label>섭취량 (g)</label>
+                      <input type="number" value={foodAmountG} onChange={e=>setFoodAmountG(e.target.value)} placeholder="100" min="1" />
+                    </div>
+                  </div>
+
+                  {/* 영양소 (g당 값으로 저장, 표시는 100g당) */}
+                  <div style={{fontSize:'11px',color:'var(--m-text-dim)',marginBottom:'6px',fontWeight:600}}>
+                    영양소 (100g 기준 — AI가 자동 입력, 수정 가능)
+                  </div>
+                  <div className="two-col" style={{marginBottom:'6px'}}>
+                    <div className="form-group" style={{marginBottom:0}}>
+                      <label>칼로리 (kcal)</label>
+                      <input type="number" value={foodCalPerG !== '' ? (parseFloat(foodCalPerG)*100).toFixed(1) : ''}
+                        onChange={e=>setFoodCalPerG(e.target.value ? String(parseFloat(e.target.value)/100) : '')}
+                        placeholder="150" step="0.1" min="0" />
+                    </div>
+                    <div className="form-group" style={{marginBottom:0}}>
+                      <label>단백질 (g)</label>
+                      <input type="number" value={foodProteinPerG !== '' ? (parseFloat(foodProteinPerG)*100).toFixed(1) : ''}
+                        onChange={e=>setFoodProteinPerG(e.target.value ? String(parseFloat(e.target.value)/100) : '')}
+                        placeholder="20" step="0.1" min="0" />
+                    </div>
+                  </div>
+                  <div className="two-col" style={{marginBottom:'6px'}}>
+                    <div className="form-group" style={{marginBottom:0}}>
+                      <label>탄수화물 (g)</label>
+                      <input type="number" value={foodCarbsPerG !== '' ? (parseFloat(foodCarbsPerG)*100).toFixed(1) : ''}
+                        onChange={e=>setFoodCarbsPerG(e.target.value ? String(parseFloat(e.target.value)/100) : '')}
+                        placeholder="10" step="0.1" min="0" />
+                    </div>
+                    <div className="form-group" style={{marginBottom:0}}>
+                      <label>지방 (g)</label>
+                      <input type="number" value={foodFatPerG !== '' ? (parseFloat(foodFatPerG)*100).toFixed(1) : ''}
+                        onChange={e=>setFoodFatPerG(e.target.value ? String(parseFloat(e.target.value)/100) : '')}
+                        placeholder="5" step="0.1" min="0" />
+                    </div>
+                  </div>
+                  <div className="two-col" style={{marginBottom:'6px'}}>
+                    <div className="form-group" style={{marginBottom:0}}>
+                      <label>식이섬유 (g)</label>
+                      <input type="number" value={foodFiberPerG !== '' ? (parseFloat(foodFiberPerG)*100).toFixed(1) : ''}
+                        onChange={e=>setFoodFiberPerG(e.target.value ? String(parseFloat(e.target.value)/100) : '')}
+                        placeholder="2" step="0.1" min="0" />
+                    </div>
+                    <div className="form-group" style={{marginBottom:0}}>
+                      <label>당류 (g)</label>
+                      <input type="number" value={foodSugarPerG !== '' ? (parseFloat(foodSugarPerG)*100).toFixed(1) : ''}
+                        onChange={e=>setFoodSugarPerG(e.target.value ? String(parseFloat(e.target.value)/100) : '')}
+                        placeholder="3" step="0.1" min="0" />
+                    </div>
+                  </div>
+                  <div className="form-group" style={{marginBottom:'14px'}}>
+                    <label>나트륨 (mg)</label>
+                    <input type="number" value={foodSodiumPerG !== '' ? (parseFloat(foodSodiumPerG)*100).toFixed(0) : ''}
+                      onChange={e=>setFoodSodiumPerG(e.target.value ? String(parseFloat(e.target.value)/100) : '')}
+                      placeholder="300" step="1" min="0" />
+                  </div>
+
+                  {/* 실시간 계산 미리보기 */}
+                  {foodCalPerG && foodAmountG && (
+                    <div style={{background:'#f8f8f6',borderRadius:'10px',padding:'10px 12px',marginBottom:'14px',fontSize:'12px'}}>
+                      <div style={{fontWeight:700,marginBottom:'4px',color:'#111'}}>📊 {foodAmountG}g 기준 계산값</div>
+                      <div style={{display:'flex',gap:'12px',flexWrap:'wrap',color:'var(--m-text-muted)'}}>
+                        {foodCalPerG && <span style={{color:'#f97316'}}>{(parseFloat(foodCalPerG)*parseFloat(foodAmountG)).toFixed(0)} kcal</span>}
+                        {foodProteinPerG && <span>단백질 {(parseFloat(foodProteinPerG)*parseFloat(foodAmountG)).toFixed(1)}g</span>}
+                        {foodCarbsPerG && <span>탄수 {(parseFloat(foodCarbsPerG)*parseFloat(foodAmountG)).toFixed(1)}g</span>}
+                        {foodFatPerG && <span>지방 {(parseFloat(foodFatPerG)*parseFloat(foodAmountG)).toFixed(1)}g</span>}
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{display:'flex',gap:'8px'}}>
+                    <button className="btn btn-outline" style={{flex:1}} onClick={() => setShowFoodModal(false)}>취소</button>
+                    <button className="btn btn-primary" style={{flex:2}} onClick={addFoodItem} disabled={foodAiLoading}>
+                      {foodAiLoading ? 'AI 분석 중...' : '추가'}
+                    </button>
+                  </div>
+                </div>
+              </Modal>
+            )}
+          </div>
+        )
+      })()}
 
       {/* 개인운동 */}
       {tab === 'workout' && (() => {
