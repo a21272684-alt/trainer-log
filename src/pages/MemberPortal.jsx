@@ -932,7 +932,7 @@ export default function MemberPortal() {
 
             {/* 음식 추가 모달 */}
             {showFoodModal && (
-              <Modal onClose={() => setShowFoodModal(false)}>
+              <Modal open={true} onClose={() => setShowFoodModal(false)}>
                 <div style={{padding:'4px 0'}}>
                   <div style={{fontSize:'16px',fontWeight:800,marginBottom:'16px'}}>
                     {{'breakfast':'🍳 아침','lunch':'🍱 점심','dinner':'🍽️ 저녁','snack':'🧃 간식'}[foodMealType]} 음식 추가
