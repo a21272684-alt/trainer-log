@@ -576,6 +576,73 @@ ${[...exerciseNames].join(', ') || '없음'}
 }
 
 // ══════════════════════════════════════════════════════════════
+// 7. 음식 사진 인식 → 영양소 분석 (비전 멀티파트)
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * 음식 사진 → 영양소 JSON 추출 프롬프트 (이미지 + 텍스트 멀티파트 사용)
+ * callGeminiMultipart(apiKey, model, parts) 의 parts 배열을 반환합니다.
+ *
+ * @param {string} base64Data  - 이미지 base64 (data: 접두사 제외)
+ * @param {string} mimeType    - 'image/jpeg' | 'image/png' | 'image/webp'
+ * @returns {Array} Gemini multipart parts
+ */
+export function buildFoodVisionParts(base64Data, mimeType) {
+  return [
+    { inline_data: { mime_type: mimeType, data: base64Data } },
+    {
+      text: `당신은 식품 영양학 전문가 AI입니다. 이 음식 사진을 분석하여 아래 JSON 형식으로만 응답해주세요. 다른 텍스트는 절대 포함하지 마세요.
+
+음식이 여러 가지라면 가장 대표적인 주요 음식 하나만 분석하세요.
+모든 영양소 값은 반드시 "100g당" 기준으로 환산해서 작성하세요.
+추정이 어려울 경우 일반적인 한국 음식 데이터베이스 기준 평균값을 사용하세요.
+
+{
+  "food_name": "음식 이름 (한국어)",
+  "estimated_amount_g": 추정 섭취량(숫자, 단위 없음),
+  "per_100g": {
+    "calories": 칼로리(kcal),
+    "protein": 단백질(g),
+    "carbs": 탄수화물(g),
+    "fat": 지방(g),
+    "fiber": 식이섬유(g),
+    "sodium": 나트륨(mg),
+    "sugar": 당류(g)
+  },
+  "confidence": "high" | "medium" | "low"
+}`,
+    },
+  ]
+}
+
+/**
+ * Gemini 응답 텍스트 → 영양소 객체 파싱
+ * per_100g 값을 per_g(g당)로 정규화합니다.
+ *
+ * @param {string} text - callGeminiMultipart 응답 텍스트
+ * @returns {{ food_name, estimated_amount_g, calories_per_g, protein_per_g, carbs_per_g, fat_per_g, fiber_per_g, sodium_per_g, sugar_per_g, confidence }}
+ */
+export function parseFoodVisionResult(text) {
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) throw new Error('AI 응답에서 JSON을 찾을 수 없습니다')
+  const raw = JSON.parse(jsonMatch[0])
+  const p = raw.per_100g || {}
+  const div = (v) => (v != null ? Number(v) / 100 : null)
+  return {
+    food_name:        raw.food_name || '알 수 없는 음식',
+    estimated_amount_g: Number(raw.estimated_amount_g) || 100,
+    calories_per_g:   div(p.calories),
+    protein_per_g:    div(p.protein),
+    carbs_per_g:      div(p.carbs),
+    fat_per_g:        div(p.fat),
+    fiber_per_g:      div(p.fiber),
+    sodium_per_g:     div(p.sodium),  // mg/g (나트륨은 mg 단위 유지)
+    sugar_per_g:      div(p.sugar),
+    confidence:       raw.confidence || 'medium',
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
 // 확장 가이드
 // ══════════════════════════════════════════════════════════════
 //
