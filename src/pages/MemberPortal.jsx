@@ -221,6 +221,13 @@ export default function MemberPortal() {
   }, [tab])
 
   useEffect(() => {
+    if (tab === 'logs' && member) {
+      supabase.from('logs').select('*').eq('member_id', member.id).order('created_at', { ascending: false })
+        .then(({ data }) => setMemberLogs(data || []))
+    }
+  }, [tab])
+
+  useEffect(() => {
     if (tab === 'community' && member) loadPosts()
   }, [tab])
 
