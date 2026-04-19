@@ -973,9 +973,13 @@ export default function MemberPortal() {
             </div>
 
             {/* 자주쓰는 식단 */}
-            {dietTemplates.length > 0 && (
-              <div className="card" style={{marginBottom:'10px',padding:'12px 16px'}}>
-                <div style={{fontSize:'12px',fontWeight:700,color:'var(--m-text-dim)',marginBottom:'10px',textTransform:'uppercase',letterSpacing:'0.05em'}}>⚡ 자주쓰는 식단</div>
+            <div className="card" style={{marginBottom:'10px',padding:'12px 16px'}}>
+              <div style={{fontSize:'12px',fontWeight:700,color:'var(--m-text-dim)',marginBottom:'10px',textTransform:'uppercase',letterSpacing:'0.05em'}}>⚡ 자주쓰는 식단</div>
+              {dietTemplates.length === 0 ? (
+                <div style={{fontSize:'12px',color:'var(--m-text-dim)',padding:'4px 0'}}>
+                  아직 저장된 식단이 없어요. 식사 항목을 추가한 뒤 <strong>💾 저장</strong> 버튼으로 등록하세요.
+                </div>
+              ) : (
                 <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
                   {dietTemplates.map(tpl => {
                     const totalCal = tpl.items.reduce((s, i) => s + (i.calories_per_g != null ? i.calories_per_g * i.amount_g : 0), 0)
@@ -988,10 +992,7 @@ export default function MemberPortal() {
                           background:'#f8f8f6',border:'1.5px solid #e5e5e5',
                           borderRadius:'20px',padding:'6px 12px 6px 10px',
                           cursor:'pointer',userSelect:'none',
-                          transition:'all 0.15s',
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor='#111'; e.currentTarget.style.background='#111'; e.currentTarget.querySelectorAll('span').forEach(s=>s.style.color='#fff') }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor='#e5e5e5'; e.currentTarget.style.background='#f8f8f6'; e.currentTarget.querySelectorAll('span').forEach(s=>s.style.color='') }}
                       >
                         <span style={{fontSize:'12px',fontWeight:700,color:'#111'}}>{tpl.name}</span>
                         {totalCal > 0 && <span style={{fontSize:'10px',color:'#f97316',fontWeight:600}}>{totalCal.toFixed(0)}kcal</span>}
@@ -1004,8 +1005,8 @@ export default function MemberPortal() {
                     )
                   })}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* 일일 영양소 요약 */}
             {hasMacros && (
@@ -1062,13 +1063,11 @@ export default function MemberPortal() {
                       {cal > 0 && <span style={{fontSize:'11px',color:'#f97316',fontWeight:600}}>{cal.toFixed(0)} kcal</span>}
                     </div>
                     <div style={{display:'flex',gap:'6px'}}>
-                      {dietLogs.filter(i => i.meal_type === key).length > 0 && (
-                        <button
-                          onClick={() => openSaveTemplateModal(key)}
-                          style={{background:'none',color:'#888',border:'1.5px solid #ddd',borderRadius:'8px',padding:'5px 10px',fontSize:'12px',fontWeight:600,cursor:'pointer'}}
-                          title="이 식사를 자주쓰는 식단으로 저장"
-                        >💾 저장</button>
-                      )}
+                      <button
+                        onClick={() => openSaveTemplateModal(key)}
+                        style={{background:'none',color:'#888',border:'1.5px solid #ddd',borderRadius:'8px',padding:'5px 10px',fontSize:'12px',fontWeight:600,cursor:'pointer'}}
+                        title="이 식사를 자주쓰는 식단으로 저장"
+                      >💾 저장</button>
                       <button
                         onClick={() => openFoodModal(key)}
                         style={{background:'#111',color:'#c8f135',border:'none',borderRadius:'8px',padding:'5px 12px',fontSize:'12px',fontWeight:700,cursor:'pointer'}}
