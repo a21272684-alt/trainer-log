@@ -145,6 +145,9 @@ export default function MemberPortal() {
   const [foodAiLoading, setFoodAiLoading] = useState(false)
   const [foodAiConfidence, setFoodAiConfidence] = useState('')
   const foodPhotoInputRef = useRef(null)
+  const [foodSuggestions, setFoodSuggestions] = useState([])
+  const [showFoodSuggestions, setShowFoodSuggestions] = useState(false)
+  const foodSearchTimer = useRef(null)
 
   const today = () => new Date().toISOString().split('T')[0]
   const formatDate = (str) => new Date(str+'T00:00:00').toLocaleDateString('ko-KR',{month:'short',day:'numeric'})
@@ -235,6 +238,7 @@ export default function MemberPortal() {
     setFoodCalPerG(''); setFoodProteinPerG(''); setFoodCarbsPerG('')
     setFoodFatPerG(''); setFoodFiberPerG(''); setFoodSodiumPerG(''); setFoodSugarPerG('')
     setFoodPhotoFile(null); setFoodPhotoPreview(''); setFoodAiConfidence('')
+    setFoodSuggestions([]); setShowFoodSuggestions(false)
     setShowFoodModal(true)
   }
 
@@ -274,6 +278,34 @@ export default function MemberPortal() {
       showToast('오류: ' + err.message)
       setFoodAiLoading(false)
     }
+  }
+
+  function onFoodNameChange(val) {
+    setFoodName(val)
+    clearTimeout(foodSearchTimer.current)
+    if (val.trim().length < 2) { setFoodSuggestions([]); setShowFoodSuggestions(false); return }
+    foodSearchTimer.current = setTimeout(async () => {
+      const { data } = await supabase
+        .from('food_master')
+        .select('id,food_name,food_category,calories_per_g,protein_per_g,carbs_per_g,fat_per_g,fiber_per_g,sodium_per_g,sugar_per_g')
+        .ilike('food_name', `%${val.trim()}%`)
+        .limit(8)
+      setFoodSuggestions(data || [])
+      setShowFoodSuggestions(!!(data?.length))
+    }, 300)
+  }
+
+  function selectFoodSuggestion(item) {
+    setFoodName(item.food_name)
+    if (item.calories_per_g != null) setFoodCalPerG(String(item.calories_per_g))
+    if (item.protein_per_g  != null) setFoodProteinPerG(String(item.protein_per_g))
+    if (item.carbs_per_g    != null) setFoodCarbsPerG(String(item.carbs_per_g))
+    if (item.fat_per_g      != null) setFoodFatPerG(String(item.fat_per_g))
+    if (item.fiber_per_g    != null) setFoodFiberPerG(String(item.fiber_per_g))
+    if (item.sodium_per_g   != null) setFoodSodiumPerG(String(item.sodium_per_g))
+    if (item.sugar_per_g    != null) setFoodSugarPerG(String(item.sugar_per_g))
+    setShowFoodSuggestions(false)
+    setFoodSuggestions([])
   }
 
   async function addFoodItem() {
@@ -990,9 +1022,48 @@ export default function MemberPortal() {
 
                   {/* 음식 이름 + 양 */}
                   <div className="two-col" style={{marginBottom:'10px'}}>
-                    <div className="form-group" style={{marginBottom:0}}>
+                    <div className="form-group" style={{marginBottom:0,position:'relative'}}>
                       <label>음식 이름</label>
-                      <input type="text" value={foodName} onChange={e=>setFoodName(e.target.value)} placeholder="닭가슴살 샐러드" />
+                      <input
+                        type="text"
+                        value={foodName}
+                        onChange={e => onFoodNameChange(e.target.value)}
+                        onBlur={() => setTimeout(() => setShowFoodSuggestions(false), 150)}
+                        onFocus={() => foodSuggestions.length && setShowFoodSuggestions(true)}
+                        placeholder="닭가슴살 샐러드"
+                        autoComplete="off"
+                      />
+                      {showFoodSuggestions && (
+                        <div style={{
+                          position:'absolute', top:'100%', left:0, right:0, zIndex:999,
+                          background:'#fff', border:'1px solid #e5e5e5', borderRadius:'10px',
+                          boxShadow:'0 4px 16px rgba(0,0,0,0.12)', maxHeight:'220px',
+                          overflowY:'auto', marginTop:'4px',
+                        }}>
+                          {foodSuggestions.map(item => (
+                            <div
+                              key={item.id}
+                              onMouseDown={() => selectFoodSuggestion(item)}
+                              style={{
+                                padding:'10px 14px', cursor:'pointer', borderBottom:'1px solid #f5f5f5',
+                                display:'flex', justifyContent:'space-between', alignItems:'center',
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.background='#f8f8f6'}
+                              onMouseLeave={e => e.currentTarget.style.background='#fff'}
+                            >
+                              <div>
+                                <div style={{fontSize:'13px',fontWeight:600,color:'#111'}}>{item.food_name}</div>
+                                {item.food_category && <div style={{fontSize:'10px',color:'#aaa',marginTop:'1px'}}>{item.food_category}</div>}
+                              </div>
+                              {item.calories_per_g != null && (
+                                <div style={{fontSize:'11px',color:'#f97316',fontWeight:600,flexShrink:0,marginLeft:'8px'}}>
+                                  {(item.calories_per_g * 100).toFixed(0)} kcal
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div className="form-group" style={{marginBottom:0}}>
                       <label>섭취량 (g)</label>
