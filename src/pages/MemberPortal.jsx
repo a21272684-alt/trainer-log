@@ -149,6 +149,15 @@ export default function MemberPortal() {
   const [showFoodSuggestions, setShowFoodSuggestions] = useState(false)
   const foodSearchTimer = useRef(null)
 
+  // 자주쓰는 식단 템플릿
+  const [dietTemplates, setDietTemplates] = useState([])
+  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false)
+  const [saveTemplateMealType, setSaveTemplateMealType] = useState('')
+  const [saveTemplateName, setSaveTemplateName] = useState('')
+  const [showApplyTemplateModal, setShowApplyTemplateModal] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState(null)
+  const [applyTemplateMealType, setApplyTemplateMealType] = useState('breakfast')
+
   const today = () => new Date().toISOString().split('T')[0]
   const formatDate = (str) => new Date(str+'T00:00:00').toLocaleDateString('ko-KR',{month:'short',day:'numeric'})
   const formatRelative = (str) => {
@@ -216,7 +225,10 @@ export default function MemberPortal() {
   }, [tab])
 
   useEffect(() => {
-    if (tab === 'diet' && member) loadDietLogs(dietDate)
+    if (tab === 'diet' && member) {
+      loadDietLogs(dietDate)
+      loadDietTemplates()
+    }
   }, [tab, dietDate])
 
   // ── 식단 v2 함수 ─────────────────────────────────────────────
@@ -356,6 +368,96 @@ export default function MemberPortal() {
     const { error } = await supabase.from('diet_logs').delete().eq('id', id)
     if (!error) { await loadDietLogs(dietDate); showToast('삭제됐어요') }
     else showToast('오류: ' + error.message)
+  }
+
+  // ── 식단 템플릿 함수 ─────────────────────────────────────────
+
+  async function loadDietTemplates() {
+    if (!member) return
+    const { data } = await supabase
+      .from('diet_templates')
+      .select('*')
+      .eq('member_id', member.id)
+      .order('used_count', { ascending: false })
+    setDietTemplates(data || [])
+  }
+
+  function openSaveTemplateModal(mealType) {
+    const items = dietLogs.filter(i => i.meal_type === mealType)
+    if (!items.length) { showToast('저장할 식단이 없어요'); return }
+    setSaveTemplateMealType(mealType)
+    const label = { breakfast:'아침', lunch:'점심', dinner:'저녁', snack:'간식' }[mealType] || mealType
+    setSaveTemplateName(label + ' 식단')
+    setShowSaveTemplateModal(true)
+  }
+
+  async function saveCurrentMealAsTemplate() {
+    if (!saveTemplateName.trim()) { showToast('이름을 입력해주세요'); return }
+    const items = dietLogs
+      .filter(i => i.meal_type === saveTemplateMealType)
+      .map(i => ({
+        food_name:      i.food_name,
+        amount_g:       i.amount_g,
+        calories_per_g: i.calories_per_g,
+        protein_per_g:  i.protein_per_g,
+        carbs_per_g:    i.carbs_per_g,
+        fat_per_g:      i.fat_per_g,
+        fiber_per_g:    i.fiber_per_g,
+        sodium_per_g:   i.sodium_per_g,
+        sugar_per_g:    i.sugar_per_g,
+      }))
+    const { error } = await supabase.from('diet_templates').insert({
+      member_id: member.id,
+      name:      saveTemplateName.trim(),
+      meal_type: saveTemplateMealType,
+      items,
+    })
+    if (error) { showToast('오류: ' + error.message); return }
+    setShowSaveTemplateModal(false)
+    await loadDietTemplates()
+    showToast('✓ 식단 매크로가 저장됐어요!')
+  }
+
+  function openApplyTemplateModal(template) {
+    setSelectedTemplate(template)
+    setApplyTemplateMealType(template.meal_type || 'breakfast')
+    setShowApplyTemplateModal(true)
+  }
+
+  async function applyTemplate() {
+    if (!selectedTemplate) return
+    const rows = selectedTemplate.items.map(item => ({
+      member_id:      member.id,
+      record_date:    dietDate,
+      meal_type:      applyTemplateMealType,
+      food_name:      item.food_name,
+      amount_g:       item.amount_g,
+      calories_per_g: item.calories_per_g,
+      protein_per_g:  item.protein_per_g,
+      carbs_per_g:    item.carbs_per_g,
+      fat_per_g:      item.fat_per_g,
+      fiber_per_g:    item.fiber_per_g,
+      sodium_per_g:   item.sodium_per_g,
+      sugar_per_g:    item.sugar_per_g,
+      ai_recognized:  false,
+    }))
+    const { error } = await supabase.from('diet_logs').insert(rows)
+    if (error) { showToast('오류: ' + error.message); return }
+    // used_count 증가
+    await supabase.from('diet_templates')
+      .update({ used_count: (selectedTemplate.used_count || 0) + 1 })
+      .eq('id', selectedTemplate.id)
+    setShowApplyTemplateModal(false)
+    setSelectedTemplate(null)
+    await loadDietLogs(dietDate)
+    await loadDietTemplates()
+    showToast(`✓ ${selectedTemplate.name} 식단이 적용됐어요!`)
+  }
+
+  async function deleteTemplate(id, e) {
+    e.stopPropagation()
+    const { error } = await supabase.from('diet_templates').delete().eq('id', id)
+    if (!error) { await loadDietTemplates(); showToast('삭제됐어요') }
   }
 
   function renderChart() {
@@ -870,6 +972,41 @@ export default function MemberPortal() {
               </div>
             </div>
 
+            {/* 자주쓰는 식단 */}
+            {dietTemplates.length > 0 && (
+              <div className="card" style={{marginBottom:'10px',padding:'12px 16px'}}>
+                <div style={{fontSize:'12px',fontWeight:700,color:'var(--m-text-dim)',marginBottom:'10px',textTransform:'uppercase',letterSpacing:'0.05em'}}>⚡ 자주쓰는 식단</div>
+                <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+                  {dietTemplates.map(tpl => {
+                    const totalCal = tpl.items.reduce((s, i) => s + (i.calories_per_g != null ? i.calories_per_g * i.amount_g : 0), 0)
+                    return (
+                      <div
+                        key={tpl.id}
+                        onClick={() => openApplyTemplateModal(tpl)}
+                        style={{
+                          display:'flex',alignItems:'center',gap:'6px',
+                          background:'#f8f8f6',border:'1.5px solid #e5e5e5',
+                          borderRadius:'20px',padding:'6px 12px 6px 10px',
+                          cursor:'pointer',userSelect:'none',
+                          transition:'all 0.15s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor='#111'; e.currentTarget.style.background='#111'; e.currentTarget.querySelectorAll('span').forEach(s=>s.style.color='#fff') }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor='#e5e5e5'; e.currentTarget.style.background='#f8f8f6'; e.currentTarget.querySelectorAll('span').forEach(s=>s.style.color='') }}
+                      >
+                        <span style={{fontSize:'12px',fontWeight:700,color:'#111'}}>{tpl.name}</span>
+                        {totalCal > 0 && <span style={{fontSize:'10px',color:'#f97316',fontWeight:600}}>{totalCal.toFixed(0)}kcal</span>}
+                        <span style={{fontSize:'10px',color:'#aaa',marginLeft:'2px'}}>{tpl.items.length}가지</span>
+                        <button
+                          onClick={e => deleteTemplate(tpl.id, e)}
+                          style={{background:'none',border:'none',color:'#ccc',fontSize:'13px',cursor:'pointer',padding:'0 0 0 4px',lineHeight:1}}
+                        >×</button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* 일일 영양소 요약 */}
             {hasMacros && (
               <div className="card" style={{marginBottom:'14px',padding:'14px 16px'}}>
@@ -924,10 +1061,19 @@ export default function MemberPortal() {
                       <span style={{fontSize:'14px',fontWeight:700}}>{label}</span>
                       {cal > 0 && <span style={{fontSize:'11px',color:'#f97316',fontWeight:600}}>{cal.toFixed(0)} kcal</span>}
                     </div>
-                    <button
-                      onClick={() => openFoodModal(key)}
-                      style={{background:'#111',color:'#c8f135',border:'none',borderRadius:'8px',padding:'5px 12px',fontSize:'12px',fontWeight:700,cursor:'pointer'}}
-                    >+ 추가</button>
+                    <div style={{display:'flex',gap:'6px'}}>
+                      {dietLogs.filter(i => i.meal_type === key).length > 0 && (
+                        <button
+                          onClick={() => openSaveTemplateModal(key)}
+                          style={{background:'none',color:'#888',border:'1.5px solid #ddd',borderRadius:'8px',padding:'5px 10px',fontSize:'12px',fontWeight:600,cursor:'pointer'}}
+                          title="이 식사를 자주쓰는 식단으로 저장"
+                        >💾 저장</button>
+                      )}
+                      <button
+                        onClick={() => openFoodModal(key)}
+                        style={{background:'#111',color:'#c8f135',border:'none',borderRadius:'8px',padding:'5px 12px',fontSize:'12px',fontWeight:700,cursor:'pointer'}}
+                      >+ 추가</button>
+                    </div>
                   </div>
                   {!items.length && (
                     <div style={{fontSize:'12px',color:'var(--m-text-dim)',padding:'6px 0'}}>아직 기록이 없어요</div>
@@ -967,6 +1113,105 @@ export default function MemberPortal() {
                 </div>
               )
             })}
+
+            {/* 식단 저장 모달 */}
+            {showSaveTemplateModal && (
+              <Modal open={true} onClose={() => setShowSaveTemplateModal(false)}>
+                <div style={{padding:'4px 0'}}>
+                  <div style={{fontSize:'16px',fontWeight:800,marginBottom:'6px'}}>💾 자주쓰는 식단으로 저장</div>
+                  <div style={{fontSize:'12px',color:'var(--m-text-dim)',marginBottom:'16px'}}>
+                    {{ breakfast:'🍳 아침', lunch:'🍱 점심', dinner:'🍽️ 저녁', snack:'🧃 간식' }[saveTemplateMealType]} 식단 항목 {dietLogs.filter(i => i.meal_type === saveTemplateMealType).length}가지를 저장합니다
+                  </div>
+
+                  {/* 저장할 항목 미리보기 */}
+                  <div style={{background:'#f8f8f6',borderRadius:'10px',padding:'10px 12px',marginBottom:'14px'}}>
+                    {dietLogs.filter(i => i.meal_type === saveTemplateMealType).map(item => {
+                      const cal = item.calories_per_g != null ? (item.calories_per_g * item.amount_g).toFixed(0) : null
+                      return (
+                        <div key={item.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 0',borderBottom:'1px solid #eee'}}>
+                          <span style={{fontSize:'13px',fontWeight:600}}>{item.food_name}</span>
+                          <span style={{fontSize:'11px',color:'var(--m-text-dim)'}}>{item.amount_g}g {cal && <span style={{color:'#f97316'}}>{cal}kcal</span>}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  <div className="form-group" style={{marginBottom:'16px'}}>
+                    <label>저장 이름</label>
+                    <input
+                      type="text"
+                      value={saveTemplateName}
+                      onChange={e => setSaveTemplateName(e.target.value)}
+                      placeholder="예: 다이어트 아침, 벌크업 점심"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div style={{display:'flex',gap:'8px'}}>
+                    <button className="btn btn-outline" style={{flex:1}} onClick={() => setShowSaveTemplateModal(false)}>취소</button>
+                    <button className="btn btn-primary" style={{flex:2}} onClick={saveCurrentMealAsTemplate}>저장</button>
+                  </div>
+                </div>
+              </Modal>
+            )}
+
+            {/* 식단 적용 모달 */}
+            {showApplyTemplateModal && selectedTemplate && (
+              <Modal open={true} onClose={() => { setShowApplyTemplateModal(false); setSelectedTemplate(null) }}>
+                <div style={{padding:'4px 0'}}>
+                  <div style={{fontSize:'16px',fontWeight:800,marginBottom:'4px'}}>⚡ {selectedTemplate.name}</div>
+                  <div style={{fontSize:'12px',color:'var(--m-text-dim)',marginBottom:'14px'}}>
+                    {selectedTemplate.items.length}가지 · 사용 {selectedTemplate.used_count}회
+                  </div>
+
+                  {/* 항목 목록 */}
+                  <div style={{background:'#f8f8f6',borderRadius:'10px',padding:'10px 12px',marginBottom:'14px'}}>
+                    {selectedTemplate.items.map((item, idx) => {
+                      const cal = item.calories_per_g != null ? (item.calories_per_g * item.amount_g).toFixed(0) : null
+                      const prot = item.protein_per_g != null ? (item.protein_per_g * item.amount_g).toFixed(1) : null
+                      return (
+                        <div key={idx} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 0',borderBottom:'1px solid #eee'}}>
+                          <div>
+                            <div style={{fontSize:'13px',fontWeight:600,color:'#111'}}>{item.food_name}</div>
+                            <div style={{fontSize:'11px',color:'var(--m-text-dim)'}}>{item.amount_g}g</div>
+                          </div>
+                          <div style={{textAlign:'right',fontSize:'11px'}}>
+                            {cal && <div style={{color:'#f97316',fontWeight:600}}>{cal} kcal</div>}
+                            {prot && <div style={{color:'var(--m-text-dim)'}}>단백질 {prot}g</div>}
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {(() => {
+                      const total = selectedTemplate.items.reduce((s,i) => s + (i.calories_per_g != null ? i.calories_per_g * i.amount_g : 0), 0)
+                      return total > 0 ? (
+                        <div style={{display:'flex',justifyContent:'flex-end',paddingTop:'8px',fontSize:'12px',fontWeight:700,color:'#f97316'}}>
+                          합계 {total.toFixed(0)} kcal
+                        </div>
+                      ) : null
+                    })()}
+                  </div>
+
+                  {/* 적용할 식사 선택 */}
+                  <div className="form-group" style={{marginBottom:'16px'}}>
+                    <label>적용할 식사</label>
+                    <select value={applyTemplateMealType} onChange={e => setApplyTemplateMealType(e.target.value)}>
+                      <option value="breakfast">🍳 아침</option>
+                      <option value="lunch">🍱 점심</option>
+                      <option value="dinner">🍽️ 저녁</option>
+                      <option value="snack">🧃 간식</option>
+                    </select>
+                  </div>
+
+                  <div style={{display:'flex',gap:'8px'}}>
+                    <button className="btn btn-outline" style={{flex:1}} onClick={() => { setShowApplyTemplateModal(false); setSelectedTemplate(null) }}>취소</button>
+                    <button className="btn btn-primary" style={{flex:2}} onClick={applyTemplate}>
+                      {dietDate === today() ? '오늘 식단에 적용' : `${formatDate(dietDate)}에 적용`}
+                    </button>
+                  </div>
+                </div>
+              </Modal>
+            )}
 
             {/* 음식 추가 모달 */}
             {showFoodModal && (
