@@ -2012,9 +2012,8 @@ export default function TrainerApp() {
       await loadMembers(); await loadLogs()
       const reportUrl = window.location.origin + '/report?id=' + reportId
       const kakaoMsg = m.name + ' 회원님, 오늘 수업 리포트가 도착했어요! 👇\n' + reportUrl
-      navigator.clipboard.writeText(kakaoMsg).then(() => showToast('✓ 리포트 링크 복사! 카카오톡에서 붙여넣기 하세요')).catch(()=>{})
-      setTimeout(() => { window.location.href = 'kakaolink://open'; setTimeout(() => window.open('https://talk.kakao.com','_blank'), 1200) }, 800)
-      setTimeout(() => { setShowSend(false); setShowPreview(false); setAudioData(null); setRawInput(''); setFinalContent(''); setExercises([]) }, 2000)
+      navigator.clipboard.writeText(kakaoMsg).then(() => showToast('✓ 일지 저장 완료! 링크 복사됨 — 카카오톡에 붙여넣기 하세요')).catch(()=>{})
+      setTimeout(() => { setShowSend(false); setShowPreview(false); setAudioData(null); setRawInput(''); setFinalContent(''); setExercises([]) }, 1500)
     } catch(e) { showToast('오류: ' + e.message) }
   }
 
