@@ -282,12 +282,18 @@ export default function MemberPortal() {
     try {
       let photo_url = null
       if (foodPhotoFile) {
-        const ext = foodPhotoFile.name.split('.').pop()
-        const path = `${member.id}/${Date.now()}.${ext}`
-        const { error: upErr } = await supabase.storage.from('diet-photos').upload(path, foodPhotoFile)
-        if (!upErr) {
-          const { data: { publicUrl } } = supabase.storage.from('diet-photos').getPublicUrl(path)
-          photo_url = publicUrl
+        try {
+          const ext = (foodPhotoFile.name.split('.').pop() || 'jpg').toLowerCase()
+          const path = `${member.id}/${Date.now()}.${ext}`
+          const { data: upData, error: upErr } = await supabase.storage.from('diet-photos').upload(path, foodPhotoFile)
+          if (upErr) {
+            console.warn('사진 업로드 실패 (영양소 정보는 저장됩니다):', upErr.message)
+          } else if (upData) {
+            const { data: { publicUrl } } = supabase.storage.from('diet-photos').getPublicUrl(path)
+            photo_url = publicUrl
+          }
+        } catch (uploadErr) {
+          console.warn('사진 업로드 오류:', uploadErr)
         }
       }
       const row = {
