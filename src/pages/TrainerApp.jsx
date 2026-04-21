@@ -1506,6 +1506,9 @@ export default function TrainerApp() {
   const [leaderboard, setLeaderboard] = useState(null)
   const [lbLoading, setLbLoading] = useState(false)
 
+  // Revenue tab — tooltip
+  const [revTooltip, setRevTooltip] = useState(null)
+
   // Add member form
   const [addForm, setAddForm] = useState({name:'',kakao_phone:'',phone:'',birthdate:'',address:'',email:'',special_notes:'',purpose:'체형교정',visit_source:'',visit_source_memo:'',total:'',done:'0',price:'',memo:''})
   const [memberFilter, setMemberFilter] = useState('전체')
@@ -2318,20 +2321,46 @@ export default function TrainerApp() {
       <div>
         <div style={{marginBottom:'14px'}}>
           <div className="section-label">전체 매출 현황</div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
-            {[
-              [weekRevenue,'이번 주 매출',weekLogs.length+'회 수업','var(--accent)'],
-              [monthRevenue,'이번 달 매출',monthLogs.length+'회 수업','var(--accent)'],
-              [projectedMonth,'월말 예상 매출',dayOfMonth+'/'+daysInMonth+'일 기준','#facc15'],
-              [remainRevenue,'미진행 세션 잔존가치','남은 세션 기준','#60a5fa'],
-            ].map(([v,label,sub,c],i)=>(
-              <div key={i} className="card" style={{marginBottom:0,padding:'14px'}}>
-                <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'6px'}}>{label}</div>
-                <div style={{fontSize:'20px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:c}}>{v.toLocaleString()}원</div>
-                <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'3px'}}>{sub}</div>
+          {(() => {
+            const REV_ITEMS = [
+              [weekRevenue,  '이번 주 소진된 매출',    weekLogs.length+'회 수업',          'var(--accent)', '이번 주 월요일 00:00부터 오늘까지 발송된 수업일지 수 × 각 회원의 세션 단가를 합산한 금액이에요.'],
+              [monthRevenue, '이번 달 소진된 매출',    monthLogs.length+'회 수업',          'var(--accent)', '이번 달 1일부터 오늘까지 발송된 수업일지 수 × 각 회원의 세션 단가를 합산한 금액이에요.'],
+              [projectedMonth,'이번 달 예상 소진 매출',dayOfMonth+'/'+daysInMonth+'일 기준','#facc15',       '이번 달 소진 매출 ÷ 오늘까지 경과 일수 × 이번 달 총 일수로 계산해요. 현재 수업 페이스가 유지된다고 가정한 예상치예요.'],
+              [remainRevenue,'미진행 세션 잔존가치',   '남은 세션 기준',                    '#60a5fa',       '전체 회원의 (총 세션 수 − 완료 세션 수) × 세션 단가를 합산한 금액이에요. 아직 진행하지 않은 세션의 이론적 가치예요.'],
+            ]
+            return (
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
+                {REV_ITEMS.map(([v,label,sub,c,tip],i)=>(
+                  <div key={i} className="card" style={{marginBottom:0,padding:'14px',position:'relative'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:'4px',marginBottom:'6px'}}>
+                      <span style={{fontSize:'10px',color:'var(--text-dim)',flex:1,lineHeight:1.4}}>{label}</span>
+                      <button
+                        onClick={()=>setRevTooltip(revTooltip===i?null:i)}
+                        style={{flexShrink:0,width:'15px',height:'15px',borderRadius:'50%',
+                          border:'1px solid var(--border)',background:'var(--surface2)',
+                          color:'var(--text-dim)',fontSize:'8px',cursor:'pointer',
+                          display:'flex',alignItems:'center',justifyContent:'center',
+                          padding:0,fontFamily:'inherit',lineHeight:1}}>?</button>
+                    </div>
+                    {revTooltip===i && (
+                      <div style={{position:'absolute',top:'100%',left:0,right:0,zIndex:20,
+                        background:'#1a1a1a',border:'1px solid var(--border)',borderRadius:'10px',
+                        padding:'10px 12px 10px 12px',marginTop:'4px',
+                        fontSize:'11px',color:'var(--text-muted)',lineHeight:'1.7',
+                        boxShadow:'0 8px 24px rgba(0,0,0,0.6)'}}>
+                        {tip}
+                        <button onClick={()=>setRevTooltip(null)}
+                          style={{position:'absolute',top:'7px',right:'9px',background:'none',
+                            border:'none',color:'var(--text-dim)',cursor:'pointer',fontSize:'13px',lineHeight:1,padding:0}}>×</button>
+                      </div>
+                    )}
+                    <div style={{fontSize:'20px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:c}}>{v.toLocaleString()}원</div>
+                    <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'3px'}}>{sub}</div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )
+          })()}
         </div>
 
         {/* 주간 리포트 — 접기/펼치기 */}
