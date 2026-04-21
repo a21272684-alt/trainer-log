@@ -3000,7 +3000,7 @@ export default function TrainerApp() {
               {/* 트레이너별 순위 */}
               {leaderboard.list.length === 0 ? (
                 <div style={{textAlign:'center',padding:'16px',color:'var(--text-dim)',fontSize:'12px'}}>이번 주 발송된 일지가 없어요</div>
-              ) : leaderboard.list.map((t, i) => (
+              ) : leaderboard.list.slice(0, 3).map((t, i) => (
                 <div key={i} style={{
                   display:'flex',alignItems:'center',gap:'12px',
                   padding:'10px 14px',borderRadius:'10px',marginBottom:'6px',
