@@ -6,4 +6,11 @@ ALTER TABLE logs ADD COLUMN IF NOT EXISTS report_id TEXT;
 ALTER TABLE logs ADD COLUMN IF NOT EXISTS exercises_data JSONB;
 
 -- update 정책 추가 (회원이 read_at 갱신할 수 있도록)
-CREATE POLICY IF NOT EXISTS "logs_update" ON logs FOR UPDATE USING (true);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'logs' AND policyname = 'logs_update'
+  ) THEN
+    EXECUTE 'CREATE POLICY "logs_update" ON logs FOR UPDATE USING (true)';
+  END IF;
+END $$;
