@@ -3754,7 +3754,10 @@ export default function TrainerApp() {
         <div className="form-group"><label>상품명</label><input type="text" value={productForm.name} onChange={e=>setProductForm({...productForm,name:e.target.value})} placeholder="예: 30회 패키지" /></div>
         <div className="form-group"><label>횟수</label><input type="number" value={productForm.count} onChange={e=>setProductForm({...productForm,count:e.target.value})} placeholder="30" min="1" /></div>
         <div className="divider"></div>
-        <div className="section-label">단가 설정</div>
+        <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'6px'}}>
+          <div className="section-label" style={{margin:0}}>단가 설정</div>
+          <span style={{fontSize:'11px',color:'var(--accent)',fontWeight:600,background:'rgba(200,241,53,0.1)',border:'1px solid rgba(200,241,53,0.25)',borderRadius:'6px',padding:'1px 7px'}}>회당</span>
+        </div>
         <div className="two-col">
           <div className="form-group"><label>부가세 미포함 (원)</label><input type="number" value={productForm.priceEx} onChange={e=>setProductForm({...productForm,priceEx:e.target.value})} placeholder="1500000" min="0" /></div>
           <div className="form-group"><label>부가세 포함 (원)</label><input type="number" value={productForm.priceIn} onChange={e=>setProductForm({...productForm,priceIn:e.target.value})} placeholder="1650000" min="0" /></div>
