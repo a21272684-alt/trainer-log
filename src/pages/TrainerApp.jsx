@@ -1498,6 +1498,7 @@ export default function TrainerApp() {
 
   // Member sort
   const [memberSort, setMemberSort] = useState('created') // 'name' | 'created' | 'expire'
+  const [memberSearch, setMemberSearch] = useState('')
   const [showRiskInfo, setShowRiskInfo] = useState(false)
 
   // Add member form
@@ -2501,7 +2502,11 @@ export default function TrainerApp() {
             const STATUS_LABEL = { active:'활성', expiring:'만료예정', expired:'만료', suspended:'정지' }
             const STATUS_COLOR = { active:'#4ade80', expiring:'#f97316', expired:'#ef4444', suspended:'#9ca3af' }
             // 필터 + 정렬
+            const searchQ = memberSearch.trim().toLowerCase()
             const filtered = [...members].filter(m => {
+              // 이름 검색
+              if (searchQ && !m.name.toLowerCase().includes(searchQ)) return false
+              // 상태 필터
               const s = getStatus(m)
               if (memberFilter === '전체') return true
               if (memberFilter === '활성') return s === 'active' || s === 'expiring'
@@ -2520,6 +2525,24 @@ export default function TrainerApp() {
             })
             return (
               <>
+                {/* 이름 검색 */}
+                <div style={{position:'relative',marginBottom:'8px'}}>
+                  <span style={{position:'absolute',left:'10px',top:'50%',transform:'translateY(-50%)',fontSize:'14px',pointerEvents:'none'}}>🔍</span>
+                  <input
+                    type="text"
+                    value={memberSearch}
+                    onChange={e => setMemberSearch(e.target.value)}
+                    placeholder="이름으로 검색"
+                    style={{width:'100%',padding:'8px 10px 8px 32px',borderRadius:'10px',border:'1px solid var(--border)',background:'var(--surface2)',color:'var(--text)',fontSize:'13px',fontFamily:'inherit',boxSizing:'border-box',outline:'none'}}
+                  />
+                  {memberSearch && (
+                    <button
+                      onClick={() => setMemberSearch('')}
+                      style={{position:'absolute',right:'8px',top:'50%',transform:'translateY(-50%)',background:'none',border:'none',color:'var(--text-dim)',fontSize:'16px',cursor:'pointer',padding:'0',lineHeight:1}}
+                    >×</button>
+                  )}
+                </div>
+
                 {/* 상태 필터 */}
                 <div style={{display:'flex',gap:'6px',marginBottom:'6px',flexWrap:'wrap'}}>
                   {['전체','활성','만료','정지'].map(f => (
@@ -2666,7 +2689,11 @@ export default function TrainerApp() {
                     </button>
                   ))}
                 </div>
-                {!filtered.length && <div className="empty"><p>해당하는 회원이 없어요</p></div>}
+                {!filtered.length && (
+                  <div className="empty">
+                    <p>{searchQ ? `"${memberSearch}" 검색 결과가 없어요` : '해당하는 회원이 없어요'}</p>
+                  </div>
+                )}
                 {filtered.map(m => {
                   const status = getStatus(m)
                   const pct = m.total_sessions>0?Math.round((m.done_sessions/m.total_sessions)*100):0
