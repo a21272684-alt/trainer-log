@@ -55,27 +55,43 @@ function RevenuePaymentList({ trainerId, members }) {
   )
 }
 
-// 회원별 분석 카드 (확정 매출 = payments 합계)
-function MemberRevenueCard({ m, mWeekLogs, mMonthLogs, attendRate, cancelledBlocks, remain, pct, price, dayOfMonth, daysInMonth, trainerId }) {
+// 회원별 결제 관리 카드 (확정 매출 = payments 합계)
+function MemberRevenueCard({ m, mWeekLogs, mMonthLogs, attendRate, cancelledBlocks, remain, pct, price, dayOfMonth, daysInMonth, trainerId, onOpenPayment }) {
   const [confirmed, setConfirmed] = useState(null)
+  const [recentPays, setRecentPays] = useState([])
   useEffect(() => {
     if (!trainerId) return
-    supabase.from('payments').select('amount').eq('member_id', m.id)
-      .then(({ data }) => setConfirmed((data||[]).reduce((s,p)=>s+p.amount,0)))
+    supabase.from('payments').select('*').eq('member_id', m.id).order('paid_at',{ascending:false})
+      .then(({ data }) => {
+        const d = data||[]
+        setConfirmed(d.reduce((s,p)=>s+p.amount,0))
+        setRecentPays(d.slice(0,3))
+      })
   }, [m.id, trainerId])
   return (
     <div className="card" style={{marginBottom:'12px'}}>
+      {/* 헤더 */}
       <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'12px'}}>
-        <div style={{width:'36px',height:'36px',borderRadius:'50%',background:'var(--accent)',color:'#0f0f0f',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:'14px'}}>{m.name[0]}</div>
-        <div style={{flex:1}}>
+        <div style={{width:'36px',height:'36px',borderRadius:'50%',background:'var(--accent)',color:'#0f0f0f',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:'14px',flexShrink:0}}>{m.name[0]}</div>
+        <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:'14px',fontWeight:600}}>{m.name}</div>
           <div style={{fontSize:'11px',color:'var(--text-muted)'}}>{m.lesson_purpose||''} · 단가 {price ? price.toLocaleString()+'원' : '미설정'}</div>
         </div>
-        <div style={{textAlign:'right'}}>
-          <div style={{fontSize:'16px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'var(--accent)'}}>{confirmed!=null?confirmed.toLocaleString():'—'}<span style={{fontSize:'11px'}}>원</span></div>
-          <div style={{fontSize:'10px',color:'var(--text-dim)'}}>확정 매출</div>
+        <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:'4px',flexShrink:0}}>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:'15px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'var(--accent)'}}>{confirmed!=null?confirmed.toLocaleString():'—'}<span style={{fontSize:'11px'}}>원</span></div>
+            <div style={{fontSize:'10px',color:'var(--text-dim)'}}>누적 결제</div>
+          </div>
+          <button
+            onClick={onOpenPayment}
+            style={{padding:'5px 12px',borderRadius:'8px',border:'none',background:'var(--accent)',
+              color:'#0f0f0f',fontSize:'11px',fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
+            💳 결제관리
+          </button>
         </div>
       </div>
+
+      {/* 세션 통계 */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'8px',marginBottom:'12px'}}>
         {[
           [attendRate!==null?attendRate+'%':'—','주간출석률',attendRate!==null?(attendRate>=80?'#4ade80':attendRate>=60?'#facc15':'var(--danger)'):'var(--text-dim)'],
@@ -89,13 +105,32 @@ function MemberRevenueCard({ m, mWeekLogs, mMonthLogs, attendRate, cancelledBloc
           </div>
         ))}
       </div>
+
+      {/* 세션 프로그레스 바 */}
       <div style={{height:'4px',background:'var(--border)',borderRadius:'2px',overflow:'hidden',marginBottom:'8px'}}>
         <div style={{height:'100%',background:'var(--accent)',borderRadius:'2px',width:pct+'%'}}></div>
       </div>
-      <div style={{display:'flex',justifyContent:'space-between',fontSize:'11px',color:'var(--text-muted)'}}>
+      <div style={{display:'flex',justifyContent:'space-between',fontSize:'11px',color:'var(--text-muted)',marginBottom: recentPays.length>0?'10px':0}}>
         <span>{m.done_sessions}회 완료 · 잔여 {remain}회</span>
-        {price>0 && <span style={{color:'var(--accent)'}}>미진행 세션 잔존가치 {(price*remain).toLocaleString()}원</span>}
+        {price>0 && <span style={{color:'var(--accent)'}}>잔존가치 {(price*remain).toLocaleString()}원</span>}
       </div>
+
+      {/* 최근 결제 미리보기 */}
+      {recentPays.length>0 && (
+        <div style={{borderTop:'1px solid var(--border)',paddingTop:'10px'}}>
+          <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'6px',fontWeight:600,letterSpacing:'0.05em'}}>최근 결제 내역</div>
+          {recentPays.map(p=>(
+            <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
+              <div style={{fontSize:'11px',color:'var(--text-muted)'}}>
+                {new Date(p.paid_at).toLocaleDateString('ko-KR',{month:'short',day:'numeric'})} · {p.product_name}
+              </div>
+              <div style={{fontSize:'11px',fontWeight:700,color:'var(--accent)',fontFamily:"'DM Mono',monospace"}}>{p.amount.toLocaleString()}원</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 취소 이력 */}
       {cancelledBlocks.length>0 && (
         <div style={{marginTop:'10px',paddingTop:'10px',borderTop:'1px solid var(--border)'}}>
           <div style={{fontSize:'10px',color:'var(--danger)',marginBottom:'6px'}}>취소 이력 {cancelledBlocks.length}건</div>
@@ -2472,7 +2507,17 @@ export default function TrainerApp() {
         <div className="section-label">통합 매출 내역</div>
         <RevenuePaymentList trainerId={trainer?.id} members={members} />
 
-        <div className="section-label" style={{marginTop:'20px'}}>회원별 분석</div>
+        {/* 회원별 결제 관리 */}
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:'20px',marginBottom:'6px'}}>
+          <div className="section-label" style={{margin:0}}>회원별 결제 관리</div>
+          <button
+            onClick={()=>{setEditingProductId(null);setProductForm({name:'',count:'',priceEx:'',priceIn:''});setProductFormModal(true)}}
+            style={{padding:'5px 12px',borderRadius:'8px',border:'1px solid var(--border)',
+              background:'var(--surface2)',color:'var(--text-muted)',fontSize:'11px',fontWeight:600,
+              cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
+            🗂 상품 관리
+          </button>
+        </div>
         {members.map(m => {
           const mLogs = logs.filter(l => l.member_id === m.id)
           const mWeekLogs = mLogs.filter(l => new Date(l.created_at) >= weekStart)
@@ -2488,7 +2533,14 @@ export default function TrainerApp() {
               attendRate={attendRate} cancelledBlocks={cancelledBlocks}
               remain={remain} pct={pct} price={price}
               dayOfMonth={dayOfMonth} daysInMonth={daysInMonth}
-              trainerId={trainer?.id} />
+              trainerId={trainer?.id}
+              onOpenPayment={()=>{
+                setCurrentMemberId(m.id)
+                setPaymentTab('pay')
+                setPaymentForm({productId:'',memo:'',taxIncluded:false})
+                loadPayments(m.id)
+                setPaymentModal(true)
+              }} />
           )
         })}
       </div>
@@ -3224,7 +3276,6 @@ export default function TrainerApp() {
                 onClick={()=>{setHoldForm({startDate:'',endDate:'',productId:'',reason:'',photoFile:null,photoPreview:''});loadHolds(currentMemberId);setHoldModal(true)}}>
                 {currentMember.suspended?'⏸ 정지중':'⏸ 정지'}
               </button>
-              <button className="btn btn-primary btn-sm" style={{fontSize:'12px',whiteSpace:'nowrap'}} onClick={()=>{setPaymentTab('pay');setPaymentForm({productId:'',memo:'',taxIncluded:false});loadPayments(currentMemberId);setPaymentModal(true)}}>💳 결제</button>
             </div>
           </div>
           <div className="card" style={{marginBottom:'14px'}}>
