@@ -1509,6 +1509,14 @@ export default function TrainerApp() {
   // Revenue tab — tooltip
   const [revTooltip, setRevTooltip] = useState(null)
 
+  // Revenue tab — 월별 총 결제액
+  const [payMonthStr, setPayMonthStr] = useState(() => {
+    const n = new Date()
+    return n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0')
+  })
+  const [payMonthData, setPayMonthData] = useState(null)
+  const [payMonthLoading, setPayMonthLoading] = useState(false)
+
   // Add member form
   const [addForm, setAddForm] = useState({name:'',kakao_phone:'',phone:'',birthdate:'',address:'',email:'',special_notes:'',purpose:'체형교정',visit_source:'',visit_source_memo:'',total:'',done:'0',price:'',memo:''})
   const [memberFilter, setMemberFilter] = useState('전체')
@@ -1777,6 +1785,26 @@ export default function TrainerApp() {
     setLbLoading(false)
   }
   useEffect(() => { if (tab === 'settings' && trainer) loadLeaderboard() }, [tab])
+
+  // 월별 총 결제액 로드
+  async function loadMonthPayments(monthStr) {
+    if (!trainer) return
+    setPayMonthLoading(true)
+    try {
+      const [y, m] = monthStr.split('-').map(Number)
+      const start = new Date(y, m-1, 1).toISOString()
+      const end   = new Date(y, m,   1).toISOString()
+      const { data } = await supabase.from('payments')
+        .select('amount')
+        .eq('trainer_id', trainer.id)
+        .gte('paid_at', start)
+        .lt('paid_at', end)
+      const total = (data||[]).reduce((s,p) => s+(p.amount||0), 0)
+      setPayMonthData({ total, count: (data||[]).length })
+    } catch(_) { setPayMonthData(null) }
+    setPayMonthLoading(false)
+  }
+  useEffect(() => { if (tab === 'revenue' && trainer) loadMonthPayments(payMonthStr) }, [tab, payMonthStr])
 
   async function loadPayments(memberId) {
     const { data } = await supabase.from('payments').select('*').eq('member_id', memberId).order('paid_at', { ascending: false })
@@ -2358,6 +2386,59 @@ export default function TrainerApp() {
                     <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'3px'}}>{sub}</div>
                   </div>
                 ))}
+              </div>
+            )
+          })()}
+          {/* ── 월별 총 결제액 카드 ── */}
+          {(() => {
+            const [py, pm] = payMonthStr.split('-').map(Number)
+            const label = `${py}년 ${pm}월 총 결제액`
+            return (
+              <div className="card" style={{marginBottom:0,padding:'16px',position:'relative'}}>
+                <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'10px'}}>
+                  <span style={{fontSize:'12px',fontWeight:700,color:'var(--text)',flex:1}}>{label}</span>
+                  {/* 달력 버튼 */}
+                  <div style={{position:'relative'}}>
+                    <button
+                      title="월 선택"
+                      style={{
+                        width:'30px',height:'30px',borderRadius:'8px',
+                        border:'1px solid var(--border)',background:'var(--surface2)',
+                        color:'var(--text-muted)',fontSize:'15px',cursor:'pointer',
+                        display:'flex',alignItems:'center',justifyContent:'center',padding:0,
+                      }}
+                    >
+                      📅
+                      <input
+                        type="month"
+                        value={payMonthStr}
+                        max={new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0')}
+                        onChange={e=>{ if(e.target.value) setPayMonthStr(e.target.value) }}
+                        style={{
+                          position:'absolute',inset:0,opacity:0,cursor:'pointer',
+                          width:'100%',height:'100%',
+                        }}
+                      />
+                    </button>
+                  </div>
+                </div>
+                <div style={{display:'flex',alignItems:'flex-end',gap:'10px'}}>
+                  <div style={{fontSize:'28px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'#34d399',lineHeight:1}}>
+                    {payMonthLoading ? '—' : (payMonthData?.total??0).toLocaleString()}
+                    <span style={{fontSize:'14px',fontWeight:400,color:'var(--text-muted)',marginLeft:'3px'}}>원</span>
+                  </div>
+                  <div style={{fontSize:'11px',color:'var(--text-muted)',paddingBottom:'3px'}}>
+                    {payMonthLoading ? '조회 중...' : `${payMonthData?.count??0}건 결제`}
+                  </div>
+                </div>
+                <div style={{marginTop:'10px',height:'2px',background:'var(--border)',borderRadius:'1px',overflow:'hidden'}}>
+                  <div style={{height:'100%',background:'#34d399',borderRadius:'1px',
+                    width: payMonthData?.total > 0 ? '100%' : '0%',
+                    transition:'width 0.6s ease'}} />
+                </div>
+                <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'5px'}}>
+                  payments 테이블에 등록된 실제 결제 금액 기준이에요.
+                </div>
               </div>
             )
           })()}
