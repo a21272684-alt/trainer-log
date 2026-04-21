@@ -3008,7 +3008,7 @@ export default function TrainerApp() {
                   border:`1px solid ${t.isMe ? 'rgba(200,241,53,0.3)' : 'var(--border)'}`,
                 }}>
                   <div style={{fontSize:'14px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:i===0?'#facc15':i===1?'#9ca3af':i===2?'#fb923c':'var(--text-dim)',width:'20px',textAlign:'center',flexShrink:0}}>
-                    {i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}`}
+                    {i===0?'💎':i===1?'🥇':i===2?'🥈':`${i+1}`}
                   </div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:'13px',fontWeight:t.isMe?700:500,color:t.isMe?'var(--accent)':'var(--text)'}}>
