@@ -1536,6 +1536,7 @@ export default function TrainerApp() {
   const [memberSearch, setMemberSearch] = useState('')
   const [showRiskInfo, setShowRiskInfo] = useState(false)
   const [showReadModal, setShowReadModal] = useState(false)
+  const [expandedLogId, setExpandedLogId] = useState(null)
 
   // Settings tab — leaderboard
   const [leaderboard, setLeaderboard] = useState(null)
@@ -3020,18 +3021,57 @@ export default function TrainerApp() {
           {!logs.length && <div className="empty"><div style={{fontSize:'36px',marginBottom:'12px'}}>📋</div><p>발송한 수업일지가 없어요.</p></div>}
           {logs.map(l => {
             const d = new Date(l.created_at)
-            const ds = d.toLocaleDateString('ko-KR',{month:'long',day:'numeric'})+' '+d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})
-            const m = members.find(x=>x.id===l.member_id)
+            const dateStr = d.toLocaleDateString('ko-KR',{month:'short',day:'numeric'})
+            const timeStr = d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})
+            const mem = members.find(x=>x.id===l.member_id)
+            const isOpen = expandedLogId === l.id
             return (
-              <div key={l.id} className="history-item">
-                <div className="history-date" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                  <span>{ds} · {m?m.name:'회원'} · {l.session_number}회차</span>
-                  {l.read_at
-                    ? <span style={{fontSize:'10px',color:'#4ade80',fontWeight:600,flexShrink:0,marginLeft:'8px'}}>✅ {new Date(l.read_at).toLocaleDateString('ko-KR',{month:'short',day:'numeric'})} 확인</span>
-                    : <span style={{fontSize:'10px',color:'#9ca3af',flexShrink:0,marginLeft:'8px'}}>⏳ 미확인</span>
-                  }
+              <div key={l.id}
+                onClick={()=>setExpandedLogId(isOpen ? null : l.id)}
+                style={{
+                  background:'var(--surface)',border:'1px solid var(--border)',
+                  borderRadius:'12px',marginBottom:'8px',overflow:'hidden',
+                  cursor:'pointer',transition:'border-color 0.15s',
+                  borderColor: isOpen ? 'var(--accent)' : 'var(--border)',
+                }}>
+                {/* 항상 보이는 요약 행 */}
+                <div style={{display:'flex',alignItems:'center',gap:'12px',padding:'12px 14px'}}>
+                  {/* 회원 아바타 */}
+                  <div style={{width:'34px',height:'34px',borderRadius:'50%',background:'var(--accent)',
+                    color:'#0f0f0f',display:'flex',alignItems:'center',justifyContent:'center',
+                    fontWeight:700,fontSize:'13px',flexShrink:0}}>
+                    {mem?.name?.[0] || '?'}
+                  </div>
+                  {/* 이름 + 회차 */}
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:'13px',fontWeight:600,color:'var(--text)'}}>
+                      {mem?.name || '회원'} <span style={{color:'var(--text-muted)',fontWeight:400}}>· {l.session_number}회차</span>
+                    </div>
+                    <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'1px'}}>{dateStr} {timeStr}</div>
+                  </div>
+                  {/* 열람 상태 + 화살표 */}
+                  <div style={{display:'flex',alignItems:'center',gap:'8px',flexShrink:0}}>
+                    {l.read_at
+                      ? <span style={{fontSize:'10px',color:'#4ade80',fontWeight:600,background:'rgba(74,222,128,0.1)',padding:'2px 7px',borderRadius:'6px'}}>✅ 확인</span>
+                      : <span style={{fontSize:'10px',color:'#9ca3af',background:'var(--surface2)',padding:'2px 7px',borderRadius:'6px'}}>⏳ 미확인</span>
+                    }
+                    <span style={{fontSize:'12px',color:'var(--text-dim)',transition:'transform 0.2s',
+                      display:'inline-block',transform:isOpen?'rotate(180deg)':'rotate(0deg)'}}>▼</span>
+                  </div>
                 </div>
-                <div className="history-preview">{l.content?.substring(0,120)}...</div>
+                {/* 펼쳐진 전체 내용 */}
+                {isOpen && (
+                  <div style={{padding:'0 14px 14px',borderTop:'1px solid var(--border)'}}>
+                    <div style={{paddingTop:'12px',fontSize:'13px',color:'var(--text)',lineHeight:'1.8',whiteSpace:'pre-wrap',wordBreak:'break-word'}}>
+                      {l.content || '내용 없음'}
+                    </div>
+                    {l.read_at && (
+                      <div style={{marginTop:'10px',fontSize:'11px',color:'var(--text-dim)'}}>
+                        열람일: {new Date(l.read_at).toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric'})}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })}
