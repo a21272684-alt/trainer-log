@@ -5,8 +5,9 @@
 .topbar-left { display:flex; align-items:center; gap:10px; }
 .settings-btn { background:none; border:1px solid var(--border); color:var(--text-muted); border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer; font-family:inherit; transition:all 0.2s; }
 .settings-btn:hover { border-color:var(--accent); color:var(--accent); }
-.tabs-t { display:flex; border-bottom:1px solid var(--border); background:var(--bg); position:sticky; top:53px; z-index:99; }
-.tab-t { flex:1; padding:11px 4px; text-align:center; font-size:12px; font-weight:500; color:var(--text-muted); cursor:pointer; border-bottom:2px solid transparent; transition:all 0.2s; }
+.tabs-t { display:flex; border-bottom:1px solid var(--border); background:var(--bg); position:sticky; top:53px; z-index:99; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.tabs-t::-webkit-scrollbar { display:none; }
+.tab-t { flex:0 0 auto; min-width:60px; padding:11px 10px; text-align:center; font-size:11px; font-weight:500; color:var(--text-muted); cursor:pointer; border-bottom:2px solid transparent; transition:all 0.2s; white-space:nowrap; }
 .tab-t.active { color:var(--accent); border-bottom-color:var(--accent); }
 .page-t { padding:16px; max-width:600px; margin:0 auto; }
 
