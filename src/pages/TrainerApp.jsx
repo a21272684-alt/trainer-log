@@ -1543,6 +1543,8 @@ export default function TrainerApp() {
 
   // Revenue tab — tooltip
   const [revTooltip, setRevTooltip] = useState(null)
+  // Revenue tab — 회원별 결제 검색
+  const [revMemberSearch, setRevMemberSearch] = useState('')
 
   // Revenue tab — 월별 총 결제액
   const [payMonthStr, setPayMonthStr] = useState(() => {
@@ -2508,41 +2510,84 @@ export default function TrainerApp() {
         <RevenuePaymentList trainerId={trainer?.id} members={members} />
 
         {/* 회원별 결제 관리 */}
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:'20px',marginBottom:'6px'}}>
-          <div className="section-label" style={{margin:0}}>회원별 결제 관리</div>
-          <button
-            onClick={()=>{setEditingProductId(null);setProductForm({name:'',count:'',priceEx:'',priceIn:''});setProductFormModal(true)}}
-            style={{padding:'5px 12px',borderRadius:'8px',border:'1px solid var(--border)',
-              background:'var(--surface2)',color:'var(--text-muted)',fontSize:'11px',fontWeight:600,
-              cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
-            🗂 상품 관리
-          </button>
+        <div style={{marginTop:'24px',marginBottom:'12px'}}>
+          {/* 헤더 행: 섹션명 + 상품 관리 버튼 */}
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
+            <div className="section-label" style={{margin:0}}>회원별 결제 관리</div>
+            <button
+              onClick={()=>{setEditingProductId(null);setProductForm({name:'',count:'',priceEx:'',priceIn:''});setProductFormModal(true)}}
+              style={{
+                padding:'8px 16px',borderRadius:'10px',border:'none',
+                background:'linear-gradient(135deg,#60a5fa,#818cf8)',
+                color:'#fff',fontSize:'12px',fontWeight:700,
+                cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap',
+                boxShadow:'0 2px 8px rgba(96,165,250,0.35)',
+              }}>
+              🗂 상품 관리
+            </button>
+          </div>
+          {/* 검색창 */}
+          <div style={{position:'relative',marginBottom:'10px'}}>
+            <span style={{position:'absolute',left:'12px',top:'50%',transform:'translateY(-50%)',fontSize:'14px',pointerEvents:'none'}}>🔍</span>
+            <input
+              type="text"
+              value={revMemberSearch}
+              onChange={e=>setRevMemberSearch(e.target.value)}
+              placeholder="회원 이름 검색..."
+              style={{width:'100%',padding:'10px 36px 10px 36px',borderRadius:'10px',
+                border:'1px solid var(--border)',background:'var(--surface)',
+                color:'var(--text)',fontSize:'13px',fontFamily:'inherit',boxSizing:'border-box'}}
+            />
+            {revMemberSearch && (
+              <button onClick={()=>setRevMemberSearch('')}
+                style={{position:'absolute',right:'10px',top:'50%',transform:'translateY(-50%)',
+                  background:'none',border:'none',color:'var(--text-dim)',cursor:'pointer',fontSize:'16px',lineHeight:1,padding:0}}>
+                ×
+              </button>
+            )}
+          </div>
+          {/* 회원 카드 목록 */}
+          {!revMemberSearch.trim() ? (
+            <div style={{textAlign:'center',padding:'24px 0',color:'var(--text-dim)',fontSize:'13px'}}>
+              <div style={{fontSize:'28px',marginBottom:'8px'}}>🔍</div>
+              회원 이름을 검색하면 결제 정보가 표시돼요
+            </div>
+          ) : (() => {
+            const q = revMemberSearch.trim().toLowerCase()
+            const filtered = members.filter(m => m.name.toLowerCase().includes(q))
+            if (!filtered.length) return (
+              <div style={{textAlign:'center',padding:'20px 0',color:'var(--text-dim)',fontSize:'13px'}}>
+                <div style={{fontSize:'24px',marginBottom:'6px'}}>😅</div>
+                '{revMemberSearch}' 회원을 찾을 수 없어요
+              </div>
+            )
+            return filtered.map(m => {
+              const mLogs = logs.filter(l => l.member_id === m.id)
+              const mWeekLogs = mLogs.filter(l => new Date(l.created_at) >= weekStart)
+              const mMonthLogs = mLogs.filter(l => new Date(l.created_at) >= monthStart)
+              const price = m.session_price || 0
+              const weekBlocks = blocks.filter(b => b.type==='lesson' && b.memberId===m.id && !b.cancelled && new Date(b.date+'T00:00:00')>=weekStart && new Date(b.date+'T00:00:00')<=now)
+              const attendRate = weekBlocks.length>0 ? Math.round((mWeekLogs.length/weekBlocks.length)*100) : null
+              const cancelledBlocks = blocks.filter(b => b.memberId===m.id && b.cancelled)
+              const remain = m.total_sessions - m.done_sessions
+              const pct = m.total_sessions>0 ? Math.round((m.done_sessions/m.total_sessions)*100) : 0
+              return (
+                <MemberRevenueCard key={m.id} m={m} mWeekLogs={mWeekLogs} mMonthLogs={mMonthLogs}
+                  attendRate={attendRate} cancelledBlocks={cancelledBlocks}
+                  remain={remain} pct={pct} price={price}
+                  dayOfMonth={dayOfMonth} daysInMonth={daysInMonth}
+                  trainerId={trainer?.id}
+                  onOpenPayment={()=>{
+                    setCurrentMemberId(m.id)
+                    setPaymentTab('pay')
+                    setPaymentForm({productId:'',memo:'',taxIncluded:false})
+                    loadPayments(m.id)
+                    setPaymentModal(true)
+                  }} />
+              )
+            })
+          })()}
         </div>
-        {members.map(m => {
-          const mLogs = logs.filter(l => l.member_id === m.id)
-          const mWeekLogs = mLogs.filter(l => new Date(l.created_at) >= weekStart)
-          const mMonthLogs = mLogs.filter(l => new Date(l.created_at) >= monthStart)
-          const price = m.session_price || 0
-          const weekBlocks = blocks.filter(b => b.type==='lesson' && b.memberId===m.id && !b.cancelled && new Date(b.date+'T00:00:00')>=weekStart && new Date(b.date+'T00:00:00')<=now)
-          const attendRate = weekBlocks.length>0 ? Math.round((mWeekLogs.length/weekBlocks.length)*100) : null
-          const cancelledBlocks = blocks.filter(b => b.memberId===m.id && b.cancelled)
-          const remain = m.total_sessions - m.done_sessions
-          const pct = m.total_sessions>0 ? Math.round((m.done_sessions/m.total_sessions)*100) : 0
-          return (
-            <MemberRevenueCard key={m.id} m={m} mWeekLogs={mWeekLogs} mMonthLogs={mMonthLogs}
-              attendRate={attendRate} cancelledBlocks={cancelledBlocks}
-              remain={remain} pct={pct} price={price}
-              dayOfMonth={dayOfMonth} daysInMonth={daysInMonth}
-              trainerId={trainer?.id}
-              onOpenPayment={()=>{
-                setCurrentMemberId(m.id)
-                setPaymentTab('pay')
-                setPaymentForm({productId:'',memo:'',taxIncluded:false})
-                loadPayments(m.id)
-                setPaymentModal(true)
-              }} />
-          )
-        })}
       </div>
     )
   }
