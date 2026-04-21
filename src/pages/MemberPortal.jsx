@@ -515,14 +515,42 @@ export default function MemberPortal() {
   function copyLog(i) { navigator.clipboard.writeText(memberLogs[i].content).then(()=>showToast('✓ 복사됐어요!')) }
 
   function downloadPDF(i) {
-    import('jspdf').then(({jsPDF}) => {
-      const log = memberLogs[i]; const d = new Date(log.created_at)
-      const doc = new jsPDF({orientation:'portrait',unit:'mm',format:'a4'})
-      doc.setFillColor(26,26,26); doc.rect(0,0,210,28,'F'); doc.setTextColor(200,241,53); doc.setFontSize(16); doc.text('TRAINERLOG',14,12)
-      doc.setTextColor(255,255,255); doc.setFontSize(10); doc.text(member.name+' | '+d.toLocaleDateString('ko-KR')+' | '+log.session_number+'회차',14,22)
-      doc.setTextColor(30,30,30); doc.setFontSize(10); doc.text(doc.splitTextToSize(log.content,182),14,40)
-      doc.save('수업일지_'+member.name+'_'+log.session_number+'회차.pdf'); showToast('✓ PDF 저장됐어요!')
-    })
+    const log = memberLogs[i]
+    const d = new Date(log.created_at)
+    const dateStr = d.toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric'})
+    const contentLines = (log.content || '').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')
+    const win = window.open('','_blank','width=800,height=900')
+    win.document.write(`<!DOCTYPE html><html lang="ko"><head>
+<meta charset="UTF-8">
+<title>수업일지_${member.name}_${log.session_number}회차</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Noto Sans KR',sans-serif;background:#fff;color:#1a1a1a;padding:40px}
+  .header{background:#1a1a1a;color:#c8f135;padding:20px 24px;border-radius:8px;margin-bottom:24px}
+  .header h1{font-size:22px;font-weight:700;letter-spacing:2px;margin-bottom:6px}
+  .header p{color:#fff;font-size:13px;opacity:0.85}
+  .section{background:#f8f8f8;border-radius:8px;padding:20px 24px;margin-bottom:16px}
+  .section-title{font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+  .content{font-size:14px;line-height:1.8;white-space:pre-wrap;word-break:break-word}
+  .footer{margin-top:32px;text-align:center;font-size:11px;color:#aaa}
+  @media print{body{padding:20px}.no-print{display:none}}
+</style>
+</head><body>
+<div class="header">
+  <h1>TRAINERLOG</h1>
+  <p>${member.name} &nbsp;|&nbsp; ${dateStr} &nbsp;|&nbsp; ${log.session_number}회차</p>
+</div>
+<div class="section">
+  <div class="section-title">수업 일지</div>
+  <div class="content">${contentLines}</div>
+</div>
+${log.exercises_data ? `<div class="section"><div class="section-title">운동 데이터</div><div class="content">${JSON.stringify(log.exercises_data,null,2)}</div></div>` : ''}
+<div class="footer">© TRAINERLOG &nbsp;·&nbsp; 본 일지는 트레이너와 회원 간 비공개 문서입니다.</div>
+<script>window.onload=function(){window.print()}<\/script>
+</body></html>`)
+    win.document.close()
+    showToast('✓ 인쇄 창이 열렸어요 — "PDF로 저장"을 선택하세요!')
   }
 
   // === PERSONAL WORKOUT ===
