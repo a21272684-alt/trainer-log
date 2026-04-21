@@ -3258,6 +3258,26 @@ export default function TrainerApp() {
             ))}
           </div>
 
+          {/* ── 이번 주 전체 열람률 (단독 카드) ── */}
+          <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',letterSpacing:'0.08em',marginBottom:'10px'}}>📊 이번 주 전체 일지 열람률</div>
+          {lbLoading && <div style={{textAlign:'center',padding:'16px',color:'var(--text-dim)',fontSize:'12px'}}>불러오는 중...</div>}
+          {!lbLoading && leaderboard && (
+            <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'14px',padding:'16px',marginBottom:'24px'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
+                <div style={{fontSize:'36px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'var(--accent)',lineHeight:1}}>
+                  {leaderboard.overallRate}<span style={{fontSize:'18px'}}>%</span>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontSize:'12px',color:'var(--text-muted)'}}>발송 <span style={{color:'var(--text)',fontWeight:600}}>{leaderboard.totalLogs}건</span></div>
+                  <div style={{fontSize:'12px',color:'var(--text-muted)',marginTop:'3px'}}>열람 <span style={{color:'#4ade80',fontWeight:600}}>{leaderboard.totalRead}건</span></div>
+                </div>
+              </div>
+              <div style={{height:'6px',background:'var(--surface2)',borderRadius:'3px',overflow:'hidden'}}>
+                <div style={{height:'100%',background:'var(--accent)',borderRadius:'3px',width:leaderboard.overallRate+'%',transition:'width 0.6s ease'}} />
+              </div>
+            </div>
+          )}
+
           {/* ── 주간 리더보드 ── */}
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
             <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',letterSpacing:'0.08em'}}>🏆 이번 주 일지 발송 리더보드</div>
@@ -3269,37 +3289,17 @@ export default function TrainerApp() {
           )}
           {!lbLoading && leaderboard && (
             <>
-              {/* 전체 열람률 배너 */}
-              <div style={{background:'rgba(200,241,53,0.06)',border:'1px solid rgba(200,241,53,0.2)',borderRadius:'12px',padding:'12px 16px',marginBottom:'12px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                <div>
-                  <div style={{fontSize:'11px',color:'var(--text-muted)',marginBottom:'3px'}}>이번 주 전체 일지 열람률</div>
-                  <div style={{fontSize:'22px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'var(--accent)'}}>
-                    {leaderboard.overallRate}<span style={{fontSize:'13px'}}>%</span>
-                  </div>
-                </div>
-                <div style={{textAlign:'right'}}>
-                  <div style={{fontSize:'11px',color:'var(--text-muted)'}}>발송 {leaderboard.totalLogs}건</div>
-                  <div style={{fontSize:'11px',color:'var(--text-muted)'}}>열람 {leaderboard.totalRead}건</div>
-                </div>
-              </div>
-
-              {/* 열람률 바 */}
-              <div style={{height:'4px',background:'var(--border)',borderRadius:'2px',marginBottom:'16px',overflow:'hidden'}}>
-                <div style={{height:'100%',background:'var(--accent)',borderRadius:'2px',width:leaderboard.overallRate+'%',transition:'width 0.6s ease'}} />
-              </div>
-
-              {/* 트레이너별 순위 */}
               {leaderboard.list.length === 0 ? (
                 <div style={{textAlign:'center',padding:'16px',color:'var(--text-dim)',fontSize:'12px'}}>이번 주 발송된 일지가 없어요</div>
-              ) : leaderboard.list.slice(0, 3).map((t, i) => (
+              ) : leaderboard.list.map((t, i) => (
                 <div key={i} style={{
                   display:'flex',alignItems:'center',gap:'12px',
                   padding:'10px 14px',borderRadius:'10px',marginBottom:'6px',
                   background: t.isMe ? 'rgba(200,241,53,0.07)' : 'var(--surface)',
                   border:`1px solid ${t.isMe ? 'rgba(200,241,53,0.3)' : 'var(--border)'}`,
                 }}>
-                  <div style={{fontSize:'14px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:i===0?'#facc15':i===1?'#9ca3af':i===2?'#fb923c':'var(--text-dim)',width:'20px',textAlign:'center',flexShrink:0}}>
-                    {i===0?'💎':i===1?'🥇':i===2?'🥈':`${i+1}`}
+                  <div style={{fontSize:'15px',width:'22px',textAlign:'center',flexShrink:0}}>
+                    {i===0?'💎':i===1?'🥇':i===2?'🥈':<span style={{fontSize:'12px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'var(--text-dim)'}}>{i+1}</span>}
                   </div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:'13px',fontWeight:t.isMe?700:500,color:t.isMe?'var(--accent)':'var(--text)'}}>
