@@ -2007,8 +2007,10 @@ export default function TrainerApp() {
     const reportId = Date.now().toString(36) + Math.random().toString(36).substr(2,5)
     try {
       const exData = exercises.map(ex => ({ name: ex.name, sets: ex.sets.map(s => ({reps:s.reps,rir:s.rir,feel:s.feel,weight:s.weight||''})) }))
-      await supabase.from('logs').insert({ trainer_id:trainer.id, member_id:currentMemberId, content:finalContent, session_number:m.done_sessions+1, report_id:reportId, exercises_data:exData })
-      await supabase.from('members').update({ done_sessions: m.done_sessions+1 }).eq('id', currentMemberId)
+      const { error: logErr } = await supabase.from('logs').insert({ trainer_id:trainer.id, member_id:currentMemberId, content:finalContent, session_number:m.done_sessions+1, report_id:reportId, exercises_data:exData })
+      if (logErr) throw new Error('일지 저장 실패: ' + logErr.message)
+      const { error: memErr } = await supabase.from('members').update({ done_sessions: m.done_sessions+1 }).eq('id', currentMemberId)
+      if (memErr) console.warn('세션 카운트 업데이트 실패:', memErr.message)
       await loadMembers(); await loadLogs()
       const reportUrl = window.location.origin + '/report?id=' + reportId
       const kakaoMsg = m.name + ' 회원님, 오늘 수업 리포트가 도착했어요! 👇\n' + reportUrl
