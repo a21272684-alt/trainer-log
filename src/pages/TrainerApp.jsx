@@ -1502,6 +1502,10 @@ export default function TrainerApp() {
   const [showRiskInfo, setShowRiskInfo] = useState(false)
   const [showReadModal, setShowReadModal] = useState(false)
 
+  // Settings tab — leaderboard
+  const [leaderboard, setLeaderboard] = useState(null)
+  const [lbLoading, setLbLoading] = useState(false)
+
   // Add member form
   const [addForm, setAddForm] = useState({name:'',kakao_phone:'',phone:'',birthdate:'',address:'',email:'',special_notes:'',purpose:'체형교정',visit_source:'',visit_source_memo:'',total:'',done:'0',price:'',memo:''})
   const [memberFilter, setMemberFilter] = useState('전체')
@@ -1727,6 +1731,50 @@ export default function TrainerApp() {
     const { data } = await supabase.from('products').select('*').eq('trainer_id', trainer.id).order('created_at', { ascending: true })
     setProducts(data || [])
   }
+
+  // 주간 리더보드 로드
+  async function loadLeaderboard() {
+    setLbLoading(true)
+    try {
+      // 이번 주 월요일 0시
+      const now = new Date()
+      const daysFromMon = (now.getDay() + 6) % 7
+      const monday = new Date(now)
+      monday.setDate(now.getDate() - daysFromMon)
+      monday.setHours(0, 0, 0, 0)
+
+      const [logsRes, trainersRes] = await Promise.all([
+        supabase.from('logs').select('trainer_id, read_at').gte('created_at', monday.toISOString()),
+        supabase.from('trainers').select('id, name'),
+      ])
+      const weekLogs = logsRes.data || []
+      const trainerMap = {}
+      ;(trainersRes.data || []).forEach(t => { trainerMap[t.id] = t.name })
+
+      const grouped = {}
+      weekLogs.forEach(l => {
+        if (!grouped[l.trainer_id]) grouped[l.trainer_id] = { count: 0, read: 0 }
+        grouped[l.trainer_id].count++
+        if (l.read_at) grouped[l.trainer_id].read++
+      })
+      const list = Object.entries(grouped)
+        .map(([id, v]) => ({
+          name: trainerMap[id] || '알 수 없음',
+          logCount: v.count,
+          readCount: v.read,
+          readRate: v.count > 0 ? Math.round(v.read / v.count * 100) : 0,
+          isMe: id === String(trainer?.id),
+        }))
+        .sort((a, b) => b.logCount - a.logCount)
+
+      const totalRead = weekLogs.filter(l => l.read_at).length
+      const overallRate = weekLogs.length > 0 ? Math.round(totalRead / weekLogs.length * 100) : 0
+      setLeaderboard({ list, totalLogs: weekLogs.length, totalRead, overallRate })
+    } catch(_) { setLeaderboard(null) }
+    setLbLoading(false)
+  }
+  useEffect(() => { if (tab === 'settings' && trainer) loadLeaderboard() }, [tab])
+
   async function loadPayments(memberId) {
     const { data } = await supabase.from('payments').select('*').eq('member_id', memberId).order('paid_at', { ascending: false })
     setPayments(data || [])
@@ -2480,9 +2528,9 @@ export default function TrainerApp() {
         <button className="settings-btn" onClick={()=>setSettingsModal(true)}>⚙ 설정</button>
       </div>
       <div className="tabs-t">
-        {['members','history','schedule','revenue'].map(t => (
+        {['members','history','schedule','revenue','settings'].map(t => (
           <div key={t} className={`tab-t${tab===t?' active':''}`} onClick={()=>showTabFn(t)}>
-            {{members:'회원',history:'발송기록',schedule:'시간표',revenue:'매출관리'}[t]}
+            {{members:'회원',history:'발송기록',schedule:'시간표',revenue:'매출관리',settings:'설정'}[t]}
           </div>
         ))}
       </div>
@@ -2850,6 +2898,162 @@ export default function TrainerApp() {
       {/* REVENUE */}
       {activePage === 'page-revenue' && (
         <div className="page-t">{renderRevenue()}</div>
+      )}
+
+      {/* SETTINGS */}
+      {activePage === 'page-settings' && (
+        <div className="page-t" style={{paddingBottom:'40px'}}>
+
+          {/* ── 트레이너 정보 ── */}
+          <div style={{display:'flex',alignItems:'center',gap:'14px',padding:'16px',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'14px',marginBottom:'20px'}}>
+            <div style={{width:'46px',height:'46px',borderRadius:'50%',background:'var(--accent)',color:'#0f0f0f',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:'18px',flexShrink:0}}>
+              {trainer?.name?.[0] || 'T'}
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:'15px',fontWeight:700}}>{trainer?.name} 트레이너</div>
+              <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'2px'}}>TRAINERLOG 이용 중</div>
+            </div>
+            <div style={{fontSize:'11px',padding:'4px 10px',borderRadius:'20px',background:'rgba(200,241,53,0.12)',color:'var(--accent)',border:'1px solid rgba(200,241,53,0.3)',fontWeight:600}}>FREE</div>
+          </div>
+
+          {/* ── 유료 플랜 ── */}
+          <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',letterSpacing:'0.08em',marginBottom:'10px'}}>💎 플랜 안내</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:'24px'}}>
+            {[
+              {
+                name:'Free', price:'무료', color:'#9ca3af', highlight:false, current:true,
+                features:['회원 5명','AI 일지 월 20회','식단 기록','기본 통계'],
+              },
+              {
+                name:'Pro', price:'₩9,900/월', color:'#60a5fa', highlight:false, current:false, badge:'출시 예정',
+                features:['회원 무제한','AI 일지 무제한','주간 리포트 AI','매출 분석'],
+              },
+              {
+                name:'Premium', price:'₩19,900/월', color:'#c8f135', highlight:true, current:false, badge:'출시 예정',
+                features:['Pro 전체 포함','루틴 마켓 무제한','카카오 자동 발송','우선 지원'],
+              },
+            ].map(plan => (
+              <div key={plan.name} style={{
+                background: plan.highlight ? 'rgba(200,241,53,0.06)' : 'var(--surface)',
+                border:`1px solid ${plan.highlight ? 'rgba(200,241,53,0.35)' : plan.current ? 'var(--border)' : 'rgba(96,165,250,0.3)'}`,
+                borderRadius:'12px', padding:'12px 10px', position:'relative', textAlign:'center',
+              }}>
+                {plan.badge && (
+                  <div style={{position:'absolute',top:'-9px',left:'50%',transform:'translateX(-50%)',
+                    background: plan.highlight ? 'var(--accent)' : '#60a5fa',
+                    color:'#0f0f0f',fontSize:'8px',fontWeight:700,padding:'2px 7px',borderRadius:'8px',whiteSpace:'nowrap'}}>
+                    {plan.badge}
+                  </div>
+                )}
+                {plan.current && (
+                  <div style={{position:'absolute',top:'-9px',left:'50%',transform:'translateX(-50%)',
+                    background:'#9ca3af',color:'#0f0f0f',fontSize:'8px',fontWeight:700,padding:'2px 7px',borderRadius:'8px'}}>
+                    현재 플랜
+                  </div>
+                )}
+                <div style={{fontSize:'13px',fontWeight:700,color:plan.color,marginBottom:'4px',marginTop:'4px'}}>{plan.name}</div>
+                <div style={{fontSize:'11px',fontWeight:700,color:'var(--text)',marginBottom:'8px'}}>{plan.price}</div>
+                {plan.features.map(f => (
+                  <div key={f} style={{fontSize:'10px',color:'var(--text-muted)',lineHeight:'1.9'}}>· {f}</div>
+                ))}
+                {!plan.current && (
+                  <button disabled style={{marginTop:'10px',width:'100%',padding:'6px',borderRadius:'8px',border:'none',
+                    background: plan.highlight ? 'var(--accent)' : '#60a5fa',
+                    color:'#0f0f0f',fontSize:'10px',fontWeight:700,cursor:'not-allowed',opacity:0.6,fontFamily:'inherit'}}>
+                    {plan.name === 'Pro' ? '곧 출시' : '곧 출시'}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* ── 주간 리더보드 ── */}
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
+            <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',letterSpacing:'0.08em'}}>🏆 이번 주 일지 발송 리더보드</div>
+            <button onClick={loadLeaderboard} style={{fontSize:'11px',color:'var(--text-dim)',background:'none',border:'none',cursor:'pointer',padding:'2px 6px'}}>↻ 새로고침</button>
+          </div>
+
+          {lbLoading && (
+            <div style={{textAlign:'center',padding:'20px',color:'var(--text-dim)',fontSize:'12px'}}>불러오는 중...</div>
+          )}
+          {!lbLoading && leaderboard && (
+            <>
+              {/* 전체 열람률 배너 */}
+              <div style={{background:'rgba(200,241,53,0.06)',border:'1px solid rgba(200,241,53,0.2)',borderRadius:'12px',padding:'12px 16px',marginBottom:'12px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <div>
+                  <div style={{fontSize:'11px',color:'var(--text-muted)',marginBottom:'3px'}}>이번 주 전체 일지 열람률</div>
+                  <div style={{fontSize:'22px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'var(--accent)'}}>
+                    {leaderboard.overallRate}<span style={{fontSize:'13px'}}>%</span>
+                  </div>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontSize:'11px',color:'var(--text-muted)'}}>발송 {leaderboard.totalLogs}건</div>
+                  <div style={{fontSize:'11px',color:'var(--text-muted)'}}>열람 {leaderboard.totalRead}건</div>
+                </div>
+              </div>
+
+              {/* 열람률 바 */}
+              <div style={{height:'4px',background:'var(--border)',borderRadius:'2px',marginBottom:'16px',overflow:'hidden'}}>
+                <div style={{height:'100%',background:'var(--accent)',borderRadius:'2px',width:leaderboard.overallRate+'%',transition:'width 0.6s ease'}} />
+              </div>
+
+              {/* 트레이너별 순위 */}
+              {leaderboard.list.length === 0 ? (
+                <div style={{textAlign:'center',padding:'16px',color:'var(--text-dim)',fontSize:'12px'}}>이번 주 발송된 일지가 없어요</div>
+              ) : leaderboard.list.map((t, i) => (
+                <div key={i} style={{
+                  display:'flex',alignItems:'center',gap:'12px',
+                  padding:'10px 14px',borderRadius:'10px',marginBottom:'6px',
+                  background: t.isMe ? 'rgba(200,241,53,0.07)' : 'var(--surface)',
+                  border:`1px solid ${t.isMe ? 'rgba(200,241,53,0.3)' : 'var(--border)'}`,
+                }}>
+                  <div style={{fontSize:'14px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:i===0?'#facc15':i===1?'#9ca3af':i===2?'#fb923c':'var(--text-dim)',width:'20px',textAlign:'center',flexShrink:0}}>
+                    {i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}`}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:'13px',fontWeight:t.isMe?700:500,color:t.isMe?'var(--accent)':'var(--text)'}}>
+                      {t.name}{t.isMe ? ' (나)' : ''}
+                    </div>
+                    <div style={{marginTop:'4px',height:'3px',background:'var(--surface2)',borderRadius:'2px',overflow:'hidden'}}>
+                      <div style={{height:'100%',background:t.isMe?'var(--accent)':'#60a5fa',borderRadius:'2px',
+                        width:(leaderboard.list[0]?.logCount>0 ? Math.round(t.logCount/leaderboard.list[0].logCount*100) : 0)+'%'}} />
+                    </div>
+                  </div>
+                  <div style={{textAlign:'right',flexShrink:0}}>
+                    <div style={{fontSize:'14px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'var(--text)'}}>{t.logCount}<span style={{fontSize:'10px',fontWeight:400,color:'var(--text-dim)'}}> 건</span></div>
+                    <div style={{fontSize:'10px',color:t.readRate>=70?'#4ade80':t.readRate>=40?'#facc15':'var(--text-dim)',marginTop:'1px'}}>열람 {t.readRate}%</div>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+          {!lbLoading && !leaderboard && (
+            <div style={{textAlign:'center',padding:'20px',color:'var(--text-dim)',fontSize:'12px'}}>데이터를 불러올 수 없어요</div>
+          )}
+
+          {/* ── 로그아웃 ── */}
+          <div style={{marginTop:'32px'}}>
+            <button
+              onClick={() => {
+                if (window.confirm('로그아웃 하시겠습니까?')) {
+                  setTrainer(null)
+                  setMembers([])
+                  setLogs([])
+                  setScreen('landing')
+                }
+              }}
+              style={{
+                width:'100%',padding:'13px',borderRadius:'12px',
+                border:'1px solid rgba(239,68,68,0.3)',
+                background:'rgba(239,68,68,0.06)',
+                color:'#ef4444',fontSize:'14px',fontWeight:700,
+                cursor:'pointer',fontFamily:'inherit',
+              }}
+            >
+              로그아웃
+            </button>
+          </div>
+        </div>
       )}
 
       {/* ADD MEMBER */}
