@@ -855,9 +855,15 @@ export default function MemberPortal() {
           {!memberLogs.length && <div className="empty">아직 수업일지가 없어요.<br/>첫 수업 후에 확인해보세요!</div>}
           {memberLogs.map((l,i) => {
             const d = new Date(l.created_at); const isOpen = openLogIdx === i
+            const markRead = async () => {
+              if (!l.read_at) {
+                await supabase.from('logs').update({ read_at: new Date().toISOString() }).eq('id', l.id)
+                setMemberLogs(prev => prev.map((x,j) => j===i ? {...x, read_at: new Date().toISOString()} : x))
+              }
+            }
             return (
               <div key={l.id} className="m-log-item">
-                <div className="m-log-item-header" onClick={()=>setOpenLogIdx(isOpen?null:i)}>
+                <div className="m-log-item-header" onClick={()=>{ setOpenLogIdx(isOpen?null:i); if(!isOpen) markRead() }}>
                   <div><div style={{fontSize:'14px',fontWeight:500,marginBottom:'2px'}}>{d.toLocaleDateString('ko-KR',{month:'long',day:'numeric'})}</div><div className="m-log-item-date">{d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}</div></div>
                   <div style={{display:'flex',alignItems:'center',gap:'8px'}}><span className="m-log-session">{l.session_number}회차</span><span className={`chevron${isOpen?' open':''}`}>▼</span></div>
                 </div>
