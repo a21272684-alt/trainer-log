@@ -1500,6 +1500,7 @@ export default function TrainerApp() {
   const [memberSort, setMemberSort] = useState('created') // 'name' | 'created' | 'expire'
   const [memberSearch, setMemberSearch] = useState('')
   const [showRiskInfo, setShowRiskInfo] = useState(false)
+  const [showReadModal, setShowReadModal] = useState(false)
 
   // Add member form
   const [addForm, setAddForm] = useState({name:'',kakao_phone:'',phone:'',birthdate:'',address:'',email:'',special_notes:'',purpose:'체형교정',visit_source:'',visit_source_memo:'',total:'',done:'0',price:'',memo:''})
@@ -2489,7 +2490,31 @@ export default function TrainerApp() {
       {/* MEMBERS LIST */}
       {activePage === 'page-members' && (
         <div className="page-t">
-          <div style={{marginBottom:'10px'}}><button className="btn btn-primary" style={{width:'100%'}} onClick={()=>{setAddForm({name:'',kakao_phone:'',phone:'',birthdate:'',address:'',email:'',special_notes:'',purpose:'체형교정',visit_source:'',visit_source_memo:'',total:'',done:'0',price:'',memo:''});setActivePage('page-add-member')}}>+ 회원 추가</button></div>
+          <div style={{display:'flex',gap:'8px',marginBottom:'10px'}}>
+            <button className="btn btn-primary" style={{flex:1}} onClick={()=>{setAddForm({name:'',kakao_phone:'',phone:'',birthdate:'',address:'',email:'',special_notes:'',purpose:'체형교정',visit_source:'',visit_source_memo:'',total:'',done:'0',price:'',memo:''});setActivePage('page-add-member')}}>+ 회원 추가</button>
+            <button
+              onClick={() => setShowReadModal(true)}
+              title="일지 확인 현황"
+              style={{
+                position:'relative',flexShrink:0,width:'44px',height:'44px',
+                border:'1px solid var(--border)',borderRadius:'10px',
+                background:'var(--surface2)',cursor:'pointer',fontSize:'20px',
+                display:'flex',alignItems:'center',justifyContent:'center',
+              }}
+            >
+              ✅
+              {(() => {
+                const unread = logs.filter(l => !l.read_at).length
+                return unread > 0 ? (
+                  <span style={{
+                    position:'absolute',top:'-6px',right:'-6px',
+                    background:'#ef4444',color:'#fff',borderRadius:'10px',
+                    fontSize:'10px',fontWeight:700,padding:'1px 5px',minWidth:'16px',textAlign:'center',lineHeight:'16px',
+                  }}>{unread}</span>
+                ) : null
+              })()}
+            </button>
+          </div>
           {members.length > 0 && (() => {
             // 상태 계산
             function getStatus(m) {
@@ -2744,7 +2769,13 @@ export default function TrainerApp() {
             const m = members.find(x=>x.id===l.member_id)
             return (
               <div key={l.id} className="history-item">
-                <div className="history-date">{ds} · {m?m.name:'회원'} · {l.session_number}회차</div>
+                <div className="history-date" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span>{ds} · {m?m.name:'회원'} · {l.session_number}회차</span>
+                  {l.read_at
+                    ? <span style={{fontSize:'10px',color:'#4ade80',fontWeight:600,flexShrink:0,marginLeft:'8px'}}>✅ {new Date(l.read_at).toLocaleDateString('ko-KR',{month:'short',day:'numeric'})} 확인</span>
+                    : <span style={{fontSize:'10px',color:'#9ca3af',flexShrink:0,marginLeft:'8px'}}>⏳ 미확인</span>
+                  }
+                </div>
                 <div className="history-preview">{l.content?.substring(0,120)}...</div>
               </div>
             )
@@ -3640,6 +3671,77 @@ export default function TrainerApp() {
       </Modal>
 
       {/* SETTINGS MODAL */}
+      {/* 일지 확인 현황 모달 */}
+      <Modal open={showReadModal} onClose={()=>setShowReadModal(false)} title="✅ 일지 확인 현황">
+        {(() => {
+          const readLogs   = logs.filter(l => l.read_at)
+          const unreadLogs = logs.filter(l => !l.read_at)
+          const fmt = (str) => {
+            const d = new Date(str)
+            return d.toLocaleDateString('ko-KR',{month:'short',day:'numeric'}) + ' ' + d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})
+          }
+          return (
+            <div>
+              {/* 요약 */}
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'16px'}}>
+                <div style={{background:'rgba(74,222,128,0.1)',border:'1px solid rgba(74,222,128,0.3)',borderRadius:'10px',padding:'12px',textAlign:'center'}}>
+                  <div style={{fontSize:'24px',fontWeight:800,color:'#4ade80'}}>{readLogs.length}</div>
+                  <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'2px'}}>확인 완료</div>
+                </div>
+                <div style={{background:'rgba(239,68,68,0.08)',border:'1px solid rgba(239,68,68,0.25)',borderRadius:'10px',padding:'12px',textAlign:'center'}}>
+                  <div style={{fontSize:'24px',fontWeight:800,color:'#ef4444'}}>{unreadLogs.length}</div>
+                  <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'2px'}}>미확인</div>
+                </div>
+              </div>
+
+              {/* 미확인 목록 */}
+              {unreadLogs.length > 0 && (
+                <>
+                  <div style={{fontSize:'11px',fontWeight:700,color:'#ef4444',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'0.05em'}}>⏳ 미확인</div>
+                  {unreadLogs.map(l => {
+                    const mem = members.find(x=>x.id===l.member_id)
+                    return (
+                      <div key={l.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:'var(--surface2)',borderRadius:'8px',marginBottom:'4px'}}>
+                        <div>
+                          <span style={{fontSize:'13px',fontWeight:700}}>{mem?.name || '회원'}</span>
+                          <span style={{fontSize:'11px',color:'var(--text-dim)',marginLeft:'6px'}}>{l.session_number}회차</span>
+                        </div>
+                        <div style={{fontSize:'11px',color:'var(--text-dim)'}}>{fmt(l.created_at)}</div>
+                      </div>
+                    )
+                  })}
+                  <div style={{height:'12px'}}/>
+                </>
+              )}
+
+              {/* 확인 완료 목록 */}
+              {readLogs.length > 0 && (
+                <>
+                  <div style={{fontSize:'11px',fontWeight:700,color:'#4ade80',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'0.05em'}}>✅ 확인 완료</div>
+                  {readLogs.map(l => {
+                    const mem = members.find(x=>x.id===l.member_id)
+                    return (
+                      <div key={l.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:'var(--surface2)',borderRadius:'8px',marginBottom:'4px'}}>
+                        <div>
+                          <span style={{fontSize:'13px',fontWeight:700}}>{mem?.name || '회원'}</span>
+                          <span style={{fontSize:'11px',color:'var(--text-dim)',marginLeft:'6px'}}>{l.session_number}회차</span>
+                        </div>
+                        <div style={{textAlign:'right'}}>
+                          <div style={{fontSize:'10px',color:'#4ade80',fontWeight:600}}>확인</div>
+                          <div style={{fontSize:'10px',color:'var(--text-dim)'}}>{fmt(l.read_at)}</div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </>
+              )}
+
+              {!logs.length && <div className="empty"><p>아직 발송한 일지가 없어요</p></div>}
+            </div>
+          )
+        })()}
+      </Modal>
+
       <Modal open={settingsModal} onClose={()=>setSettingsModal(false)} title="설정">
         <div className="form-group"><label>트레이너 이름</label><input type="text" value={trainer?.name||''} readOnly style={{opacity:0.6}} /></div>
         <div className="divider"></div>
