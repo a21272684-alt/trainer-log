@@ -3258,40 +3258,18 @@ export default function TrainerApp() {
             ))}
           </div>
 
-          {/* ── 이번 주 전체 열람률 (단독 카드) ── */}
-          <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',letterSpacing:'0.08em',marginBottom:'10px'}}>📊 이번 주 전체 일지 열람률</div>
-          {lbLoading && <div style={{textAlign:'center',padding:'16px',color:'var(--text-dim)',fontSize:'12px'}}>불러오는 중...</div>}
-          {!lbLoading && leaderboard && (
-            <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'14px',padding:'16px',marginBottom:'24px'}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
-                <div style={{fontSize:'36px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'var(--accent)',lineHeight:1}}>
-                  {leaderboard.overallRate}<span style={{fontSize:'18px'}}>%</span>
-                </div>
-                <div style={{textAlign:'right'}}>
-                  <div style={{fontSize:'12px',color:'var(--text-muted)'}}>발송 <span style={{color:'var(--text)',fontWeight:600}}>{leaderboard.totalLogs}건</span></div>
-                  <div style={{fontSize:'12px',color:'var(--text-muted)',marginTop:'3px'}}>열람 <span style={{color:'#4ade80',fontWeight:600}}>{leaderboard.totalRead}건</span></div>
-                </div>
-              </div>
-              <div style={{height:'6px',background:'var(--surface2)',borderRadius:'3px',overflow:'hidden'}}>
-                <div style={{height:'100%',background:'var(--accent)',borderRadius:'3px',width:leaderboard.overallRate+'%',transition:'width 0.6s ease'}} />
-              </div>
-            </div>
-          )}
-
-          {/* ── 주간 리더보드 ── */}
+          {/* ════════════════════════════════════
+               🏆 이번 주 일지 발송 리더보드
+          ════════════════════════════════════ */}
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
             <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',letterSpacing:'0.08em'}}>🏆 이번 주 일지 발송 리더보드</div>
             <button onClick={loadLeaderboard} style={{fontSize:'11px',color:'var(--text-dim)',background:'none',border:'none',cursor:'pointer',padding:'2px 6px'}}>↻ 새로고침</button>
           </div>
-
-          {lbLoading && (
-            <div style={{textAlign:'center',padding:'20px',color:'var(--text-dim)',fontSize:'12px'}}>불러오는 중...</div>
-          )}
+          {lbLoading && <div style={{textAlign:'center',padding:'20px',color:'var(--text-dim)',fontSize:'12px'}}>불러오는 중...</div>}
           {!lbLoading && leaderboard && (
-            <>
-              {leaderboard.list.length === 0 ? (
-                <div style={{textAlign:'center',padding:'16px',color:'var(--text-dim)',fontSize:'12px'}}>이번 주 발송된 일지가 없어요</div>
-              ) : leaderboard.list.map((t, i) => (
+            leaderboard.list.length === 0
+              ? <div style={{textAlign:'center',padding:'16px',color:'var(--text-dim)',fontSize:'12px'}}>이번 주 발송된 일지가 없어요</div>
+              : leaderboard.list.map((t, i) => (
                 <div key={i} style={{
                   display:'flex',alignItems:'center',gap:'12px',
                   padding:'10px 14px',borderRadius:'10px',marginBottom:'6px',
@@ -3315,8 +3293,38 @@ export default function TrainerApp() {
                     <div style={{fontSize:'10px',color:t.readRate>=70?'#4ade80':t.readRate>=40?'#facc15':'var(--text-dim)',marginTop:'1px'}}>열람 {t.readRate}%</div>
                   </div>
                 </div>
-              ))}
-            </>
+              ))
+          )}
+          {!lbLoading && !leaderboard && (
+            <div style={{textAlign:'center',padding:'20px',color:'var(--text-dim)',fontSize:'12px'}}>데이터를 불러올 수 없어요</div>
+          )}
+
+          {/* 섹션 구분선 */}
+          <div style={{margin:'28px 0',height:'1px',background:'var(--border)'}} />
+
+          {/* ════════════════════════════════════
+               📊 이번 주 전체 일지 열람률
+          ════════════════════════════════════ */}
+          <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',letterSpacing:'0.08em',marginBottom:'10px'}}>📊 이번 주 전체 일지 열람률</div>
+          {lbLoading && <div style={{textAlign:'center',padding:'16px',color:'var(--text-dim)',fontSize:'12px'}}>불러오는 중...</div>}
+          {!lbLoading && leaderboard && (
+            <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'14px',padding:'20px'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'14px'}}>
+                <div style={{fontSize:'42px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'var(--accent)',lineHeight:1}}>
+                  {leaderboard.overallRate}<span style={{fontSize:'20px'}}>%</span>
+                </div>
+                <div style={{textAlign:'right',display:'flex',flexDirection:'column',gap:'6px'}}>
+                  <div style={{fontSize:'12px',color:'var(--text-muted)'}}>총 발송 <span style={{color:'var(--text)',fontWeight:700}}>{leaderboard.totalLogs}건</span></div>
+                  <div style={{fontSize:'12px',color:'var(--text-muted)'}}>열람 완료 <span style={{color:'#4ade80',fontWeight:700}}>{leaderboard.totalRead}건</span></div>
+                  <div style={{fontSize:'12px',color:'var(--text-muted)'}}>미열람 <span style={{color:'#f87171',fontWeight:700}}>{leaderboard.totalLogs - leaderboard.totalRead}건</span></div>
+                </div>
+              </div>
+              <div style={{height:'8px',background:'var(--surface2)',borderRadius:'4px',overflow:'hidden'}}>
+                <div style={{height:'100%',background:'linear-gradient(90deg,var(--accent),#4ade80)',borderRadius:'4px',
+                  width:leaderboard.overallRate+'%',transition:'width 0.6s ease'}} />
+              </div>
+              <div style={{marginTop:'8px',fontSize:'11px',color:'var(--text-dim)'}}>이번 주 월요일 기준 · 전체 트레이너 합산</div>
+            </div>
           )}
           {!lbLoading && !leaderboard && (
             <div style={{textAlign:'center',padding:'20px',color:'var(--text-dim)',fontSize:'12px'}}>데이터를 불러올 수 없어요</div>
