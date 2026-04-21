@@ -1537,6 +1537,7 @@ export default function TrainerApp() {
   const [showRiskInfo, setShowRiskInfo] = useState(false)
   const [showReadModal, setShowReadModal] = useState(false)
   const [expandedLogId, setExpandedLogId] = useState(null)
+  const [historyDateFilter, setHistoryDateFilter] = useState('')
 
   // Settings tab — leaderboard
   const [leaderboard, setLeaderboard] = useState(null)
@@ -3018,8 +3019,50 @@ export default function TrainerApp() {
       {/* HISTORY */}
       {activePage === 'page-history' && (
         <div className="page-t">
-          {!logs.length && <div className="empty"><div style={{fontSize:'36px',marginBottom:'12px'}}>📋</div><p>발송한 수업일지가 없어요.</p></div>}
-          {logs.map(l => {
+          {/* 날짜 필터 바 */}
+          <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'12px'}}>
+            <div style={{flex:1,position:'relative'}}>
+              <span style={{position:'absolute',left:'11px',top:'50%',transform:'translateY(-50%)',fontSize:'15px',pointerEvents:'none'}}>📅</span>
+              <input
+                type="date"
+                value={historyDateFilter}
+                onChange={e=>{ setHistoryDateFilter(e.target.value); setExpandedLogId(null) }}
+                style={{width:'100%',padding:'9px 36px 9px 36px',borderRadius:'10px',
+                  border:'1px solid '+(historyDateFilter?'var(--accent)':'var(--border)'),
+                  background: historyDateFilter?'rgba(200,241,53,0.06)':'var(--surface)',
+                  color: historyDateFilter?'var(--accent)':'var(--text-muted)',
+                  fontSize:'13px',fontFamily:'inherit',boxSizing:'border-box',cursor:'pointer'}}
+              />
+              {historyDateFilter && (
+                <button onClick={()=>{setHistoryDateFilter('');setExpandedLogId(null)}}
+                  style={{position:'absolute',right:'10px',top:'50%',transform:'translateY(-50%)',
+                    background:'none',border:'none',color:'var(--text-dim)',cursor:'pointer',fontSize:'17px',lineHeight:1,padding:0}}>
+                  ×
+                </button>
+              )}
+            </div>
+            {historyDateFilter && (
+              <div style={{fontSize:'11px',color:'var(--accent)',whiteSpace:'nowrap',fontWeight:600}}>
+                {logs.filter(l=>new Date(l.created_at).toISOString().slice(0,10)===historyDateFilter).length}건
+              </div>
+            )}
+          </div>
+
+          {/* 일지 목록 */}
+          {(() => {
+            const filtered = historyDateFilter
+              ? logs.filter(l => new Date(l.created_at).toISOString().slice(0,10) === historyDateFilter)
+              : logs
+            if (!logs.length) return <div className="empty"><div style={{fontSize:'36px',marginBottom:'12px'}}>📋</div><p>발송한 수업일지가 없어요.</p></div>
+            if (historyDateFilter && !filtered.length) return (
+              <div className="empty">
+                <div style={{fontSize:'32px',marginBottom:'10px'}}>🗓</div>
+                <p style={{color:'var(--text-muted)'}}>
+                  {new Date(historyDateFilter+'T00:00:00').toLocaleDateString('ko-KR',{month:'long',day:'numeric'})}에 발송된 일지가 없어요
+                </p>
+              </div>
+            )
+            return filtered.map(l => {
             const d = new Date(l.created_at)
             const dateStr = d.toLocaleDateString('ko-KR',{month:'short',day:'numeric'})
             const timeStr = d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})
@@ -3074,7 +3117,8 @@ export default function TrainerApp() {
                 )}
               </div>
             )
-          })}
+          })
+          })()}
         </div>
       )}
 
