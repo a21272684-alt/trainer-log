@@ -1548,6 +1548,10 @@ export default function TrainerApp() {
   // Revenue tab — 회원별 결제 검색
   const [revMemberSearch, setRevMemberSearch] = useState('')
 
+  // Settings — profile photo upload
+  const [profileUploading, setProfileUploading] = useState(false)
+  const profileInputRef = useRef(null)
+
   // Revenue tab — 월별 총 결제액
   const [payMonthStr, setPayMonthStr] = useState(() => {
     const n = new Date()
@@ -1713,6 +1717,69 @@ export default function TrainerApp() {
   }
 
   const currentMember = members.find(m => m.id === currentMemberId)
+
+  async function uploadProfilePhoto(file) {
+    if (!file || !trainer) return
+    const MAX_MB = 5
+    if (file.size > MAX_MB * 1024 * 1024) { showToast(`사진은 ${MAX_MB}MB 이하로 업로드해주세요`); return }
+
+    // 지원하는 이미지 형식 확인
+    const allowedTypes = ['image/jpeg','image/jpg','image/png','image/webp','image/gif']
+    if (!allowedTypes.includes(file.type)) {
+      showToast('JPG, PNG, WebP, GIF 형식만 업로드할 수 있어요')
+      return
+    }
+
+    setProfileUploading(true)
+    try {
+      const ext = file.name.split('.').pop().toLowerCase() || 'jpg'
+      const path = `trainer_${trainer.id}_${Date.now()}.${ext}`
+
+      // Storage 업로드
+      const { error: upErr } = await supabase.storage
+        .from('trainer-photos')
+        .upload(path, file, { upsert: true, contentType: file.type })
+
+      if (upErr) {
+        if (upErr.message?.includes('Bucket not found') || upErr.statusCode === 400) {
+          throw new Error('스토리지 버킷이 준비되지 않았어요.\n\nSupabase SQL Editor에서 033_trainer_profile.sql을 실행해주세요.')
+        }
+        throw upErr
+      }
+
+      const { data: urlData } = supabase.storage.from('trainer-photos').getPublicUrl(path)
+      const publicUrl = urlData?.publicUrl
+      if (!publicUrl) throw new Error('URL 생성에 실패했어요')
+
+      // DB 업데이트
+      const { error: dbErr } = await supabase.from('trainers')
+        .update({ profile_photo_url: publicUrl })
+        .eq('id', trainer.id)
+
+      if (dbErr) {
+        if (dbErr.message?.includes('column') && dbErr.message?.includes('profile_photo_url')) {
+          throw new Error('DB 컬럼이 없어요.\n\nSupabase SQL Editor에서 033_trainer_profile.sql을 실행해주세요.')
+        }
+        throw dbErr
+      }
+
+      setTrainer(prev => ({ ...prev, profile_photo_url: publicUrl }))
+      showToast('✓ 프로필 사진이 업데이트됐어요')
+    } catch(e) {
+      console.error('프로필 업로드 오류:', e)
+      showToast('업로드 실패: ' + (e.message || '알 수 없는 오류'))
+    }
+    setProfileUploading(false)
+  }
+
+  async function removeProfilePhoto() {
+    if (!trainer) return
+    try {
+      await supabase.from('trainers').update({ profile_photo_url: null }).eq('id', trainer.id)
+      setTrainer(prev => ({ ...prev, profile_photo_url: null }))
+      showToast('✓ 프로필 사진이 삭제됐어요')
+    } catch(e) { showToast('삭제 실패: ' + e.message) }
+  }
 
   async function login() {
     if (!loginName || !loginPhone) { showToast('이름과 전화번호를 입력해주세요'); return }
@@ -2597,7 +2664,7 @@ export default function TrainerApp() {
   // === TRAINER LANDING SCREEN ===
   if (screen === 'landing') {
     const FEATURES = [
-      { icon:'✦', title:'AI 수업일지 자동 생성', desc:'녹음 업로드 → AI 분석 → 카카오 발송까지 자동' },
+      { icon:'✦', title:'AI 수업일지 자동 생성', desc:'녹음 업로드 → AI 분석 → 완성된 일지까지 자동' },
       { icon:'👥', title:'회원 관리 올인원', desc:'결제·정지·방문경로·상태 배지까지 한 곳에' },
       { icon:'📅', title:'주간 스케줄', desc:'수업·개인 일정 블록 관리, 수업 전 푸시 알림' },
       { icon:'📊', title:'매출 자동 분석', desc:'세션 단가 기반 수익 & 잔존가치 실시간 계산' },
@@ -2605,86 +2672,80 @@ export default function TrainerApp() {
       { icon:'🔔', title:'브라우저 종료 알림', desc:'VAPID 푸시로 앱 닫아도 수업 알림 수신' },
     ]
     return (
-      <div style={{background:'#0a0f1a',color:'#fff',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden'}}>
-        {/* 배경 글로우 */}
-        <div style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:0,overflow:'hidden'}}>
-          <div style={{position:'absolute',top:'-10%',left:'-10%',width:'600px',height:'500px',
-            background:'radial-gradient(ellipse,rgba(200,241,53,0.06) 0%,transparent 65%)'}}/>
-          <div style={{position:'absolute',bottom:'10%',right:'-10%',width:'500px',height:'400px',
-            background:'radial-gradient(ellipse,rgba(132,204,22,0.04) 0%,transparent 65%)'}}/>
+      <div style={{background:'#F7F8F4',color:'#111827',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden'}}>
+
+        {/* ── 상단 네비바 ── */}
+        <div style={{background:'#fff',borderBottom:'1px solid #E1E4D9',padding:'14px 24px',
+          display:'flex',alignItems:'center',justifyContent:'space-between',
+          boxShadow:'0 1px 8px rgba(0,0,0,0.05)',position:'sticky',top:0,zIndex:10}}>
+          <div style={{fontSize:'17px',fontWeight:900,letterSpacing:'-0.5px',color:'#111'}}>
+            TRAINER<span style={{background:'#c8f135',color:'#111',padding:'1px 7px',borderRadius:'5px',marginLeft:'2px'}}>LOG</span>
+          </div>
+          <Link to="/" style={{fontSize:'12px',color:'#9CA3AF',textDecoration:'none',fontWeight:500}}>← 메인으로</Link>
         </div>
 
-        {/* 상단 바 */}
-        <div style={{position:'relative',zIndex:1,padding:'20px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
-          <div style={{fontSize:'17px',fontWeight:900,letterSpacing:'-1px'}}>TRAINER<span style={{color:'#c8f135'}}>LOG</span></div>
-          <Link to="/" style={{fontSize:'12px',color:'rgba(255,255,255,0.4)',textDecoration:'none'}}>← 메인으로</Link>
-        </div>
-
-        <div style={{position:'relative',zIndex:1,maxWidth:'640px',margin:'0 auto',padding:'48px 24px 80px'}}>
-          {/* 히어로 */}
-          <div style={{textAlign:'center',marginBottom:'52px'}}>
-            <div style={{display:'inline-block',fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',
-              color:'#c8f135',background:'rgba(200,241,53,0.1)',padding:'5px 14px',borderRadius:'20px',
-              border:'1px solid rgba(200,241,53,0.25)',marginBottom:'20px'}}>
+        {/* ── 히어로 ── */}
+        <div style={{background:'#fff',borderBottom:'1px solid #E1E4D9',padding:'52px 24px 48px',textAlign:'center'}}>
+          <div style={{maxWidth:'480px',margin:'0 auto'}}>
+            <div style={{display:'inline-flex',alignItems:'center',gap:'6px',fontSize:'11px',fontWeight:700,
+              letterSpacing:'0.13em',color:'#4d7c0f',background:'rgba(200,241,53,0.2)',padding:'5px 14px',
+              borderRadius:'20px',border:'1px solid rgba(200,241,53,0.45)',marginBottom:'22px'}}>
+              <span style={{width:'6px',height:'6px',borderRadius:'50%',background:'#84cc16',display:'inline-block'}}/>
               TRAINER APP
             </div>
-            <h1 style={{fontSize:'clamp(32px,7vw,52px)',fontWeight:900,letterSpacing:'-2px',lineHeight:1.05,margin:'0 0 16px'}}>
-              트레이너의 모든 것<br/><span style={{color:'#c8f135'}}>하나로 연결</span>
+            <h1 style={{fontSize:'clamp(30px,7vw,48px)',fontWeight:900,letterSpacing:'-2px',lineHeight:1.08,
+              color:'#111827',margin:'0 0 16px'}}>
+              트레이너의 모든 것<br/>
+              <span style={{color:'#4d7c0f',background:'rgba(200,241,53,0.18)',padding:'2px 12px',borderRadius:'10px'}}>하나로 연결</span>
             </h1>
-            <p style={{fontSize:'14px',color:'rgba(255,255,255,0.55)',lineHeight:1.85,maxWidth:'360px',margin:'0 auto 36px'}}>
+            <p style={{fontSize:'14px',color:'#6B7280',lineHeight:1.9,maxWidth:'340px',margin:'0 auto 32px'}}>
               AI 수업일지부터 매출 분석까지, 수업에만 집중할 수 있도록
               나머지는 TrainerLog가 처리합니다.
             </p>
             <button onClick={()=>setScreen('login')} style={{
-              background:'#c8f135',color:'#0a0f1a',padding:'15px 36px',borderRadius:'12px',
-              fontWeight:800,fontSize:'16px',border:'none',cursor:'pointer',
-              boxShadow:'0 4px 24px rgba(200,241,53,0.4)',letterSpacing:'-0.3px',
-              fontFamily:'inherit',marginBottom:'12px',display:'block',width:'100%',maxWidth:'320px',marginLeft:'auto',marginRight:'auto'}}>
+              background:'#c8f135',color:'#111',padding:'15px 36px',borderRadius:'12px',
+              fontWeight:800,fontSize:'15px',border:'none',cursor:'pointer',
+              boxShadow:'0 4px 20px rgba(200,241,53,0.42)',letterSpacing:'-0.3px',
+              fontFamily:'inherit',display:'block',width:'100%',maxWidth:'300px',
+              marginLeft:'auto',marginRight:'auto',marginBottom:'12px',transition:'all 0.2s'}}>
               트레이너 로그인 / 등록하기
             </button>
-            <p style={{fontSize:'12px',color:'rgba(255,255,255,0.3)',margin:0}}>이미 등록된 트레이너라면 바로 로그인하세요</p>
+            <p style={{fontSize:'12px',color:'#9CA3AF',margin:0}}>이미 등록된 트레이너라면 바로 로그인하세요</p>
           </div>
+        </div>
 
-          {/* 기능 그리드 */}
-          <div style={{marginBottom:'32px'}}>
-            <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.1em',color:'rgba(255,255,255,0.3)',
-              textAlign:'center',marginBottom:'20px'}}>핵심 기능 6가지</div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}}>
-              {FEATURES.map((f,i)=>(
-                <div key={i} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',
-                  borderRadius:'14px',padding:'18px',backdropFilter:'blur(8px)'}}>
-                  <div style={{fontSize:'22px',marginBottom:'8px'}}>{f.icon}</div>
-                  <div style={{fontSize:'13px',fontWeight:700,marginBottom:'5px',letterSpacing:'-0.2px'}}>{f.title}</div>
-                  <div style={{fontSize:'11px',color:'rgba(255,255,255,0.45)',lineHeight:1.6}}>{f.desc}</div>
-                </div>
-              ))}
-            </div>
+        {/* ── 기능 그리드 ── */}
+        <div style={{maxWidth:'640px',margin:'0 auto',padding:'40px 20px 60px'}}>
+          <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.1em',color:'#9CA3AF',
+            textAlign:'center',marginBottom:'20px'}}>핵심 기능 6가지</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'28px'}}>
+            {FEATURES.map((f,i)=>(
+              <div key={i} style={{background:'#fff',border:'1px solid #E1E4D9',
+                borderRadius:'14px',padding:'18px 16px',boxShadow:'0 1px 4px rgba(0,0,0,0.04)',
+                transition:'box-shadow 0.2s'}}>
+                <div style={{fontSize:'22px',marginBottom:'9px'}}>{f.icon}</div>
+                <div style={{fontSize:'13px',fontWeight:700,color:'#111827',marginBottom:'5px',letterSpacing:'-0.2px'}}>{f.title}</div>
+                <div style={{fontSize:'11px',color:'#6B7280',lineHeight:1.65}}>{f.desc}</div>
+              </div>
+            ))}
           </div>
 
           {/* AI 하이라이트 배너 */}
-          <div style={{background:'linear-gradient(135deg,rgba(200,241,53,0.08),rgba(132,204,22,0.04))',
-            border:'1px solid rgba(200,241,53,0.2)',borderRadius:'16px',padding:'24px',marginBottom:'32px'}}>
-            <div style={{fontSize:'12px',fontWeight:700,color:'#c8f135',letterSpacing:'0.08em',marginBottom:'10px'}}>✦ AI POWERED</div>
-            <div style={{fontSize:'15px',fontWeight:700,marginBottom:'8px',lineHeight:1.4}}>
+          <div style={{background:'linear-gradient(135deg,#f0fcd4,#ecfccb)',
+            border:'1px solid rgba(200,241,53,0.52)',borderRadius:'16px',padding:'24px',marginBottom:'12px'}}>
+            <div style={{fontSize:'12px',fontWeight:700,color:'#4d7c0f',letterSpacing:'0.08em',marginBottom:'10px'}}>✦ AI POWERED</div>
+            <div style={{fontSize:'15px',fontWeight:800,marginBottom:'10px',lineHeight:1.4,color:'#111827'}}>
               녹음 파일 하나로<br/>수업일지 완성 + 카카오 발송
             </div>
             <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
               {['녹음 업로드','AI 분석','일지 생성','카카오 발송'].map((s,i)=>(
                 <span key={i} style={{fontSize:'11px',padding:'4px 10px',borderRadius:'6px',
-                  background:'rgba(200,241,53,0.1)',color:'#c8f135',border:'1px solid rgba(200,241,53,0.2)'}}>
+                  background:'rgba(200,241,53,0.38)',color:'#4d7c0f',fontWeight:600}}>
                   {i+1}. {s}
                 </span>
               ))}
             </div>
           </div>
-
-          {/* CTA 하단 */}
-          <button onClick={()=>setScreen('login')} style={{
-            width:'100%',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.15)',
-            color:'#fff',padding:'14px',borderRadius:'12px',fontWeight:600,fontSize:'14px',
-            cursor:'pointer',fontFamily:'inherit'}}>
-            지금 시작하기 →
-          </button>
         </div>
       </div>
     )
@@ -2694,16 +2755,44 @@ export default function TrainerApp() {
   if (screen === 'login') {
     return (
       <div className="login-wrap">
-        <div className="login-card">
-          <div style={{fontSize:'26px',marginBottom:'10px'}}>💪</div>
-          <div className="login-title">TRAINER<span style={{color:'var(--accent)'}}>LOG</span></div>
-          <div className="login-sub">트레이너 전용 앱</div>
-          <div className="form-group"><label>이름</label><input type="text" value={loginName} onChange={e=>setLoginName(e.target.value)} placeholder="홍길동" /></div>
-          <div className="form-group"><label>전화번호 뒷 4자리</label><input type="password" value={loginPhone} onChange={e=>setLoginPhone(e.target.value)} placeholder="1234" maxLength={4} onKeyDown={e=>e.key==='Enter'&&login()} /></div>
-          <button className="btn btn-primary" style={{width:'100%',marginTop:'8px'}} onClick={login}>로그인</button>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:'14px'}}>
-            <span style={{fontSize:'12px',color:'var(--accent)',cursor:'pointer'}} onClick={()=>setScreen('reg')}>트레이너 등록 →</span>
-            <Link to="/" style={{fontSize:'12px',color:'var(--text-dim)',textDecoration:'none'}}>← 메인으로</Link>
+        <div style={{width:'100%',maxWidth:'400px'}}>
+          {/* 로고 + 카드 */}
+          <div style={{background:'#fff',border:'1px solid #E1E4D9',borderRadius:'22px',
+            padding:'40px 32px',boxShadow:'0 8px 40px rgba(0,0,0,0.08),0 1px 4px rgba(0,0,0,0.04)'}}>
+
+            {/* 로고 */}
+            <div style={{marginBottom:'28px'}}>
+              <div style={{fontSize:'22px',fontWeight:900,letterSpacing:'-0.5px',color:'#111',marginBottom:'6px'}}>
+                TRAINER<span style={{background:'#c8f135',color:'#111',padding:'1px 7px',borderRadius:'5px',marginLeft:'2px'}}>LOG</span>
+              </div>
+              <div style={{fontSize:'13px',color:'#6B7280'}}>트레이너 전용 앱에 오신 것을 환영해요</div>
+            </div>
+
+            <div className="form-group">
+              <label>이름</label>
+              <input type="text" value={loginName} onChange={e=>setLoginName(e.target.value)} placeholder="홍길동" />
+            </div>
+            <div className="form-group">
+              <label>전화번호 뒷 4자리</label>
+              <input type="password" value={loginPhone} onChange={e=>setLoginPhone(e.target.value)}
+                placeholder="1234" maxLength={4} onKeyDown={e=>e.key==='Enter'&&login()} />
+            </div>
+
+            <button className="btn btn-primary btn-full"
+              style={{marginTop:'4px',padding:'13px',fontSize:'14px'}} onClick={login}>
+              로그인
+            </button>
+
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:'18px'}}>
+              <span style={{fontSize:'13px',color:'#4d7c0f',cursor:'pointer',fontWeight:600}}
+                onClick={()=>setScreen('reg')}>트레이너 등록 →</span>
+              <Link to="/" style={{fontSize:'12px',color:'#9CA3AF',textDecoration:'none'}}>← 메인으로</Link>
+            </div>
+          </div>
+
+          <div style={{textAlign:'center',marginTop:'14px'}}>
+            <span style={{fontSize:'12px',color:'#9CA3AF',cursor:'pointer'}}
+              onClick={()=>setScreen('landing')}>앱 소개 보기</span>
           </div>
         </div>
       </div>
@@ -2713,17 +2802,46 @@ export default function TrainerApp() {
   if (screen === 'reg') {
     return (
       <div className="login-wrap">
-        <div className="login-card">
-          <div className="login-title">트레이너 등록</div>
-          <div className="login-sub">처음 한 번만 등록하세요</div>
-          <div className="form-group"><label>이름</label><input type="text" value={regName} onChange={e=>setRegName(e.target.value)} placeholder="홍길동" /></div>
-          <div className="form-group"><label>전화번호 뒷 4자리</label><input type="password" value={regPhone} onChange={e=>setRegPhone(e.target.value)} placeholder="1234" maxLength={4} /></div>
-          <div className="form-group">
-            <label>Gemini API 키 <a href="https://aistudio.google.com/app/apikey" target="_blank" style={{color:'var(--accent)',fontSize:'11px'}}>무료 발급</a></label>
-            <input type="text" value={regApi} onChange={e=>setRegApi(e.target.value)} placeholder="AIza..." />
+        <div style={{width:'100%',maxWidth:'400px'}}>
+          <div style={{background:'#fff',border:'1px solid #E1E4D9',borderRadius:'22px',
+            padding:'40px 32px',boxShadow:'0 8px 40px rgba(0,0,0,0.08),0 1px 4px rgba(0,0,0,0.04)'}}>
+
+            <div style={{marginBottom:'24px'}}>
+              <div style={{fontSize:'22px',fontWeight:900,letterSpacing:'-0.5px',color:'#111',marginBottom:'2px'}}>
+                TRAINER<span style={{background:'#c8f135',color:'#111',padding:'1px 7px',borderRadius:'5px',marginLeft:'2px'}}>LOG</span>
+              </div>
+              <div style={{fontSize:'18px',fontWeight:800,color:'#111',marginTop:'12px',marginBottom:'4px',letterSpacing:'-0.3px'}}>트레이너 등록</div>
+              <div style={{fontSize:'13px',color:'#6B7280'}}>처음 한 번만 등록하면 바로 시작할 수 있어요</div>
+            </div>
+
+            <div className="form-group">
+              <label>이름</label>
+              <input type="text" value={regName} onChange={e=>setRegName(e.target.value)} placeholder="홍길동" />
+            </div>
+            <div className="form-group">
+              <label>전화번호 뒷 4자리 <span style={{color:'#9CA3AF',fontWeight:400}}>(로그인 비밀번호로 사용)</span></label>
+              <input type="password" value={regPhone} onChange={e=>setRegPhone(e.target.value)} placeholder="1234" maxLength={4} />
+            </div>
+            <div className="form-group">
+              <label>
+                Gemini API 키&nbsp;
+                <a href="https://aistudio.google.com/app/apikey" target="_blank"
+                  style={{color:'#4d7c0f',fontSize:'11px',fontWeight:600,textDecoration:'none'}}>
+                  무료 발급 →
+                </a>
+              </label>
+              <input type="text" value={regApi} onChange={e=>setRegApi(e.target.value)} placeholder="AIza..." />
+            </div>
+
+            <button className="btn btn-primary btn-full"
+              style={{marginTop:'4px',padding:'13px',fontSize:'14px'}} onClick={register}>
+              등록 완료
+            </button>
+            <div style={{textAlign:'center',marginTop:'16px'}}>
+              <span style={{fontSize:'13px',color:'#4d7c0f',cursor:'pointer',fontWeight:600}}
+                onClick={()=>setScreen('login')}>← 로그인으로</span>
+            </div>
           </div>
-          <button className="btn btn-primary" style={{width:'100%',marginTop:'8px'}} onClick={register}>등록 완료</button>
-          <div style={{textAlign:'center',marginTop:'12px'}}><span style={{fontSize:'12px',color:'var(--accent)',cursor:'pointer'}} onClick={()=>setScreen('login')}>← 로그인으로</span></div>
         </div>
       </div>
     )
@@ -3196,15 +3314,55 @@ export default function TrainerApp() {
         <div className="page-t" style={{paddingBottom:'40px'}}>
 
           {/* ── 트레이너 정보 ── */}
-          <div style={{display:'flex',alignItems:'center',gap:'14px',padding:'16px',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'14px',marginBottom:'20px'}}>
-            <div style={{width:'46px',height:'46px',borderRadius:'50%',background:'var(--accent)',color:'#0f0f0f',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:'18px',flexShrink:0}}>
-              {trainer?.name?.[0] || 'T'}
+          <input ref={profileInputRef} type="file" accept="image/*" style={{display:'none'}}
+            onChange={e => { if (e.target.files?.[0]) uploadProfilePhoto(e.target.files[0]); e.target.value='' }} />
+
+          <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'14px',padding:'16px',marginBottom:'20px'}}>
+            {/* 상단 행: 아바타 + 이름/플랜 */}
+            <div style={{display:'flex',alignItems:'center',gap:'14px',marginBottom:'14px'}}>
+              {/* 프로필 아바타 */}
+              <div style={{position:'relative',flexShrink:0}}>
+                {trainer?.profile_photo_url ? (
+                  <img src={trainer.profile_photo_url} alt="프로필"
+                    style={{width:'56px',height:'56px',borderRadius:'50%',objectFit:'cover',border:'2px solid var(--accent)'}} />
+                ) : (
+                  <div style={{width:'56px',height:'56px',borderRadius:'50%',background:'var(--accent)',color:'#0f0f0f',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:'22px'}}>
+                    {trainer?.name?.[0] || 'T'}
+                  </div>
+                )}
+                {/* 카메라 뱃지 */}
+                <button onClick={() => profileInputRef.current?.click()} disabled={profileUploading}
+                  style={{position:'absolute',bottom:0,right:0,width:'20px',height:'20px',borderRadius:'50%',
+                    background:'var(--surface2)',border:'1px solid var(--border)',
+                    display:'flex',alignItems:'center',justifyContent:'center',
+                    cursor:'pointer',padding:0,fontSize:'11px'}}>
+                  {profileUploading ? '…' : '📷'}
+                </button>
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:'15px',fontWeight:700}}>{trainer?.name} 트레이너</div>
+                <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'2px'}}>TRAINERLOG 이용 중</div>
+              </div>
+              <div style={{fontSize:'11px',padding:'4px 10px',borderRadius:'20px',background:'rgba(200,241,53,0.12)',color:'var(--accent)',border:'1px solid rgba(200,241,53,0.3)',fontWeight:600,flexShrink:0}}>FREE</div>
             </div>
-            <div style={{flex:1}}>
-              <div style={{fontSize:'15px',fontWeight:700}}>{trainer?.name} 트레이너</div>
-              <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'2px'}}>TRAINERLOG 이용 중</div>
+
+            {/* 프로필 사진 버튼 행 */}
+            <div style={{display:'flex',gap:'8px'}}>
+              <button onClick={() => profileInputRef.current?.click()} disabled={profileUploading}
+                style={{flex:1,padding:'8px',borderRadius:'8px',border:'1px solid var(--border)',
+                  background:'var(--surface2)',color:'var(--text-muted)',fontSize:'12px',fontWeight:500,
+                  cursor:'pointer',fontFamily:'inherit',opacity:profileUploading?0.6:1}}>
+                {profileUploading ? '업로드 중…' : trainer?.profile_photo_url ? '📷 사진 변경' : '📷 사진 등록'}
+              </button>
+              {trainer?.profile_photo_url && (
+                <button onClick={removeProfilePhoto}
+                  style={{padding:'8px 12px',borderRadius:'8px',border:'1px solid rgba(239,68,68,0.3)',
+                    background:'rgba(239,68,68,0.06)',color:'#ef4444',fontSize:'12px',fontWeight:500,
+                    cursor:'pointer',fontFamily:'inherit'}}>
+                  삭제
+                </button>
+              )}
             </div>
-            <div style={{fontSize:'11px',padding:'4px 10px',borderRadius:'20px',background:'rgba(200,241,53,0.12)',color:'var(--accent)',border:'1px solid rgba(200,241,53,0.3)',fontWeight:600}}>FREE</div>
           </div>
 
           {/* ── 유료 플랜 ── */}
