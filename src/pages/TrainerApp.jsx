@@ -22,30 +22,45 @@ import {
 } from '../lib/ai_templates'
 
 // 통합 매출 내역 (revenue 탭용)
-function RevenuePaymentList({ trainerId, members }) {
+function RevenuePaymentList({ trainerId, members, refreshKey }) {
   const [list, setList] = useState(null)
-  useEffect(() => {
+  const [loading, setLoading] = useState(false)
+  const fetchList = () => {
     if (!trainerId) return
-    supabase.from('payments').select('*').eq('trainer_id', trainerId).order('paid_at', { ascending: false }).limit(50)
-      .then(({ data }) => setList(data || []))
-  }, [trainerId])
+    setLoading(true)
+    supabase.from('payments').select('*').eq('trainer_id', trainerId).order('paid_at', { ascending: false }).limit(100)
+      .then(({ data }) => { setList(data || []); setLoading(false) })
+  }
+  useEffect(() => { fetchList() }, [trainerId, refreshKey])
   if (!list) return <div style={{padding:'12px',color:'var(--text-dim)',fontSize:'13px'}}>불러오는 중...</div>
-  if (!list.length) return <div className="empty" style={{padding:'20px'}}><p>결제 내역이 없어요</p></div>
   const total = list.reduce((s,p) => s+p.amount, 0)
   return (
     <div>
-      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:'8px'}}>
-        <span style={{fontSize:'12px',color:'var(--text-muted)'}}>총 <span style={{color:'var(--accent)',fontWeight:700}}>{total.toLocaleString()}원</span></span>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:'8px',marginBottom:'8px'}}>
+        {loading && <span style={{fontSize:'11px',color:'var(--text-dim)'}}>새로고침 중...</span>}
+        <span style={{fontSize:'12px',color:'var(--text-muted)'}}>총 <span style={{color:'var(--accent)',fontWeight:700}}>{total.toLocaleString()}원</span> · {list.length}건</span>
       </div>
+      {!list.length && <div className="empty" style={{padding:'20px'}}><p>결제 내역이 없어요</p></div>}
       {list.map(p => {
         const mem = members.find(m => m.id === p.member_id)
         const d = new Date(p.paid_at).toLocaleDateString('ko-KR',{month:'short',day:'numeric'})
+        const METHOD_LABEL = {cash:'💵 현금',card:'💳 카드',transfer:'🏦 계좌이체',local_currency:'🪙 지역화폐',payments_app:'📱 페이먼츠'}
+        const methodLabel = METHOD_LABEL[p.payment_method] || ''
+        const methodDetail = p.payment_method_memo ? ` (${p.payment_method_memo})` : ''
         return (
           <div key={p.id} style={{display:'flex',alignItems:'center',gap:'10px',padding:'10px 12px',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'8px',marginBottom:'6px'}}>
             <div style={{width:'28px',height:'28px',borderRadius:'50%',background:'var(--accent)',color:'#0f0f0f',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:'12px',flexShrink:0}}>{mem?.name[0]||'?'}</div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:'13px',fontWeight:500}}>{mem?.name||'회원'} · {p.product_name}</div>
-              <div style={{fontSize:'11px',color:'var(--text-muted)'}}>{d} · {p.session_count}회{p.memo?' · '+p.memo:''}{p.tax_included?' (부가세포함)':''}</div>
+              <div style={{display:'flex',flexWrap:'wrap',alignItems:'center',gap:'4px',marginTop:'2px'}}>
+                {methodLabel && (
+                  <span style={{fontSize:'10px',fontWeight:600,padding:'1px 6px',borderRadius:'4px',
+                    background:'rgba(200,241,53,0.12)',color:'var(--accent-text)',border:'1px solid rgba(200,241,53,0.3)'}}>
+                    {methodLabel}{methodDetail}
+                  </span>
+                )}
+                <span style={{fontSize:'11px',color:'var(--text-muted)'}}>{d} · {p.session_count}회{p.memo?' · '+p.memo:''}{p.tax_included?' (부가세포함)':''}</span>
+              </div>
             </div>
             <div style={{fontSize:'14px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'var(--accent)',flexShrink:0}}>{p.amount.toLocaleString()}원</div>
           </div>
@@ -1559,6 +1574,7 @@ export default function TrainerApp() {
   })
   const [payMonthData, setPayMonthData] = useState(null)
   const [payMonthLoading, setPayMonthLoading] = useState(false)
+  const [revenueRefreshKey, setRevenueRefreshKey] = useState(0)
 
   // Add member form
   const [addForm, setAddForm] = useState({name:'',kakao_phone:'',phone:'',birthdate:'',address:'',email:'',special_notes:'',purpose:'체형교정',visit_source:'',visit_source_memo:'',total:'',done:'0',price:'',memo:''})
@@ -1569,6 +1585,8 @@ export default function TrainerApp() {
   const [editMemberModal, setEditMemberModal] = useState(false)
   const [editMemberForm, setEditMemberForm] = useState({})
   const [deleteConfirmModal, setDeleteConfirmModal] = useState(false)
+  const [sessionAdvOpen, setSessionAdvOpen] = useState(false)
+  const [sessionInfoOpen, setSessionInfoOpen] = useState(false)
 
   // Attendance
   const [attendanceDates, setAttendanceDates] = useState([]) // [{id, attended_date}]
@@ -1579,10 +1597,11 @@ export default function TrainerApp() {
   const [payments, setPayments] = useState([])
   const [paymentModal, setPaymentModal] = useState(false)
   const [paymentTab, setPaymentTab] = useState('pay') // 'pay' | 'products'
+  const [productManageModal, setProductManageModal] = useState(false)
   const [productFormModal, setProductFormModal] = useState(false)
   const [editingProductId, setEditingProductId] = useState(null)
   const [productForm, setProductForm] = useState({name:'',count:'',priceEx:'',priceIn:''})
-  const [paymentForm, setPaymentForm] = useState({productId:'',memo:'',customAmount:'',taxIncluded:false})
+  const [paymentForm, setPaymentForm] = useState({productId:'',memo:'',customAmount:'',taxIncluded:false,paymentMethod:'card',paymentMethodMemo:''})
   const [cancelPaymentTarget, setCancelPaymentTarget] = useState(null) // 취소 확인 대상 payment
 
   // Personal Workout Log
@@ -1919,7 +1938,7 @@ export default function TrainerApp() {
   async function saveProduct() {
     const f = productForm
     if (!f.name || !f.count) { showToast('상품명과 횟수를 입력해주세요'); return }
-    const payload = { trainer_id: trainer.id, name: f.name, session_count: parseInt(f.count)||0, price_excl_tax: parseInt(f.priceEx)||0, price_incl_tax: parseInt(f.priceIn)||0 }
+    const payload = { trainer_id: trainer.id, name: f.name, session_count: parseInt(f.count)||0, price_excl_tax: parseInt(f.priceEx)||0, price_incl_tax: parseInt(f.priceIn)||0, memo: f.memo||null }
     try {
       if (editingProductId) {
         await supabase.from('products').update(payload).eq('id', editingProductId)
@@ -1947,13 +1966,17 @@ export default function TrainerApp() {
         trainer_id: trainer.id, member_id: currentMemberId,
         product_id: prod.id, product_name: prod.name,
         session_count: prod.session_count, amount,
-        tax_included: f.taxIncluded, memo: f.memo
+        tax_included: f.taxIncluded, memo: f.memo,
+        payment_method: f.paymentMethod || 'card',
+        payment_method_memo: (['payments_app','local_currency'].includes(f.paymentMethod) && f.paymentMethodMemo) ? f.paymentMethodMemo : null
       })
       // 회원 total_sessions 업데이트
       const m = members.find(x => x.id === currentMemberId)
       await supabase.from('members').update({ total_sessions: (m?.total_sessions||0) + prod.session_count }).eq('id', currentMemberId)
       await loadMembers(); await loadPayments(currentMemberId)
-      setPaymentForm({productId:'',memo:'',taxIncluded:false})
+      setPaymentForm({productId:'',memo:'',taxIncluded:false,paymentMethod:'card',paymentMethodMemo:''})
+      setRevenueRefreshKey(k => k + 1)
+      loadMonthPayments(payMonthStr)
       showToast('✓ 결제가 등록됐어요')
     } catch(e) { showToast('오류: ' + e.message) }
   }
@@ -1964,6 +1987,8 @@ export default function TrainerApp() {
       const m = members.find(x => x.id === currentMemberId)
       await supabase.from('members').update({ total_sessions: Math.max(0,(m?.total_sessions||0) - payment.session_count) }).eq('id', currentMemberId)
       await loadMembers(); await loadPayments(currentMemberId)
+      setRevenueRefreshKey(k => k + 1)
+      loadMonthPayments(payMonthStr)
       showToast('결제가 취소됐어요')
     } catch(e) { showToast('오류: ' + e.message) }
   }
@@ -1999,21 +2024,24 @@ export default function TrainerApp() {
       // 회원 상태 정지 처리
       await supabase.from('members').update({ suspended: true }).eq('id', currentMemberId)
       await loadMembers(); await loadHolds(currentMemberId)
+      setEditMemberForm(prev => prev.id === currentMemberId ? {...prev, suspended: true} : prev)
       setHoldModal(false)
       showToast('✓ 정지(홀딩)가 등록됐어요')
     } catch(e) { showToast('오류: ' + e.message) }
   }
-  async function deleteHold(holdId) {
+  async function deleteHold(holdId, memberId) {
+    const mId = memberId || currentMemberId
     try {
       const { error: delErr } = await supabase.from('member_holds').delete().eq('id', holdId)
       if (delErr) throw delErr
       // 남은 홀딩 없으면 정지 해제
-      const { data: remaining } = await supabase.from('member_holds').select('id').eq('member_id', currentMemberId)
+      const { data: remaining } = await supabase.from('member_holds').select('id').eq('member_id', mId)
       if (!remaining?.length) {
-        await supabase.from('members').update({ suspended: false }).eq('id', currentMemberId)
+        await supabase.from('members').update({ suspended: false }).eq('id', mId)
         await loadMembers()
+        setEditMemberForm(prev => prev.id === mId ? {...prev, suspended: false} : prev)
       }
-      await loadHolds(currentMemberId)
+      await loadHolds(mId)
       showToast('정지가 해제됐어요')
     } catch(e) { showToast('오류: ' + e.message) }
   }
@@ -2077,6 +2105,9 @@ export default function TrainerApp() {
       price: String(m.session_price||0), memo: m.memo||'',
       suspended: m.suspended||false
     })
+    loadHolds(m.id)
+    setSessionAdvOpen(false)
+    setSessionInfoOpen(false)
     setEditMemberModal(true)
   }
 
@@ -2092,7 +2123,7 @@ export default function TrainerApp() {
         visit_source: f.visit_source || null, visit_source_memo: f.visit_source_memo || null,
         total_sessions: parseInt(f.total)||0,
         done_sessions: parseInt(f.done)||0, session_price: parseInt(f.price)||0,
-        memo: f.memo, suspended: f.suspended
+        memo: f.memo
       }).eq('id', f.id)
       await loadMembers()
       setEditMemberModal(false)
@@ -2451,10 +2482,36 @@ export default function TrainerApp() {
     const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate()
     const projectedMonth = dayOfMonth>0 ? Math.round(monthRevenue/dayOfMonth*daysInMonth) : 0
     // payments는 전체 로드가 필요하므로 revenuePayments state 사용 (없으면 빈 배열)
+    const handleRevenueRefresh = async () => {
+      setRevenueRefreshKey(k => k + 1)
+      await loadMonthPayments(payMonthStr)
+      await loadMembers()
+      await loadLogs()
+      showToast('✓ 매출 현황을 새로고침했어요')
+    }
     return (
       <div>
+        {/* 새로고침 버튼 */}
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'14px'}}>
+          <div className="section-label" style={{margin:0}}>전체 매출 현황</div>
+          <button
+            onClick={handleRevenueRefresh}
+            style={{
+              display:'flex',alignItems:'center',gap:'5px',
+              padding:'6px 14px',borderRadius:'10px',
+              border:'1px solid var(--border)',
+              background:'var(--surface)',
+              color:'var(--text-muted)',fontSize:'12px',fontWeight:600,
+              cursor:'pointer',fontFamily:'inherit',
+              transition:'all 0.15s',
+            }}
+            onMouseEnter={e=>{e.currentTarget.style.background='var(--surface2)';e.currentTarget.style.color='var(--text)'}}
+            onMouseLeave={e=>{e.currentTarget.style.background='var(--surface)';e.currentTarget.style.color='var(--text-muted)'}}
+          >
+            <span style={{fontSize:'13px'}}>🔄</span> 새로고침
+          </button>
+        </div>
         <div style={{marginBottom:'14px'}}>
-          <div className="section-label">전체 매출 현황</div>
           {(() => {
             const REV_ITEMS = [
               [weekRevenue,  '이번 주 소진된 매출',    weekLogs.length+'회 수업',          'var(--accent)', '이번 주 월요일 00:00부터 오늘까지 발송된 수업일지 수 × 각 회원의 세션 단가를 합산한 금액이에요.'],
@@ -2576,7 +2633,7 @@ export default function TrainerApp() {
         <SettlementBreakdown trainerId={trainer?.id} showToast={showToast} members={members} />
 
         <div className="section-label">통합 매출 내역</div>
-        <RevenuePaymentList trainerId={trainer?.id} members={members} />
+        <RevenuePaymentList trainerId={trainer?.id} members={members} refreshKey={revenueRefreshKey} />
 
         {/* 회원별 결제 관리 */}
         <div style={{marginTop:'24px',marginBottom:'12px'}}>
@@ -2584,7 +2641,7 @@ export default function TrainerApp() {
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
             <div className="section-label" style={{margin:0}}>회원별 결제 관리</div>
             <button
-              onClick={()=>{setEditingProductId(null);setProductForm({name:'',count:'',priceEx:'',priceIn:''});setProductFormModal(true)}}
+              onClick={()=>setProductManageModal(true)}
               style={{
                 padding:'8px 16px',borderRadius:'10px',border:'none',
                 background:'linear-gradient(135deg,#60a5fa,#818cf8)',
@@ -2649,7 +2706,7 @@ export default function TrainerApp() {
                   onOpenPayment={()=>{
                     setCurrentMemberId(m.id)
                     setPaymentTab('pay')
-                    setPaymentForm({productId:'',memo:'',taxIncluded:false})
+                    setPaymentForm({productId:'',memo:'',taxIncluded:false,paymentMethod:'card',paymentMethodMemo:''})
                     loadPayments(m.id)
                     setPaymentModal(true)
                   }} />
@@ -3986,6 +4043,72 @@ export default function TrainerApp() {
                 </div>
               ) : null
             })()}
+            {/* 결제 수단 선택 */}
+            <div className="form-group" style={{marginBottom:'8px'}}>
+              <label>결제 수단</label>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:'6px',marginTop:'4px'}}>
+                {[
+                  {value:'cash',     label:'💵',  name:'현금'},
+                  {value:'card',     label:'💳',  name:'카드'},
+                  {value:'transfer', label:'🏦',  name:'계좌\n이체'},
+                  {value:'local_currency', label:'🪙', name:'지역\n화폐'},
+                  {value:'payments_app',   label:'📱', name:'페이\n먼츠'},
+                ].map(m => (
+                  <button
+                    key={m.value}
+                    type="button"
+                    onClick={()=>setPaymentForm(f=>({...f,paymentMethod:m.value,paymentMethodMemo:''}))}
+                    style={{
+                      display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
+                      gap:'3px',padding:'10px 4px',borderRadius:'10px',
+                      border: paymentForm.paymentMethod===m.value
+                        ? '2px solid var(--accent-dim)'
+                        : '1px solid var(--border)',
+                      background: paymentForm.paymentMethod===m.value
+                        ? 'rgba(200,241,53,0.12)'
+                        : 'var(--surface2)',
+                      cursor:'pointer',fontFamily:'inherit',
+                      transition:'all 0.12s',
+                    }}
+                  >
+                    <span style={{fontSize:'18px',lineHeight:1}}>{m.label}</span>
+                    <span style={{
+                      fontSize:'9px',fontWeight:600,whiteSpace:'pre',textAlign:'center',lineHeight:1.3,
+                      color: paymentForm.paymentMethod===m.value ? 'var(--accent-text)' : 'var(--text-muted)',
+                    }}>{m.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* 페이먼츠 / 지역화폐 선택 시 상세 메모 입력란 */}
+            {(paymentForm.paymentMethod === 'payments_app' || paymentForm.paymentMethod === 'local_currency') && (
+              <div style={{
+                display:'flex',alignItems:'center',gap:'8px',
+                padding:'8px 12px',borderRadius:'8px',
+                background:'rgba(200,241,53,0.07)',
+                border:'1px solid rgba(200,241,53,0.25)',
+                marginBottom:'12px',
+              }}>
+                <span style={{fontSize:'13px',flexShrink:0}}>
+                  {paymentForm.paymentMethod === 'payments_app' ? '📱' : '🪙'}
+                </span>
+                <input
+                  type="text"
+                  value={paymentForm.paymentMethodMemo}
+                  onChange={e=>setPaymentForm(f=>({...f,paymentMethodMemo:e.target.value}))}
+                  placeholder={
+                    paymentForm.paymentMethod === 'payments_app'
+                      ? '결제 앱 종류 입력 (예: 카카오페이, 네이버페이...)'
+                      : '지역화폐 종류 입력 (예: 서울사랑상품권...)'
+                  }
+                  style={{
+                    flex:1,border:'none',background:'transparent',
+                    color:'var(--text)',fontSize:'12px',fontFamily:'inherit',
+                    outline:'none',
+                  }}
+                />
+              </div>
+            )}
             <div className="form-group">
               <label>메모 (선택)</label>
               <input type="text" value={paymentForm.memo} onChange={e=>setPaymentForm({...paymentForm,memo:e.target.value})} placeholder="특이사항, 할인 내용 등" />
@@ -3999,18 +4122,31 @@ export default function TrainerApp() {
           <div>
             {payments.length === 0
               ? <div className="empty"><p>결제 내역이 없어요</p></div>
-              : payments.map(p => (
-                <div key={p.id} style={{display:'flex',alignItems:'center',gap:'10px',padding:'10px 12px',background:'var(--surface2)',borderRadius:'8px',marginBottom:'8px'}}>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:'13px',fontWeight:500}}>{p.product_name}</div>
-                    <div style={{fontSize:'11px',color:'var(--text-muted)'}}>{new Date(p.paid_at).toLocaleDateString('ko-KR',{year:'numeric',month:'short',day:'numeric'})} · {p.session_count}회{p.tax_included?' · 부가세포함':''}{p.memo?' · '+p.memo:''}</div>
+              : payments.map(p => {
+                const METHOD_LABEL = {cash:'💵 현금',card:'💳 카드',transfer:'🏦 계좌이체',local_currency:'🪙 지역화폐',payments_app:'📱 페이먼츠'}
+                const methodLabel = METHOD_LABEL[p.payment_method] || (p.payment_method || '')
+                const methodDetail = p.payment_method_memo ? ` (${p.payment_method_memo})` : ''
+                return (
+                  <div key={p.id} style={{display:'flex',alignItems:'center',gap:'10px',padding:'10px 12px',background:'var(--surface2)',borderRadius:'8px',marginBottom:'8px'}}>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:'13px',fontWeight:500}}>{p.product_name}</div>
+                      <div style={{display:'flex',flexWrap:'wrap',alignItems:'center',gap:'4px',marginTop:'3px'}}>
+                        {methodLabel && (
+                          <span style={{fontSize:'10px',fontWeight:600,padding:'1px 7px',borderRadius:'5px',
+                            background:'rgba(200,241,53,0.12)',color:'var(--accent-text)',border:'1px solid rgba(200,241,53,0.3)'}}>
+                            {methodLabel}{methodDetail}
+                          </span>
+                        )}
+                        <span style={{fontSize:'11px',color:'var(--text-muted)'}}>{new Date(p.paid_at).toLocaleDateString('ko-KR',{year:'numeric',month:'short',day:'numeric'})} · {p.session_count}회{p.tax_included?' · 부가세포함':''}{p.memo?' · '+p.memo:''}</span>
+                      </div>
+                    </div>
+                    <div style={{textAlign:'right',flexShrink:0}}>
+                      <div style={{fontSize:'14px',fontWeight:700,color:'var(--accent)',fontFamily:"'DM Mono',monospace"}}>{p.amount.toLocaleString()}원</div>
+                      <button style={{fontSize:'10px',color:'var(--danger)',background:'none',border:'none',cursor:'pointer',padding:0}} onClick={()=>setCancelPaymentTarget(p)}>취소</button>
+                    </div>
                   </div>
-                  <div style={{textAlign:'right',flexShrink:0}}>
-                    <div style={{fontSize:'14px',fontWeight:700,color:'var(--accent)',fontFamily:"'DM Mono',monospace"}}>{p.amount.toLocaleString()}원</div>
-                    <button style={{fontSize:'10px',color:'var(--danger)',background:'none',border:'none',cursor:'pointer',padding:0}} onClick={()=>setCancelPaymentTarget(p)}>취소</button>
-                  </div>
-                </div>
-              ))
+                )
+              })
             }
             {payments.length > 0 && (
               <div style={{textAlign:'right',paddingTop:'8px',borderTop:'1px solid var(--border)',fontSize:'12px',color:'var(--text-muted)'}}>
@@ -4044,8 +4180,64 @@ export default function TrainerApp() {
         )}
       </Modal>
 
+      {/* PRODUCT MANAGE MODAL */}
+      <Modal open={productManageModal} onClose={()=>setProductManageModal(false)} title="🗂 상품 관리" maxWidth="400px">
+        <div style={{marginBottom:'12px',display:'flex',justifyContent:'flex-end'}}>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={()=>{setEditingProductId(null);setProductForm({name:'',count:'',priceEx:'',priceIn:''});setProductFormModal(true)}}
+          >+ 상품 추가</button>
+        </div>
+        {products.length === 0 ? (
+          <div className="empty" style={{padding:'32px 0',textAlign:'center'}}>
+            <div style={{fontSize:'32px',marginBottom:'10px'}}>📦</div>
+            <p style={{color:'var(--text-muted)',fontSize:'13px'}}>등록된 상품이 없어요.<br/>상품 추가 버튼으로 첫 상품을 등록해보세요.</p>
+          </div>
+        ) : (
+          <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+            {products.map(p => (
+              <div key={p.id} style={{
+                display:'flex',alignItems:'center',gap:'10px',
+                padding:'12px 14px',background:'var(--surface2)',
+                borderRadius:'10px',border:'1px solid var(--border)',
+              }}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:'14px',fontWeight:700,color:'var(--text)',marginBottom:'3px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                    {p.name}
+                    <span style={{fontWeight:400,fontSize:'12px',color:'var(--text-muted)',marginLeft:'6px'}}>({p.session_count}회)</span>
+                  </div>
+                  <div style={{fontSize:'11px',color:'var(--text-muted)'}}>
+                    부가세 미포함 <strong style={{color:'var(--text)'}}>{(p.price_excl_tax||0).toLocaleString()}원</strong>
+                    <span style={{margin:'0 5px',color:'var(--border)'}}>|</span>
+                    포함 <strong style={{color:'var(--text)'}}>{(p.price_incl_tax||0).toLocaleString()}원</strong>
+                  </div>
+                  {p.memo && <div style={{fontSize:'11px',color:'var(--accent-text)',marginTop:'3px'}}>💬 {p.memo}</div>}
+                  <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'2px'}}>
+                    회당 단가: 미포함 {Math.round((p.price_excl_tax||0)/(p.session_count||1)).toLocaleString()}원 / 포함 {Math.round((p.price_incl_tax||0)/(p.session_count||1)).toLocaleString()}원
+                  </div>
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:'4px',flexShrink:0}}>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{fontSize:'11px',padding:'4px 10px'}}
+                    onClick={()=>{
+                      setEditingProductId(p.id)
+                      setProductForm({name:p.name,count:String(p.session_count),priceEx:String(p.price_excl_tax||0),priceIn:String(p.price_incl_tax||0),memo:p.memo||''})
+                      setProductFormModal(true)
+                    }}>✏️ 수정</button>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{fontSize:'11px',padding:'4px 10px',color:'var(--danger)',borderColor:'rgba(239,68,68,0.3)'}}
+                    onClick={()=>deleteProduct(p.id)}>🗑 삭제</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
+
       {/* PRODUCT FORM MODAL */}
-      <Modal open={productFormModal} onClose={()=>setProductFormModal(false)} title={editingProductId?'상품 수정':'상품 추가'} maxWidth="360px">
+      <Modal open={productFormModal} onClose={()=>setProductFormModal(false)} title={editingProductId?'상품 수정':'상품 추가'} maxWidth="360px" zIndex={400}>
         <div className="form-group"><label>상품명</label><input type="text" value={productForm.name} onChange={e=>setProductForm({...productForm,name:e.target.value})} placeholder="예: 30회 패키지" /></div>
         <div className="form-group"><label>횟수</label><input type="number" value={productForm.count} onChange={e=>setProductForm({...productForm,count:e.target.value})} placeholder="30" min="1" /></div>
         <div className="divider"></div>
@@ -4202,7 +4394,7 @@ export default function TrainerApp() {
       </Modal>
 
       {/* HOLD (정지/홀딩) MODAL */}
-      <Modal open={holdModal} onClose={()=>setHoldModal(false)} title="정지 (기간 홀딩)">
+      <Modal open={holdModal} onClose={()=>setHoldModal(false)} title="정지 (기간 홀딩)" zIndex={400}>
         {/* 기존 홀딩 이력 */}
         {holds.length > 0 && (
           <>
@@ -4295,27 +4487,192 @@ export default function TrainerApp() {
           {editMemberForm.visit_source==='광고물' && <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'4px'}}>간판, 전단지, 현수막 등</div>}
         </div>
         <div className="divider"></div>
-        <div className="section-label">세션 관리</div>
-        <div className="two-col">
-          <div className="form-group"><label>총 세션 수</label><input type="number" value={editMemberForm.total||''} onChange={e=>setEditMemberForm({...editMemberForm,total:e.target.value})} placeholder="30" min="1" /></div>
-          <div className="form-group"><label>완료한 세션</label><input type="number" value={editMemberForm.done||''} onChange={e=>setEditMemberForm({...editMemberForm,done:e.target.value})} placeholder="0" min="0" /></div>
-        </div>
-        <div className="form-group"><label>세션 단가 (원)</label><input type="number" value={editMemberForm.price||''} onChange={e=>setEditMemberForm({...editMemberForm,price:e.target.value})} placeholder="60000" min="0" /></div>
         <div className="form-group"><label>메모 (선택)</label><input type="text" value={editMemberForm.memo||''} onChange={e=>setEditMemberForm({...editMemberForm,memo:e.target.value})} placeholder="기타 메모" /></div>
         <div className="divider"></div>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
-          <div>
-            <div style={{fontSize:'13px',fontWeight:500}}>회원 정지</div>
-            <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'2px'}}>정지 상태 회원은 목록에서 구분 표시돼요</div>
-          </div>
-          <div onClick={()=>setEditMemberForm({...editMemberForm,suspended:!editMemberForm.suspended})}
-            style={{width:'44px',height:'24px',borderRadius:'12px',cursor:'pointer',transition:'background 0.2s',position:'relative',flexShrink:0,
-              background: editMemberForm.suspended ? '#ef4444' : 'var(--surface2)',
-              border: '1px solid ' + (editMemberForm.suspended ? '#ef4444' : 'var(--border)')}}>
-            <div style={{position:'absolute',top:'2px',width:'18px',height:'18px',borderRadius:'50%',background:'#fff',transition:'left 0.2s',
-              left: editMemberForm.suspended ? '22px' : '2px'}}></div>
-          </div>
+
+        {/* 세션 직접 수정 — 고급 설정 (접기/펼치기) */}
+        <div style={{marginBottom:'16px'}}>
+          {/* 헤더 */}
+          <button
+            type="button"
+            onClick={()=>setSessionAdvOpen(o=>!o)}
+            style={{
+              width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',
+              background: sessionAdvOpen ? 'var(--surface2)' : 'var(--surface2)',
+              border:'1px solid var(--border)',borderRadius: sessionAdvOpen ? '10px 10px 0 0' : '10px',
+              padding:'10px 14px',cursor:'pointer',fontFamily:'inherit',transition:'border-radius 0.15s',
+            }}
+          >
+            <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+              <span style={{fontSize:'12px',fontWeight:700,color:'var(--text)'}}>⚙️ 세션 직접 수정</span>
+              <span style={{fontSize:'10px',color:'var(--text-dim)',fontWeight:400}}>앱 이전·오류 수정·증정 세션 전용</span>
+              {/* ? 버튼 */}
+              <button
+                type="button"
+                onClick={e=>{e.stopPropagation();setSessionInfoOpen(o=>!o)}}
+                style={{
+                  width:'16px',height:'16px',borderRadius:'50%',border:'1px solid var(--border)',
+                  background:'var(--surface)',color:'var(--text-dim)',fontSize:'9px',fontWeight:700,
+                  cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
+                  padding:0,fontFamily:'inherit',flexShrink:0,lineHeight:1,
+                }}>?</button>
+            </div>
+            <span style={{fontSize:'13px',color:'var(--text-muted)',lineHeight:1}}>
+              {sessionAdvOpen ? '▲' : '▼'}
+            </span>
+          </button>
+
+          {/* ? 설명 툴팁 */}
+          {sessionInfoOpen && (
+            <div style={{
+              background:'#1e2a1a',border:'1px solid rgba(200,241,53,0.2)',
+              borderRadius:'10px',padding:'13px 15px',margin:'6px 0',
+              fontSize:'12px',lineHeight:'1.85',color:'#d1fae5',
+              boxShadow:'0 6px 20px rgba(0,0,0,0.25)',position:'relative',
+            }}>
+              <button
+                onClick={()=>setSessionInfoOpen(false)}
+                style={{position:'absolute',top:'8px',right:'10px',background:'none',border:'none',
+                  color:'#6b7280',cursor:'pointer',fontSize:'14px',lineHeight:1,padding:0}}>×</button>
+              <div style={{fontWeight:700,color:'#a3e635',marginBottom:'8px',fontSize:'12px'}}>
+                💡 매출관리 결제 vs 세션 직접 수정
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
+                <div>
+                  <span style={{color:'#86efac',fontWeight:600}}>💳 매출관리 → 결제 등록</span>
+                  <br/>상품 선택 → 결제 금액 기록 + 세션 수 자동 추가.<br/>
+                  <span style={{color:'#6b7280'}}>정식 결제 흐름으로, 매출 내역에 기록됩니다.</span>
+                </div>
+                <div style={{height:'1px',background:'rgba(255,255,255,0.07)'}}/>
+                <div>
+                  <span style={{color:'#fbbf24',fontWeight:600}}>⚙️ 세션 직접 수정 (이 항목)</span>
+                  <br/>결제 기록 없이 세션 수만 바로 수정합니다.<br/>
+                  <span style={{color:'#9ca3af'}}>아래 경우에만 사용하세요:</span>
+                  <ul style={{margin:'5px 0 0 14px',padding:0,color:'#9ca3af',fontSize:'11px',lineHeight:'1.9'}}>
+                    <li>다른 앱에서 이전 시 기존 수업 이력 입력</li>
+                    <li>세션 수를 잘못 입력했을 때 수정</li>
+                    <li>결제 없이 증정 세션을 추가할 때</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 펼쳐진 입력 영역 */}
+          {sessionAdvOpen && (
+            <div style={{
+              border:'1px solid var(--border)',borderTop:'none',
+              borderRadius:'0 0 10px 10px',padding:'14px',
+              background:'var(--surface)',
+            }}>
+              <div style={{
+                fontSize:'11px',color:'#f97316',background:'rgba(249,115,22,0.08)',
+                border:'1px solid rgba(249,115,22,0.2)',borderRadius:'7px',
+                padding:'7px 10px',marginBottom:'12px',lineHeight:'1.6',
+              }}>
+                ⚠️ 결제 기록 없이 직접 수정됩니다. 정식 결제는 <strong>매출관리 탭</strong>을 이용하세요.
+              </div>
+              <div className="two-col">
+                <div className="form-group" style={{marginBottom:0}}>
+                  <label>총 세션 수</label>
+                  <input type="number" value={editMemberForm.total||''} onChange={e=>setEditMemberForm({...editMemberForm,total:e.target.value})} placeholder="30" min="1" />
+                </div>
+                <div className="form-group" style={{marginBottom:0}}>
+                  <label>완료한 세션</label>
+                  <input type="number" value={editMemberForm.done||''} onChange={e=>setEditMemberForm({...editMemberForm,done:e.target.value})} placeholder="0" min="0" />
+                </div>
+              </div>
+              <div className="form-group" style={{marginTop:'10px',marginBottom:0}}>
+                <label>세션 단가 (원)</label>
+                <input type="number" value={editMemberForm.price||''} onChange={e=>setEditMemberForm({...editMemberForm,price:e.target.value})} placeholder="60000" min="0" />
+              </div>
+            </div>
+          )}
         </div>
+
+        <div className="divider"></div>
+
+        {/* 정지 이력 */}
+        <div style={{
+          background:'var(--surface2)',borderRadius:'10px',
+          border:'1px solid var(--border)',
+          padding:'12px 14px',marginBottom:'16px',
+        }}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
+              <span style={{fontSize:'12px',fontWeight:700,color:'var(--text)'}}>⏸ 정지 이력</span>
+              {holds.length > 0 && (
+                <span style={{fontSize:'10px',fontWeight:600,padding:'1px 7px',borderRadius:'10px',
+                  background:'rgba(249,115,22,0.12)',color:'#f97316',border:'1px solid rgba(249,115,22,0.25)'}}>
+                  총 {holds.length}회 · {holds.reduce((s,h)=>s+Math.round((new Date(h.end_date)-new Date(h.start_date))/86400000)+1,0)}일
+                </span>
+              )}
+            </div>
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{fontSize:'11px',padding:'3px 10px'}}
+              onClick={()=>{
+                setCurrentMemberId(editMemberForm.id)
+                setHoldForm({startDate:'',endDate:'',productId:'',reason:'',photoFile:null,photoPreview:''})
+                setHoldModal(true)
+              }}
+            >+ 정지 등록</button>
+          </div>
+
+          {holds.length === 0 ? (
+            <div style={{textAlign:'center',padding:'14px 0',color:'var(--text-dim)',fontSize:'12px'}}>
+              정지 이력이 없어요
+            </div>
+          ) : (
+            <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+              {holds.map(h => {
+                const days = Math.round((new Date(h.end_date)-new Date(h.start_date))/86400000)+1
+                const today = new Date().toISOString().split('T')[0]
+                const isActive = h.start_date <= today && today <= h.end_date
+                const startFmt = new Date(h.start_date+'T00:00:00').toLocaleDateString('ko-KR',{year:'numeric',month:'short',day:'numeric'})
+                const endFmt   = new Date(h.end_date  +'T00:00:00').toLocaleDateString('ko-KR',{month:'short',day:'numeric'})
+                return (
+                  <div key={h.id} style={{
+                    background:'var(--surface)',borderRadius:'8px',
+                    border: isActive ? '1px solid rgba(249,115,22,0.35)' : '1px solid var(--border)',
+                    padding:'10px 12px',
+                  }}>
+                    <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:'8px'}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:'flex',alignItems:'center',gap:'6px',flexWrap:'wrap',marginBottom:'4px'}}>
+                          {isActive && (
+                            <span style={{fontSize:'10px',fontWeight:700,padding:'1px 7px',borderRadius:'4px',
+                              background:'rgba(249,115,22,0.15)',color:'#f97316',border:'1px solid rgba(249,115,22,0.3)'}}>
+                              진행중
+                            </span>
+                          )}
+                          <span style={{fontSize:'12px',fontWeight:600,color:'var(--text)'}}>
+                            {startFmt} ~ {endFmt}
+                          </span>
+                          <span style={{fontSize:'11px',color:'var(--text-muted)',fontFamily:"'DM Mono',monospace"}}>
+                            {days}일
+                          </span>
+                        </div>
+                        {h.reason && (
+                          <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'2px'}}>
+                            💬 {h.reason}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={()=>deleteHold(h.id, editMemberForm.id)}
+                        style={{fontSize:'10px',color:'var(--danger)',background:'none',border:'none',
+                          cursor:'pointer',padding:'2px 4px',flexShrink:0,lineHeight:1}}>
+                        해제
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
         <button className="btn btn-primary" style={{width:'100%',marginBottom:'8px'}} onClick={updateMember}>저장</button>
         <button className="btn btn-ghost" style={{width:'100%',color:'var(--danger)',borderColor:'rgba(255,92,92,0.3)'}} onClick={()=>setDeleteConfirmModal(true)}>회원 삭제</button>
       </Modal>

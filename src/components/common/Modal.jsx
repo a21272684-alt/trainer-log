@@ -1,8 +1,9 @@
-export default function Modal({ id, open, onClose, title, children, maxWidth }) {
+export default function Modal({ id, open, onClose, title, children, maxWidth, zIndex }) {
   return (
     <div
       className={`modal-overlay${open ? ' open' : ''}`}
       id={id}
+      style={zIndex ? { zIndex } : undefined}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div className="modal" style={maxWidth ? { maxWidth } : undefined}>
