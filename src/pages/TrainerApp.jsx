@@ -1641,6 +1641,8 @@ export default function TrainerApp() {
   const [apiKey, setApiKey] = useState('')
   const [weeklyReportOpen, setWeeklyReportOpen] = useState(false)
   const [showApiGuide, setShowApiGuide] = useState(false)
+  const [aiUsage, setAiUsage] = useState(null)   // { plan, limit, used, remaining, blocked }
+  const [showLimitModal, setShowLimitModal] = useState(false)
 
   // Schedule
   const [weekOff, setWeekOff] = useState(0)
@@ -1805,6 +1807,13 @@ export default function TrainerApp() {
     } catch(e) { showToast('삭제 실패: ' + e.message) }
   }
 
+  async function loadAiUsage(tid) {
+    try {
+      const { data, error } = await supabase.rpc('get_ai_usage', { p_trainer_id: tid })
+      if (!error && data) setAiUsage(data)
+    } catch(_) {}
+  }
+
   async function login() {
     if (!loginName || !loginPhone) { showToast('이름과 전화번호를 입력해주세요'); return }
     try {
@@ -1818,6 +1827,8 @@ export default function TrainerApp() {
         .eq('trainer_id', data[0].id).is('member_id', null)
         .order('created_at', { ascending: false })
       setTrainerLibraryRoutines(libData || [])
+      // AI 사용량 로드
+      loadAiUsage(data[0].id)
     } catch(e) { showToast('오류: ' + e.message) }
   }
 
@@ -2205,6 +2216,17 @@ export default function TrainerApp() {
     if (!audioData && !rawInput && !exercises.length) { showToast('녹음 파일을 업로드하거나 내용을 입력해주세요'); return }
     const key = apiKey || trainer.api_key
     if (!key) { showToast('설정에서 Gemini API 키를 먼저 입력해주세요'); setSettingsModal(true); return }
+
+    // ── AI 한도 체크 ─────────────────────────────────────────
+    try {
+      const { data: usageNow } = await supabase.rpc('get_ai_usage', { p_trainer_id: trainer.id })
+      if (usageNow) {
+        setAiUsage(usageNow)
+        if (usageNow.blocked) { setShowLimitModal(true); return }
+      }
+    } catch(_) {}
+    // ─────────────────────────────────────────────────────────
+
     const m = currentMember
     setGenerating(true); setShowPreview(false); setShowSend(false)
     try {
@@ -2233,6 +2255,13 @@ export default function TrainerApp() {
 
       setShowPreview(true); setPreviewContent(text); setFinalContent(text); setShowSend(true)
       showToast('✦ 수업일지 생성 완료!')
+
+      // ── 사용량 +1 ────────────────────────────────────────
+      try {
+        const { data: consumed } = await supabase.rpc('consume_ai_credit', { p_trainer_id: trainer.id })
+        if (consumed) setAiUsage(prev => prev ? { ...prev, used: consumed.used, remaining: consumed.remaining } : prev)
+      } catch(_) {}
+      // ─────────────────────────────────────────────────────
     } catch(e) {
       showToast('오류: ' + e.message)
     } finally {
@@ -3647,7 +3676,7 @@ export default function TrainerApp() {
       {/* RECORD */}
       {activePage === 'page-record' && currentMember && (
         <div className="page-t">
-          <div className="record-header"><button className="back-btn" onClick={()=>{setActivePage('page-members');setTab('members')}}>←</button>
+<div className="record-header"><button className="back-btn" onClick={()=>{setActivePage('page-members');setTab('members')}}>←</button>
             <div style={{flex:1}}><div style={{fontSize:'15px',fontWeight:700}}>{currentMember.name}</div><div style={{fontSize:'12px',color:'var(--text-muted)'}}>📱 {currentMember.phone}{currentMember.lesson_purpose?' · '+currentMember.lesson_purpose:''}</div></div>
             <div style={{display:'flex',gap:'6px',flexShrink:0}}>
               <button className="btn btn-sm" style={{fontSize:'12px',whiteSpace:'nowrap',background:'var(--surface2)',border:'1px solid var(--border)',color:currentMember.suspended?'#f97316':'var(--text-muted)'}}
@@ -3968,7 +3997,55 @@ export default function TrainerApp() {
                   <div className="form-group"><label>수정이 필요하면 직접 편집하세요</label><textarea value={finalContent} onChange={e=>setFinalContent(e.target.value)} rows={12} style={{fontSize:'13px',lineHeight:'1.8'}}></textarea></div>
                 </div>
               )}
-              {!generating && !showPreview && <button className="btn btn-primary" style={{width:'100%',marginBottom:'10px'}} onClick={generateLog}>✦ AI 수업일지 생성</button>}
+              {/* AI 사용량 표시 */}
+              {aiUsage && aiUsage.limit != null && (function AiUsageBar() {
+                const used      = aiUsage.used      ?? 0
+                const limit     = aiUsage.limit
+                const remaining = aiUsage.remaining  ?? Math.max(0, limit - used)
+                const pct       = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0
+                const barColor  = remaining <= 3 ? '#f9a8d4' : remaining <= 7 ? '#fcd34d' : '#86efac'
+                const textColor = remaining <= 3 ? '#f9a8d4' : remaining <= 7 ? '#fcd34d' : '#86efac'
+                const label     = remaining <= 3
+                  ? `⚠️ ${remaining}회 남았어요`
+                  : remaining <= 7
+                  ? `🔔 ${remaining}회 남았어요`
+                  : `✦ 이번 달 ${remaining}회 남았어요`
+                return (
+                  <div style={{
+                    background:'rgba(255,255,255,0.05)',
+                    border:`1px solid ${barColor}44`,
+                    borderRadius:'10px',
+                    padding:'12px 14px',
+                    marginBottom:'10px',
+                  }}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
+                      <span style={{fontSize:'13px',fontWeight:600,color:textColor}}>{label}</span>
+                      <span style={{fontSize:'13px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:textColor}}>
+                        {used} / {limit}회
+                      </span>
+                    </div>
+                    <div style={{height:'8px',borderRadius:'4px',background:'rgba(255,255,255,0.1)',overflow:'hidden'}}>
+                      <div style={{
+                        height:'100%',
+                        borderRadius:'4px',
+                        width: pct + '%',
+                        background: barColor,
+                        transition:'width 0.4s ease',
+                        boxShadow:`0 0 8px ${barColor}99`,
+                      }} />
+                    </div>
+                  </div>
+                )
+              }())}
+              {!generating && !showPreview && (
+                <button
+                  className="btn btn-primary"
+                  style={{width:'100%',marginBottom:'10px',opacity: aiUsage?.blocked ? 0.5 : 1,cursor: aiUsage?.blocked ? 'not-allowed' : 'pointer'}}
+                  onClick={generateLog}
+                >
+                  {aiUsage?.blocked ? '🔒 이번 달 AI 사용 한도 초과' : '✦ AI 수업일지 생성'}
+                </button>
+              )}
               {showSend && (
                 <div>
                   <div className="section-label">3단계 — 발송</div>
@@ -4821,6 +4898,34 @@ export default function TrainerApp() {
           )}
         </div>
         <button className="btn btn-primary" style={{width:'100%',marginTop:'8px'}} onClick={saveSettings}>저장</button>
+      </Modal>
+
+      {/* ── AI 한도 초과 모달 ── */}
+      <Modal open={showLimitModal} onClose={()=>setShowLimitModal(false)} title="이번 달 AI 사용 한도 초과">
+        <div style={{textAlign:'center',padding:'8px 0'}}>
+          <div style={{fontSize:'48px',marginBottom:'12px'}}>🔒</div>
+          <div style={{fontSize:'15px',fontWeight:700,marginBottom:'8px'}}>
+            이번 달 무료 AI 사용 횟수를 모두 사용했어요
+          </div>
+          {aiUsage && (
+            <div style={{fontSize:'13px',color:'var(--text-dim)',marginBottom:'16px'}}>
+              이번 달 사용: <strong style={{color:'var(--accent)'}}>{aiUsage.used}회</strong> / {aiUsage.limit}회
+            </div>
+          )}
+          <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'10px',padding:'14px',marginBottom:'16px',textAlign:'left',fontSize:'13px',lineHeight:1.7}}>
+            <div style={{fontWeight:600,marginBottom:'6px'}}>💡 다음 달 1일에 자동으로 초기화돼요</div>
+            <div style={{color:'var(--text-dim)'}}>더 많은 AI 수업일지를 작성하고 싶으시다면 업그레이드 플랜을 문의해 주세요.</div>
+          </div>
+          <a
+            href="mailto:support@trainerlog.app?subject=AI 플랜 업그레이드 문의"
+            style={{display:'block',padding:'12px',background:'var(--accent)',color:'#0f0f0f',borderRadius:'8px',fontWeight:700,fontSize:'14px',textDecoration:'none',marginBottom:'8px'}}
+          >
+            📧 업그레이드 문의하기
+          </a>
+          <button className="btn btn-ghost" style={{width:'100%'}} onClick={()=>setShowLimitModal(false)}>
+            닫기
+          </button>
+        </div>
       </Modal>
 
       {/* ── API KEY 발급 가이드 모달 ── */}
