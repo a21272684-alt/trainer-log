@@ -3448,39 +3448,51 @@ export default function TrainerApp() {
             <>
               <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',letterSpacing:'0.08em',marginBottom:'10px'}}>💎 플랜 안내</div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:'24px'}}>
-                {plansList.map(plan => (
-                  <div key={plan.id || plan.name} style={{
-                    background: plan.highlight ? 'rgba(200,241,53,0.06)' : 'var(--surface)',
-                    border:`1px solid ${plan.highlight ? 'rgba(200,241,53,0.35)' : plan.current ? 'var(--border)' : 'rgba(96,165,250,0.3)'}`,
-                    borderRadius:'12px', padding:'12px 10px', position:'relative', textAlign:'center',
-                  }}>
-                    {plan.badge && !plan.current && (
-                      <div style={{position:'absolute',top:'-9px',left:'50%',transform:'translateX(-50%)',
-                        background: plan.highlight ? 'var(--accent)' : '#60a5fa',
-                        color:'#0f0f0f',fontSize:'8px',fontWeight:700,padding:'2px 7px',borderRadius:'8px',whiteSpace:'nowrap'}}>
-                        {plan.badge}
+                {plansList.map(plan => {
+                  const isOn = plan.enabled !== false
+                  return (
+                    <div key={plan.id || plan.name} style={{
+                      background: plan.highlight ? 'rgba(200,241,53,0.06)' : 'var(--surface)',
+                      border:`1px solid ${plan.highlight ? 'rgba(200,241,53,0.35)' : plan.current ? 'var(--border)' : 'rgba(96,165,250,0.3)'}`,
+                      borderRadius:'12px', position:'relative', textAlign:'center', overflow:'hidden',
+                    }}>
+                      {/* 실제 컨텐츠 — OFF면 블러 */}
+                      <div style={{padding:'12px 10px', filter: isOn ? 'none' : 'blur(5px)', userSelect: isOn ? 'auto' : 'none', pointerEvents: isOn ? 'auto' : 'none'}}>
+                        {plan.badge && !plan.current && (
+                          <div style={{position:'absolute',top:'-9px',left:'50%',transform:'translateX(-50%)',
+                            background: plan.highlight ? 'var(--accent)' : '#60a5fa',
+                            color:'#0f0f0f',fontSize:'8px',fontWeight:700,padding:'2px 7px',borderRadius:'8px',whiteSpace:'nowrap'}}>
+                            {plan.badge}
+                          </div>
+                        )}
+                        {plan.current && (
+                          <div style={{position:'absolute',top:'-9px',left:'50%',transform:'translateX(-50%)',
+                            background:'#9ca3af',color:'#0f0f0f',fontSize:'8px',fontWeight:700,padding:'2px 7px',borderRadius:'8px'}}>
+                            현재 플랜
+                          </div>
+                        )}
+                        <div style={{fontSize:'13px',fontWeight:700,color:plan.color,marginBottom:'4px',marginTop:'4px'}}>{plan.name}</div>
+                        <div style={{fontSize:'11px',fontWeight:700,color:'var(--text)',marginBottom:'8px'}}>{plan.price}</div>
+                        {(plan.features || []).map(f => (
+                          <div key={f} style={{fontSize:'10px',color:'var(--text-muted)',lineHeight:'1.9'}}>· {f}</div>
+                        ))}
+                        {!plan.current && (
+                          <button disabled style={{marginTop:'10px',width:'100%',padding:'6px',borderRadius:'8px',border:'none',
+                            background: plan.highlight ? 'var(--accent)' : '#60a5fa',
+                            color:'#0f0f0f',fontSize:'10px',fontWeight:700,cursor:'not-allowed',opacity:0.6,fontFamily:'inherit'}}>
+                            곧 출시
+                          </button>
+                        )}
                       </div>
-                    )}
-                    {plan.current && (
-                      <div style={{position:'absolute',top:'-9px',left:'50%',transform:'translateX(-50%)',
-                        background:'#9ca3af',color:'#0f0f0f',fontSize:'8px',fontWeight:700,padding:'2px 7px',borderRadius:'8px'}}>
-                        현재 플랜
-                      </div>
-                    )}
-                    <div style={{fontSize:'13px',fontWeight:700,color:plan.color,marginBottom:'4px',marginTop:'4px'}}>{plan.name}</div>
-                    <div style={{fontSize:'11px',fontWeight:700,color:'var(--text)',marginBottom:'8px'}}>{plan.price}</div>
-                    {(plan.features || []).map(f => (
-                      <div key={f} style={{fontSize:'10px',color:'var(--text-muted)',lineHeight:'1.9'}}>· {f}</div>
-                    ))}
-                    {!plan.current && (
-                      <button disabled style={{marginTop:'10px',width:'100%',padding:'6px',borderRadius:'8px',border:'none',
-                        background: plan.highlight ? 'var(--accent)' : '#60a5fa',
-                        color:'#0f0f0f',fontSize:'10px',fontWeight:700,cursor:'not-allowed',opacity:0.6,fontFamily:'inherit'}}>
-                        곧 출시
-                      </button>
-                    )}
-                  </div>
-                ))}
+                      {/* OFF 오버레이 */}
+                      {!isOn && (
+                        <div style={{position:'absolute',inset:0,background:'rgba(10,10,10,0.45)',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'12px'}}>
+                          <span style={{fontSize:'10px',fontWeight:700,color:'rgba(255,255,255,0.4)',letterSpacing:'0.05em'}}>준비 중</span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </>
           )}

@@ -16,9 +16,9 @@ const PORTAL_TABS = {
 const DEFAULT_TAB = { trainer:'list', member:'status', community:'posts', crm:'permissions' }
 
 const DEFAULT_PLANS = [
-  { id:'free',    name:'Free',    price:'무료',        color:'#9ca3af', highlight:false, current:true,  badge:null,       features:['회원 5명','AI 일지 월 20회','식단 기록','기본 통계'] },
-  { id:'pro',     name:'Pro',     price:'₩9,900/월',  color:'#60a5fa', highlight:false, current:false, badge:'출시 예정', features:['회원 무제한','AI 일지 무제한','주간 리포트 AI','매출 분석'] },
-  { id:'premium', name:'Premium', price:'₩19,900/월', color:'#c8f135', highlight:true,  current:false, badge:'출시 예정', features:['Pro 전체 포함','루틴 마켓 무제한','카카오 자동 발송','우선 지원'] },
+  { id:'free',    name:'Free',    price:'무료',        color:'#9ca3af', highlight:false, current:true,  badge:null,       enabled:true, features:['회원 5명','AI 일지 월 20회','식단 기록','기본 통계'] },
+  { id:'pro',     name:'Pro',     price:'₩9,900/월',  color:'#60a5fa', highlight:false, current:false, badge:'출시 예정', enabled:true, features:['회원 무제한','AI 일지 무제한','주간 리포트 AI','매출 분석'] },
+  { id:'premium', name:'Premium', price:'₩19,900/월', color:'#c8f135', highlight:true,  current:false, badge:'출시 예정', enabled:true, features:['Pro 전체 포함','루틴 마켓 무제한','카카오 자동 발송','우선 지원'] },
 ]
 
 const COMM_CAT_LABEL = {
@@ -147,16 +147,22 @@ export default function AdminPortal() {
 
   // ===== 플랜 관리 =====
   async function savePlanVisibility(visible) {
-    const { error } = await supabase.from('app_settings').upsert({ key:'plan_guide_visible', value:visible, updated_at:new Date().toISOString() })
+    const { error } = await supabase.from('app_settings')
+      .upsert({ key:'plan_guide_visible', value:visible, updated_at:new Date().toISOString() }, { onConflict:'key' })
     if (error) { showToast('오류: ' + error.message); return }
     setPlanGuideVisible(visible)
     showToast(visible ? '플랜 안내가 표시됩니다' : '플랜 안내가 숨겨집니다')
   }
   async function savePlans(newPlans) {
-    const { error } = await supabase.from('app_settings').upsert({ key:'plans', value:newPlans, updated_at:new Date().toISOString() })
+    const { error } = await supabase.from('app_settings')
+      .upsert({ key:'plans', value:newPlans, updated_at:new Date().toISOString() }, { onConflict:'key' })
     if (error) { showToast('오류: ' + error.message); return }
     setPlans(newPlans)
     showToast('✓ 플랜이 저장됐어요')
+  }
+  async function togglePlanEnabled(planId) {
+    const newPlans = plans.map(p => p.id === planId ? { ...p, enabled: p.enabled === false } : p)
+    await savePlans(newPlans)
   }
   const openPlanEdit = (plan) => setPlanEditModal({ ...plan, featuresText: plan.features.join('\n') })
   const closePlanEdit = () => setPlanEditModal(null)
@@ -635,26 +641,38 @@ export default function AdminPortal() {
 
               {/* 플랜 카드 */}
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'12px'}}>
-                {plans.map(plan => (
-                  <div key={plan.id} className="card" style={{
-                    border:`1px solid ${plan.highlight ? 'rgba(200,241,53,0.35)' : 'var(--border)'}`,
-                    background: plan.highlight ? 'rgba(200,241,53,0.03)' : 'var(--surface)',
-                    position:'relative',
-                  }}>
-                    {plan.current && (
-                      <span style={{position:'absolute',top:'-9px',left:'12px',background:'#9ca3af',color:'#0f0f0f',fontSize:'9px',fontWeight:700,padding:'2px 7px',borderRadius:'8px'}}>현재 플랜</span>
-                    )}
-                    {plan.badge && !plan.current && (
-                      <span style={{position:'absolute',top:'-9px',left:'12px',background:plan.highlight?'var(--accent)':'#60a5fa',color:'#0f0f0f',fontSize:'9px',fontWeight:700,padding:'2px 7px',borderRadius:'8px'}}>{plan.badge}</span>
-                    )}
-                    <div style={{fontWeight:700,color:plan.color,fontSize:'15px',marginBottom:'4px',marginTop:'4px'}}>{plan.name}</div>
-                    <div style={{fontWeight:700,fontSize:'12px',marginBottom:'8px',color:'var(--text)'}}>{plan.price}</div>
-                    {plan.features.map(f => (
-                      <div key={f} style={{fontSize:'11px',color:'var(--text-muted)',lineHeight:1.9}}>· {f}</div>
-                    ))}
-                    <button className="btn btn-ghost btn-sm" style={{marginTop:'12px',width:'100%'}} onClick={() => openPlanEdit(plan)}>수정</button>
-                  </div>
-                ))}
+                {plans.map(plan => {
+                  const isOn = plan.enabled !== false
+                  return (
+                    <div key={plan.id} className="card" style={{
+                      border:`1px solid ${isOn ? (plan.highlight ? 'rgba(200,241,53,0.35)' : 'var(--border)') : 'rgba(136,136,136,0.2)'}`,
+                      background: isOn ? (plan.highlight ? 'rgba(200,241,53,0.03)' : 'var(--surface)') : 'rgba(136,136,136,0.04)',
+                      position:'relative',
+                      opacity: isOn ? 1 : 0.6,
+                    }}>
+                      {plan.current && (
+                        <span style={{position:'absolute',top:'-9px',left:'12px',background:'#9ca3af',color:'#0f0f0f',fontSize:'9px',fontWeight:700,padding:'2px 7px',borderRadius:'8px'}}>현재 플랜</span>
+                      )}
+                      {plan.badge && !plan.current && (
+                        <span style={{position:'absolute',top:'-9px',left:'12px',background:plan.highlight?'var(--accent)':'#60a5fa',color:'#0f0f0f',fontSize:'9px',fontWeight:700,padding:'2px 7px',borderRadius:'8px'}}>{plan.badge}</span>
+                      )}
+                      {/* 플랜 ON/OFF 토글 */}
+                      <button
+                        className={`crm-toggle crm-toggle-sm${isOn?' on':''}`}
+                        style={{position:'absolute',top:'10px',right:'10px'}}
+                        onClick={() => togglePlanEnabled(plan.id)}
+                      >
+                        {isOn ? 'ON' : 'OFF'}
+                      </button>
+                      <div style={{fontWeight:700,color:isOn?plan.color:'var(--text-dim)',fontSize:'15px',marginBottom:'4px',marginTop:'4px'}}>{plan.name}</div>
+                      <div style={{fontWeight:700,fontSize:'12px',marginBottom:'8px',color:'var(--text)'}}>{plan.price}</div>
+                      {plan.features.map(f => (
+                        <div key={f} style={{fontSize:'11px',color:'var(--text-muted)',lineHeight:1.9}}>· {f}</div>
+                      ))}
+                      <button className="btn btn-ghost btn-sm" style={{marginTop:'12px',width:'100%'}} onClick={() => openPlanEdit(plan)}>수정</button>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
