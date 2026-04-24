@@ -1558,6 +1558,10 @@ export default function TrainerApp() {
   const [leaderboard, setLeaderboard] = useState(null)
   const [lbLoading, setLbLoading] = useState(false)
 
+  // Settings tab — 플랜 안내
+  const [planGuideVisible, setPlanGuideVisible] = useState(true)
+  const [plansList, setPlansList] = useState(null)
+
   // Revenue tab — tooltip
   const [revTooltip, setRevTooltip] = useState(null)
   // Revenue tab — 회원별 결제 검색
@@ -1909,7 +1913,24 @@ export default function TrainerApp() {
     } catch(_) { setLeaderboard(null) }
     setLbLoading(false)
   }
-  useEffect(() => { if (tab === 'settings' && trainer) loadLeaderboard() }, [tab])
+  useEffect(() => {
+    if (tab === 'settings' && trainer) {
+      loadLeaderboard()
+      loadPlanSettings()
+    }
+  }, [tab])
+
+  async function loadPlanSettings() {
+    try {
+      const { data } = await supabase.from('app_settings').select('key, value').in('key', ['plan_guide_visible', 'plans'])
+      if (data) {
+        const vis  = data.find(r => r.key === 'plan_guide_visible')
+        const plns = data.find(r => r.key === 'plans')
+        if (vis  != null) setPlanGuideVisible(vis.value)
+        if (plns != null) setPlansList(plns.value)
+      }
+    } catch(_) {}
+  }
 
   // 월별 총 결제액 로드
   async function loadMonthPayments(monthStr) {
@@ -3423,55 +3444,46 @@ export default function TrainerApp() {
           </div>
 
           {/* ── 유료 플랜 ── */}
-          <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',letterSpacing:'0.08em',marginBottom:'10px'}}>💎 플랜 안내</div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:'24px'}}>
-            {[
-              {
-                name:'Free', price:'무료', color:'#9ca3af', highlight:false, current:true,
-                features:['회원 5명','AI 일지 월 20회','식단 기록','기본 통계'],
-              },
-              {
-                name:'Pro', price:'₩9,900/월', color:'#60a5fa', highlight:false, current:false, badge:'출시 예정',
-                features:['회원 무제한','AI 일지 무제한','주간 리포트 AI','매출 분석'],
-              },
-              {
-                name:'Premium', price:'₩19,900/월', color:'#c8f135', highlight:true, current:false, badge:'출시 예정',
-                features:['Pro 전체 포함','루틴 마켓 무제한','카카오 자동 발송','우선 지원'],
-              },
-            ].map(plan => (
-              <div key={plan.name} style={{
-                background: plan.highlight ? 'rgba(200,241,53,0.06)' : 'var(--surface)',
-                border:`1px solid ${plan.highlight ? 'rgba(200,241,53,0.35)' : plan.current ? 'var(--border)' : 'rgba(96,165,250,0.3)'}`,
-                borderRadius:'12px', padding:'12px 10px', position:'relative', textAlign:'center',
-              }}>
-                {plan.badge && (
-                  <div style={{position:'absolute',top:'-9px',left:'50%',transform:'translateX(-50%)',
-                    background: plan.highlight ? 'var(--accent)' : '#60a5fa',
-                    color:'#0f0f0f',fontSize:'8px',fontWeight:700,padding:'2px 7px',borderRadius:'8px',whiteSpace:'nowrap'}}>
-                    {plan.badge}
+          {planGuideVisible && plansList && (
+            <>
+              <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',letterSpacing:'0.08em',marginBottom:'10px'}}>💎 플랜 안내</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:'24px'}}>
+                {plansList.map(plan => (
+                  <div key={plan.id || plan.name} style={{
+                    background: plan.highlight ? 'rgba(200,241,53,0.06)' : 'var(--surface)',
+                    border:`1px solid ${plan.highlight ? 'rgba(200,241,53,0.35)' : plan.current ? 'var(--border)' : 'rgba(96,165,250,0.3)'}`,
+                    borderRadius:'12px', padding:'12px 10px', position:'relative', textAlign:'center',
+                  }}>
+                    {plan.badge && !plan.current && (
+                      <div style={{position:'absolute',top:'-9px',left:'50%',transform:'translateX(-50%)',
+                        background: plan.highlight ? 'var(--accent)' : '#60a5fa',
+                        color:'#0f0f0f',fontSize:'8px',fontWeight:700,padding:'2px 7px',borderRadius:'8px',whiteSpace:'nowrap'}}>
+                        {plan.badge}
+                      </div>
+                    )}
+                    {plan.current && (
+                      <div style={{position:'absolute',top:'-9px',left:'50%',transform:'translateX(-50%)',
+                        background:'#9ca3af',color:'#0f0f0f',fontSize:'8px',fontWeight:700,padding:'2px 7px',borderRadius:'8px'}}>
+                        현재 플랜
+                      </div>
+                    )}
+                    <div style={{fontSize:'13px',fontWeight:700,color:plan.color,marginBottom:'4px',marginTop:'4px'}}>{plan.name}</div>
+                    <div style={{fontSize:'11px',fontWeight:700,color:'var(--text)',marginBottom:'8px'}}>{plan.price}</div>
+                    {(plan.features || []).map(f => (
+                      <div key={f} style={{fontSize:'10px',color:'var(--text-muted)',lineHeight:'1.9'}}>· {f}</div>
+                    ))}
+                    {!plan.current && (
+                      <button disabled style={{marginTop:'10px',width:'100%',padding:'6px',borderRadius:'8px',border:'none',
+                        background: plan.highlight ? 'var(--accent)' : '#60a5fa',
+                        color:'#0f0f0f',fontSize:'10px',fontWeight:700,cursor:'not-allowed',opacity:0.6,fontFamily:'inherit'}}>
+                        곧 출시
+                      </button>
+                    )}
                   </div>
-                )}
-                {plan.current && (
-                  <div style={{position:'absolute',top:'-9px',left:'50%',transform:'translateX(-50%)',
-                    background:'#9ca3af',color:'#0f0f0f',fontSize:'8px',fontWeight:700,padding:'2px 7px',borderRadius:'8px'}}>
-                    현재 플랜
-                  </div>
-                )}
-                <div style={{fontSize:'13px',fontWeight:700,color:plan.color,marginBottom:'4px',marginTop:'4px'}}>{plan.name}</div>
-                <div style={{fontSize:'11px',fontWeight:700,color:'var(--text)',marginBottom:'8px'}}>{plan.price}</div>
-                {plan.features.map(f => (
-                  <div key={f} style={{fontSize:'10px',color:'var(--text-muted)',lineHeight:'1.9'}}>· {f}</div>
                 ))}
-                {!plan.current && (
-                  <button disabled style={{marginTop:'10px',width:'100%',padding:'6px',borderRadius:'8px',border:'none',
-                    background: plan.highlight ? 'var(--accent)' : '#60a5fa',
-                    color:'#0f0f0f',fontSize:'10px',fontWeight:700,cursor:'not-allowed',opacity:0.6,fontFamily:'inherit'}}>
-                    {plan.name === 'Pro' ? '곧 출시' : '곧 출시'}
-                  </button>
-                )}
               </div>
-            ))}
-          </div>
+            </>
+          )}
 
           {/* ════════════════════════════════════
                🏆 이번 주 일지 발송 리더보드
