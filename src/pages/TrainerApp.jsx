@@ -1640,6 +1640,7 @@ export default function TrainerApp() {
   const [settingsModal, setSettingsModal] = useState(false)
   const [apiKey, setApiKey] = useState('')
   const [weeklyReportOpen, setWeeklyReportOpen] = useState(false)
+  const [showApiGuide, setShowApiGuide] = useState(false)
 
   // Schedule
   const [weekOff, setWeekOff] = useState(0)
@@ -4788,13 +4789,240 @@ export default function TrainerApp() {
       </Modal>
 
       <Modal open={settingsModal} onClose={()=>setSettingsModal(false)} title="설정">
-        <div className="form-group"><label>트레이너 이름</label><input type="text" value={trainer?.name||''} readOnly style={{opacity:0.6}} /></div>
-        <div className="divider"></div>
         <div className="form-group">
-          <label>Gemini API 키 <a href="https://aistudio.google.com/app/apikey" target="_blank" style={{color:'var(--accent)',fontSize:'11px'}}>무료 발급</a></label>
-          <input type="text" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="AIza..." />
+          <label>트레이너 이름</label>
+          <input type="text" value={trainer?.name||''} readOnly style={{opacity:0.6}} />
+        </div>
+        <div className="divider"></div>
+
+        {/* API 키 섹션 */}
+        <div className="form-group">
+          <label style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <span>Gemini API 키</span>
+            <button
+              onClick={()=>{ setSettingsModal(false); setShowApiGuide(true) }}
+              style={{background:'none',border:'1px solid var(--accent)',borderRadius:'6px',
+                color:'var(--accent)',fontSize:'10px',fontWeight:700,padding:'3px 8px',
+                cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
+              📖 발급 방법 보기
+            </button>
+          </label>
+          <input type="text" value={apiKey} onChange={e=>setApiKey(e.target.value)}
+            placeholder="AIza... (없으면 발급 방법 보기 클릭)" />
+          {!apiKey && (
+            <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'5px',lineHeight:1.5}}>
+              ⚠️ API 키가 없으면 AI 수업일지 생성 기능을 사용할 수 없어요.
+            </div>
+          )}
+          {apiKey && (
+            <div style={{fontSize:'10px',color:'#4ade80',marginTop:'5px'}}>
+              ✓ API 키가 설정됐어요
+            </div>
+          )}
         </div>
         <button className="btn btn-primary" style={{width:'100%',marginTop:'8px'}} onClick={saveSettings}>저장</button>
+      </Modal>
+
+      {/* ── API KEY 발급 가이드 모달 ── */}
+      <Modal open={showApiGuide} onClose={()=>setShowApiGuide(false)} title="Gemini API 키 발급 방법">
+        <div style={{fontSize:'13px',lineHeight:1.6}}>
+
+          {/* 비용 안심 배너 */}
+          <div style={{background:'rgba(74,222,128,0.1)',border:'1px solid rgba(74,222,128,0.3)',
+            borderRadius:'12px',padding:'14px',marginBottom:'20px'}}>
+            <div style={{fontWeight:700,color:'#4ade80',fontSize:'14px',marginBottom:'8px'}}>
+              🛡️ 비용 걱정 없이 무료로 사용하세요
+            </div>
+            {[
+              ['💳', '신용카드 등록 없이', '구글 계정만 있으면 바로 발급 가능'],
+              ['🔒', '자동 차단 보호', '무료 한도 초과 시 자동으로 멈춰요 (추가 청구 없음)'],
+              ['🎁', '하루 50회 무료', '개인 트레이너 기준 충분한 양'],
+              ['🚫', '유료 전환 불가', '직접 카드 등록하지 않는 한 절대 청구되지 않아요'],
+            ].map(([icon, title, desc]) => (
+              <div key={title} style={{display:'flex',gap:'10px',marginBottom:'8px',alignItems:'flex-start'}}>
+                <span style={{fontSize:'16px',flexShrink:0}}>{icon}</span>
+                <div>
+                  <div style={{fontWeight:700,color:'var(--text)',fontSize:'12px'}}>{title}</div>
+                  <div style={{fontSize:'11px',color:'var(--text-muted)'}}>{desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* 발급 단계 */}
+          <div style={{fontWeight:700,color:'var(--text)',marginBottom:'14px',fontSize:'14px'}}>
+            📋 발급 순서 (3분이면 끝나요)
+          </div>
+
+          {/* STEP 1 */}
+          <div style={{marginBottom:'16px'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'}}>
+              <div style={{width:'24px',height:'24px',borderRadius:'50%',background:'var(--accent)',
+                color:'#0f0f0f',fontWeight:800,fontSize:'12px',display:'flex',alignItems:'center',
+                justifyContent:'center',flexShrink:0}}>1</div>
+              <div style={{fontWeight:700,color:'var(--text)'}}>Google AI Studio 접속</div>
+            </div>
+            {/* 화면 mock */}
+            <div style={{background:'#1a1a2e',borderRadius:'10px',padding:'12px',marginLeft:'32px',
+              border:'1px solid rgba(255,255,255,0.1)'}}>
+              <div style={{display:'flex',gap:'6px',marginBottom:'8px'}}>
+                <div style={{width:'8px',height:'8px',borderRadius:'50%',background:'#f87171'}}/>
+                <div style={{width:'8px',height:'8px',borderRadius:'50%',background:'#facc15'}}/>
+                <div style={{width:'8px',height:'8px',borderRadius:'50%',background:'#4ade80'}}/>
+              </div>
+              <div style={{background:'rgba(255,255,255,0.08)',borderRadius:'6px',padding:'6px 10px',
+                fontSize:'11px',color:'#60a5fa',fontFamily:'monospace'}}>
+                🔗 aistudio.google.com/app/apikey
+              </div>
+            </div>
+            <div style={{marginLeft:'32px',marginTop:'6px',fontSize:'11px',color:'var(--text-dim)'}}>
+              위 주소로 접속하거나 아래 버튼을 클릭하세요.
+            </div>
+            <div style={{marginLeft:'32px',marginTop:'8px'}}>
+              <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer"
+                style={{display:'inline-block',background:'var(--accent)',color:'#0f0f0f',
+                  borderRadius:'8px',padding:'8px 16px',fontSize:'12px',fontWeight:700,
+                  textDecoration:'none'}}>
+                Google AI Studio 열기 →
+              </a>
+            </div>
+          </div>
+
+          {/* STEP 2 */}
+          <div style={{marginBottom:'16px'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'}}>
+              <div style={{width:'24px',height:'24px',borderRadius:'50%',background:'var(--accent)',
+                color:'#0f0f0f',fontWeight:800,fontSize:'12px',display:'flex',alignItems:'center',
+                justifyContent:'center',flexShrink:0}}>2</div>
+              <div style={{fontWeight:700,color:'var(--text)'}}>구글 계정으로 로그인</div>
+            </div>
+            <div style={{background:'var(--surface2)',borderRadius:'10px',padding:'12px',marginLeft:'32px',
+              border:'1px solid var(--border)'}}>
+              <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                <div style={{width:'36px',height:'36px',borderRadius:'50%',
+                  background:'linear-gradient(135deg,#4285f4,#34a853,#fbbc04,#ea4335)',
+                  display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                  <span style={{color:'#fff',fontWeight:800,fontSize:'14px'}}>G</span>
+                </div>
+                <div>
+                  <div style={{fontSize:'12px',fontWeight:600,color:'var(--text)'}}>Google 계정으로 계속하기</div>
+                  <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'2px'}}>평소 쓰는 구글 계정으로 로그인</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* STEP 3 */}
+          <div style={{marginBottom:'16px'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'}}>
+              <div style={{width:'24px',height:'24px',borderRadius:'50%',background:'var(--accent)',
+                color:'#0f0f0f',fontWeight:800,fontSize:'12px',display:'flex',alignItems:'center',
+                justifyContent:'center',flexShrink:0}}>3</div>
+              <div style={{fontWeight:700,color:'var(--text)'}}>"Create API Key" 클릭</div>
+            </div>
+            <div style={{background:'var(--surface2)',borderRadius:'10px',padding:'12px',marginLeft:'32px',
+              border:'1px solid var(--border)'}}>
+              <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'8px'}}>페이지 상단 또는 중앙에 있는 버튼:</div>
+              <div style={{display:'inline-block',background:'#1967d2',borderRadius:'6px',
+                padding:'7px 14px',fontSize:'12px',fontWeight:700,color:'#fff'}}>
+                + Create API key
+              </div>
+              <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'8px'}}>
+                → "Create API key in new project" 선택
+              </div>
+            </div>
+          </div>
+
+          {/* STEP 4 */}
+          <div style={{marginBottom:'16px'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'}}>
+              <div style={{width:'24px',height:'24px',borderRadius:'50%',background:'var(--accent)',
+                color:'#0f0f0f',fontWeight:800,fontSize:'12px',display:'flex',alignItems:'center',
+                justifyContent:'center',flexShrink:0}}>4</div>
+              <div style={{fontWeight:700,color:'var(--text)'}}>키 복사</div>
+            </div>
+            <div style={{background:'var(--surface2)',borderRadius:'10px',padding:'12px',marginLeft:'32px',
+              border:'1px solid var(--border)'}}>
+              <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'6px'}}>생성된 키가 이런 형태로 나타나요:</div>
+              <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                <div style={{flex:1,background:'var(--surface)',borderRadius:'6px',padding:'7px 10px',
+                  fontFamily:'monospace',fontSize:'11px',color:'#a78bfa',letterSpacing:'0.5px',
+                  overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                  AIzaSyD••••••••••••••••••••••••••••••
+                </div>
+                <div style={{background:'var(--accent)',borderRadius:'6px',padding:'6px 10px',
+                  fontSize:'11px',fontWeight:700,color:'#0f0f0f',flexShrink:0}}>
+                  복사
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* STEP 5 */}
+          <div style={{marginBottom:'20px'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'}}>
+              <div style={{width:'24px',height:'24px',borderRadius:'50%',background:'var(--accent)',
+                color:'#0f0f0f',fontWeight:800,fontSize:'12px',display:'flex',alignItems:'center',
+                justifyContent:'center',flexShrink:0}}>5</div>
+              <div style={{fontWeight:700,color:'var(--text)'}}>TrainerLog 설정에 붙여넣기</div>
+            </div>
+            <div style={{background:'var(--surface2)',borderRadius:'10px',padding:'12px',marginLeft:'32px',
+              border:'1px solid var(--border)'}}>
+              <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'6px'}}>설정 → API 키 입력란에 붙여넣기</div>
+              <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                <div style={{flex:1,background:'var(--surface)',borderRadius:'6px',padding:'7px 10px',
+                  border:'1px solid var(--accent)',fontFamily:'monospace',fontSize:'11px',
+                  color:'var(--text-dim)'}}>
+                  AIzaSyD... 붙여넣기
+                </div>
+                <div style={{background:'var(--accent)',borderRadius:'6px',padding:'6px 10px',
+                  fontSize:'11px',fontWeight:700,color:'#0f0f0f',flexShrink:0}}>
+                  저장
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* FAQ */}
+          <div style={{background:'rgba(250,204,21,0.08)',border:'1px solid rgba(250,204,21,0.2)',
+            borderRadius:'12px',padding:'14px',marginBottom:'16px'}}>
+            <div style={{fontWeight:700,color:'#facc15',marginBottom:'10px',fontSize:'13px'}}>
+              ❓ 자주 묻는 질문
+            </div>
+            {[
+              ['갑자기 돈이 빠져나가지 않나요?',
+               '아니요. 무료 플랜은 결제 수단 등록 없이 사용합니다.\n유료 전환은 직접 Google Cloud 콘솔에서 카드를 등록해야만 가능해요.'],
+              ['하루 50회면 충분한가요?',
+               '수업일지 1개 생성에 1회 사용됩니다.\n하루 50수업을 하지 않는 한 무료로 충분해요.'],
+              ['한 번 발급받으면 계속 쓸 수 있나요?',
+               '네. API 키는 영구적으로 유효합니다.\n분실 시 동일한 방법으로 새로 발급하면 돼요.'],
+              ['키를 다른 사람과 공유해도 되나요?',
+               '공유하지 않는 게 좋아요. 내 무료 한도가 소모될 수 있어요.'],
+            ].map(([q, a]) => (
+              <div key={q} style={{marginBottom:'10px',paddingBottom:'10px',
+                borderBottom:'1px solid rgba(250,204,21,0.1)'}}>
+                <div style={{fontWeight:600,color:'var(--text)',fontSize:'12px',marginBottom:'3px'}}>Q. {q}</div>
+                <div style={{fontSize:'11px',color:'var(--text-muted)',whiteSpace:'pre-line'}}>A. {a}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* 발급 바로가기 + 설정으로 돌아가기 */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}}>
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer"
+              style={{display:'block',textAlign:'center',background:'var(--accent)',color:'#0f0f0f',
+                borderRadius:'10px',padding:'12px',fontSize:'13px',fontWeight:700,
+                textDecoration:'none'}}>
+              🔑 API 키 발급하기
+            </a>
+            <button onClick={()=>{ setShowApiGuide(false); setSettingsModal(true) }}
+              style={{background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:'10px',
+                padding:'12px',fontSize:'13px',fontWeight:700,color:'var(--text)',
+                cursor:'pointer',fontFamily:'inherit'}}>
+              ← 설정으로 돌아가기
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {/* EXERCISE MODAL */}
