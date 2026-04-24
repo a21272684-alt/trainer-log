@@ -764,7 +764,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
               <div style={{background:'rgba(167,139,250,0.08)',border:'1px solid rgba(167,139,250,0.2)',
                 borderRadius:'8px',padding:'10px 12px',marginBottom:'14px',fontSize:'11px',color:'#a78bfa',lineHeight:1.6}}>
                 📌 <strong>대관 트레이너 세금 안내</strong><br/>
-                사업소득 3.3% 예납 · 연 2월 종합소득세 신고 · 대관료·장비비 등 필요경비 공제 가능
+                사업소득 3.3% 예납 · 매년 5월 종합소득세 신고 · 대관료·장비비 등 필요경비 공제 가능
               </div>
 
               <NumInput label="월 대관료" value={rentalFee} onChange={setRentalFee} hint="헬스장에 매월 납부하는 공간 임차료"/>
@@ -908,7 +908,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
               <div style={{background:'rgba(251,146,60,0.08)',border:'1px solid rgba(251,146,60,0.2)',
                 borderRadius:'8px',padding:'10px 12px',marginBottom:'14px',fontSize:'11px',color:'#fb923c',lineHeight:1.6}}>
                 📌 <strong>프리랜서 세금 안내</strong><br/>
-                센터가 수수료 지급 시 3.3% 원천징수 · 연 2월 종합소득세 신고 · 지급조서 발급 의무
+                센터가 수수료 지급 시 3.3% 원천징수 · 매년 5월 종합소득세 신고 · 지급조서 발급 의무
               </div>
 
               <NumInput label="기본 수수료율 (전체 적용)" value={commissionRate} onChange={setCommissionRate} unit="%"
