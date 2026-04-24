@@ -3456,21 +3456,22 @@ export default function TrainerApp() {
                       border:`1px solid ${plan.highlight ? 'rgba(200,241,53,0.35)' : plan.current ? 'var(--border)' : 'rgba(96,165,250,0.3)'}`,
                       borderRadius:'12px', position:'relative', textAlign:'center', marginTop:'10px',
                     }}>
+                      {/* 뱃지 — 블러 영향 없이 항상 노출 */}
+                      {plan.badge && !plan.current && (
+                        <div style={{position:'absolute',top:'-9px',left:'50%',transform:'translateX(-50%)',
+                          background: plan.highlight ? 'var(--accent)' : '#60a5fa',
+                          color:'#0f0f0f',fontSize:'8px',fontWeight:700,padding:'2px 7px',borderRadius:'8px',whiteSpace:'nowrap',zIndex:2}}>
+                          {plan.badge}
+                        </div>
+                      )}
+                      {plan.current && (
+                        <div style={{position:'absolute',top:'-9px',left:'50%',transform:'translateX(-50%)',
+                          background:'#9ca3af',color:'#0f0f0f',fontSize:'8px',fontWeight:700,padding:'2px 7px',borderRadius:'8px',zIndex:2}}>
+                          현재 플랜
+                        </div>
+                      )}
                       {/* 실제 컨텐츠 — OFF면 블러 */}
                       <div style={{padding:'12px 10px', filter: isOn ? 'none' : 'blur(5px)', userSelect: isOn ? 'auto' : 'none', pointerEvents: isOn ? 'auto' : 'none'}}>
-                        {plan.badge && !plan.current && (
-                          <div style={{position:'absolute',top:'-9px',left:'50%',transform:'translateX(-50%)',
-                            background: plan.highlight ? 'var(--accent)' : '#60a5fa',
-                            color:'#0f0f0f',fontSize:'8px',fontWeight:700,padding:'2px 7px',borderRadius:'8px',whiteSpace:'nowrap'}}>
-                            {plan.badge}
-                          </div>
-                        )}
-                        {plan.current && (
-                          <div style={{position:'absolute',top:'-9px',left:'50%',transform:'translateX(-50%)',
-                            background:'#9ca3af',color:'#0f0f0f',fontSize:'8px',fontWeight:700,padding:'2px 7px',borderRadius:'8px'}}>
-                            현재 플랜
-                          </div>
-                        )}
                         <div style={{fontSize:'13px',fontWeight:700,color:plan.color,marginBottom:'4px',marginTop:'4px'}}>{plan.name}</div>
                         <div style={{fontSize:'11px',fontWeight:700,color:'var(--text)',marginBottom:'8px'}}>{plan.price}</div>
                         {(plan.features || []).map(f => (
