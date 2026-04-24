@@ -3454,7 +3454,7 @@ export default function TrainerApp() {
                     <div key={plan.id || plan.name} style={{
                       background: plan.highlight ? 'rgba(200,241,53,0.06)' : 'var(--surface)',
                       border:`1px solid ${plan.highlight ? 'rgba(200,241,53,0.35)' : plan.current ? 'var(--border)' : 'rgba(96,165,250,0.3)'}`,
-                      borderRadius:'12px', position:'relative', textAlign:'center', overflow:'hidden',
+                      borderRadius:'12px', position:'relative', textAlign:'center', marginTop:'10px',
                     }}>
                       {/* 실제 컨텐츠 — OFF면 블러 */}
                       <div style={{padding:'12px 10px', filter: isOn ? 'none' : 'blur(5px)', userSelect: isOn ? 'auto' : 'none', pointerEvents: isOn ? 'auto' : 'none'}}>
