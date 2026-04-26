@@ -221,10 +221,10 @@ export default function Landing() {
       .then(({ data }) => {
         if (!data) return
         data.forEach(row => {
-          if (row.key === 'landing_stats'   && row.value?.length) setStats(row.value)
-          if (row.key === 'landing_reviews' && row.value?.length) setReviews(row.value)
-          if (row.key === 'landing_kakao'   && row.value?.length) setKakao(row.value)
-          if (row.key === 'landing_faqs'    && row.value?.length) setFaqs(row.value)
+          if (row.key === 'landing_stats'   && Array.isArray(row.value)) setStats(row.value)
+          if (row.key === 'landing_reviews' && Array.isArray(row.value)) setReviews(row.value)
+          if (row.key === 'landing_kakao'   && Array.isArray(row.value)) setKakao(row.value)
+          if (row.key === 'landing_faqs'    && Array.isArray(row.value)) setFaqs(row.value)
         })
       })
   }, [])
