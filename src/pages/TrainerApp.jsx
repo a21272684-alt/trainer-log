@@ -1537,6 +1537,7 @@ export default function TrainerApp() {
   const [audioName, setAudioName] = useState('')
   const [audioSize, setAudioSize] = useState('')
   const [rawInput, setRawInput] = useState('')
+  const [perspectiveInput, setPerspectiveInput] = useState('')  // AI 해석 관점
   const [previewContent, setPreviewContent] = useState('')
   const [finalContent, setFinalContent] = useState('')
   const [generating, setGenerating] = useState(false)
@@ -2268,10 +2269,11 @@ export default function TrainerApp() {
       // ai_templates.buildSessionLogPrompt 로 프롬프트 생성
       const prompt = buildSessionLogPrompt({
         trainer,
-        member:   m,
+        member:      m,
         exercises,
         rawInput,
-        hasAudio: !!audioData,
+        hasAudio:    !!audioData,
+        perspective: perspectiveInput,
       })
 
       let text
@@ -2319,7 +2321,7 @@ export default function TrainerApp() {
       const reportUrl = window.location.origin + '/report?id=' + reportId
       const kakaoMsg = m.name + ' 회원님, 오늘 수업 리포트가 도착했어요! 👇\n' + reportUrl
       navigator.clipboard.writeText(kakaoMsg).then(() => showToast('✓ 일지 저장 완료! 링크 복사됨 — 카카오톡에 붙여넣기 하세요')).catch(()=>{})
-      setTimeout(() => { setShowSend(false); setShowPreview(false); setAudioData(null); setRawInput(''); setFinalContent(''); setExercises([]) }, 1500)
+      setTimeout(() => { setShowSend(false); setShowPreview(false); setAudioData(null); setRawInput(''); setPerspectiveInput(''); setFinalContent(''); setExercises([]) }, 1500)
     } catch(e) { showToast('오류: ' + e.message) }
   }
 
@@ -4084,6 +4086,115 @@ export default function TrainerApp() {
                   <div style={{flex:1,height:'1px',background:'var(--border)'}}></div>
                 </div>
                 <div className="form-group"><textarea value={rawInput} onChange={e=>setRawInput(e.target.value)} placeholder="녹음에 없는 내용을 추가로 입력하세요." rows={3}></textarea></div>
+
+                {/* ── AI 해석 관점 입력 ── */}
+                <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'14px',marginTop:'6px'}}>
+                  <div style={{flex:1,height:'1px',background:'var(--border)'}}></div>
+                  <span style={{fontSize:'11px',color:'var(--text-dim)'}}>AI 해석 관점 (선택)</span>
+                  <div style={{flex:1,height:'1px',background:'var(--border)'}}></div>
+                </div>
+                <div className="form-group" style={{marginBottom:'8px'}}>
+                  <textarea
+                    value={perspectiveInput}
+                    onChange={e => setPerspectiveInput(e.target.value)}
+                    placeholder="예: 재활 중심으로 작성해줘 / 동기부여에 초점을 맞춰줘"
+                    rows={2}
+                    style={{resize:'none'}}
+                  />
+                </div>
+                {/* 관점 예시 가이드 */}
+                <div style={{
+                  background:'rgba(255,255,255,0.03)',
+                  border:'1px solid var(--border)',
+                  borderRadius:'10px',
+                  padding:'12px 14px',
+                  marginBottom:'16px',
+                }}>
+                  <div style={{fontSize:'11px',fontWeight:700,color:'var(--text-muted)',marginBottom:'10px',letterSpacing:'0.5px',textTransform:'uppercase'}}>
+                    ✦ 관점 예시
+                  </div>
+                  {[
+                    {
+                      tag: '재활·부상 케어',
+                      color: '#f9a8d4',
+                      bg: 'rgba(249,168,212,0.08)',
+                      border: 'rgba(249,168,212,0.25)',
+                      examples: [
+                        '무릎 재활 중인 회원이니 부하 조절과 통증 반응을 중심으로 써줘',
+                        '어깨 부상 후 복귀 단계라 가동범위 회복 위주로 기록해줘',
+                      ],
+                    },
+                    {
+                      tag: '동기부여·심리',
+                      color: '#86efac',
+                      bg: 'rgba(134,239,172,0.08)',
+                      border: 'rgba(134,239,172,0.25)',
+                      examples: [
+                        '요즘 의욕이 떨어진 회원이니 잘한 점을 크게 칭찬하는 톤으로 써줘',
+                        '첫 달이라 적응 기간임을 강조하고 격려 위주로 작성해줘',
+                      ],
+                    },
+                    {
+                      tag: '퍼포먼스·기술',
+                      color: '#fcd34d',
+                      bg: 'rgba(252,211,77,0.08)',
+                      border: 'rgba(252,211,77,0.25)',
+                      examples: [
+                        '대회 준비 중이니 볼륨·강도 수치를 구체적으로 분석해줘',
+                        '폼 교정이 목표라 자세 개선 포인트를 항목별로 정리해줘',
+                      ],
+                    },
+                    {
+                      tag: '다이어트·체성분',
+                      color: '#c4b5fd',
+                      bg: 'rgba(196,181,253,0.08)',
+                      border: 'rgba(196,181,253,0.25)',
+                      examples: [
+                        '체지방 감량이 목표라 칼로리 소모와 운동 강도 연결해서 써줘',
+                        '식단도 병행 중이니 일지에 에너지 섭취와 운동 균형을 언급해줘',
+                      ],
+                    },
+                  ].map(({ tag, color, bg, border, examples }) => (
+                    <div key={tag} style={{marginBottom:'10px'}}>
+                      <div style={{
+                        display:'inline-block',
+                        background: bg,
+                        border: `1px solid ${border}`,
+                        borderRadius:'20px',
+                        padding:'2px 10px',
+                        fontSize:'10px',
+                        fontWeight:700,
+                        color,
+                        marginBottom:'6px',
+                      }}>{tag}</div>
+                      {examples.map((ex, i) => (
+                        <div
+                          key={i}
+                          onClick={() => setPerspectiveInput(ex)}
+                          style={{
+                            display:'flex',
+                            alignItems:'flex-start',
+                            gap:'6px',
+                            padding:'6px 8px',
+                            borderRadius:'7px',
+                            cursor:'pointer',
+                            marginBottom:'4px',
+                            transition:'background 0.15s',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.06)'}
+                          onMouseLeave={e => e.currentTarget.style.background='transparent'}
+                        >
+                          <span style={{color:'var(--text-dim)',fontSize:'11px',flexShrink:0,marginTop:'1px'}}>→</span>
+                          <span style={{fontSize:'12px',color:'var(--text-muted)',lineHeight:1.5}}>{ex}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'4px',paddingTop:'8px',borderTop:'1px solid var(--border)'}}>
+                    💡 예시를 탭하면 자동으로 입력돼요. 직접 자유롭게 작성해도 됩니다.
+                  </div>
+                </div>
+
                 <div className="section-label" style={{marginTop:'4px'}}>운동 종목 기록 (선택)</div>
                 {exercises.map(ex => (
                   <div key={ex.id} className="ex-block">

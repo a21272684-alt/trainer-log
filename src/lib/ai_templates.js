@@ -128,7 +128,7 @@ const fix = (n, d = 1) => n != null ? Number(n).toFixed(d) : '—'
  * @param {boolean} [p.hasAudio]      - 오디오 파일 포함 여부 (멀티파트 시 true)
  * @returns {string} Gemini 프롬프트
  */
-export function buildSessionLogPrompt({ trainer, member, exercises = [], rawInput = '', hasAudio = false }) {
+export function buildSessionLogPrompt({ trainer, member, exercises = [], rawInput = '', hasAudio = false, perspective = '' }) {
   const remain  = Math.max(0, member.total_sessions - member.done_sessions - 1)
   const session = member.done_sessions + 1
   const today   = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -148,13 +148,17 @@ export function buildSessionLogPrompt({ trainer, member, exercises = [], rawInpu
     ? '위 음성에서 운동·수업 관련 내용만 추출하세요. 사적 대화·잡담은 완전히 무시.\n\n'
     : ''
 
+  const perspectiveInstruction = perspective.trim()
+    ? `\n⭐ 트레이너 해석 관점 (반드시 이 관점을 중심으로 일지 전체를 작성하세요):\n"${perspective.trim()}"\n`
+    : ''
+
   return `${audioInstruction}당신은 전문 퍼스널 트레이너의 수업일지 작성 도우미입니다.
 
 ⚠️ 작성 규칙:
 1. 음성에 수업과 무관한 사적 대화가 포함될 수 있습니다 — 완전히 무시하세요.
 2. 세트별 RIR과 감각 피드백을 반드시 포함하세요.
 3. 중복 내용 제거, 운동별 분류, 친근하고 전문적인 톤, 이모지 사용.
-
+${perspectiveInstruction}
 [트레이너]: ${trainer.name}
 [회원]: ${member.name}
 [세션]: ${session}회차 (전체 ${member.total_sessions}회 · 잔여 ${remain}회)
