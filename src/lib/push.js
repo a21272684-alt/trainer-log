@@ -33,7 +33,7 @@ export async function scheduleNotification(trainerId, block, memberName, notifMi
     trainer_id: trainerId,
     block_id: block.id,
     scheduled_at: scheduledAt.toISOString(),
-    title: '🏋️ TrainerLog',
+    title: '🏋️ 오운',
     body: `${notifMinutes}분 후 ${memberName}님과 수업이 있어요`
   }, { onConflict: 'trainer_id,block_id' })
 }

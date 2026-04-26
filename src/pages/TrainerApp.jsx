@@ -1698,7 +1698,7 @@ export default function TrainerApp() {
           const label = b.type === 'lesson'
             ? (members.find(m => m.id === b.memberId)?.name || '회원') + ' 수업'
             : (b.title || '개인일정')
-          const title = '🏋️ TrainerLog 수업 알림'
+          const title = '🏋️ 오운 수업 알림'
           const options = {
             body: `${notifMinutes}분 후 [${label}] 시작 (${b.start})`,
             icon: '/favicon.ico',
@@ -2808,7 +2808,7 @@ export default function TrainerApp() {
             </h1>
             <p style={{fontSize:'14px',color:'#6B7280',lineHeight:1.9,maxWidth:'340px',margin:'0 auto 32px'}}>
               AI 수업일지부터 매출 분석까지, 수업에만 집중할 수 있도록
-              나머지는 TrainerLog가 처리합니다.
+              나머지는 오운이 처리합니다.
             </p>
             <button onClick={()=>setScreen('login')} style={{
               background:'#c8f135',color:'#111',padding:'15px 36px',borderRadius:'12px',
@@ -3449,7 +3449,7 @@ export default function TrainerApp() {
               </div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:'15px',fontWeight:700}}>{trainer?.name} 트레이너</div>
-                <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'2px'}}>TRAINERLOG 이용 중</div>
+                <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'2px'}}>오운 이용 중</div>
               </div>
               <div style={{fontSize:'11px',padding:'4px 10px',borderRadius:'20px',background:'rgba(200,241,53,0.12)',color:'var(--accent)',border:'1px solid rgba(200,241,53,0.3)',fontWeight:600,flexShrink:0}}>FREE</div>
             </div>
@@ -5069,7 +5069,7 @@ export default function TrainerApp() {
               <div style={{width:'24px',height:'24px',borderRadius:'50%',background:'var(--accent)',
                 color:'#0f0f0f',fontWeight:800,fontSize:'12px',display:'flex',alignItems:'center',
                 justifyContent:'center',flexShrink:0}}>5</div>
-              <div style={{fontWeight:700,color:'var(--text)'}}>TrainerLog 설정에 붙여넣기</div>
+              <div style={{fontWeight:700,color:'var(--text)'}}>오운 설정에 붙여넣기</div>
             </div>
             <div style={{background:'var(--surface2)',borderRadius:'10px',padding:'12px',marginLeft:'32px',
               border:'1px solid var(--border)'}}>

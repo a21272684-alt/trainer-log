@@ -6,7 +6,7 @@ self.addEventListener('activate', e => e.waitUntil(self.clients.claim()))
 
 // Web Push 수신 → 알림 표시 (브라우저가 완전히 닫혀있어도 동작)
 self.addEventListener('push', e => {
-  let payload = { title: '🏋️ TrainerLog', body: '수업 알림이 도착했어요' }
+  let payload = { title: '🏋️ 오운', body: '수업 알림이 도착했어요' }
   if (e.data) {
     try { payload = e.data.json() } catch { payload.body = e.data.text() }
   }

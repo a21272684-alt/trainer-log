@@ -354,7 +354,7 @@ export default function Landing() {
           <div style={{textAlign:'center',marginBottom:'48px'}}>
             <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',color:'#16a34a',marginBottom:'10px'}}>SOLUTION</div>
             <h2 style={{fontSize:'clamp(22px,4vw,32px)',fontWeight:800,color:'#0f172a',letterSpacing:'-1px',margin:'0 0 10px',lineHeight:1.3}}>
-              TrainerLog가 이렇게 해결해드려요
+              오운이 이렇게 해결해드려요
             </h2>
             <p style={{fontSize:'14px',color:'#64748b',margin:0}}>복잡한 설정 없이, 쓰는 즉시 달라집니다</p>
           </div>
@@ -459,7 +459,7 @@ export default function Landing() {
             <h2 style={{fontSize:'clamp(22px,4vw,32px)',fontWeight:800,color:'#0f172a',letterSpacing:'-1px',margin:'0 0 10px',lineHeight:1.3}}>
               실제 트레이너들의 이야기
             </h2>
-            <p style={{fontSize:'14px',color:'#64748b',margin:0}}>TrainerLog를 쓰고 달라진 점들</p>
+            <p style={{fontSize:'14px',color:'#64748b',margin:0}}>오운을 쓰고 달라진 점들</p>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:'16px'}}>
             {reviews.map((r,i) => (
@@ -725,7 +725,7 @@ export default function Landing() {
           <Link to="/privacy" style={{fontSize:'11px',color:'#64748b',textDecoration:'none'}}>개인정보처리방침</Link>
           <Link to="/refund" style={{fontSize:'11px',color:'#64748b',textDecoration:'none'}}>환불정책</Link>
         </div>
-        <div style={{fontSize:'11px',color:'#1e293b',fontFamily:"'DM Mono',monospace"}}>v2.0 · TrainerLog</div>
+        <div style={{fontSize:'11px',color:'#1e293b',fontFamily:"'DM Mono',monospace"}}>v2.0 · 오운</div>
       </footer>
     </div>
   )

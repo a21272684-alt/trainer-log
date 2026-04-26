@@ -19,7 +19,7 @@ create table if not exists scheduled_notifications (
   trainer_id uuid references trainers(id) on delete cascade,
   block_id text not null,
   scheduled_at timestamptz not null,
-  title text not null default '🏋️ TrainerLog',
+  title text not null default '🏋️ 오운',
   body text not null,
   sent boolean default false,
   created_at timestamptz default now(),

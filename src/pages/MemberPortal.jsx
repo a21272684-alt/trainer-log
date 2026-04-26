@@ -538,7 +538,7 @@ export default function MemberPortal() {
 </style>
 </head><body>
 <div class="header">
-  <h1>TRAINERLOG</h1>
+  <h1>오운</h1>
   <p>${member.name} &nbsp;|&nbsp; ${dateStr} &nbsp;|&nbsp; ${log.session_number}회차</p>
 </div>
 <div class="section">
@@ -546,7 +546,7 @@ export default function MemberPortal() {
   <div class="content">${contentLines}</div>
 </div>
 ${log.exercises_data ? `<div class="section"><div class="section-title">운동 데이터</div><div class="content">${JSON.stringify(log.exercises_data,null,2)}</div></div>` : ''}
-<div class="footer">© TRAINERLOG &nbsp;·&nbsp; 본 일지는 트레이너와 회원 간 비공개 문서입니다.</div>
+<div class="footer">© 오운 &nbsp;·&nbsp; 본 일지는 트레이너와 회원 간 비공개 문서입니다.</div>
 <script>window.onload=function(){window.print()}<\/script>
 </body></html>`)
     win.document.close()

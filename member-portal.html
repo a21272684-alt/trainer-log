@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TrainerLog — 회원 포털</title>
+<title>오운 — 회원 포털</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -501,10 +501,10 @@ function copyLog(i){navigator.clipboard.writeText(memberLogs[i].content).then(()
 function downloadPDF(i){
   const log=memberLogs[i];const{jsPDF}=window.jspdf;const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
   const d=new Date(log.created_at);
-  doc.setFillColor(26,26,26);doc.rect(0,0,210,28,'F');doc.setTextColor(200,241,53);doc.setFontSize(16);doc.text('TRAINERLOG',14,12);
+  doc.setFillColor(26,26,26);doc.rect(0,0,210,28,'F');doc.setTextColor(200,241,53);doc.setFontSize(16);doc.text('오운',14,12);
   doc.setTextColor(255,255,255);doc.setFontSize(10);doc.text(currentMember.name+' | '+d.toLocaleDateString('ko-KR')+' | '+log.session_number+'회차',14,22);
   doc.setTextColor(30,30,30);doc.setFontSize(10);doc.text(doc.splitTextToSize(log.content,182),14,40);
-  doc.setFontSize(8);doc.setTextColor(170,170,170);doc.text('TrainerLog',14,290);doc.text(d.toLocaleDateString('ko-KR'),196,290,{align:'right'});
+  doc.setFontSize(8);doc.setTextColor(170,170,170);doc.text('오운',14,290);doc.text(d.toLocaleDateString('ko-KR'),196,290,{align:'right'});
   doc.save('수업일지_'+currentMember.name+'_'+log.session_number+'회차.pdf');showToast('✓ PDF 저장됐어요!');
 }
 
