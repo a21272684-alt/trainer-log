@@ -279,7 +279,7 @@ export default function AdminPortal() {
     return (
       <div className="login-wrap">
         <div className="login-card">
-          <div className="login-logo">TRAINER<span>LOG</span></div>
+          <div className="login-logo">오운</div>
           <div className="login-badge">ADMIN</div>
           <div className="form-group">
             <label>관리자 비밀번호</label>
@@ -370,7 +370,7 @@ export default function AdminPortal() {
       {/* TOPBAR */}
       <div className="topbar">
         <div className="topbar-left">
-          <div className="topbar-title">TRAINER<span>LOG</span></div>
+          <div className="topbar-title">오운</div>
           <div className="admin-badge">ADMIN</div>
         </div>
         <button className="logout-btn" onClick={logout}>로그아웃</button>

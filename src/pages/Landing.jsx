@@ -236,7 +236,7 @@ export default function Landing() {
       <nav style={{position:'sticky',top:0,zIndex:100,background:'rgba(248,250,252,0.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid #e2e8f0',padding:'0 20px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto',display:'flex',alignItems:'center',justifyContent:'space-between',height:'54px'}}>
           <div style={{fontSize:'17px',fontWeight:900,letterSpacing:'-0.5px',color:'#111'}}>
-            TRAINER<span style={{background:'#c8f135',color:'#111',padding:'1px 7px',borderRadius:'5px',marginLeft:'2px'}}>LOG</span>
+            오<span style={{background:'#c8f135',color:'#111',padding:'1px 7px',borderRadius:'5px',marginLeft:'2px'}}>운</span>
           </div>
           <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
             <Link to="/trainer" style={{fontSize:'13px',fontWeight:700,padding:'7px 16px',borderRadius:'9px',background:'#111827',color:'#fff',textDecoration:'none'}}>트레이너 앱</Link>
@@ -712,7 +712,7 @@ export default function Landing() {
       {/* ── FOOTER ── */}
       <footer style={{background:'#0a0f1a',borderTop:'1px solid #1e293b',padding:'28px 24px',textAlign:'center'}}>
         <div style={{fontSize:'15px',fontWeight:900,letterSpacing:'-0.5px',marginBottom:'14px',color:'#94a3b8'}}>
-          TRAINER<span style={{background:'#c8f135',color:'#111',padding:'0 5px',borderRadius:'4px',marginLeft:'2px',fontSize:'13px'}}>LOG</span>
+          오<span style={{background:'#c8f135',color:'#111',padding:'0 5px',borderRadius:'4px',marginLeft:'2px',fontSize:'13px'}}>운</span>
         </div>
         <div style={{display:'flex',justifyContent:'center',gap:'24px',marginBottom:'12px'}}>
           <Link to="/trainer" style={{fontSize:'12px',color:'#475569',textDecoration:'none'}}>트레이너 앱</Link>

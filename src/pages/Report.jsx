@@ -84,7 +84,7 @@ export default function Report() {
   return (
     <div className="report-page">
       <div className="rpt-header">
-        <div className="rpt-brand">TRAINER<span>LOG</span> · 수업 리포트</div>
+        <div className="rpt-brand">오운 · 수업 리포트</div>
         <div className="rpt-trainer-row">
           <div className="rpt-trainer-avatar">{trainerName[0]}</div>
           <div><div className="rpt-trainer-name">{trainerName} 트레이너</div><div className="rpt-trainer-sub">퍼스널 트레이너</div></div>
@@ -163,7 +163,7 @@ export default function Report() {
         </div>
 
         <div className="rpt-footer">
-          <div className="rpt-footer-brand">TRAINER<span>LOG</span></div>
+          <div className="rpt-footer-brand">오운</div>
           <div className="rpt-footer-sub">트레이너와 회원을 연결하는 스마트 수업 리포트</div>
         </div>
       </div>

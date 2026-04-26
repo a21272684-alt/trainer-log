@@ -2787,7 +2787,7 @@ export default function TrainerApp() {
           display:'flex',alignItems:'center',justifyContent:'space-between',
           boxShadow:'0 1px 8px rgba(0,0,0,0.05)',position:'sticky',top:0,zIndex:10}}>
           <div style={{fontSize:'17px',fontWeight:900,letterSpacing:'-0.5px',color:'#111'}}>
-            TRAINER<span style={{background:'#c8f135',color:'#111',padding:'1px 7px',borderRadius:'5px',marginLeft:'2px'}}>LOG</span>
+            오<span style={{background:'#c8f135',color:'#111',padding:'1px 7px',borderRadius:'5px',marginLeft:'2px'}}>운</span>
           </div>
           <Link to="/" style={{fontSize:'12px',color:'#9CA3AF',textDecoration:'none',fontWeight:500}}>← 메인으로</Link>
         </div>
@@ -2871,7 +2871,7 @@ export default function TrainerApp() {
             {/* 로고 */}
             <div style={{marginBottom:'28px'}}>
               <div style={{fontSize:'22px',fontWeight:900,letterSpacing:'-0.5px',color:'#111',marginBottom:'6px'}}>
-                TRAINER<span style={{background:'#c8f135',color:'#111',padding:'1px 7px',borderRadius:'5px',marginLeft:'2px'}}>LOG</span>
+                오<span style={{background:'#c8f135',color:'#111',padding:'1px 7px',borderRadius:'5px',marginLeft:'2px'}}>운</span>
               </div>
               <div style={{fontSize:'13px',color:'#6B7280'}}>트레이너 전용 앱에 오신 것을 환영해요</div>
             </div>
@@ -2916,7 +2916,7 @@ export default function TrainerApp() {
 
             <div style={{marginBottom:'24px'}}>
               <div style={{fontSize:'22px',fontWeight:900,letterSpacing:'-0.5px',color:'#111',marginBottom:'2px'}}>
-                TRAINER<span style={{background:'#c8f135',color:'#111',padding:'1px 7px',borderRadius:'5px',marginLeft:'2px'}}>LOG</span>
+                오<span style={{background:'#c8f135',color:'#111',padding:'1px 7px',borderRadius:'5px',marginLeft:'2px'}}>운</span>
               </div>
               <div style={{fontSize:'18px',fontWeight:800,color:'#111',marginTop:'12px',marginBottom:'4px',letterSpacing:'-0.3px'}}>트레이너 등록</div>
               <div style={{fontSize:'13px',color:'#6B7280'}}>처음 한 번만 등록하면 바로 시작할 수 있어요</div>
@@ -2959,8 +2959,8 @@ export default function TrainerApp() {
   return (
     <div>
       <div className="topbar-t">
-        <div className="topbar-left"><Link to="/" style={{background:'none',border:'none',color:'var(--text-muted)',fontSize:'18px',textDecoration:'none'}}>⌂</Link><div className="topbar-title">TRAINER<span>LOG</span></div></div>
-        <button className="settings-btn" onClick={()=>setSettingsModal(true)}>⚙ 설정</button>
+        <div className="topbar-left"><Link to="/" style={{background:'none',border:'none',color:'var(--text-muted)',fontSize:'18px',textDecoration:'none'}}>⌂</Link><div className="topbar-title">오<span>운</span></div></div>
+        <button className="settings-btn" onClick={()=>setSettingsModal(true)}>⚙ AI 설정</button>
       </div>
       <div className="tabs-t">
         {['members','history','schedule','revenue','settings'].map(t => (

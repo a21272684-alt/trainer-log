@@ -745,7 +745,7 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
           display:'flex',alignItems:'center',justifyContent:'space-between',
           boxShadow:'0 1px 8px rgba(0,0,0,0.05)',position:'sticky',top:0,zIndex:10}}>
           <div style={{fontSize:'17px',fontWeight:900,letterSpacing:'-0.5px',color:'#111'}}>
-            TRAINER<span style={{background:'#c8f135',color:'#111',padding:'1px 7px',borderRadius:'5px',marginLeft:'2px'}}>LOG</span>
+            오<span style={{background:'#c8f135',color:'#111',padding:'1px 7px',borderRadius:'5px',marginLeft:'2px'}}>운</span>
           </div>
           <Link to="/" style={{fontSize:'12px',color:'#9CA3AF',textDecoration:'none',fontWeight:500}}>← 메인으로</Link>
         </div>
@@ -843,7 +843,7 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
           <div className="m-login-card">
             {/* 로고 */}
             <div style={{marginBottom:'28px'}}>
-              <div className="m-login-logo">TRAINER<span>LOG</span></div>
+              <div className="m-login-logo">오운</div>
               <div className="m-login-sub">회원 전용 포털에 오신 것을 환영해요</div>
             </div>
 
@@ -882,7 +882,7 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
   return (
     <div className="member-portal">
       <div className="m-topbar">
-        <div className="m-topbar-title">TRAINER<span>LOG</span></div>
+        <div className="m-topbar-title">오운</div>
         <button className="m-logout-btn" onClick={logout}>로그아웃</button>
       </div>
       <div className="m-tabs" style={{overflowX:'auto',display:'flex',WebkitOverflowScrolling:'touch',scrollbarWidth:'none'}}>

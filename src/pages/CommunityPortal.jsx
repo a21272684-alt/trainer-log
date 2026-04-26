@@ -792,7 +792,7 @@ export default function CommunityPortal() {
         <div style={{position:'relative',zIndex:1,padding:'18px 24px',display:'flex',alignItems:'center',
           justifyContent:'space-between',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
           <div style={{fontSize:'16px',fontWeight:900,letterSpacing:'-1px'}}>
-            TRAINER<span style={{color:'#c8f135'}}>LOG</span>
+            오<span style={{color:'#c8f135'}}>운</span>
             <span style={{fontSize:'11px',fontWeight:600,color:'rgba(255,255,255,0.4)',
               marginLeft:'8px',letterSpacing:'0.08em'}}>COMMUNITY</span>
           </div>
@@ -877,7 +877,7 @@ export default function CommunityPortal() {
   if (screen === 'login') return (
     <div className="comm-login-wrap">
       <div className="comm-login-card">
-        <div className="comm-logo">TRAINER<span>LOG</span></div>
+        <div className="comm-logo">오운</div>
         <div className="comm-badge">COMMUNITY</div>
         <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 28, lineHeight: 1.7 }}>
           트레이너 · 회원 · 교육강사 · 센터 대표가<br/>함께하는 구인·구직·매칭 커뮤니티
@@ -1019,7 +1019,7 @@ export default function CommunityPortal() {
         {/* 헤더 */}
         <div className="comm-header">
           <div>
-            <div className="comm-header-logo">TRAINER<span>LOG</span></div>
+            <div className="comm-header-logo">오운</div>
             <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 1 }}>커뮤니티</div>
           </div>
           <div className="comm-header-actions">
