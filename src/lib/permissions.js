@@ -218,6 +218,30 @@ export function getWritableCategories(role) {
     .map(([key]) => key)
 }
 
+/**
+ * 복수 역할 기반 — 관리자가 extra_roles 를 부여한 경우 사용
+ * roles: string[]
+ */
+export function getViewableCategoriesForRoles(roles) {
+  return Object.entries(COMMUNITY_ACCESS)
+    .filter(([, cfg]) => roles.some(r => cfg.view.includes(r)))
+    .map(([key]) => key)
+}
+
+export function getWritableCategoriesForRoles(roles) {
+  return Object.entries(COMMUNITY_ACCESS)
+    .filter(([, cfg]) => roles.some(r => cfg.write.includes(r)))
+    .map(([key]) => key)
+}
+
+/**
+ * 유저의 base role + admin_permissions.extra_roles 를 합친 유효 역할 배열
+ */
+export function getEffectiveRoles(user) {
+  if (!user) return []
+  return [user.role, ...(user.admin_permissions?.extra_roles || [])]
+}
+
 /** 해당 역할이 해당 포털에 접근 가능한지 */
 export function canAccessPortal(role, portalKey) {
   const portal = PORTAL_ACCESS[portalKey]

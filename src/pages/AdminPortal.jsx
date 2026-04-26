@@ -28,6 +28,14 @@ const COMM_CAT_LABEL = {
   gym_seeks_trainer:        '트레이너 채용',
   trainer_seeks_gym:        '센터 구직',
 }
+
+// 커뮤니티 역할 옵션 (권한 설정 모달에서 사용)
+const COMM_ROLE_OPTIONS = [
+  { key:'trainer',    label:'트레이너',    emoji:'💪', color:'#c8f135', desc:'수업일지·구인 작성' },
+  { key:'member',     label:'회원',        emoji:'🏃', color:'#4fc3f7', desc:'트레이너 찾기 작성' },
+  { key:'gym_owner',  label:'헬스장 대표', emoji:'🏢', color:'#e040fb', desc:'채용공고·제휴 작성' },
+  { key:'educator',   label:'교육강사',    emoji:'📚', color:'#ff9800', desc:'교육과정·마켓 작성' },
+]
 const COMM_ROLE_LABEL = { trainer:'트레이너', member:'회원', instructor:'교육강사', gym_owner:'헬스장 대표' }
 
 const CAT_COLOR = {
@@ -69,6 +77,9 @@ export default function AdminPortal() {
   const [planGuideVisible, setPlanGuideVisible] = useState(true)
   const [plans, setPlans] = useState(DEFAULT_PLANS)
   const [planEditModal, setPlanEditModal] = useState(null)
+
+  // 커뮤니티 유저 권한 관리
+  const [commPermModal, setCommPermModal] = useState(null) // community_users row
 
   const navigate = (portalId) => {
     setPage(portalId)
@@ -124,6 +135,33 @@ export default function AdminPortal() {
     setCommUsers(prev => prev.filter(u => u.id !== userId))
     setCommPosts(prev => prev.filter(p => p.author?.id !== userId))
     showToast('유저를 삭제했습니다')
+  }
+
+  // ===== 커뮤니티 유저 권한 =====
+  async function saveCommUserPerms(userId, newPerms) {
+    const { error } = await supabase
+      .from('community_users')
+      .update({ admin_permissions: newPerms })
+      .eq('id', userId)
+    if (error) { showToast('오류: ' + error.message); return false }
+    setCommUsers(prev => prev.map(u => u.id === userId ? { ...u, admin_permissions: newPerms } : u))
+    // 모달 데이터도 동기화
+    setCommPermModal(prev => prev ? { ...prev, admin_permissions: newPerms } : null)
+    return true
+  }
+  async function toggleCommBan(userId, banned) {
+    const user = commUsers.find(u => u.id === userId)
+    const newPerms = { ...(user?.admin_permissions || {}), banned }
+    const ok = await saveCommUserPerms(userId, newPerms)
+    if (ok) showToast(banned ? '🚫 접근이 차단됐습니다' : '✓ 접근이 허용됐습니다')
+  }
+  async function toggleExtraRole(userId, roleKey, hasRole) {
+    const user = commUsers.find(u => u.id === userId)
+    const current = user?.admin_permissions || {}
+    const extras = current.extra_roles || []
+    const newExtras = hasRole ? extras.filter(r => r !== roleKey) : [...extras, roleKey]
+    const newPerms = { ...current, extra_roles: newExtras }
+    await saveCommUserPerms(userId, newPerms)
   }
 
   // ===== CRM =====
@@ -505,21 +543,37 @@ export default function AdminPortal() {
               {subTab === 'users' && (
                 <div className="card table-wrap">
                   <table>
-                    <thead><tr><th>이름</th><th>역할</th><th>지역</th><th>소개</th><th>게시글</th><th>가입일</th><th></th></tr></thead>
+                    <thead><tr><th>이름</th><th>역할</th><th>지역</th><th>소개</th><th>게시글</th><th>가입일</th><th>상태</th><th></th></tr></thead>
                     <tbody>
-                      {!commUsers.length && <tr><td colSpan={7} className="empty">유저가 없어요</td></tr>}
+                      {!commUsers.length && <tr><td colSpan={8} className="empty">유저가 없어요</td></tr>}
                       {commUsers.map(u => {
                         const userPostCount = commPosts.filter(p => p.user_id === u.id).length
                         const d = new Date(u.created_at)
+                        const perms = u.admin_permissions || {}
+                        const isBanned = !!perms.banned
+                        const extraCount = (perms.extra_roles || []).length
                         return (
                           <tr key={u.id}>
                             <td><div className="name-cell"><div className="avatar" style={{background:'#4fc3f7',color:'#0a0a0a'}}>{u.name[0]}</div><span style={{color:'var(--text)',fontWeight:500}}>{u.name}</span></div></td>
                             <td><span className="badge badge-blue">{COMM_ROLE_LABEL[u.role] || u.role}</span></td>
                             <td style={{fontSize:'12px',color:'var(--text-muted)'}}>{u.location || '-'}</td>
-                            <td style={{fontSize:'12px',color:'var(--text-muted)',maxWidth:'160px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u.bio || '-'}</td>
+                            <td style={{fontSize:'12px',color:'var(--text-muted)',maxWidth:'140px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u.bio || '-'}</td>
                             <td style={{textAlign:'center',fontFamily:"'DM Mono',monospace"}}>{userPostCount}건</td>
                             <td style={{fontSize:'11px',color:'var(--text-dim)',fontFamily:"'DM Mono',monospace'"}}>{d.toLocaleDateString('ko-KR',{month:'short',day:'numeric'})}</td>
-                            <td><button className="btn btn-danger btn-sm" onClick={() => commDeleteUser(u.id)}>삭제</button></td>
+                            <td>
+                              {isBanned
+                                ? <span className="badge badge-red">차단</span>
+                                : extraCount > 0
+                                  ? <span className="badge badge-green">+{extraCount}권한</span>
+                                  : <span style={{fontSize:'11px',color:'var(--text-dim)'}}>기본</span>
+                              }
+                            </td>
+                            <td>
+                              <div style={{display:'flex',gap:'4px'}}>
+                                <button className="btn btn-ghost btn-sm" onClick={() => setCommPermModal(u)}>권한</button>
+                                <button className="btn btn-danger btn-sm" onClick={() => commDeleteUser(u.id)}>삭제</button>
+                              </div>
+                            </td>
                           </tr>
                         )
                       })}
@@ -727,6 +781,74 @@ export default function AdminPortal() {
             }}>저장</button>
           </>
         )}
+      </Modal>
+
+      {/* COMMUNITY USER PERMISSION MODAL */}
+      <Modal open={!!commPermModal} onClose={() => setCommPermModal(null)} title={commPermModal ? `${commPermModal.name} 접근 권한 설정` : ''}>
+        {commPermModal && (() => {
+          const perms = commPermModal.admin_permissions || {}
+          const isBanned = !!perms.banned
+          const extraRoles = perms.extra_roles || []
+          const baseRole = commPermModal.role
+          const baseMeta = COMM_ROLE_OPTIONS.find(r => r.key === baseRole)
+          return (
+            <>
+              {/* 기본 역할 */}
+              <div style={{marginBottom:'16px'}}>
+                <div style={{fontSize:'11px',color:'var(--text-dim)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'}}>기본 역할</div>
+                <div style={{display:'inline-flex',alignItems:'center',gap:'6px',background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:'8px',padding:'6px 12px'}}>
+                  <span>{baseMeta?.emoji}</span>
+                  <span style={{fontSize:'13px',fontWeight:600,color:baseMeta?.color || 'var(--text)'}}>{baseMeta?.label || baseRole}</span>
+                  <span style={{fontSize:'11px',color:'var(--text-dim)'}}>· {baseMeta?.desc}</span>
+                </div>
+              </div>
+
+              <div className="divider" />
+
+              {/* 접근 차단 */}
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
+                <div>
+                  <div style={{fontWeight:600,fontSize:'13px',color: isBanned ? 'var(--danger)' : 'var(--text)'}}>커뮤니티 접근 차단</div>
+                  <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'2px'}}>차단 시 로그인해도 피드에 접근할 수 없습니다</div>
+                </div>
+                <button
+                  className={`crm-toggle${isBanned ? ' on' : ''}`}
+                  style={{fontSize:'12px',padding:'5px 14px', background: isBanned ? 'rgba(239,68,68,0.12)' : '', borderColor: isBanned ? 'rgba(239,68,68,0.3)' : '', color: isBanned ? 'var(--danger)' : ''}}
+                  onClick={() => toggleCommBan(commPermModal.id, !isBanned)}
+                >
+                  {isBanned ? '차단 중' : '허용'}
+                </button>
+              </div>
+
+              <div className="divider" />
+
+              {/* 추가 권한 */}
+              <div style={{marginBottom:'8px'}}>
+                <div style={{fontSize:'11px',color:'var(--text-dim)',marginBottom:'10px',textTransform:'uppercase',letterSpacing:'1px'}}>추가 권한 부여</div>
+                <div style={{fontSize:'11px',color:'var(--text-dim)',marginBottom:'12px'}}>체크한 역할의 카테고리 열람·작성 권한이 추가됩니다</div>
+                <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+                  {COMM_ROLE_OPTIONS.filter(r => r.key !== baseRole).map(r => {
+                    const hasExtra = extraRoles.includes(r.key)
+                    return (
+                      <div key={r.key} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 12px',borderRadius:'8px',border:`1px solid ${hasExtra ? `${r.color}33` : 'var(--border)'}`,background: hasExtra ? `${r.color}0a` : 'transparent',cursor:'pointer'}} onClick={() => toggleExtraRole(commPermModal.id, r.key, hasExtra)}>
+                        <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                          <span style={{fontSize:'16px'}}>{r.emoji}</span>
+                          <div>
+                            <div style={{fontSize:'13px',fontWeight:600,color: hasExtra ? r.color : 'var(--text)'}}>{r.label}</div>
+                            <div style={{fontSize:'11px',color:'var(--text-dim)'}}>{r.desc}</div>
+                          </div>
+                        </div>
+                        <div style={{width:'18px',height:'18px',borderRadius:'5px',border:`2px solid ${hasExtra ? r.color : 'var(--border)'}`,background: hasExtra ? r.color : 'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                          {hasExtra && <span style={{fontSize:'11px',color:'#0a0a0a',fontWeight:900}}>✓</span>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </>
+          )
+        })()}
       </Modal>
 
       {/* ADD SUBSCRIPTION MODAL */}

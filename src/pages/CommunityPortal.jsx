@@ -47,8 +47,19 @@ import '../styles/community.css'
 const CATEGORIES = COMMUNITY_ACCESS
 const ROLES = ROLE_META
 
-function getVisibleCats(role)  { return getViewableCategories(role) }
-function getWritableCats(role) { return getWritableCategories(role) }
+// roles: string | string[] 모두 수용 — admin extra_roles 지원
+function getVisibleCats(roleOrRoles) {
+  const roles = Array.isArray(roleOrRoles) ? roleOrRoles : [roleOrRoles]
+  return Object.entries(COMMUNITY_ACCESS)
+    .filter(([, cfg]) => roles.some(r => cfg.view.includes(r)))
+    .map(([key]) => key)
+}
+function getWritableCats(roleOrRoles) {
+  const roles = Array.isArray(roleOrRoles) ? roleOrRoles : [roleOrRoles]
+  return Object.entries(COMMUNITY_ACCESS)
+    .filter(([, cfg]) => roles.some(r => cfg.write.includes(r)))
+    .map(([key]) => key)
+}
 
 function timeAgo(d) {
   const diff = Date.now() - new Date(d).getTime()
@@ -293,7 +304,8 @@ export default function CommunityPortal() {
   async function loadPosts() {
     setLoading(true)
     try {
-      const visibleCats = getVisibleCats(user.role)
+      const effRoles = [user.role, ...(user.admin_permissions?.extra_roles || [])]
+      const visibleCats = getVisibleCats(effRoles)
       let q = supabase
         .from('community_posts')
         .select('*, author:community_users(*)')
@@ -379,9 +391,10 @@ export default function CommunityPortal() {
     if (!writeCat) return showToast('카테고리를 선택해주세요')
     if (!writeTitle.trim()) return showToast('제목을 입력해주세요')
     if (!writeContent.trim()) return showToast('내용을 입력해주세요')
-    // 카테고리별 write 권한 재검증 (UI 우회 방어)
+    // 카테고리별 write 권한 재검증 (UI 우회 방어) — extra_roles 포함
     const catCfg = COMMUNITY_ACCESS[writeCat]
-    if (catCfg && !catCfg.write.includes(user.role)) {
+    const effRoles = [user.role, ...(user.admin_permissions?.extra_roles || [])]
+    if (catCfg && !effRoles.some(r => catCfg.write.includes(r))) {
       return showToast(`'${catCfg.label}' 카테고리에 글을 올릴 권한이 없습니다`)
     }
     const { error } = await supabase.from('community_posts').insert({
@@ -932,8 +945,20 @@ export default function CommunityPortal() {
 
   /* ── 피드 화면 ────────────────────────────────────────────── */
   if (screen === 'feed') {
-    const visibleCats = getVisibleCats(user.role)
-    const writableCats = getWritableCats(user.role)
+    // 접근 차단 유저
+    if (user?.admin_permissions?.banned) {
+      return (
+        <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:'12px',background:'var(--bg)'}}>
+          <div style={{fontSize:'32px'}}>🚫</div>
+          <div style={{fontWeight:700,fontSize:'15px',color:'var(--text)'}}>커뮤니티 접근이 차단됐습니다</div>
+          <div style={{fontSize:'12px',color:'var(--text-dim)'}}>관리자에게 문의해주세요</div>
+          <button className="btn btn-ghost btn-sm" style={{marginTop:'8px'}} onClick={signOut}>로그아웃</button>
+        </div>
+      )
+    }
+    const effRoles = [user.role, ...(user.admin_permissions?.extra_roles || [])]
+    const visibleCats = getVisibleCats(effRoles)
+    const writableCats = getWritableCats(effRoles)
 
     return (
       <div className="comm-portal">
@@ -1014,7 +1039,8 @@ export default function CommunityPortal() {
       { key: 'nutrition', label: '식단 가이드', emoji: '🥗' },
       { key: 'content',   label: '교육 콘텐츠', emoji: '📖' },
     ]
-    const writableCats = getWritableCats(user.role)
+    const effRoles = [user.role, ...(user.admin_permissions?.extra_roles || [])]
+    const writableCats = getWritableCats(effRoles)
     const canSell = writableCats.includes('educator_market')
 
     return (
@@ -1500,7 +1526,8 @@ export default function CommunityPortal() {
 
   /* ── 글쓰기 화면 ──────────────────────────────────────────── */
   if (screen === 'write') {
-    const writableCats = getWritableCats(user.role)
+    const effRoles = [user.role, ...(user.admin_permissions?.extra_roles || [])]
+    const writableCats = getWritableCats(effRoles)
     return (
       <div className="comm-portal">
         <div className="comm-header">
