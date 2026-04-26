@@ -123,7 +123,8 @@ function Avatar({ user, size = 32 }) {
 export default function CommunityPortal() {
   const showToast = useToast()
   const navigate = useNavigate()
-  const photoInputRef = useRef(null)
+  const photoInputRef    = useRef(null)
+  const postImageRef     = useRef(null)
 
   // ── 인증 상태 ─────────────────────────────────────────────
   const [screen, setScreen]     = useState('loading')
@@ -157,9 +158,11 @@ export default function CommunityPortal() {
   const [writeCat,      setWriteCat]      = useState('')
   const [writeTitle,    setWriteTitle]    = useState('')
   const [writeContent,  setWriteContent]  = useState('')
-  const [writeLocation, setWriteLocation] = useState('')
-  const [writeTags,     setWriteTags]     = useState([])
-  const [writeTagInput, setWriteTagInput] = useState('')
+  const [writeLocation,      setWriteLocation]      = useState('')
+  const [writeTags,          setWriteTags]          = useState([])
+  const [writeTagInput,      setWriteTagInput]      = useState('')
+  const [writeImages,        setWriteImages]        = useState([])     // File[]
+  const [writeImagePreviews, setWriteImagePreviews] = useState([])     // string[]
 
   // ── 내 활동 ───────────────────────────────────────────────
   const [myTab,             setMyTab]             = useState('posts')
@@ -262,6 +265,48 @@ export default function CommunityPortal() {
     if (error) throw error
     const { data } = supabase.storage.from('community-profiles').getPublicUrl(fileName)
     return data.publicUrl
+  }
+
+  /* ── 게시글 이미지 업로드 ───────────────────────────────── */
+  async function uploadPostImages(files) {
+    if (!files.length) return []
+    const urls = []
+    for (const file of files) {
+      const ext  = file.name.split('.').pop()
+      const name = `posts/${user.id}-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      const { error } = await supabase.storage.from('community-posts').upload(name, file)
+      if (error) throw new Error(error.message)
+      const { data } = supabase.storage.from('community-posts').getPublicUrl(name)
+      urls.push(data.publicUrl)
+    }
+    return urls
+  }
+
+  function handlePostImageChange(e) {
+    const files = Array.from(e.target.files)
+    if (!files.length) return
+    const remaining = 5 - writeImages.length
+    const toAdd = files.slice(0, remaining)
+    if (toAdd.some(f => !f.type.startsWith('image/'))) return showToast('이미지 파일만 업로드 가능합니다')
+    if (toAdd.some(f => f.size > 10 * 1024 * 1024))    return showToast('10MB 이하 이미지만 업로드 가능합니다')
+    setWriteImages(prev => [...prev, ...toAdd])
+    toAdd.forEach(file => {
+      const reader = new FileReader()
+      reader.onload = ev => setWriteImagePreviews(prev => [...prev, ev.target.result])
+      reader.readAsDataURL(file)
+    })
+    e.target.value = ''
+  }
+
+  function removeWriteImage(idx) {
+    setWriteImages(prev        => prev.filter((_, i) => i !== idx))
+    setWriteImagePreviews(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  function resetWriteForm() {
+    setWriteCat(''); setWriteTitle(''); setWriteContent('')
+    setWriteLocation(''); setWriteTags([]); setWriteTagInput('')
+    setWriteImages([]); setWriteImagePreviews([])
   }
 
   /* ── 회원가입 ────────────────────────────────────────────── */
@@ -397,16 +442,25 @@ export default function CommunityPortal() {
     if (catCfg && !effRoles.some(r => catCfg.write.includes(r))) {
       return showToast(`'${catCfg.label}' 카테고리에 글을 올릴 권한이 없습니다`)
     }
+    setUploading(true)
+    let imageUrls = []
+    try {
+      imageUrls = await uploadPostImages(writeImages)
+    } catch {
+      setUploading(false)
+      return showToast('이미지 업로드 중 오류가 발생했습니다')
+    }
     const { error } = await supabase.from('community_posts').insert({
       user_id: user.id, category: writeCat,
       title: writeTitle.trim(), content: writeContent.trim(),
       location: writeLocation.trim() || null,
       tags: writeTags.length > 0 ? writeTags : null,
+      image_urls: imageUrls.length > 0 ? imageUrls : null,
     })
+    setUploading(false)
     if (error) return showToast('등록 중 오류가 발생했습니다')
     showToast('게시글이 등록되었습니다')
-    setWriteCat(''); setWriteTitle(''); setWriteContent('')
-    setWriteLocation(''); setWriteTags([])
+    resetWriteForm()
     setScreen('feed')
   }
 
@@ -1583,6 +1637,27 @@ export default function CommunityPortal() {
                 value={writeLocation} onChange={e => setWriteLocation(e.target.value)} />
             </div>
 
+            {/* 사진 첨부 */}
+            <div className="form-group">
+              <label>사진 첨부 <span style={{fontWeight:400,color:'var(--text-dim)',fontSize:'11px'}}>최대 5장 · 10MB 이하</span></label>
+              <div className="post-image-grid">
+                {writeImagePreviews.map((src, i) => (
+                  <div key={i} className="post-image-thumb">
+                    <img src={src} alt="" />
+                    <button className="post-image-remove" onClick={() => removeWriteImage(i)}>×</button>
+                  </div>
+                ))}
+                {writeImages.length < 5 && (
+                  <div className="post-image-add" onClick={() => postImageRef.current?.click()}>
+                    <span style={{fontSize:'20px'}}>📷</span>
+                    <span style={{fontSize:'11px',color:'var(--text-dim)'}}>사진 추가</span>
+                  </div>
+                )}
+              </div>
+              <input ref={postImageRef} type="file" accept="image/*" multiple style={{display:'none'}}
+                onChange={handlePostImageChange} />
+            </div>
+
             <div className="form-group">
               <label>태그 (Enter로 추가 · 최대 5개)</label>
               <div className="tag-input-wrap">
@@ -1602,8 +1677,11 @@ export default function CommunityPortal() {
             </div>
 
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setScreen('feed')}>취소</button>
-              <button className="write-btn-comm" style={{ flex: 2 }} onClick={createPost}>등록하기</button>
+              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { resetWriteForm(); setScreen('feed') }}>취소</button>
+              <button className="write-btn-comm" style={{ flex: 2, opacity: uploading ? 0.6 : 1 }}
+                onClick={createPost} disabled={uploading}>
+                {uploading ? '업로드 중...' : '등록하기'}
+              </button>
             </div>
           </div>
         </div>
@@ -1654,6 +1732,17 @@ export default function CommunityPortal() {
             )}
 
             <div className="detail-content">{selectedPost.content}</div>
+
+            {/* 첨부 이미지 */}
+            {selectedPost.image_urls?.length > 0 && (
+              <div className="detail-image-grid">
+                {selectedPost.image_urls.map((url, i) => (
+                  <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="detail-image-wrap">
+                    <img src={url} alt={`첨부 이미지 ${i + 1}`} className="detail-image" />
+                  </a>
+                ))}
+              </div>
+            )}
 
             {selectedPost.tags?.length > 0 && (
               <div className="detail-tags">
@@ -2061,6 +2150,16 @@ function PostCard({ post, onOpen, myId }) {
       {post.tags?.length > 0 && (
         <div className="post-tags">
           {post.tags.map(t => <span key={t} className="post-tag">#{t}</span>)}
+        </div>
+      )}
+
+      {/* 첨부 이미지 썸네일 (첫 장만) */}
+      {post.image_urls?.length > 0 && (
+        <div className="post-card-thumb-wrap">
+          <img src={post.image_urls[0]} alt="" className="post-card-thumb" />
+          {post.image_urls.length > 1 && (
+            <span className="post-card-thumb-count">+{post.image_urls.length - 1}</span>
+          )}
         </div>
       )}
 

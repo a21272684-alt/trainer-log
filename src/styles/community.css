@@ -816,3 +816,107 @@
   .detail-actions { flex-direction: column; }
   .detail-actions .btn { width: 100%; }
 }
+
+/* ── 게시글 이미지 첨부 (글쓰기) ──────────────────────────── */
+.post-image-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.post-image-thumb {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.post-image-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.post-image-remove {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.65);
+  color: #fff;
+  border: none;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+}
+.post-image-add {
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  border: 1.5px dashed var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.post-image-add:hover { border-color: var(--comm); background: rgba(79,195,247,0.05); }
+
+/* ── 게시글 이미지 (상세 화면) ─────────────────────────────── */
+.detail-image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  margin: 14px 0;
+}
+.detail-image-wrap {
+  display: block;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  aspect-ratio: 1;
+}
+.detail-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.15s;
+}
+.detail-image:hover { opacity: 0.88; }
+
+/* ── 피드 카드 썸네일 ───────────────────────────────────────── */
+.post-card-thumb-wrap {
+  position: relative;
+  width: 100%;
+  height: 140px;
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 8px 0;
+  background: var(--surface2);
+}
+.post-card-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.post-card-thumb-count {
+  position: absolute;
+  bottom: 6px;
+  right: 8px;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 12px;
+}
