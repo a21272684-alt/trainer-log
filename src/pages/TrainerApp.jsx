@@ -3660,7 +3660,7 @@ export default function TrainerApp() {
       )}
 
       {/* ══════════════════ 1:1 문의 탭 ══════════════════ */}
-      {activePage === 'page-members' && tab === 'support' && (
+      {activePage === 'page-support' && (
         <div className="page-t" style={{paddingBottom:'40px'}}>
 
           {/* 새 문의 작성 */}
