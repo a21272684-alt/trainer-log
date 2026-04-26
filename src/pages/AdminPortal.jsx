@@ -7,7 +7,7 @@ import '../styles/admin.css'
 const ADMIN_PW = 'trainer2024!'
 
 const PORTAL_TABS = {
-  trainer:   [{ id:'list', label:'트레이너 목록' }, { id:'logs', label:'수업일지' }, { id:'subs', label:'구독 관리' }, { id:'plans', label:'플랜 관리' }],
+  trainer:   [{ id:'list', label:'트레이너 목록' }, { id:'logs', label:'수업일지' }, { id:'subs', label:'구독 관리' }, { id:'plans', label:'플랜 관리' }, { id:'support', label:'1:1 문의' }],
   member:    [{ id:'status', label:'회원 현황' }],
   community: [{ id:'posts', label:'게시글' }, { id:'users', label:'유저' }, { id:'contacts', label:'연락 요청' }],
   crm:       [{ id:'permissions', label:'권한 관리' }],
@@ -106,6 +106,12 @@ export default function AdminPortal() {
   // 커뮤니티 유저 권한 관리
   const [commPermModal, setCommPermModal] = useState(null) // community_users row
 
+  // 1:1 문의 관리
+  const [supportList,  setSupportList]  = useState([])
+  const [supportModal, setSupportModal] = useState(null)   // 선택된 inquiry row
+  const [answerText,   setAnswerText]   = useState('')
+  const [answerFilter, setAnswerFilter] = useState('all')  // all | pending | answered
+
   // 랜딩페이지 관리
   const [landingStats,   setLandingStats]   = useState(DEFAULT_LANDING_STATS)
   const [landingReviews, setLandingReviews] = useState(DEFAULT_LANDING_REVIEWS)
@@ -128,7 +134,7 @@ export default function AdminPortal() {
 
   async function loadAll() {
     try {
-      const [t, m, l, s, cu, cp, cc, settings] = await Promise.all([
+      const [t, m, l, s, cu, cp, cc, settings, inq] = await Promise.all([
         supabase.from('trainers').select('*').order('created_at', { ascending: false }),
         supabase.from('members').select('*').order('created_at', { ascending: false }),
         supabase.from('logs').select('*').order('created_at', { ascending: false }),
@@ -137,9 +143,11 @@ export default function AdminPortal() {
         supabase.from('community_posts').select('*, author:community_users(name,role)').order('created_at', { ascending: false }),
         supabase.from('community_contacts').select('*, requester:community_users(name,role), post:community_posts(title)').order('created_at', { ascending: false }),
         supabase.from('app_settings').select('key, value').in('key', ['plan_guide_visible', 'plans', 'landing_stats', 'landing_reviews', 'landing_kakao', 'landing_faqs']),
+        supabase.from('inquiries').select('*, trainer:trainers(name)').order('created_at', { ascending: false }),
       ])
       setTrainers(t.data || []); setMembers(m.data || []); setLogs(l.data || []); setSubs(s.data || [])
       setCommUsers(cu.data || []); setCommPosts(cp.data || []); setCommContacts(cc.data || [])
+      setSupportList(inq.data || [])
       if (settings.data) {
         const vis  = settings.data.find(r => r.key === 'plan_guide_visible')
         const plns = settings.data.find(r => r.key === 'plans')
@@ -202,6 +210,21 @@ export default function AdminPortal() {
     const newExtras = hasRole ? extras.filter(r => r !== roleKey) : [...extras, roleKey]
     const newPerms = { ...current, extra_roles: newExtras }
     await saveCommUserPerms(userId, newPerms)
+  }
+
+  // ===== 1:1 문의 =====
+  async function submitAnswer(inquiryId) {
+    if (!answerText.trim()) return showToast('답변 내용을 입력해주세요')
+    const now = new Date().toISOString()
+    const { error } = await supabase.from('inquiries')
+      .update({ status:'answered', answer: answerText.trim(), answered_at: now })
+      .eq('id', inquiryId)
+    if (error) return showToast('오류: ' + error.message)
+    setSupportList(prev => prev.map(i => i.id === inquiryId
+      ? { ...i, status:'answered', answer: answerText.trim(), answered_at: now } : i))
+    setSupportModal(prev => prev ? { ...prev, status:'answered', answer: answerText.trim(), answered_at: now } : null)
+    setAnswerText('')
+    showToast('✓ 답변이 등록됐어요')
   }
 
   // ===== CRM =====
@@ -584,6 +607,67 @@ export default function AdminPortal() {
               })}
             </div>
           )}
+
+          {/* ==================== 트레이너 포털 > 1:1 문의 ==================== */}
+          {page === 'trainer' && subTab === 'support' && (() => {
+            const INQ_CAT = { general:'일반 문의', billing:'결제/구독', bug:'오류 신고', feature:'기능 제안' }
+            const filtered = answerFilter === 'all' ? supportList
+              : supportList.filter(i => i.status === answerFilter)
+            const pendingCount = supportList.filter(i => i.status === 'pending').length
+            return (
+              <div>
+                <div className="section-title">
+                  1:1 문의 관리
+                  {pendingCount > 0 && <span className="badge badge-red" style={{marginLeft:'10px'}}>{pendingCount} 미답변</span>}
+                </div>
+
+                {/* 통계 */}
+                <div className="stat-grid" style={{marginBottom:'20px'}}>
+                  <div className="stat-card"><div className="stat-num">{supportList.length}</div><div className="stat-label">전체 문의</div></div>
+                  <div className="stat-card"><div className="stat-num" style={{color:'#f5a623'}}>{pendingCount}</div><div className="stat-label">답변 대기</div></div>
+                  <div className="stat-card"><div className="stat-num" style={{color:'var(--accent)'}}>{supportList.filter(i=>i.status==='answered').length}</div><div className="stat-label">답변 완료</div></div>
+                </div>
+
+                {/* 필터 */}
+                <div className="period-tabs" style={{marginBottom:'16px'}}>
+                  {[['all','전체'],['pending','답변 대기'],['answered','답변 완료']].map(([val,label]) => (
+                    <button key={val} className={`period-tab${answerFilter===val?' active':''}`} onClick={() => setAnswerFilter(val)}>{label}</button>
+                  ))}
+                </div>
+
+                {/* 문의 목록 */}
+                <div className="card table-wrap">
+                  <table>
+                    <thead><tr><th>트레이너</th><th>유형</th><th>제목</th><th>상태</th><th>접수일</th><th></th></tr></thead>
+                    <tbody>
+                      {!filtered.length && <tr><td colSpan={6} className="empty">문의가 없어요</td></tr>}
+                      {filtered.map(inq => {
+                        const isAnswered = inq.status === 'answered'
+                        const d = new Date(inq.created_at)
+                        return (
+                          <tr key={inq.id}>
+                            <td><div className="name-cell"><div className="avatar">{(inq.trainer?.name||'?')[0]}</div><span style={{color:'var(--text)',fontWeight:500}}>{inq.trainer?.name||'탈퇴한 트레이너'}</span></div></td>
+                            <td><span className="badge badge-blue" style={{fontSize:'10px'}}>{INQ_CAT[inq.category]||inq.category}</span></td>
+                            <td style={{maxWidth:'200px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:'13px',color:'var(--text)'}}>{inq.title}</td>
+                            <td>{isAnswered
+                              ? <span className="badge badge-green">답변 완료</span>
+                              : <span className="badge badge-red">대기 중</span>}
+                            </td>
+                            <td style={{fontSize:'11px',color:'var(--text-dim)',fontFamily:"'DM Mono',monospace"}}>{d.toLocaleDateString('ko-KR',{month:'short',day:'numeric'})}</td>
+                            <td>
+                              <button className="btn btn-ghost btn-sm" onClick={() => { setSupportModal(inq); setAnswerText(inq.answer||'') }}>
+                                {isAnswered ? '보기' : '답변'}
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* ==================== 커뮤니티 포털 ==================== */}
           {page === 'community' && (
@@ -1020,6 +1104,62 @@ export default function AdminPortal() {
             }}>저장</button>
           </>
         )}
+      </Modal>
+
+      {/* 1:1 문의 답변 MODAL */}
+      <Modal open={!!supportModal} onClose={() => { setSupportModal(null); setAnswerText('') }}
+        title={supportModal ? `문의 — ${supportModal.trainer?.name || '?'} 트레이너` : ''}>
+        {supportModal && (() => {
+          const INQ_CAT = { general:'일반 문의', billing:'결제/구독', bug:'오류 신고', feature:'기능 제안' }
+          const isAnswered = supportModal.status === 'answered'
+          return (
+            <>
+              {/* 유형 + 접수일 */}
+              <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'12px'}}>
+                <span className="badge badge-blue">{INQ_CAT[supportModal.category]||supportModal.category}</span>
+                <span style={{fontSize:'11px',color:'var(--text-dim)',fontFamily:"'DM Mono',monospace"}}>
+                  {new Date(supportModal.created_at).toLocaleString('ko-KR',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}
+                </span>
+                {isAnswered && <span className="badge badge-green" style={{marginLeft:'auto'}}>답변 완료</span>}
+              </div>
+
+              {/* 제목 */}
+              <div style={{fontWeight:700,fontSize:'15px',color:'var(--text)',marginBottom:'10px'}}>
+                {supportModal.title}
+              </div>
+
+              {/* 문의 내용 */}
+              <div style={{background:'var(--surface2)',borderRadius:'10px',padding:'12px',
+                fontSize:'13px',color:'var(--text-muted)',lineHeight:1.8,
+                whiteSpace:'pre-wrap',marginBottom:'16px',border:'1px solid var(--border)'}}>
+                {supportModal.content}
+              </div>
+
+              <div className="divider" />
+
+              {/* 답변 입력 */}
+              <div className="form-group">
+                <label>{isAnswered ? '등록된 답변' : '답변 작성 *'}</label>
+                <textarea rows={6} style={{resize:'vertical'}}
+                  placeholder="트레이너에게 전달할 답변을 작성해주세요"
+                  value={answerText}
+                  onChange={e => setAnswerText(e.target.value)}
+                  readOnly={isAnswered && answerText === (supportModal.answer||'')}
+                />
+                {isAnswered && (
+                  <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'4px'}}>
+                    답변일: {new Date(supportModal.answered_at).toLocaleString('ko-KR',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}
+                  </div>
+                )}
+              </div>
+
+              <button className="btn btn-primary btn-full"
+                onClick={() => submitAnswer(supportModal.id)}>
+                {isAnswered ? '답변 수정하기' : '답변 등록하기'}
+              </button>
+            </>
+          )
+        })()}
       </Modal>
 
       {/* COMMUNITY USER PERMISSION MODAL */}

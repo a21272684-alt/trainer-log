@@ -1562,6 +1562,13 @@ export default function TrainerApp() {
   const [planGuideVisible, setPlanGuideVisible] = useState(true)
   const [plansList, setPlansList] = useState(null)
 
+  // 1:1 문의
+  const [inquiries,      setInquiries]      = useState([])
+  const [inqLoading,     setInqLoading]     = useState(false)
+  const [inqSubmitting,  setInqSubmitting]  = useState(false)
+  const [inqForm,        setInqForm]        = useState({ category:'general', title:'', content:'' })
+  const [inqSelected,    setInqSelected]    = useState(null)   // 상세 보기용
+
   // Revenue tab — tooltip
   const [revTooltip, setRevTooltip] = useState(null)
   // Revenue tab — 회원별 결제 검색
@@ -1963,6 +1970,33 @@ export default function TrainerApp() {
     setPayMonthLoading(false)
   }
   useEffect(() => { if (tab === 'revenue' && trainer) loadMonthPayments(payMonthStr) }, [tab, payMonthStr])
+  useEffect(() => { if (tab === 'support' && trainer) loadInquiries() }, [tab])
+
+  async function loadInquiries() {
+    if (!trainer?.id) return
+    setInqLoading(true)
+    const { data } = await supabase.from('inquiries')
+      .select('*').eq('trainer_id', trainer.id)
+      .order('created_at', { ascending: false })
+    setInquiries(data || [])
+    setInqLoading(false)
+  }
+  async function submitInquiry() {
+    if (!inqForm.title.trim())   return showToast('제목을 입력해주세요')
+    if (!inqForm.content.trim()) return showToast('내용을 입력해주세요')
+    setInqSubmitting(true)
+    const { error } = await supabase.from('inquiries').insert({
+      trainer_id: trainer.id,
+      category:   inqForm.category,
+      title:      inqForm.title.trim(),
+      content:    inqForm.content.trim(),
+    })
+    setInqSubmitting(false)
+    if (error) return showToast('문의 등록 중 오류가 발생했습니다')
+    showToast('✓ 문의가 접수됐습니다')
+    setInqForm({ category:'general', title:'', content:'' })
+    loadInquiries()
+  }
 
   async function loadPayments(memberId) {
     const { data } = await supabase.from('payments').select('*').eq('member_id', memberId).order('paid_at', { ascending: false })
@@ -2963,9 +2997,9 @@ export default function TrainerApp() {
         <button className="settings-btn" onClick={()=>setSettingsModal(true)}>⚙ AI 설정</button>
       </div>
       <div className="tabs-t">
-        {['members','history','schedule','revenue','settings'].map(t => (
+        {['members','history','schedule','revenue','settings','support'].map(t => (
           <div key={t} className={`tab-t${tab===t?' active':''}`} onClick={()=>showTabFn(t)}>
-            {{members:'회원',history:'발송기록',schedule:'시간표',revenue:'매출관리',settings:'설정'}[t]}
+            {{members:'회원',history:'발송기록',schedule:'시간표',revenue:'매출관리',settings:'설정',support:'문의'}[t]}
           </div>
         ))}
       </div>
@@ -3622,6 +3656,109 @@ export default function TrainerApp() {
               로그아웃
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ══════════════════ 1:1 문의 탭 ══════════════════ */}
+      {activePage === 'page-members' && tab === 'support' && (
+        <div className="page-t" style={{paddingBottom:'40px'}}>
+
+          {/* 새 문의 작성 */}
+          <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'14px',padding:'16px',marginBottom:'20px'}}>
+            <div style={{fontSize:'13px',fontWeight:700,marginBottom:'14px'}}>✉️ 새 문의 작성</div>
+
+            <div className="form-group">
+              <label>문의 유형</label>
+              <select value={inqForm.category} onChange={e=>setInqForm({...inqForm,category:e.target.value})}>
+                <option value="general">일반 문의</option>
+                <option value="billing">결제 / 구독</option>
+                <option value="bug">오류 신고</option>
+                <option value="feature">기능 제안</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>제목 <span style={{color:'var(--danger)'}}>*</span></label>
+              <input type="text" placeholder="문의 제목을 입력해주세요" maxLength={80}
+                value={inqForm.title} onChange={e=>setInqForm({...inqForm,title:e.target.value})} />
+            </div>
+
+            <div className="form-group">
+              <label>내용 <span style={{color:'var(--danger)'}}>*</span></label>
+              <textarea rows={5} placeholder="문의 내용을 자세히 적어주세요" maxLength={1000}
+                value={inqForm.content} onChange={e=>setInqForm({...inqForm,content:e.target.value})}
+                style={{resize:'vertical'}} />
+              <div style={{fontSize:'11px',color:'var(--text-dim)',textAlign:'right',marginTop:'2px'}}>{inqForm.content.length}/1000</div>
+            </div>
+
+            <button
+              onClick={submitInquiry} disabled={inqSubmitting}
+              style={{width:'100%',padding:'12px',borderRadius:'10px',border:'none',
+                background:'var(--accent)',color:'#0f0f0f',fontSize:'13px',fontWeight:700,
+                cursor:'pointer',fontFamily:'inherit',opacity:inqSubmitting?0.6:1}}>
+              {inqSubmitting ? '접수 중...' : '문의 접수하기'}
+            </button>
+          </div>
+
+          {/* 문의 내역 */}
+          <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',marginBottom:'10px',letterSpacing:'0.06em'}}>📋 문의 내역</div>
+          {inqLoading && <div style={{textAlign:'center',padding:'20px',color:'var(--text-dim)',fontSize:'12px'}}>불러오는 중...</div>}
+          {!inqLoading && !inquiries.length && (
+            <div style={{textAlign:'center',padding:'28px',color:'var(--text-dim)',fontSize:'13px'}}>아직 문의 내역이 없어요</div>
+          )}
+          {!inqLoading && inquiries.map(inq => {
+            const isSelected = inqSelected?.id === inq.id
+            const isAnswered = inq.status === 'answered'
+            const catLabel = {general:'일반 문의',billing:'결제/구독',bug:'오류 신고',feature:'기능 제안'}[inq.category] || inq.category
+            return (
+              <div key={inq.id}
+                onClick={() => setInqSelected(isSelected ? null : inq)}
+                style={{background:'var(--surface)',border:`1px solid ${isAnswered?'rgba(200,241,53,0.25)':'var(--border)'}`,
+                  borderRadius:'12px',padding:'14px',marginBottom:'8px',cursor:'pointer',
+                  transition:'border-color 0.15s'}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'6px'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                    <span style={{fontSize:'10px',padding:'2px 8px',borderRadius:'100px',fontWeight:700,
+                      background:'rgba(136,136,136,0.1)',color:'var(--text-dim)'}}>
+                      {catLabel}
+                    </span>
+                    <span style={{fontSize:'10px',padding:'2px 8px',borderRadius:'100px',fontWeight:700,
+                      background: isAnswered?'rgba(200,241,53,0.12)':'rgba(245,166,35,0.1)',
+                      color: isAnswered?'var(--accent)':'#f5a623'}}>
+                      {isAnswered ? '답변 완료' : '답변 대기'}
+                    </span>
+                  </div>
+                  <span style={{fontSize:'11px',color:'var(--text-dim)',fontFamily:"'DM Mono',monospace"}}>
+                    {new Date(inq.created_at).toLocaleDateString('ko-KR',{month:'short',day:'numeric'})}
+                  </span>
+                </div>
+                <div style={{fontSize:'13px',fontWeight:600,color:'var(--text)',marginBottom: isSelected?'12px':'0'}}>
+                  {inq.title}
+                </div>
+
+                {/* 펼쳐진 상태 */}
+                {isSelected && (
+                  <div onClick={e=>e.stopPropagation()}>
+                    <div style={{fontSize:'13px',color:'var(--text-muted)',lineHeight:1.7,
+                      padding:'10px 0',borderTop:'1px solid var(--border)',whiteSpace:'pre-wrap'}}>
+                      {inq.content}
+                    </div>
+                    {isAnswered && inq.answer && (
+                      <div style={{marginTop:'10px',padding:'12px',borderRadius:'10px',
+                        background:'rgba(200,241,53,0.06)',border:'1px solid rgba(200,241,53,0.2)'}}>
+                        <div style={{fontSize:'10px',fontWeight:700,color:'var(--accent)',marginBottom:'6px',letterSpacing:'0.05em'}}>
+                          💬 관리자 답변 · {new Date(inq.answered_at).toLocaleDateString('ko-KR',{month:'short',day:'numeric'})}
+                        </div>
+                        <div style={{fontSize:'13px',color:'var(--text)',lineHeight:1.7,whiteSpace:'pre-wrap'}}>
+                          {inq.answer}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
