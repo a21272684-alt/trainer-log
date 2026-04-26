@@ -189,7 +189,7 @@ function WeeklyReportPanel({ gymId, apiKey }) {
 
   // ── 리포트 생성 ───────────────────────────────────────────
   async function handleGenerate(existingReport = null) {
-    if (!apiKey) { showToast('설정에서 Gemini API 키를 먼저 입력해주세요'); return }
+    if (!apiKey) { showToast('AI 서비스 준비 중이에요. 잠시 후 다시 시도해주세요'); return }
     if (!gymId)  { showToast('센터 정보가 없어요. 트레이너 설정에서 gym_id를 확인해주세요'); return }
 
     setPhase('loading'); setErrMsg('')
@@ -1144,7 +1144,7 @@ function AiInsightPanel({ member, apiKey }) {
 
   async function generate() {
     if (!apiKey) {
-      setPhase('error'); setErrMsg('설정에서 Gemini API 키를 먼저 입력해주세요'); return
+      setPhase('error'); setErrMsg('AI 서비스 준비 중이에요. 잠시 후 다시 시도해주세요'); return
     }
     setPhase('loading'); setInsight(''); setErrMsg(''); setStats(null)
 
@@ -1645,11 +1645,11 @@ export default function TrainerApp() {
 
   // Settings modal
   const [settingsModal, setSettingsModal] = useState(false)
-  const [apiKey, setApiKey] = useState('')
   const [weeklyReportOpen, setWeeklyReportOpen] = useState(false)
-  const [showApiGuide, setShowApiGuide] = useState(false)
   const [aiUsage, setAiUsage] = useState(null)   // { plan, limit, used, remaining, blocked }
   const [showLimitModal, setShowLimitModal] = useState(false)
+  const [centralApiKey, setCentralApiKey] = useState('')  // 중앙화된 Gemini API 키
+  const [credits, setCredits] = useState(0)               // 트레이너 크레딧 잔액
 
   // Schedule
   const [weekOff, setWeekOff] = useState(0)
@@ -1821,12 +1821,19 @@ export default function TrainerApp() {
     } catch(_) {}
   }
 
+  // 중앙 Gemini API 키 로드 (앱 마운트 시 1회)
+  useEffect(() => {
+    supabase.from('app_settings').select('value').eq('key', 'gemini_api_key').single()
+      .then(({ data }) => { if (data?.value) setCentralApiKey(String(data.value).replace(/^"|"$/g, '')) })
+      .catch(() => {})
+  }, [])
+
   async function login() {
     if (!loginName || !loginPhone) { showToast('이름과 전화번호를 입력해주세요'); return }
     try {
       const { data } = await supabase.from('trainers').select('*').eq('name', loginName).eq('phone', loginPhone)
       if (!data?.length) { showToast('등록된 트레이너 정보가 없어요'); return }
-      setTrainer(data[0]); setApiKey(data[0].api_key || ''); setScreen('app')
+      setTrainer(data[0]); setCredits(data[0].credits ?? 0); setScreen('app')
       showToast('✓ 환영해요, ' + data[0].name + ' 트레이너님!')
       // 마켓 구매 루틴 라이브러리 로드
       const { data: libData } = await supabase
@@ -1844,7 +1851,7 @@ export default function TrainerApp() {
     try {
       const { data: ex } = await supabase.from('trainers').select('*').eq('name', regName).eq('phone', regPhone)
       if (ex?.length) { showToast('이미 등록됐어요. 로그인해주세요'); setScreen('login'); return }
-      await supabase.from('trainers').insert({ name: regName, phone: regPhone, api_key: regApi })
+      await supabase.from('trainers').insert({ name: regName, phone: regPhone })
       showToast('✓ 등록 완료! 로그인해주세요'); setScreen('login')
     } catch(e) { showToast('오류: ' + e.message) }
   }
@@ -2248,17 +2255,11 @@ export default function TrainerApp() {
   // === GENERATE ===
   async function generateLog() {
     if (!audioData && !rawInput && !exercises.length) { showToast('녹음 파일을 업로드하거나 내용을 입력해주세요'); return }
-    const key = apiKey || trainer.api_key
-    if (!key) { showToast('설정에서 Gemini API 키를 먼저 입력해주세요'); setSettingsModal(true); return }
+    const key = centralApiKey
+    if (!key) { showToast('AI 서비스 준비 중이에요. 잠시 후 다시 시도해주세요'); return }
 
-    // ── AI 한도 체크 ─────────────────────────────────────────
-    try {
-      const { data: usageNow } = await supabase.rpc('get_ai_usage', { p_trainer_id: trainer.id })
-      if (usageNow) {
-        setAiUsage(usageNow)
-        if (usageNow.blocked) { setShowLimitModal(true); return }
-      }
-    } catch(_) {}
+    // ── 크레딧 체크 ──────────────────────────────────────────
+    if (credits <= 0) { setShowLimitModal(true); return }
     // ─────────────────────────────────────────────────────────
 
     const m = currentMember
@@ -2290,10 +2291,10 @@ export default function TrainerApp() {
       setShowPreview(true); setPreviewContent(text); setFinalContent(text); setShowSend(true)
       showToast('✦ 수업일지 생성 완료!')
 
-      // ── 사용량 +1 ────────────────────────────────────────
+      // ── 크레딧 차감 ──────────────────────────────────────
       try {
-        const { data: consumed } = await supabase.rpc('consume_ai_credit', { p_trainer_id: trainer.id })
-        if (consumed) setAiUsage(prev => prev ? { ...prev, used: consumed.used, remaining: consumed.remaining } : prev)
+        const { data: result } = await supabase.rpc('use_ai_credit', { p_trainer_id: trainer.id })
+        if (result?.success) setCredits(result.credits)
       } catch(_) {}
       // ─────────────────────────────────────────────────────
     } catch(e) {
@@ -2323,10 +2324,7 @@ export default function TrainerApp() {
   }
 
   async function saveSettings() {
-    try {
-      await supabase.from('trainers').update({ api_key: apiKey }).eq('id', trainer.id)
-      setTrainer({...trainer, api_key: apiKey}); setSettingsModal(false); showToast('✓ 설정이 저장됐어요')
-    } catch(e) { showToast('오류: ' + e.message) }
+    setSettingsModal(false); showToast('✓ 설정이 저장됐어요')
   }
 
   // === HEALTH VIEW ===
@@ -2710,7 +2708,7 @@ export default function TrainerApp() {
         </button>
         {weeklyReportOpen && (
           <div style={{marginBottom:'16px'}}>
-            <WeeklyReportPanel gymId={trainer?.gym_id} apiKey={apiKey || trainer?.api_key || ''} />
+            <WeeklyReportPanel gymId={trainer?.gym_id} apiKey={centralApiKey} />
           </div>
         )}
 
@@ -2964,17 +2962,6 @@ export default function TrainerApp() {
               <label>전화번호 뒷 4자리 <span style={{color:'#9CA3AF',fontWeight:400}}>(로그인 비밀번호로 사용)</span></label>
               <input type="password" value={regPhone} onChange={e=>setRegPhone(e.target.value)} placeholder="1234" maxLength={4} />
             </div>
-            <div className="form-group">
-              <label>
-                Gemini API 키&nbsp;
-                <a href="https://aistudio.google.com/app/apikey" target="_blank"
-                  style={{color:'#4d7c0f',fontSize:'11px',fontWeight:600,textDecoration:'none'}}>
-                  무료 발급 →
-                </a>
-              </label>
-              <input type="text" value={regApi} onChange={e=>setRegApi(e.target.value)} placeholder="AIza..." />
-            </div>
-
             <button className="btn btn-primary btn-full"
               style={{marginTop:'4px',padding:'13px',fontSize:'14px'}} onClick={register}>
               등록 완료
@@ -4134,19 +4121,16 @@ export default function TrainerApp() {
                   <div className="form-group"><label>수정이 필요하면 직접 편집하세요</label><textarea value={finalContent} onChange={e=>setFinalContent(e.target.value)} rows={12} style={{fontSize:'13px',lineHeight:'1.8'}}></textarea></div>
                 </div>
               )}
-              {/* AI 사용량 표시 */}
-              {aiUsage && aiUsage.limit != null && (function AiUsageBar() {
-                const used      = aiUsage.used      ?? 0
-                const limit     = aiUsage.limit
-                const remaining = aiUsage.remaining  ?? Math.max(0, limit - used)
-                const pct       = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0
-                const barColor  = remaining <= 3 ? '#f9a8d4' : remaining <= 7 ? '#fcd34d' : '#86efac'
-                const textColor = remaining <= 3 ? '#f9a8d4' : remaining <= 7 ? '#fcd34d' : '#86efac'
-                const label     = remaining <= 3
-                  ? `⚠️ ${remaining}회 남았어요`
-                  : remaining <= 7
-                  ? `🔔 ${remaining}회 남았어요`
-                  : `✦ 이번 달 ${remaining}회 남았어요`
+              {/* 크레딧 표시 */}
+              {(function CreditBar() {
+                const barColor  = credits <= 3 ? '#f9a8d4' : credits <= 10 ? '#fcd34d' : '#86efac'
+                const label     = credits <= 0
+                  ? '⛔ 크레딧이 없어요'
+                  : credits <= 3
+                  ? `⚠️ 크레딧 ${credits}개 남았어요`
+                  : credits <= 10
+                  ? `🔔 크레딧 ${credits}개 남았어요`
+                  : `✦ 크레딧 ${credits}개`
                 return (
                   <div style={{
                     background:'rgba(255,255,255,0.05)',
@@ -4154,33 +4138,28 @@ export default function TrainerApp() {
                     borderRadius:'10px',
                     padding:'12px 14px',
                     marginBottom:'10px',
+                    display:'flex',
+                    justifyContent:'space-between',
+                    alignItems:'center',
                   }}>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
-                      <span style={{fontSize:'13px',fontWeight:600,color:textColor}}>{label}</span>
-                      <span style={{fontSize:'13px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:textColor}}>
-                        {used} / {limit}회
-                      </span>
-                    </div>
-                    <div style={{height:'8px',borderRadius:'4px',background:'rgba(255,255,255,0.1)',overflow:'hidden'}}>
-                      <div style={{
-                        height:'100%',
-                        borderRadius:'4px',
-                        width: pct + '%',
-                        background: barColor,
-                        transition:'width 0.4s ease',
-                        boxShadow:`0 0 8px ${barColor}99`,
-                      }} />
-                    </div>
+                    <span style={{fontSize:'13px',fontWeight:600,color:barColor}}>{label}</span>
+                    <button
+                      onClick={()=>setSettingsModal(true)}
+                      style={{background:'none',border:`1px solid ${barColor}66`,borderRadius:'6px',
+                        color:barColor,fontSize:'11px',fontWeight:700,padding:'3px 8px',
+                        cursor:'pointer',fontFamily:'inherit'}}>
+                      충전
+                    </button>
                   </div>
                 )
               }())}
               {!generating && !showPreview && (
                 <button
                   className="btn btn-primary"
-                  style={{width:'100%',marginBottom:'10px',opacity: aiUsage?.blocked ? 0.5 : 1,cursor: aiUsage?.blocked ? 'not-allowed' : 'pointer'}}
+                  style={{width:'100%',marginBottom:'10px',opacity: credits <= 0 ? 0.5 : 1,cursor: credits <= 0 ? 'not-allowed' : 'pointer'}}
                   onClick={generateLog}
                 >
-                  {aiUsage?.blocked ? '🔒 이번 달 AI 사용 한도 초과' : '✦ AI 수업일지 생성'}
+                  {credits <= 0 ? '🔒 크레딧 부족' : '✦ AI 수업일지 생성'}
                 </button>
               )}
               {showSend && (
@@ -4189,7 +4168,7 @@ export default function TrainerApp() {
                   <button className="btn btn-primary" style={{width:'100%',marginBottom:'8px'}} onClick={sendKakao}>
                     <span style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px'}}>
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="#0f0f0f"><path d="M12 3C6.477 3 2 6.582 2 11c0 2.83 1.634 5.33 4.127 6.89l-1.07 3.97a.5.5 0 0 0 .733.556L10.13 19.7A11.6 11.6 0 0 0 12 19.8c5.523 0 10-3.582 10-8S17.523 3 12 3z"/></svg>
-                      리포트 링크 카카오톡으로 보내기
+                      회원님께 리포트 링크 공유하기
                     </span>
                   </button>
                   <div style={{fontSize:'12px',color:'var(--text-dim)',textAlign:'center',marginBottom:'10px'}}>회원이 링크를 클릭하면 예쁜 리포트 페이지가 열려요</div>
@@ -4214,7 +4193,7 @@ export default function TrainerApp() {
               <div style={{height:'1px',background:'var(--border)',marginBottom:'18px'}} />
               {/* AI 인사이트 */}
               <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',marginBottom:'10px'}}>🤖 AI 인사이트</div>
-              <AiInsightPanel member={currentMember} apiKey={apiKey || trainer?.api_key || ''} />
+              <AiInsightPanel member={currentMember} apiKey={centralApiKey} />
             </div>
           )}
         </div>
@@ -5009,64 +4988,73 @@ export default function TrainerApp() {
         </div>
         <div className="divider"></div>
 
-        {/* API 키 섹션 */}
+        {/* 크레딧 섹션 */}
         <div className="form-group">
-          <label style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-            <span>Gemini API 키</span>
-            <button
-              onClick={()=>{ setSettingsModal(false); setShowApiGuide(true) }}
-              style={{background:'none',border:'1px solid var(--accent)',borderRadius:'6px',
-                color:'var(--accent)',fontSize:'10px',fontWeight:700,padding:'3px 8px',
-                cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
-              📖 발급 방법 보기
-            </button>
-          </label>
-          <input type="text" value={apiKey} onChange={e=>setApiKey(e.target.value)}
-            placeholder="AIza... (없으면 발급 방법 보기 클릭)" />
-          {!apiKey && (
-            <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'5px',lineHeight:1.5}}>
-              ⚠️ API 키가 없으면 AI 수업일지 생성 기능을 사용할 수 없어요.
+          <label>AI 크레딧</label>
+          <div style={{
+            background:'rgba(255,255,255,0.05)',
+            border:'1px solid var(--border)',
+            borderRadius:'10px',
+            padding:'16px',
+          }}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
+              <div>
+                <div style={{fontSize:'28px',fontWeight:800,fontFamily:"'DM Mono',monospace",color:'var(--accent)',lineHeight:1}}>
+                  {credits}
+                </div>
+                <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'4px'}}>보유 크레딧</div>
+              </div>
+              <div style={{fontSize:'32px'}}>🎟️</div>
             </div>
-          )}
-          {apiKey && (
-            <div style={{fontSize:'10px',color:'#4ade80',marginTop:'5px'}}>
-              ✓ API 키가 설정됐어요
+            <div style={{fontSize:'11px',color:'var(--text-muted)',lineHeight:1.6,marginBottom:'12px'}}>
+              크레딧 1개 = AI 수업일지 생성 1회<br/>
+              크레딧이 부족하면 관리자에게 충전을 요청하세요.
             </div>
-          )}
+            <div style={{
+              background:'rgba(200,241,53,0.08)',
+              border:'1px solid rgba(200,241,53,0.2)',
+              borderRadius:'8px',
+              padding:'10px 12px',
+              fontSize:'12px',
+              color:'var(--accent)',
+              fontWeight:600,
+            }}>
+              💡 크레딧 충전 문의: 관리자에게 연락해주세요
+            </div>
+          </div>
         </div>
-        <button className="btn btn-primary" style={{width:'100%',marginTop:'8px'}} onClick={saveSettings}>저장</button>
+        <button className="btn btn-primary" style={{width:'100%',marginTop:'8px'}} onClick={saveSettings}>닫기</button>
       </Modal>
 
-      {/* ── AI 한도 초과 모달 ── */}
-      <Modal open={showLimitModal} onClose={()=>setShowLimitModal(false)} title="이번 달 AI 사용 한도 초과">
+      {/* ── 크레딧 부족 모달 ── */}
+      <Modal open={showLimitModal} onClose={()=>setShowLimitModal(false)} title="크레딧이 부족해요">
         <div style={{textAlign:'center',padding:'8px 0'}}>
-          <div style={{fontSize:'48px',marginBottom:'12px'}}>🔒</div>
+          <div style={{fontSize:'48px',marginBottom:'12px'}}>🎟️</div>
           <div style={{fontSize:'15px',fontWeight:700,marginBottom:'8px'}}>
-            이번 달 무료 AI 사용 횟수를 모두 사용했어요
+            AI 수업일지를 생성하려면 크레딧이 필요해요
           </div>
-          {aiUsage && (
-            <div style={{fontSize:'13px',color:'var(--text-dim)',marginBottom:'16px'}}>
-              이번 달 사용: <strong style={{color:'var(--accent)'}}>{aiUsage.used}회</strong> / {aiUsage.limit}회
-            </div>
-          )}
+          <div style={{fontSize:'13px',color:'var(--text-dim)',marginBottom:'16px'}}>
+            현재 보유 크레딧: <strong style={{color:'var(--accent)'}}>{credits}개</strong>
+          </div>
           <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'10px',padding:'14px',marginBottom:'16px',textAlign:'left',fontSize:'13px',lineHeight:1.7}}>
-            <div style={{fontWeight:600,marginBottom:'6px'}}>💡 다음 달 1일에 자동으로 초기화돼요</div>
-            <div style={{color:'var(--text-dim)'}}>더 많은 AI 수업일지를 작성하고 싶으시다면 업그레이드 플랜을 문의해 주세요.</div>
+            <div style={{fontWeight:600,marginBottom:'6px'}}>💡 크레딧이란?</div>
+            <div style={{color:'var(--text-dim)'}}>크레딧 1개로 AI 수업일지를 1회 생성할 수 있어요. 크레딧은 관리자에게 문의하여 충전할 수 있어요.</div>
           </div>
-          <a
-            href="mailto:support@trainerlog.app?subject=AI 플랜 업그레이드 문의"
-            style={{display:'block',padding:'12px',background:'var(--accent)',color:'#0f0f0f',borderRadius:'8px',fontWeight:700,fontSize:'14px',textDecoration:'none',marginBottom:'8px'}}
+          <button
+            className="btn btn-primary"
+            style={{width:'100%',marginBottom:'8px'}}
+            onClick={()=>{ setShowLimitModal(false); setSettingsModal(true) }}
           >
-            📧 업그레이드 문의하기
-          </a>
+            🎟️ 크레딧 확인하기
+          </button>
           <button className="btn btn-ghost" style={{width:'100%'}} onClick={()=>setShowLimitModal(false)}>
             닫기
           </button>
         </div>
       </Modal>
 
-      {/* ── API KEY 발급 가이드 모달 ── */}
-      <Modal open={showApiGuide} onClose={()=>setShowApiGuide(false)} title="Gemini API 키 발급 방법">
+      {/* ── API KEY 발급 가이드 모달 (비활성화) ── */}
+      <Modal open={false} onClose={()=>{}} title="Gemini API 키 발급 방법">
         <div style={{fontSize:'13px',lineHeight:1.6}}>
 
           {/* 비용 안심 배너 */}

@@ -32,7 +32,7 @@ const DEFAULT_LANDING_KAKAO = [
   { from:'회원', text:'와 선생님 이거 뭐예요?? 제 운동 내용이 다 정리돼있어요 ㅋㅋㅋ 친구한테도 자랑했어요', time:'오후 7:41' },
 ]
 const DEFAULT_LANDING_FAQS = [
-  { q:'AI 수업일지를 만들려면 별도 비용이 드나요?', a:'아니요. 무료 플랜에서도 월 20회의 AI 수업일지를 사용할 수 있어요. 별도 결제 수단 등록이 필요 없고, 한도를 넘으면 자동으로 멈출 뿐 추가 요금은 발생하지 않아요.' },
+  { q:'AI 수업일지를 만들려면 별도 비용이 드나요?', a:'크레딧 방식으로 운영돼요. 가입 시 기본 크레딧이 지급되며, 크레딧 1개로 AI 수업일지를 1회 생성할 수 있어요. 추가 크레딧은 합리적인 가격으로 충전할 수 있어요.' },
   { q:'회원이 별도로 앱을 설치해야 하나요?', a:'아니요. 회원은 트레이너가 카카오톡으로 보내는 링크를 클릭하기만 하면 돼요. 앱 설치 없이 브라우저에서 바로 수업 리포트를 확인할 수 있어요.' },
   { q:'트레이너 여러 명이 함께 쓸 수 있나요?', a:'현재는 트레이너 개인 계정 단위로 운영돼요. 각 트레이너가 개별 계정을 만들어 사용하면 됩니다.' },
   { q:'기존에 쓰던 데이터를 옮겨올 수 있나요?', a:'현재는 직접 입력 방식만 지원해요. 데이터 마이그레이션 기능은 Pro 플랜과 함께 제공될 예정이에요.' },
@@ -119,6 +119,11 @@ export default function AdminPortal() {
   const [landingFaqs,    setLandingFaqs]    = useState(DEFAULT_LANDING_FAQS)
   const [landingEditModal, setLandingEditModal] = useState(null) // {type, index, data}
 
+  // 크레딧 / API 키 관리
+  const [creditAmount, setCreditAmount] = useState('10')
+  const [centralApiKey, setCentralApiKey] = useState('')
+  const [apiKeyLoaded, setApiKeyLoaded] = useState(false)
+
   const navigate = (portalId) => {
     setPage(portalId)
     if (DEFAULT_TAB[portalId]) setSubTab(DEFAULT_TAB[portalId])
@@ -142,7 +147,7 @@ export default function AdminPortal() {
         supabase.from('community_users').select('*').order('created_at', { ascending: false }),
         supabase.from('community_posts').select('*, author:community_users(name,role)').order('created_at', { ascending: false }),
         supabase.from('community_contacts').select('*, requester:community_users(name,role), post:community_posts(title)').order('created_at', { ascending: false }),
-        supabase.from('app_settings').select('key, value').in('key', ['plan_guide_visible', 'plans', 'landing_stats', 'landing_reviews', 'landing_kakao', 'landing_faqs']),
+        supabase.from('app_settings').select('key, value').in('key', ['plan_guide_visible', 'plans', 'landing_stats', 'landing_reviews', 'landing_kakao', 'landing_faqs', 'gemini_api_key']),
         supabase.from('inquiries').select('*, trainer:trainers(name)').order('created_at', { ascending: false }),
       ])
       setTrainers(t.data || []); setMembers(m.data || []); setLogs(l.data || []); setSubs(s.data || [])
@@ -161,8 +166,29 @@ export default function AdminPortal() {
         if (lReviews) setLandingReviews(lReviews.value)
         if (lKakao)   setLandingKakao(lKakao.value)
         if (lFaqs)    setLandingFaqs(lFaqs.value)
+        const apiKeyRow = settings.data.find(r => r.key === 'gemini_api_key')
+        if (apiKeyRow?.value) setCentralApiKey(String(apiKeyRow.value).replace(/^"|"$/g, ''))
+        setApiKeyLoaded(true)
       }
     } catch(e) { showToast('데이터 로드 오류: ' + e.message) }
+  }
+
+  // 크레딧 충전
+  async function addTrainerCredits(trainerId, amount) {
+    try {
+      const { data, error } = await supabase.rpc('admin_add_credits', { p_trainer_id: trainerId, p_amount: amount })
+      if (error) throw error
+      setTrainers(prev => prev.map(t => t.id === trainerId ? { ...t, credits: data } : t))
+      showToast(`✓ ${amount}크레딧 충전 완료 (잔액: ${data}개)`)
+    } catch(e) { showToast('오류: ' + e.message) }
+  }
+
+  // 중앙 API 키 저장
+  async function saveCentralApiKey() {
+    try {
+      await supabase.from('app_settings').upsert({ key: 'gemini_api_key', value: centralApiKey }, { onConflict: 'key' })
+      showToast('✓ API 키가 저장됐어요')
+    } catch(e) { showToast('오류: ' + e.message) }
   }
 
   // ===== COMMUNITY =====
@@ -476,10 +502,25 @@ export default function AdminPortal() {
           {/* ==================== 트레이너 포털 ==================== */}
           {page === 'trainer' && subTab === 'list' && (
             <div>
+              {/* 중앙 Gemini API 키 설정 */}
+              <div className="card" style={{marginBottom:'16px',padding:'14px 16px'}}>
+                <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',marginBottom:'10px',textTransform:'uppercase',letterSpacing:'1px'}}>🔑 중앙 Gemini API 키</div>
+                <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
+                  <input
+                    type="text"
+                    value={centralApiKey}
+                    onChange={e => setCentralApiKey(e.target.value)}
+                    placeholder="AIza..."
+                    style={{flex:1,padding:'8px 10px',borderRadius:'8px',border:'1px solid var(--border)',background:'var(--surface)',color:'var(--text)',fontSize:'13px',fontFamily:'monospace'}}
+                  />
+                  <button className="btn btn-primary btn-sm" onClick={saveCentralApiKey}>저장</button>
+                </div>
+                {centralApiKey && <div style={{fontSize:'11px',color:'#4ade80',marginTop:'6px'}}>✓ API 키 설정됨 — 모든 트레이너가 이 키로 AI를 사용해요</div>}
+              </div>
               <div className="section-title">트레이너 목록 <button className="btn btn-primary btn-sm" onClick={openAddSub}>+ 구독 추가</button></div>
               <div className="card table-wrap">
                 <table>
-                  <thead><tr><th>트레이너</th><th>회원수</th><th>일지 발송</th><th>가입일</th><th>구독상태</th><th></th></tr></thead>
+                  <thead><tr><th>트레이너</th><th>회원수</th><th>일지 발송</th><th>크레딧</th><th>가입일</th><th>구독상태</th><th></th></tr></thead>
                   <tbody>
                     {!trainers.length && <tr><td colSpan={6} className="empty">등록된 트레이너가 없어요</td></tr>}
                     {trainers.map(t => {
@@ -493,6 +534,7 @@ export default function AdminPortal() {
                           <td><div className="name-cell"><div className="avatar">{t.name[0]}</div><div><div style={{color:'var(--text)',fontWeight:500}}>{t.name}</div></div></div></td>
                           <td>{mc}명</td>
                           <td>{lc}건</td>
+                          <td><span style={{fontFamily:"'DM Mono',monospace",fontWeight:700,color:'var(--accent)'}}>{t.credits ?? 0}</span></td>
                           <td style={{fontFamily:"'DM Mono',monospace",fontSize:'12px'}}>{joinDate.toLocaleDateString('ko-KR',{year:'2-digit',month:'short',day:'numeric'})}<br/><span style={{color:'var(--text-dim)',fontSize:'11px'}}>{joinDate.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}</span></td>
                           <td>{isActive ? <span className="badge badge-green">{sub.plan}</span> : <span className="badge badge-red">미구독</span>}</td>
                           <td><button className="btn btn-ghost btn-sm" onClick={() => setTrainerModal(t.id)}>상세</button></td>
@@ -1274,6 +1316,27 @@ export default function AdminPortal() {
               <div className="stat-card"><div className="stat-num" style={{fontSize:'20px'}}>{stSubs.length}</div><div className="stat-label">결제 건</div></div>
             </div>
             <div style={{fontSize:'12px',color:'var(--text-dim)',marginBottom:'8px'}}>가입일: {new Date(selectedTrainer.created_at).toLocaleString('ko-KR')}</div>
+            <div className="divider" />
+            {/* 크레딧 관리 */}
+            <div style={{fontSize:'12px',color:'var(--text-dim)',marginBottom:'8px',textTransform:'uppercase',letterSpacing:'1px'}}>AI 크레딧 관리</div>
+            <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'12px',padding:'12px',background:'rgba(255,255,255,0.04)',borderRadius:'10px',border:'1px solid var(--border)'}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:'22px',fontWeight:800,fontFamily:"'DM Mono',monospace",color:'var(--accent)'}}>{selectedTrainer.credits ?? 0}</div>
+                <div style={{fontSize:'11px',color:'var(--text-dim)'}}>보유 크레딧</div>
+              </div>
+              <div style={{display:'flex',gap:'6px',alignItems:'center'}}>
+                <input
+                  type="number" min="1" max="1000"
+                  value={creditAmount}
+                  onChange={e => setCreditAmount(e.target.value)}
+                  style={{width:'70px',padding:'6px 8px',borderRadius:'6px',border:'1px solid var(--border)',background:'var(--surface)',color:'var(--text)',fontSize:'13px',fontFamily:'inherit'}}
+                />
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={() => addTrainerCredits(selectedTrainer.id, parseInt(creditAmount)||0)}
+                >충전</button>
+              </div>
+            </div>
             <div className="divider" />
             <div style={{fontSize:'12px',color:'var(--text-dim)',marginBottom:'8px',textTransform:'uppercase',letterSpacing:'1px'}}>회원 목록</div>
             {stMembers.length ? stMembers.map(m => (
