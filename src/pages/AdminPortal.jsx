@@ -8,13 +8,24 @@ const ADMIN_PW = 'trainer2024!'
 
 const PORTAL_TABS = {
   trainer:   [{ id:'list', label:'트레이너 목록' }, { id:'logs', label:'수업일지' }, { id:'subs', label:'구독 관리' }, { id:'plans', label:'플랜 관리' }, { id:'support', label:'1:1 문의' }],
-  member:    [{ id:'status', label:'회원 현황' }],
+  member:    [{ id:'status', label:'회원 현황' }, { id:'notices', label:'공지사항 관리' }, { id:'free_board', label:'자유게시판 관리' }],
   community: [{ id:'posts', label:'게시글' }, { id:'users', label:'유저' }, { id:'contacts', label:'연락 요청' }],
   crm:       [{ id:'permissions', label:'권한 관리' }],
-  landing:   [{ id:'stats', label:'통계 수치' }, { id:'reviews', label:'트레이너 후기' }, { id:'kakao', label:'카카오 메시지' }, { id:'faqs', label:'FAQ' }],
+  landing:   [
+    { id:'hero',      label:'히어로' },
+    { id:'stats',     label:'통계 수치' },
+    { id:'problems',  label:'문제 인식' },
+    { id:'solutions', label:'솔루션' },
+    { id:'reviews',   label:'트레이너 후기' },
+    { id:'kakao',     label:'카카오 메시지' },
+    { id:'targets',   label:'타겟 분기' },
+    { id:'members',   label:'회원 포털 기능' },
+    { id:'plans',     label:'요금제' },
+    { id:'faqs',      label:'FAQ' },
+  ],
 }
 
-const DEFAULT_TAB = { trainer:'list', member:'status', community:'posts', crm:'permissions', landing:'stats' }
+const DEFAULT_TAB = { trainer:'list', member:'status', community:'posts', crm:'permissions', landing:'hero' }
 
 const DEFAULT_LANDING_STATS = [
   { num:'3분', label:'첫 수업일지 완성까지', sub:'녹음 업로드부터 발송까지' },
@@ -44,6 +55,40 @@ const DEFAULT_PLANS = [
   { id:'free',    name:'Free',    price:'무료',        color:'#9ca3af', highlight:false, current:true,  badge:null,       enabled:true, features:['회원 5명','AI 일지 월 20회','식단 기록','기본 통계'] },
   { id:'pro',     name:'Pro',     price:'₩9,900/월',  color:'#60a5fa', highlight:false, current:false, badge:'출시 예정', enabled:true, features:['회원 무제한','AI 일지 무제한','주간 리포트 AI','매출 분석'] },
   { id:'premium', name:'Premium', price:'₩19,900/월', color:'#c8f135', highlight:true,  current:false, badge:'출시 예정', enabled:true, features:['Pro 전체 포함','루틴 마켓 무제한','카카오 자동 발송','우선 지원'] },
+]
+
+const DEFAULT_LANDING_HERO = {
+  badge: 'FOR PERSONAL TRAINERS & MEMBERS',
+  headline: '좋은 트레이너는',
+  highlight: '기록',
+  headlineAfter: '으로 증명합니다',
+  subheadline: '수업일지 · 회원관리 · 매출분석을 하나의 앱으로',
+  desc: 'AI가 수업일지를 대신 쓰고, 회원은 포털에서 기록을 확인해요. 트레이너의 전문성이 데이터로 쌓입니다.',
+}
+const DEFAULT_LANDING_PROBLEMS = [
+  { icon:'😮‍💨', title:'수업 끝나고 일지 쓰는 데 30분씩 쓰고 계신가요?', desc:'운동 종목, 세트 수, 느낀 점… 기억에 의존해서 손으로 하나하나 적다 보면 하루가 다 가요. 정작 다음 회원 준비는 뒷전이 되고요.' },
+  { icon:'👻', title:'연락 없이 사라지는 회원, 막을 방법이 없었나요?', desc:'재등록 시기가 됐는데도 아무 신호가 없어요. 출석이 줄고 있다는 걸 알면서도 어떻게 말을 꺼내야 할지 모르죠.' },
+  { icon:'📉', title:'이번 달 매출이 얼마인지 바로 답할 수 있나요?', desc:'엑셀도, 메모장도, 카카오톡도 다 따로따로. 세션 단가 × 잔여 횟수 계산을 머릿속으로 하고 계신다면, 이미 시간을 낭비하고 있는 거예요.' },
+]
+const DEFAULT_LANDING_SOLUTIONS = [
+  { icon:'✦', tag:'AI 수업일지', title:'녹음만 올리면 일지가 완성돼요', desc:'AI가 수업 내용을 분석해 운동 종목·세트·피드백을 완성된 일지로 만들어줘요. 회원에게는 카카오톡으로 바로 발송.' },
+  { icon:'🔔', tag:'이탈위험 감지', title:'이탈 징후를 미리 알려줘요', desc:'출석률·건강기록·수업 평점을 분석해 이탈위험 회원을 자동으로 감지해요. 연락 타이밍을 놓치지 마세요.' },
+  { icon:'📊', tag:'매출 자동 분석', title:'매출이 실시간으로 계산돼요', desc:'결제를 등록하면 세션 단가·잔존가치·월 매출이 자동으로 집계돼요. 고용형태별 세금 계산도 지원해요.' },
+]
+const DEFAULT_LANDING_TARGETS = [
+  { type:'1인샵 운영 트레이너', icon:'🏠', color:'#c8f135', textColor:'#3f6212', bg:'rgba(200,241,53,0.08)', border:'rgba(200,241,53,0.3)', points:['혼자 다 하느라 행정에 시간 다 빼앗기는 분','회원 관리·매출·일지를 하나로 합치고 싶은 분','더 많은 시간을 수업 품질에 쓰고 싶은 분'] },
+  { type:'프리랜서 트레이너', icon:'🧳', color:'#60a5fa', textColor:'#1d4ed8', bg:'rgba(96,165,250,0.08)', border:'rgba(96,165,250,0.3)', points:['센터별 회원을 따로 관리하기 복잡한 분','수수료·세금 계산이 번거로운 분','이탈 걱정 없이 안정적인 수업을 원하는 분'] },
+  { type:'센터 소속 트레이너', icon:'🏢', color:'#a78bfa', textColor:'#7c3aed', bg:'rgba(167,139,250,0.08)', border:'rgba(167,139,250,0.3)', points:['재등록률을 높여 인센티브를 늘리고 싶은 분','회원과의 관계를 전문적으로 보여주고 싶은 분','주간 리포트로 센터 내 신뢰를 쌓고 싶은 분'] },
+]
+const DEFAULT_LANDING_MEMBER_FEATURES = [
+  { icon:'📋', title:'수업일지 열람', desc:'PDF 저장·복사로 내 성장 기록을 언제든 꺼내볼 수 있어요' },
+  { icon:'⚖️', title:'체중·건강 추적', desc:'공복/저녁 체중, 수면 레벨을 기록하고 14일 추이를 확인' },
+  { icon:'🏃', title:'개인운동 일지', desc:'60+ 종목 자동완성, 세트·볼륨 계산, 앞뒤 근육 다이어그램' },
+  { icon:'🤝', title:'회원 커뮤니티', desc:'같은 센터 회원들과 운동 일상을 사진·이모지로 공유' },
+]
+const DEFAULT_LANDING_PLANS_LANDING = [
+  { name:'무료 플랜', price:'0원', period:'영구 무료', highlight:false, tag:null, features:['AI 수업일지 월 20회','회원 관리 (최대 20명)','수업 리포트 카카오 발송','체중·건강 기록','주간 스케줄','매출 기본 분석'], cta:'무료로 시작하기', ctaLink:'/trainer', note:'결제 수단 등록 불필요' },
+  { name:'Pro 플랜', price:'준비 중', period:'출시 예정', highlight:true, tag:'곧 출시', features:['AI 수업일지 무제한','회원 관리 무제한','이탈위험 자동 감지','고용형태별 세금 계산','주간 센터 리포트','우선 고객 지원'], cta:'출시 알림 받기', ctaLink:'mailto:support@trainerlog.app?subject=Pro 플랜 출시 알림 신청', note:'얼리어답터 할인 예정' },
 ]
 
 const COMM_CAT_LABEL = {
@@ -112,12 +157,29 @@ export default function AdminPortal() {
   const [answerText,   setAnswerText]   = useState('')
   const [answerFilter, setAnswerFilter] = useState('all')  // all | pending | answered
 
+  // 공지사항 관리
+  const [notices, setNotices] = useState([])
+  const [noticeModal, setNoticeModal] = useState(false)
+  const [noticeEditId, setNoticeEditId] = useState(null)
+  const [noticeForm, setNoticeForm] = useState({ title: '', content: '', is_pinned: false })
+
+  // 자유게시판 관리
+  const [freePosts, setFreePosts] = useState([])
+
   // 랜딩페이지 관리
   const [landingStats,   setLandingStats]   = useState(DEFAULT_LANDING_STATS)
   const [landingReviews, setLandingReviews] = useState(DEFAULT_LANDING_REVIEWS)
   const [landingKakao,   setLandingKakao]   = useState(DEFAULT_LANDING_KAKAO)
   const [landingFaqs,    setLandingFaqs]    = useState(DEFAULT_LANDING_FAQS)
   const [landingEditModal, setLandingEditModal] = useState(null) // {type, index, data}
+
+  // 랜딩 추가 섹션
+  const [landingHero,           setLandingHero]           = useState(DEFAULT_LANDING_HERO)
+  const [landingProblems,       setLandingProblems]       = useState(DEFAULT_LANDING_PROBLEMS)
+  const [landingSolutions,      setLandingSolutions]      = useState(DEFAULT_LANDING_SOLUTIONS)
+  const [landingTargets,        setLandingTargets]        = useState(DEFAULT_LANDING_TARGETS)
+  const [landingMemberFeatures, setLandingMemberFeatures] = useState(DEFAULT_LANDING_MEMBER_FEATURES)
+  const [landingPlansLanding,   setLandingPlansLanding]   = useState(DEFAULT_LANDING_PLANS_LANDING)
 
   // 크레딧 / API 키 관리
   const [creditAmount, setCreditAmount] = useState('10')
@@ -139,7 +201,7 @@ export default function AdminPortal() {
 
   async function loadAll() {
     try {
-      const [t, m, l, s, cu, cp, cc, settings, inq] = await Promise.all([
+      const [t, m, l, s, cu, cp, cc, settings, inq, ntc, fp] = await Promise.all([
         supabase.from('trainers').select('*').order('created_at', { ascending: false }),
         supabase.from('members').select('*').order('created_at', { ascending: false }),
         supabase.from('logs').select('*').order('created_at', { ascending: false }),
@@ -147,12 +209,21 @@ export default function AdminPortal() {
         supabase.from('community_users').select('*').order('created_at', { ascending: false }),
         supabase.from('community_posts').select('*, author:community_users(name,role)').order('created_at', { ascending: false }),
         supabase.from('community_contacts').select('*, requester:community_users(name,role), post:community_posts(title)').order('created_at', { ascending: false }),
-        supabase.from('app_settings').select('key, value').in('key', ['plan_guide_visible', 'plans', 'landing_stats', 'landing_reviews', 'landing_kakao', 'landing_faqs', 'gemini_api_key']),
+        supabase.from('app_settings').select('key, value').in('key', [
+          'plan_guide_visible', 'plans', 'gemini_api_key',
+          'landing_hero', 'landing_stats', 'landing_problems', 'landing_solutions',
+          'landing_reviews', 'landing_kakao', 'landing_targets', 'landing_member_features',
+          'landing_plans_landing', 'landing_faqs',
+        ]),
         supabase.from('inquiries').select('*, trainer:trainers(name)').order('created_at', { ascending: false }),
+        supabase.from('notices').select('*').order('is_pinned', { ascending: false }).order('created_at', { ascending: false }),
+        supabase.from('member_posts').select('*').order('created_at', { ascending: false }),
       ])
       setTrainers(t.data || []); setMembers(m.data || []); setLogs(l.data || []); setSubs(s.data || [])
       setCommUsers(cu.data || []); setCommPosts(cp.data || []); setCommContacts(cc.data || [])
       setSupportList(inq.data || [])
+      setNotices(ntc.data || [])
+      setFreePosts(fp.data || [])
       if (settings.data) {
         const vis  = settings.data.find(r => r.key === 'plan_guide_visible')
         const plns = settings.data.find(r => r.key === 'plans')
@@ -166,6 +237,18 @@ export default function AdminPortal() {
         if (lReviews) setLandingReviews(lReviews.value)
         if (lKakao)   setLandingKakao(lKakao.value)
         if (lFaqs)    setLandingFaqs(lFaqs.value)
+        const lHero    = settings.data.find(r => r.key === 'landing_hero')
+        const lProbs   = settings.data.find(r => r.key === 'landing_problems')
+        const lSols    = settings.data.find(r => r.key === 'landing_solutions')
+        const lTargets = settings.data.find(r => r.key === 'landing_targets')
+        const lMembers = settings.data.find(r => r.key === 'landing_member_features')
+        const lPlansl  = settings.data.find(r => r.key === 'landing_plans_landing')
+        if (lHero?.value)    setLandingHero(lHero.value)
+        if (lProbs?.value)   setLandingProblems(lProbs.value)
+        if (lSols?.value)    setLandingSolutions(lSols.value)
+        if (lTargets?.value) setLandingTargets(lTargets.value)
+        if (lMembers?.value) setLandingMemberFeatures(lMembers.value)
+        if (lPlansl?.value)  setLandingPlansLanding(lPlansl.value)
         const apiKeyRow = settings.data.find(r => r.key === 'gemini_api_key')
         if (apiKeyRow?.value) setCentralApiKey(String(apiKeyRow.value).replace(/^"|"$/g, ''))
         setApiKeyLoaded(true)
@@ -209,6 +292,50 @@ export default function AdminPortal() {
     setCommUsers(prev => prev.filter(u => u.id !== userId))
     setCommPosts(prev => prev.filter(p => p.author?.id !== userId))
     showToast('유저를 삭제했습니다')
+  }
+
+  // ===== 공지사항 =====
+  async function saveNotice() {
+    if (!noticeForm.title.trim()) { showToast('제목을 입력해주세요'); return }
+    if (!noticeForm.content.trim()) { showToast('내용을 입력해주세요'); return }
+    try {
+      if (noticeEditId) {
+        const { error } = await supabase.from('notices')
+          .update({ title: noticeForm.title.trim(), content: noticeForm.content.trim(), is_pinned: noticeForm.is_pinned })
+          .eq('id', noticeEditId)
+        if (error) throw error
+        setNotices(prev => prev.map(n => n.id === noticeEditId ? { ...n, ...noticeForm } : n).sort((a,b) => b.is_pinned - a.is_pinned || new Date(b.created_at) - new Date(a.created_at)))
+        showToast('✓ 공지사항이 수정됐어요')
+      } else {
+        const { data, error } = await supabase.from('notices').insert({
+          title: noticeForm.title.trim(), content: noticeForm.content.trim(),
+          is_pinned: noticeForm.is_pinned, author_name: '관리자',
+        }).select().single()
+        if (error) throw error
+        setNotices(prev => [data, ...prev].sort((a,b) => b.is_pinned - a.is_pinned || new Date(b.created_at) - new Date(a.created_at)))
+        showToast('✓ 공지사항이 등록됐어요')
+      }
+      setNoticeModal(false); setNoticeForm({ title:'', content:'', is_pinned:false }); setNoticeEditId(null)
+    } catch(e) { showToast('오류: ' + e.message) }
+  }
+  async function deleteNotice(noticeId) {
+    if (!window.confirm('공지사항을 삭제할까요?')) return
+    const { error } = await supabase.from('notices').delete().eq('id', noticeId)
+    if (!error) { setNotices(prev => prev.filter(n => n.id !== noticeId)); showToast('삭제됐어요') }
+    else showToast('오류: ' + error.message)
+  }
+  function openNoticeEdit(notice) {
+    setNoticeEditId(notice.id)
+    setNoticeForm({ title: notice.title, content: notice.content, is_pinned: notice.is_pinned })
+    setNoticeModal(true)
+  }
+
+  // ===== 자유게시판 모더레이션 =====
+  async function deleteFreeBoardPost(postId) {
+    if (!window.confirm('게시글을 삭제할까요?')) return
+    const { error } = await supabase.from('member_posts').delete().eq('id', postId)
+    if (!error) { setFreePosts(prev => prev.filter(p => p.id !== postId)); showToast('삭제됐어요') }
+    else showToast('오류: ' + error.message)
   }
 
   // ===== 커뮤니티 유저 권한 =====
@@ -377,6 +504,13 @@ export default function AdminPortal() {
     await saveLandingKey('landing_faqs', next)
     showToast('✓ FAQ 저장됨')
   }
+  async function saveLandingHero(next)          { setLandingHero(next);          await saveLandingKey('landing_hero', next);            showToast('✓ 히어로 저장됨') }
+  async function saveLandingProblems(next)      { setLandingProblems(next);      await saveLandingKey('landing_problems', next);        showToast('✓ 문제 인식 저장됨') }
+  async function saveLandingSolutions(next)     { setLandingSolutions(next);     await saveLandingKey('landing_solutions', next);       showToast('✓ 솔루션 저장됨') }
+  async function saveLandingTargets(next)       { setLandingTargets(next);       await saveLandingKey('landing_targets', next);         showToast('✓ 타겟 분기 저장됨') }
+  async function saveLandingMemberFeatures(next){ setLandingMemberFeatures(next);await saveLandingKey('landing_member_features', next); showToast('✓ 회원 포털 기능 저장됨') }
+  async function saveLandingPlansLanding(next)  { setLandingPlansLanding(next);  await saveLandingKey('landing_plans_landing', next);   showToast('✓ 요금제 저장됨') }
+
   function openLandingEdit(type, index, data) {
     setLandingEditModal({ type, index, data: { ...data } })
   }
@@ -395,14 +529,34 @@ export default function AdminPortal() {
     } else if (type === 'faqs') {
       const next = index === -1 ? [...landingFaqs, data] : landingFaqs.map((r,i) => i === index ? data : r)
       await saveLandingFaqs(next)
+    } else if (type === 'problems') {
+      const next = index === -1 ? [...landingProblems, data] : landingProblems.map((r,i) => i === index ? data : r)
+      await saveLandingProblems(next)
+    } else if (type === 'solutions') {
+      const next = index === -1 ? [...landingSolutions, data] : landingSolutions.map((r,i) => i === index ? data : r)
+      await saveLandingSolutions(next)
+    } else if (type === 'targets') {
+      const next = index === -1 ? [...landingTargets, data] : landingTargets.map((r,i) => i === index ? data : r)
+      await saveLandingTargets(next)
+    } else if (type === 'members') {
+      const next = index === -1 ? [...landingMemberFeatures, data] : landingMemberFeatures.map((r,i) => i === index ? data : r)
+      await saveLandingMemberFeatures(next)
+    } else if (type === 'landing_plans') {
+      const next = index === -1 ? [...landingPlansLanding, data] : landingPlansLanding.map((r,i) => i === index ? data : r)
+      await saveLandingPlansLanding(next)
     }
     closeLandingEdit()
   }
   async function deleteLandingItem(type, index) {
     if (!window.confirm('삭제할까요?')) return
-    if (type === 'reviews') await saveLandingReviews(landingReviews.filter((_,i) => i !== index))
-    else if (type === 'kakao') await saveLandingKakao(landingKakao.filter((_,i) => i !== index))
-    else if (type === 'faqs') await saveLandingFaqs(landingFaqs.filter((_,i) => i !== index))
+    if (type === 'reviews')       await saveLandingReviews(landingReviews.filter((_,i) => i !== index))
+    else if (type === 'kakao')    await saveLandingKakao(landingKakao.filter((_,i) => i !== index))
+    else if (type === 'faqs')     await saveLandingFaqs(landingFaqs.filter((_,i) => i !== index))
+    else if (type === 'problems') await saveLandingProblems(landingProblems.filter((_,i) => i !== index))
+    else if (type === 'solutions')await saveLandingSolutions(landingSolutions.filter((_,i) => i !== index))
+    else if (type === 'targets')  await saveLandingTargets(landingTargets.filter((_,i) => i !== index))
+    else if (type === 'members')  await saveLandingMemberFeatures(landingMemberFeatures.filter((_,i) => i !== index))
+    else if (type === 'landing_plans') await saveLandingPlansLanding(landingPlansLanding.filter((_,i) => i !== index))
   }
 
   const navItems = [
@@ -650,6 +804,82 @@ export default function AdminPortal() {
             </div>
           )}
 
+          {/* ==================== 회원 포털 > 공지사항 관리 ==================== */}
+          {page === 'member' && subTab === 'notices' && (
+            <div>
+              <div className="section-title">
+                공지사항 관리
+                <button className="btn btn-primary btn-sm" style={{marginLeft:'12px'}}
+                  onClick={() => { setNoticeEditId(null); setNoticeForm({ title:'', content:'', is_pinned:false }); setNoticeModal(true) }}>
+                  + 공지 작성
+                </button>
+              </div>
+              {!notices.length && <div className="empty">등록된 공지사항이 없어요</div>}
+              {notices.map(notice => {
+                const d = new Date(notice.created_at)
+                return (
+                  <div className="card" key={notice.id} style={{marginBottom:'10px', borderLeft: notice.is_pinned ? '3px solid var(--accent)' : '3px solid transparent'}}>
+                    <div style={{display:'flex',alignItems:'flex-start',gap:'12px'}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'4px'}}>
+                          {notice.is_pinned && <span className="badge badge-yellow" style={{fontSize:'10px'}}>📌 고정</span>}
+                          <div style={{fontSize:'14px',fontWeight:700,color:'var(--text)'}}>{notice.title}</div>
+                        </div>
+                        <div style={{fontSize:'13px',color:'var(--text-muted)',lineHeight:'1.6',marginBottom:'8px',whiteSpace:'pre-wrap'}}>{notice.content}</div>
+                        <div style={{fontSize:'11px',color:'var(--text-dim)',fontFamily:"'DM Mono',monospace"}}>
+                          {notice.author_name} · {d.toLocaleDateString('ko-KR',{month:'short',day:'numeric'})} {d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}
+                        </div>
+                      </div>
+                      <div style={{display:'flex',gap:'6px',flexShrink:0}}>
+                        <button className="btn btn-ghost btn-sm" onClick={() => openNoticeEdit(notice)}>수정</button>
+                        <button className="btn btn-ghost btn-sm" style={{color:'var(--danger)'}} onClick={() => deleteNotice(notice.id)}>삭제</button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* ==================== 회원 포털 > 자유게시판 관리 ==================== */}
+          {page === 'member' && subTab === 'free_board' && (
+            <div>
+              <div className="section-title">자유게시판 관리</div>
+              <div className="stat-grid" style={{marginBottom:'16px'}}>
+                <div className="stat-card"><div className="stat-num">{freePosts.length}</div><div className="stat-label">전체 게시글</div></div>
+                <div className="stat-card"><div className="stat-num">{new Set(freePosts.map(p=>p.member_id)).size}</div><div className="stat-label">작성 회원</div></div>
+              </div>
+              <div className="card table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>작성자</th><th>내용</th><th>사진</th><th>작성일</th><th></th></tr>
+                  </thead>
+                  <tbody>
+                    {!freePosts.length && <tr><td colSpan={5} className="empty">게시글이 없어요</td></tr>}
+                    {freePosts.map(post => {
+                      const d = new Date(post.created_at)
+                      const content = post.content || ''
+                      return (
+                        <tr key={post.id}>
+                          <td>
+                            <div className="name-cell">
+                              <div className="avatar">{(post.member_name||'?')[0]}</div>
+                              <span style={{color:'var(--text)',fontWeight:500}}>{post.member_name||'회원'}</span>
+                            </div>
+                          </td>
+                          <td style={{maxWidth:'260px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:'13px',color:'var(--text-muted)'}}>{content||'(사진만 첨부)'}</td>
+                          <td style={{textAlign:'center'}}>{post.photo_url ? <span style={{fontSize:'16px'}}>📷</span> : '-'}</td>
+                          <td style={{fontSize:'11px',color:'var(--text-dim)',fontFamily:"'DM Mono',monospace"}}>{d.toLocaleDateString('ko-KR',{month:'short',day:'numeric'})}<br/>{d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}</td>
+                          <td><button className="btn btn-ghost btn-sm" style={{color:'var(--danger)'}} onClick={() => deleteFreeBoardPost(post.id)}>삭제</button></td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* ==================== 트레이너 포털 > 1:1 문의 ==================== */}
           {page === 'trainer' && subTab === 'support' && (() => {
             const INQ_CAT = { general:'일반 문의', billing:'결제/구독', bug:'오류 신고', feature:'기능 제안' }
@@ -892,9 +1122,52 @@ export default function AdminPortal() {
             </div>
           )}
 
-          {/* ==================== 트레이너 포털 > 플랜 관리 ==================== */}
           {/* ==================== 랜딩페이지 관리 ==================== */}
 
+          {/* ── 히어로 ── */}
+          {page === 'landing' && subTab === 'hero' && (
+            <div>
+              <div className="section-title">히어로 섹션</div>
+              <div className="card">
+                <div className="form-group"><label>뱃지 텍스트</label>
+                  <input value={landingHero.badge||''} onChange={e=>setLandingHero(h=>({...h,badge:e.target.value}))} placeholder="FOR PERSONAL TRAINERS & MEMBERS"/>
+                </div>
+                <div className="form-group"><label>헤드라인 첫 줄</label>
+                  <input value={landingHero.headline||''} onChange={e=>setLandingHero(h=>({...h,headline:e.target.value}))} placeholder="좋은 트레이너는"/>
+                </div>
+                <div className="form-row">
+                  <div className="form-group"><label>강조 키워드 (초록 하이라이트)</label>
+                    <input value={landingHero.highlight||''} onChange={e=>setLandingHero(h=>({...h,highlight:e.target.value}))} placeholder="기록"/>
+                  </div>
+                  <div className="form-group"><label>키워드 뒷 문구</label>
+                    <input value={landingHero.headlineAfter||''} onChange={e=>setLandingHero(h=>({...h,headlineAfter:e.target.value}))} placeholder="으로 증명합니다"/>
+                  </div>
+                </div>
+                <div className="form-group"><label>서브헤드라인</label>
+                  <input value={landingHero.subheadline||''} onChange={e=>setLandingHero(h=>({...h,subheadline:e.target.value}))} placeholder="수업일지 · 회원관리 · 매출분석을 하나의 앱으로"/>
+                </div>
+                <div className="form-group"><label>설명 텍스트</label>
+                  <textarea rows={3} value={landingHero.desc||''} onChange={e=>setLandingHero(h=>({...h,desc:e.target.value}))} placeholder="AI가 수업일지를 대신 쓰고..."/>
+                </div>
+                {/* 미리보기 */}
+                <div className="form-group">
+                  <label>미리보기</label>
+                  <div style={{background:'var(--surface2)',borderRadius:'10px',padding:'18px',border:'1px solid var(--border)'}}>
+                    <div style={{fontSize:'10px',color:'var(--accent)',fontWeight:700,letterSpacing:'0.1em',marginBottom:'8px'}}>{landingHero.badge}</div>
+                    <div style={{fontWeight:900,fontSize:'20px',lineHeight:1.2,marginBottom:'6px'}}>
+                      {landingHero.headline}<br/>
+                      <span style={{color:'#c8f135'}}>{landingHero.highlight}</span>{landingHero.headlineAfter}
+                    </div>
+                    <div style={{fontWeight:600,fontSize:'13px',color:'var(--text-muted)',marginBottom:'4px'}}>{landingHero.subheadline}</div>
+                    <div style={{fontSize:'12px',color:'var(--text-dim)',lineHeight:1.7}}>{landingHero.desc}</div>
+                  </div>
+                </div>
+                <button className="btn btn-primary" onClick={() => saveLandingHero(landingHero)}>저장</button>
+              </div>
+            </div>
+          )}
+
+          {/* ==================== 트레이너 포털 > 플랜 관리 ==================== */}
           {page === 'landing' && subTab === 'stats' && (
             <div>
               <div className="section-title">통계 수치</div>
@@ -988,6 +1261,142 @@ export default function AdminPortal() {
             </div>
           )}
 
+          {/* ── 문제 인식 ── */}
+          {page === 'landing' && subTab === 'problems' && (
+            <div>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
+                <div className="section-title" style={{margin:0}}>문제 인식 카드</div>
+                <button className="btn btn-primary btn-sm" onClick={() => openLandingEdit('problems', -1, {icon:'',title:'',desc:''})}>+ 추가</button>
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+                {landingProblems.map((p,i) => (
+                  <div key={i} className="card" style={{display:'flex',gap:'14px',alignItems:'flex-start'}}>
+                    <div style={{fontSize:'28px',flexShrink:0}}>{p.icon}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:600,fontSize:'13px',marginBottom:'4px'}}>{p.title}</div>
+                      <div style={{fontSize:'12px',color:'var(--text-dim)',lineHeight:1.6}}>{p.desc}</div>
+                    </div>
+                    <div style={{display:'flex',gap:'6px',flexShrink:0}}>
+                      <button className="btn btn-ghost btn-sm" onClick={() => openLandingEdit('problems', i, p)}>수정</button>
+                      <button className="btn btn-sm" style={{background:'rgba(239,68,68,0.1)',color:'#ef4444',border:'1px solid rgba(239,68,68,0.2)'}} onClick={() => deleteLandingItem('problems', i)}>삭제</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── 솔루션 ── */}
+          {page === 'landing' && subTab === 'solutions' && (
+            <div>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
+                <div className="section-title" style={{margin:0}}>솔루션 카드</div>
+                <button className="btn btn-primary btn-sm" onClick={() => openLandingEdit('solutions', -1, {icon:'',tag:'',title:'',desc:''})}>+ 추가</button>
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+                {landingSolutions.map((s,i) => (
+                  <div key={i} className="card" style={{display:'flex',gap:'14px',alignItems:'flex-start'}}>
+                    <div style={{fontSize:'24px',flexShrink:0}}>{s.icon}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'4px'}}>
+                        <span style={{fontWeight:600,fontSize:'13px'}}>{s.title}</span>
+                        {s.tag && <span style={{fontSize:'10px',background:'rgba(22,163,74,0.15)',color:'#16a34a',padding:'2px 8px',borderRadius:'20px'}}>{s.tag}</span>}
+                      </div>
+                      <div style={{fontSize:'12px',color:'var(--text-dim)',lineHeight:1.6}}>{s.desc}</div>
+                    </div>
+                    <div style={{display:'flex',gap:'6px',flexShrink:0}}>
+                      <button className="btn btn-ghost btn-sm" onClick={() => openLandingEdit('solutions', i, s)}>수정</button>
+                      <button className="btn btn-sm" style={{background:'rgba(239,68,68,0.1)',color:'#ef4444',border:'1px solid rgba(239,68,68,0.2)'}} onClick={() => deleteLandingItem('solutions', i)}>삭제</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── 타겟 분기 ── */}
+          {page === 'landing' && subTab === 'targets' && (
+            <div>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
+                <div className="section-title" style={{margin:0}}>타겟 분기 카드</div>
+                <button className="btn btn-primary btn-sm" onClick={() => openLandingEdit('targets', -1, {type:'',icon:'',color:'#c8f135',textColor:'#3f6212',bg:'rgba(200,241,53,0.08)',border:'rgba(200,241,53,0.3)',points:[]})}>+ 추가</button>
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+                {landingTargets.map((t,i) => (
+                  <div key={i} className="card" style={{display:'flex',gap:'14px',alignItems:'flex-start'}}>
+                    <div style={{fontSize:'28px',flexShrink:0}}>{t.icon}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:700,fontSize:'13px',marginBottom:'6px'}}>{t.type}</div>
+                      {(t.points||[]).map((pt,j) => (
+                        <div key={j} style={{fontSize:'12px',color:'var(--text-dim)',lineHeight:1.7}}>✓ {pt}</div>
+                      ))}
+                    </div>
+                    <div style={{display:'flex',gap:'6px',flexShrink:0}}>
+                      <button className="btn btn-ghost btn-sm" onClick={() => openLandingEdit('targets', i, t)}>수정</button>
+                      <button className="btn btn-sm" style={{background:'rgba(239,68,68,0.1)',color:'#ef4444',border:'1px solid rgba(239,68,68,0.2)'}} onClick={() => deleteLandingItem('targets', i)}>삭제</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── 회원 포털 기능 ── */}
+          {page === 'landing' && subTab === 'members' && (
+            <div>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
+                <div className="section-title" style={{margin:0}}>회원 포털 기능 카드</div>
+                <button className="btn btn-primary btn-sm" onClick={() => openLandingEdit('members', -1, {icon:'',title:'',desc:''})}>+ 추가</button>
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+                {landingMemberFeatures.map((f,i) => (
+                  <div key={i} className="card" style={{display:'flex',gap:'14px',alignItems:'flex-start'}}>
+                    <div style={{fontSize:'28px',flexShrink:0}}>{f.icon}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:600,fontSize:'13px',marginBottom:'4px'}}>{f.title}</div>
+                      <div style={{fontSize:'12px',color:'var(--text-dim)',lineHeight:1.6}}>{f.desc}</div>
+                    </div>
+                    <div style={{display:'flex',gap:'6px',flexShrink:0}}>
+                      <button className="btn btn-ghost btn-sm" onClick={() => openLandingEdit('members', i, f)}>수정</button>
+                      <button className="btn btn-sm" style={{background:'rgba(239,68,68,0.1)',color:'#ef4444',border:'1px solid rgba(239,68,68,0.2)'}} onClick={() => deleteLandingItem('members', i)}>삭제</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── 요금제 (랜딩) ── */}
+          {page === 'landing' && subTab === 'plans' && (
+            <div>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
+                <div className="section-title" style={{margin:0}}>요금제 카드</div>
+                <button className="btn btn-primary btn-sm" onClick={() => openLandingEdit('landing_plans', -1, {name:'',price:'',period:'',highlight:false,tag:'',features:[],cta:'',ctaLink:'',note:''})}>+ 추가</button>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:'12px'}}>
+                {landingPlansLanding.map((plan,i) => (
+                  <div key={i} className="card" style={{border:`1px solid ${plan.highlight?'rgba(200,241,53,0.35)':'var(--border)'}`,background:plan.highlight?'rgba(200,241,53,0.03)':'var(--surface)'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'8px'}}>
+                      <div>
+                        <div style={{fontWeight:700,fontSize:'14px',color:plan.highlight?'var(--accent)':'var(--text)'}}>{plan.name}</div>
+                        <div style={{fontSize:'20px',fontWeight:900,color:'var(--text)',letterSpacing:'-1px'}}>{plan.price}</div>
+                        <div style={{fontSize:'11px',color:'var(--text-dim)'}}>{plan.period}</div>
+                      </div>
+                      {plan.highlight && <span style={{fontSize:'10px',background:'var(--accent)',color:'#0a0a0a',padding:'2px 8px',borderRadius:'20px',fontWeight:700}}>추천</span>}
+                    </div>
+                    <div style={{marginBottom:'10px'}}>
+                      {(plan.features||[]).map((f,j) => <div key={j} style={{fontSize:'12px',color:'var(--text-muted)',lineHeight:1.8}}>✓ {f}</div>)}
+                    </div>
+                    <div style={{display:'flex',gap:'6px'}}>
+                      <button className="btn btn-ghost btn-sm" style={{flex:1}} onClick={() => openLandingEdit('landing_plans', i, plan)}>수정</button>
+                      <button className="btn btn-sm" style={{background:'rgba(239,68,68,0.1)',color:'#ef4444',border:'1px solid rgba(239,68,68,0.2)'}} onClick={() => deleteLandingItem('landing_plans', i)}>삭제</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {page === 'trainer' && subTab === 'plans' && (
             <div>
               <div className="section-title">플랜 관리</div>
@@ -1050,10 +1459,15 @@ export default function AdminPortal() {
 
       {/* LANDING EDIT MODAL */}
       <Modal open={!!landingEditModal} onClose={closeLandingEdit} title={
-        landingEditModal?.type === 'stats'   ? '통계 수치 수정' :
-        landingEditModal?.type === 'reviews' ? (landingEditModal.index === -1 ? '후기 추가' : '후기 수정') :
-        landingEditModal?.type === 'kakao'   ? (landingEditModal.index === -1 ? '메시지 추가' : '메시지 수정') :
-        landingEditModal?.type === 'faqs'    ? (landingEditModal.index === -1 ? 'FAQ 추가' : 'FAQ 수정') : ''
+        landingEditModal?.type === 'stats'         ? '통계 수치 수정' :
+        landingEditModal?.type === 'reviews'       ? (landingEditModal.index === -1 ? '후기 추가' : '후기 수정') :
+        landingEditModal?.type === 'kakao'         ? (landingEditModal.index === -1 ? '메시지 추가' : '메시지 수정') :
+        landingEditModal?.type === 'faqs'          ? (landingEditModal.index === -1 ? 'FAQ 추가' : 'FAQ 수정') :
+        landingEditModal?.type === 'problems'      ? (landingEditModal.index === -1 ? '문제 카드 추가' : '문제 카드 수정') :
+        landingEditModal?.type === 'solutions'     ? (landingEditModal.index === -1 ? '솔루션 카드 추가' : '솔루션 카드 수정') :
+        landingEditModal?.type === 'targets'       ? (landingEditModal.index === -1 ? '타겟 추가' : '타겟 수정') :
+        landingEditModal?.type === 'members'       ? (landingEditModal.index === -1 ? '회원 기능 추가' : '회원 기능 수정') :
+        landingEditModal?.type === 'landing_plans' ? (landingEditModal.index === -1 ? '요금제 추가' : '요금제 수정') : ''
       }>
         {landingEditModal && (() => {
           const d = landingEditModal.data
@@ -1095,8 +1509,95 @@ export default function AdminPortal() {
               <button className="btn btn-primary btn-full" onClick={saveLandingEdit}>저장</button>
             </>
           )
+          if (landingEditModal.type === 'problems') return (
+            <>
+              <div className="form-group"><label>이모지 아이콘</label><input value={d.icon||''} onChange={e=>upd({icon:e.target.value})} placeholder="😮‍💨"/></div>
+              <div className="form-group"><label>제목</label><input value={d.title||''} onChange={e=>upd({title:e.target.value})} placeholder="카드 제목"/></div>
+              <div className="form-group"><label>설명</label><textarea rows={3} value={d.desc||''} onChange={e=>upd({desc:e.target.value})} placeholder="카드 설명"/></div>
+              <button className="btn btn-primary btn-full" onClick={saveLandingEdit}>저장</button>
+            </>
+          )
+          if (landingEditModal.type === 'solutions') return (
+            <>
+              <div className="form-row">
+                <div className="form-group"><label>이모지 아이콘</label><input value={d.icon||''} onChange={e=>upd({icon:e.target.value})} placeholder="✦"/></div>
+                <div className="form-group"><label>태그</label><input value={d.tag||''} onChange={e=>upd({tag:e.target.value})} placeholder="AI 수업일지"/></div>
+              </div>
+              <div className="form-group"><label>제목</label><input value={d.title||''} onChange={e=>upd({title:e.target.value})} placeholder="솔루션 제목"/></div>
+              <div className="form-group"><label>설명</label><textarea rows={3} value={d.desc||''} onChange={e=>upd({desc:e.target.value})} placeholder="솔루션 설명"/></div>
+              <button className="btn btn-primary btn-full" onClick={saveLandingEdit}>저장</button>
+            </>
+          )
+          if (landingEditModal.type === 'targets') return (
+            <>
+              <div className="form-row">
+                <div className="form-group"><label>이모지 아이콘</label><input value={d.icon||''} onChange={e=>upd({icon:e.target.value})} placeholder="🏠"/></div>
+                <div className="form-group"><label>타겟명</label><input value={d.type||''} onChange={e=>upd({type:e.target.value})} placeholder="1인샵 운영 트레이너"/></div>
+              </div>
+              <div className="form-group">
+                <label>포인트 목록 (줄바꿈으로 구분)</label>
+                <textarea rows={4} value={(d.points||[]).join('\n')} onChange={e=>upd({points:e.target.value.split('\n')})} placeholder={"포인트 1\n포인트 2\n포인트 3"}/>
+              </div>
+              <button className="btn btn-primary btn-full" onClick={saveLandingEdit}>저장</button>
+            </>
+          )
+          if (landingEditModal.type === 'members') return (
+            <>
+              <div className="form-group"><label>이모지 아이콘</label><input value={d.icon||''} onChange={e=>upd({icon:e.target.value})} placeholder="📋"/></div>
+              <div className="form-group"><label>기능명</label><input value={d.title||''} onChange={e=>upd({title:e.target.value})} placeholder="수업일지 열람"/></div>
+              <div className="form-group"><label>설명</label><textarea rows={2} value={d.desc||''} onChange={e=>upd({desc:e.target.value})} placeholder="기능 설명"/></div>
+              <button className="btn btn-primary btn-full" onClick={saveLandingEdit}>저장</button>
+            </>
+          )
+          if (landingEditModal.type === 'landing_plans') return (
+            <>
+              <div className="form-row">
+                <div className="form-group"><label>플랜 이름</label><input value={d.name||''} onChange={e=>upd({name:e.target.value})} placeholder="무료 플랜"/></div>
+                <div className="form-group"><label>가격</label><input value={d.price||''} onChange={e=>upd({price:e.target.value})} placeholder="0원"/></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>기간/설명</label><input value={d.period||''} onChange={e=>upd({period:e.target.value})} placeholder="영구 무료"/></div>
+                <div className="form-group"><label>배지 (비워두면 없음)</label><input value={d.tag||''} onChange={e=>upd({tag:e.target.value||null})} placeholder="곧 출시"/></div>
+              </div>
+              <div className="form-group">
+                <label>기능 목록 (줄바꿈으로 구분)</label>
+                <textarea rows={5} value={(d.features||[]).join('\n')} onChange={e=>upd({features:e.target.value.split('\n')})} placeholder={"AI 수업일지 월 20회\n회원 관리 (최대 20명)"}/>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>버튼 텍스트</label><input value={d.cta||''} onChange={e=>upd({cta:e.target.value})} placeholder="무료로 시작하기"/></div>
+                <div className="form-group"><label>버튼 링크</label><input value={d.ctaLink||''} onChange={e=>upd({ctaLink:e.target.value})} placeholder="/trainer"/></div>
+              </div>
+              <div className="form-group"><label>하단 메모</label><input value={d.note||''} onChange={e=>upd({note:e.target.value})} placeholder="결제 수단 등록 불필요"/></div>
+              <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'16px'}}>
+                <input type="checkbox" id="planHighlightChk" checked={!!d.highlight} onChange={e=>upd({highlight:e.target.checked})} style={{width:'16px',height:'16px',cursor:'pointer'}}/>
+                <label htmlFor="planHighlightChk" style={{cursor:'pointer',fontSize:'13px',fontWeight:500,marginBottom:0}}>✨ 추천 플랜 (하이라이트)</label>
+              </div>
+              <button className="btn btn-primary btn-full" onClick={saveLandingEdit}>저장</button>
+            </>
+          )
           return null
         })()}
+      </Modal>
+
+      {/* 공지사항 작성/수정 MODAL */}
+      <Modal open={noticeModal} onClose={() => setNoticeModal(false)} title={noticeEditId ? '공지사항 수정' : '공지사항 작성'}>
+        <div className="form-group">
+          <label>제목</label>
+          <input value={noticeForm.title} onChange={e => setNoticeForm(f => ({...f, title: e.target.value}))} placeholder="공지 제목을 입력해주세요" />
+        </div>
+        <div className="form-group">
+          <label>내용</label>
+          <textarea rows={6} style={{resize:'vertical'}} value={noticeForm.content}
+            onChange={e => setNoticeForm(f => ({...f, content: e.target.value}))}
+            placeholder="공지 내용을 입력해주세요" />
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'16px'}}>
+          <input type="checkbox" id="adminNoticePinned" checked={noticeForm.is_pinned}
+            onChange={e => setNoticeForm(f => ({...f, is_pinned: e.target.checked}))}
+            style={{width:'16px',height:'16px',cursor:'pointer'}} />
+          <label htmlFor="adminNoticePinned" style={{cursor:'pointer',fontSize:'13px',fontWeight:500,marginBottom:0}}>📌 상단 고정</label>
+        </div>
+        <button className="btn btn-primary btn-full" onClick={saveNotice}>{noticeEditId ? '수정 완료' : '공지 등록'}</button>
       </Modal>
 
       {/* PLAN EDIT MODAL */}

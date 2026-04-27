@@ -279,24 +279,49 @@ function CountUp({ value }) {
 }
 
 
+const DEFAULT_HERO = {
+  badge: 'FOR PERSONAL TRAINERS & MEMBERS',
+  headline: '좋은 트레이너는',
+  highlight: '기록',
+  headlineAfter: '으로 증명합니다',
+  subheadline: '수업일지 · 회원관리 · 매출분석을 하나의 앱으로',
+  desc: 'AI가 수업일지를 대신 쓰고, 회원은 포털에서 기록을 확인해요. 트레이너의 전문성이 데이터로 쌓입니다.',
+}
+
 export default function Landing() {
   const [openFaq, setOpenFaq] = useState(null)
-  const [stats,   setStats]   = useState(STATS)
-  const [reviews, setReviews] = useState(REVIEWS)
-  const [kakao,   setKakao]   = useState(KAKAO_MSGS)
-  const [faqs,    setFaqs]    = useState(FAQS)
+  const [hero,           setHero]           = useState(DEFAULT_HERO)
+  const [stats,          setStats]          = useState(STATS)
+  const [problems,       setProblems]       = useState(PROBLEMS)
+  const [solutions,      setSolutions]      = useState(SOLUTIONS)
+  const [reviews,        setReviews]        = useState(REVIEWS)
+  const [kakao,          setKakao]          = useState(KAKAO_MSGS)
+  const [targets,        setTargets]        = useState(TARGETS)
+  const [memberFeatures, setMemberFeatures] = useState(MEMBER_FEATURES)
+  const [landingPlans,   setLandingPlans]   = useState(PLANS)
+  const [faqs,           setFaqs]           = useState(FAQS)
 
   useEffect(() => {
     supabase.from('app_settings')
       .select('key, value')
-      .in('key', ['landing_stats','landing_reviews','landing_kakao','landing_faqs'])
+      .in('key', [
+        'landing_hero', 'landing_stats', 'landing_problems', 'landing_solutions',
+        'landing_reviews', 'landing_kakao', 'landing_targets', 'landing_member_features',
+        'landing_plans_landing', 'landing_faqs',
+      ])
       .then(({ data }) => {
         if (!data) return
         data.forEach(row => {
-          if (row.key === 'landing_stats'   && Array.isArray(row.value)) setStats(row.value)
-          if (row.key === 'landing_reviews' && Array.isArray(row.value)) setReviews(row.value)
-          if (row.key === 'landing_kakao'   && Array.isArray(row.value)) setKakao(row.value)
-          if (row.key === 'landing_faqs'    && Array.isArray(row.value)) setFaqs(row.value)
+          if (row.key === 'landing_hero'             && row.value)                    setHero(row.value)
+          if (row.key === 'landing_stats'            && Array.isArray(row.value))    setStats(row.value)
+          if (row.key === 'landing_problems'         && Array.isArray(row.value))    setProblems(row.value)
+          if (row.key === 'landing_solutions'        && Array.isArray(row.value))    setSolutions(row.value)
+          if (row.key === 'landing_reviews'          && Array.isArray(row.value))    setReviews(row.value)
+          if (row.key === 'landing_kakao'            && Array.isArray(row.value))    setKakao(row.value)
+          if (row.key === 'landing_targets'          && Array.isArray(row.value))    setTargets(row.value)
+          if (row.key === 'landing_member_features'  && Array.isArray(row.value))    setMemberFeatures(row.value)
+          if (row.key === 'landing_plans_landing'    && Array.isArray(row.value))    setLandingPlans(row.value)
+          if (row.key === 'landing_faqs'             && Array.isArray(row.value))    setFaqs(row.value)
         })
       })
   }, [])
@@ -333,20 +358,19 @@ export default function Landing() {
             <div style={{display:'inline-block',fontSize:'11px',fontWeight:700,letterSpacing:'0.14em',
               color:'#3f6212',background:'rgba(200,241,53,0.3)',padding:'5px 14px',borderRadius:'20px',
               border:'1px solid rgba(132,204,22,0.5)',marginBottom:'24px'}}>
-              FOR PERSONAL TRAINERS &amp; MEMBERS
+              {hero.badge}
             </div>
             <h1 style={{fontSize:'clamp(32px,7vw,58px)',fontWeight:900,letterSpacing:'-2px',
               lineHeight:1.1,color:'#0f172a',margin:'0 0 20px'}}>
-              좋은 트레이너는<br/>
-              <span style={{color:'#84cc16'}}>기록</span>으로 증명합니다
+              {hero.headline}<br/>
+              <span style={{color:'#84cc16'}}>{hero.highlight}</span>{hero.headlineAfter}
             </h1>
             <p style={{fontSize:'clamp(16px,2.5vw,20px)',fontWeight:600,color:'#334155',
               margin:'0 0 12px',lineHeight:1.5,letterSpacing:'-0.3px'}}>
-              수업일지 · 회원관리 · 매출분석을<br/>하나의 앱으로
+              {hero.subheadline}
             </p>
             <p style={{fontSize:'14px',color:'#64748b',lineHeight:1.9,margin:'0 0 32px',maxWidth:'380px'}}>
-              AI가 수업일지를 대신 쓰고, 회원은 포털에서 기록을 확인해요.<br/>
-              트레이너의 전문성이 데이터로 쌓입니다.
+              {hero.desc}
             </p>
             <div style={{display:'flex',gap:'10px',flexWrap:'wrap',marginBottom:'28px'}}>
               <Link to="/trainer" style={{background:'#0f172a',color:'#fff',padding:'14px 28px',
@@ -399,7 +423,7 @@ export default function Landing() {
             </div>
           </FadeUp>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:'16px'}}>
-            {PROBLEMS.map((p,i) => (
+            {problems.map((p,i) => (
               <SlideCard key={i} delay={i * 130}>
                 <div style={{background:'#fff',border:'1px solid #fee2e2',borderRadius:'16px',padding:'24px',
                   boxShadow:'0 2px 12px rgba(239,68,68,0.06)',height:'100%',boxSizing:'border-box'}}>
@@ -426,7 +450,7 @@ export default function Landing() {
             </div>
           </FadeUp>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:'16px'}}>
-            {SOLUTIONS.map((s,i) => (
+            {solutions.map((s,i) => (
               <SlideCard key={i} delay={i * 130}>
                 <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:'16px',padding:'24px',
                   boxShadow:'0 2px 12px rgba(22,163,74,0.06)',height:'100%',boxSizing:'border-box'}}>
@@ -576,7 +600,7 @@ export default function Landing() {
             </div>
           </FadeUp>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:'16px'}}>
-            {TARGETS.map((t,i) => (
+            {targets.map((t,i) => (
               <SlideCard key={i} delay={i * 130}>
                 <div style={{background:t.bg,border:`1px solid ${t.border}`,borderRadius:'16px',padding:'24px',height:'100%',boxSizing:'border-box'}}>
                   <div style={{fontSize:'28px',marginBottom:'12px'}}>{t.icon}</div>
@@ -609,7 +633,7 @@ export default function Landing() {
             </div>
           </FadeUp>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:'16px'}}>
-            {MEMBER_FEATURES.map((f,i) => (
+            {memberFeatures.map((f,i) => (
               <SlideCard key={i} delay={i * 130}>
                 <div style={{background:'#f0f9ff',border:'1px solid #bae6fd',borderRadius:'16px',padding:'24px',
                   boxShadow:'0 2px 8px rgba(2,132,199,0.06)',height:'100%',boxSizing:'border-box'}}>
@@ -636,7 +660,7 @@ export default function Landing() {
             </div>
           </FadeUp>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:'16px',maxWidth:'640px',margin:'0 auto'}}>
-            {PLANS.map((plan, i) => (
+            {landingPlans.map((plan, i) => (
               <SlideCard key={i} delay={i * 150}>
                 <div style={{
                   background: plan.highlight ? 'linear-gradient(145deg,#1e2f08,#0f1a03)' : 'rgba(255,255,255,0.04)',
