@@ -34,9 +34,9 @@ const DEFAULT_LANDING_STATS = [
   { num:'0원', label:'시작 비용', sub:'무료 플랜으로 지금 바로 시작' },
 ]
 const DEFAULT_LANDING_REVIEWS = [
-  { name:'김O준 트레이너', location:'서울 마포구 · 1인샵', text:'수업 끝나고 일지 쓰는 게 제일 귀찮았는데, 녹음 올리면 알아서 써줘서 진짜 편해요. 회원들도 리포트 받으면 좋아해서 재등록률이 확실히 올라갔어요.', rating:5, initial:'김' },
-  { name:'이O현 트레이너', location:'경기 성남 · 프리랜서', text:'이탈위험 기능이 신기해요. 출석이 줄던 회원한테 미리 연락했더니 "연락 와줘서 감사하다"고 하더라고요. 그 회원 재등록했어요.', rating:5, initial:'이' },
-  { name:'박O영 트레이너', location:'부산 해운대 · 센터 소속', text:'매출 계산을 엑셀로 하다가 이걸로 바꿨는데 시간이 확 줄었어요. 세금 계산까지 해주는 건 몰랐는데 정산 탭 보고 깜짝 놀랐어요.', rating:5, initial:'박' },
+  { name:'김O준 트레이너', location:'서울 마포구 · 1인샵', text:'수업 끝나고 일지 쓰는 게 제일 귀찮았는데, 녹음 올리면 알아서 써줘서 진짜 편해요. 회원들도 리포트 받으면 좋아해서 재등록률이 확실히 올라갔어요.', rating:5, initial:'김', photo:'', instagram:'' },
+  { name:'이O현 트레이너', location:'경기 성남 · 프리랜서', text:'이탈위험 기능이 신기해요. 출석이 줄던 회원한테 미리 연락했더니 "연락 와줘서 감사하다"고 하더라고요. 그 회원 재등록했어요.', rating:5, initial:'이', photo:'', instagram:'' },
+  { name:'박O영 트레이너', location:'부산 해운대 · 센터 소속', text:'매출 계산을 엑셀로 하다가 이걸로 바꿨는데 시간이 확 줄었어요. 세금 계산까지 해주는 건 몰랐는데 정산 탭 보고 깜짝 놀랐어요.', rating:5, initial:'박', photo:'', instagram:'' },
 ]
 const DEFAULT_LANDING_KAKAO = [
   { from:'회원', text:'트레이너님!! 리포트 너무 자세해서 깜짝 놀랐어요 ㅠㅠ 이렇게까지 신경 써주시다니 감동이에요 🥹', time:'오후 8:23' },
@@ -1207,14 +1207,26 @@ export default function AdminPortal() {
             <div>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
                 <div className="section-title" style={{margin:0}}>트레이너 후기</div>
-                <button className="btn btn-primary btn-sm" onClick={() => openLandingEdit('reviews', -1, {name:'',location:'',text:'',rating:5,initial:''})}>+ 추가</button>
+                <button className="btn btn-primary btn-sm" onClick={() => openLandingEdit('reviews', -1, {name:'',location:'',text:'',rating:5,initial:'',photo:'',instagram:''})}>+ 추가</button>
               </div>
               <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
                 {landingReviews.map((r, i) => (
                   <div key={i} className="card" style={{display:'flex',gap:'14px',alignItems:'flex-start'}}>
-                    <div style={{width:'36px',height:'36px',borderRadius:'50%',background:'var(--accent)',color:'#0f0f0f',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:'15px',flexShrink:0}}>{r.initial||'?'}</div>
+                    {/* 프로필 사진 or 이니셜 */}
+                    {r.photo
+                      ? <img src={r.photo} alt={r.name} style={{width:'44px',height:'44px',borderRadius:'50%',objectFit:'cover',flexShrink:0,border:'2px solid var(--border)'}} onError={e=>{e.target.style.display='none'}}/>
+                      : <div style={{width:'44px',height:'44px',borderRadius:'50%',background:'var(--accent)',color:'#0f0f0f',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:'16px',flexShrink:0}}>{r.initial||'?'}</div>
+                    }
                     <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontWeight:600,fontSize:'13px'}}>{r.name} <span style={{color:'var(--text-dim)',fontWeight:400,fontSize:'11px'}}>· {r.location}</span></div>
+                      <div style={{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
+                        <span style={{fontWeight:600,fontSize:'13px'}}>{r.name}</span>
+                        <span style={{color:'var(--text-dim)',fontSize:'11px'}}>· {r.location}</span>
+                        {r.instagram && (
+                          <span style={{fontSize:'11px',color:'#e1306c',fontWeight:600}}>
+                            📸 {r.instagram.startsWith('@') ? r.instagram : `@${r.instagram}`}
+                          </span>
+                        )}
+                      </div>
                       <div style={{fontSize:'12px',color:'var(--text-dim)',marginTop:'4px',lineHeight:1.6}}>"{r.text}"</div>
                     </div>
                     <div style={{display:'flex',gap:'6px',flexShrink:0}}>
@@ -1535,13 +1547,34 @@ export default function AdminPortal() {
           )
           if (landingEditModal.type === 'reviews') return (
             <>
-              <div className="form-row">
-                <div className="form-group"><label>이름</label><input value={d.name} onChange={e=>upd({name:e.target.value})} placeholder="김O준 트레이너"/></div>
-                <div className="form-group"><label>이니셜 (아바타)</label><input value={d.initial} onChange={e=>upd({initial:e.target.value})} placeholder="김" maxLength={2}/></div>
+              {/* 프로필 사진 미리보기 */}
+              <div style={{display:'flex',alignItems:'center',gap:'14px',marginBottom:'16px',padding:'14px',background:'var(--surface)',borderRadius:'10px',border:'1px solid var(--border)'}}>
+                {d.photo
+                  ? <img src={d.photo} alt="preview" style={{width:'56px',height:'56px',borderRadius:'50%',objectFit:'cover',border:'2px solid var(--border)',flexShrink:0}} onError={e=>{e.target.src=''}}/>
+                  : <div style={{width:'56px',height:'56px',borderRadius:'50%',background:'var(--accent)',color:'#0f0f0f',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:'20px',flexShrink:0}}>{d.initial||'?'}</div>
+                }
+                <div style={{fontSize:'12px',color:'var(--text-dim)',lineHeight:1.6}}>
+                  사진 URL을 입력하면 이니셜 대신 실제 사진이 표시됩니다.<br/>
+                  <span style={{color:'var(--text-muted)'}}>이미지 링크를 직접 복사해서 붙여넣기 하세요.</span>
+                </div>
               </div>
-              <div className="form-group"><label>소속 / 지역</label><input value={d.location} onChange={e=>upd({location:e.target.value})} placeholder="서울 마포구 · 1인샵"/></div>
-              <div className="form-group"><label>후기 내용</label><textarea rows={4} value={d.text} onChange={e=>upd({text:e.target.value})} placeholder="후기를 입력하세요"/></div>
-              <div className="form-group"><label>별점 (1~5)</label><input type="number" min={1} max={5} value={d.rating} onChange={e=>upd({rating:Number(e.target.value)})}/></div>
+              <div className="form-group">
+                <label>프로필 사진 URL <span style={{color:'var(--text-dim)',fontWeight:400}}>(선택)</span></label>
+                <input value={d.photo||''} onChange={e=>upd({photo:e.target.value})} placeholder="https://...jpg"/>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>이름</label><input value={d.name||''} onChange={e=>upd({name:e.target.value})} placeholder="김O준 트레이너"/></div>
+                <div className="form-group"><label>이니셜 (사진 없을 때)</label><input value={d.initial||''} onChange={e=>upd({initial:e.target.value})} placeholder="김" maxLength={2}/></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>소속 / 지역</label><input value={d.location||''} onChange={e=>upd({location:e.target.value})} placeholder="서울 마포구 · 1인샵"/></div>
+                <div className="form-group">
+                  <label>인스타그램 아이디 <span style={{color:'var(--text-dim)',fontWeight:400}}>(선택)</span></label>
+                  <input value={d.instagram||''} onChange={e=>upd({instagram:e.target.value})} placeholder="@trainer_id"/>
+                </div>
+              </div>
+              <div className="form-group"><label>후기 내용</label><textarea rows={4} value={d.text||''} onChange={e=>upd({text:e.target.value})} placeholder="후기를 입력하세요"/></div>
+              <div className="form-group"><label>별점 (1~5)</label><input type="number" min={1} max={5} value={d.rating||5} onChange={e=>upd({rating:Number(e.target.value)})}/></div>
               <button className="btn btn-primary btn-full" onClick={saveLandingEdit}>저장</button>
             </>
           )

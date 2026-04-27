@@ -72,6 +72,8 @@ const REVIEWS = [
     text: '수업 끝나고 일지 쓰는 게 제일 귀찮았는데, 녹음 올리면 알아서 써줘서 진짜 편해요. 회원들도 리포트 받으면 좋아해서 재등록률이 확실히 올라갔어요.',
     rating: 5,
     initial: '김',
+    photo: '',
+    instagram: '',
   },
   {
     name: '이O현 트레이너',
@@ -79,6 +81,8 @@ const REVIEWS = [
     text: '이탈위험 기능이 신기해요. 출석이 줄던 회원한테 미리 연락했더니 "연락 와줘서 감사하다"고 하더라고요. 그 회원 재등록했어요.',
     rating: 5,
     initial: '이',
+    photo: '',
+    instagram: '',
   },
   {
     name: '박O영 트레이너',
@@ -86,6 +90,8 @@ const REVIEWS = [
     text: '매출 계산을 엑셀로 하다가 이걸로 바꿨는데 시간이 확 줄었어요. 세금 계산까지 해주는 건 몰랐는데 정산 탭 보고 깜짝 놀랐어요.',
     rating: 5,
     initial: '박',
+    photo: '',
+    instagram: '',
   },
 ]
 
@@ -575,21 +581,51 @@ export default function Landing() {
             {reviews.map((r,i) => (
               <SlideCard key={i} delay={i * 130}>
                 <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:'16px',padding:'24px',
-                  boxShadow:'0 2px 12px rgba(0,0,0,0.05)',height:'100%',boxSizing:'border-box'}}>
+                  boxShadow:'0 2px 12px rgba(0,0,0,0.05)',height:'100%',boxSizing:'border-box',display:'flex',flexDirection:'column'}}>
+                  {/* 별점 */}
                   <div style={{display:'flex',marginBottom:'12px'}}>
-                    {[...Array(r.rating)].map((_,j) => (
+                    {[...Array(r.rating||5)].map((_,j) => (
                       <span key={j} style={{color:'#f59e0b',fontSize:'14px'}}>★</span>
                     ))}
                   </div>
-                  <p style={{fontSize:'13px',color:'#334155',lineHeight:1.8,margin:'0 0 16px'}}>"{r.text}"</p>
-                  <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
-                    <div style={{width:'36px',height:'36px',borderRadius:'50%',background:'linear-gradient(135deg,#c8f135,#84cc16)',
-                      display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:'15px',color:'#1a2e05',flexShrink:0}}>
-                      {r.initial}
+                  {/* 후기 텍스트 */}
+                  <p style={{fontSize:'13px',color:'#334155',lineHeight:1.85,margin:'0 0 20px',flex:1}}>"{r.text}"</p>
+                  {/* 하단: 프로필 */}
+                  <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
+                    {/* 프로필 사진 or 이니셜 */}
+                    {r.photo
+                      ? <img src={r.photo} alt={r.name}
+                          style={{width:'44px',height:'44px',borderRadius:'50%',objectFit:'cover',
+                            flexShrink:0,border:'2px solid #e2e8f0',boxShadow:'0 2px 8px rgba(0,0,0,0.1)'}}
+                          onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex' }}
+                        />
+                      : null
+                    }
+                    {/* 이니셜 아바타 — 사진 없거나 에러 시 표시 */}
+                    <div style={{
+                      width:'44px',height:'44px',borderRadius:'50%',
+                      background:'linear-gradient(135deg,#c8f135,#84cc16)',
+                      display: r.photo ? 'none' : 'flex',
+                      alignItems:'center',justifyContent:'center',
+                      fontWeight:900,fontSize:'17px',color:'#1a2e05',flexShrink:0,
+                    }}>
+                      {r.initial || r.name?.[0] || '?'}
                     </div>
-                    <div>
-                      <div style={{fontSize:'13px',fontWeight:700,color:'#0f172a'}}>{r.name}</div>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontSize:'13px',fontWeight:700,color:'#0f172a',marginBottom:'2px'}}>{r.name}</div>
                       <div style={{fontSize:'11px',color:'#94a3b8'}}>{r.location}</div>
+                      {r.instagram && (
+                        <a
+                          href={`https://instagram.com/${(r.instagram||'').replace('@','')}`}
+                          target="_blank" rel="noopener noreferrer"
+                          style={{display:'inline-flex',alignItems:'center',gap:'4px',
+                            fontSize:'11px',color:'#e1306c',fontWeight:600,
+                            textDecoration:'none',marginTop:'3px'}}
+                        >
+                          <span style={{fontSize:'12px'}}>📸</span>
+                          {r.instagram.startsWith('@') ? r.instagram : `@${r.instagram}`}
+                        </a>
+                      )}
                     </div>
                   </div>
                 </div>
