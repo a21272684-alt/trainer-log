@@ -102,7 +102,7 @@ const DEFAULT_LANDING_PLANS_LANDING = [
 ]
 
 const COMM_CAT_LABEL = {
-  trainer_seeks_member:     '직원 구인',
+  trainer_lesson_recruit:   '레슨 회원 모집',
   member_seeks_trainer:     '나만의 트레이너 찾기',
   instructor_seeks_student: '수강생 구인',
   gym_seeks_trainer:        '트레이너 채용',
@@ -119,7 +119,7 @@ const COMM_ROLE_OPTIONS = [
 const COMM_ROLE_LABEL = { trainer:'트레이너', member:'회원', instructor:'교육강사', gym_owner:'헬스장 대표' }
 
 const CAT_COLOR = {
-  trainer_seeks_member:     { bg:'rgba(200,241,53,0.12)',  color:'#c8f135' },
+  trainer_lesson_recruit:   { bg:'rgba(200,241,53,0.12)',  color:'#c8f135' },
   member_seeks_trainer:     { bg:'rgba(79,195,247,0.12)',  color:'#4fc3f7' },
   instructor_seeks_student: { bg:'rgba(255,152,0,0.12)',   color:'#ff9800' },
   gym_seeks_trainer:        { bg:'rgba(224,64,251,0.12)',  color:'#e040fb' },

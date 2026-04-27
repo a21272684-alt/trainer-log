@@ -30,13 +30,13 @@ import '../styles/community.css'
    ┌─────────────────────┬──────────────────────────┬──────────────────────┐
    │ 카테고리             │ view                     │ write                │
    ├─────────────────────┼──────────────────────────┼──────────────────────┤
-   │ 직원 구인            │ gym_owner, trainer       │ gym_owner, trainer   │
+   │ 레슨 회원 모집       │ 전체                     │ trainer              │
    │ 트레이너 찾기        │ member, trainer, owner   │ member               │
    │ 수강생 구인(교육)    │ 전체                     │ educator, instructor │
    │ 트레이너 채용        │ gym_owner, trainer       │ gym_owner            │
    │ 센터 구직            │ gym_owner                │ trainer              │
-   │ 센터 제휴·협력 (신규)│ gym_owner                │ gym_owner            │
-   │ 교육 과정 홍보 (신규)│ trainer, educator, owner │ educator, instructor │
+   │ 센터 제휴·협력       │ gym_owner                │ gym_owner            │
+   │ 교육 과정 홍보       │ trainer, educator, owner │ educator, instructor │
    └─────────────────────┴──────────────────────────┴──────────────────────┘
    ============================================================ */
 // permissions.js 에서 COMMUNITY_ACCESS, ROLE_META, PHOTO_REQUIRED_ROLES,
@@ -314,7 +314,7 @@ export default function CommunityPortal() {
     if (!regName.trim()) return showToast('이름을 입력해주세요')
     if (!regRole) return showToast('역할을 선택해주세요')
     if (PHOTO_REQUIRED_ROLES.includes(regRole) && !regPhoto)
-      return showToast('트레이너 / 교육강사는 프로필 사진이 필수입니다 📸')
+      return showToast('트레이너 / 교육강사는 프로필 사진이 필수입니다')
 
     setUploading(true)
     try {
@@ -456,9 +456,13 @@ export default function CommunityPortal() {
       location: writeLocation.trim() || null,
       tags: writeTags.length > 0 ? writeTags : null,
       image_urls: imageUrls.length > 0 ? imageUrls : null,
+      status: 'active',
     })
     setUploading(false)
-    if (error) return showToast('등록 중 오류가 발생했습니다')
+    if (error) {
+      console.error('createPost error:', error)
+      return showToast(`등록 오류: ${error.message}`)
+    }
     showToast('게시글이 등록되었습니다')
     resetWriteForm()
     setScreen('feed')
@@ -947,10 +951,12 @@ export default function CommunityPortal() {
         <div className="form-group">
           <label>역할을 선택해주세요</label>
           <div className="role-grid">
-            {Object.entries(ROLE_META)
-              // instructor 는 educator 의 별칭이므로 등록 화면에서 제외
-              .filter(([key, r]) => r.auth === 'google' && key !== 'instructor')
-              .map(([key, r]) => (
+            {(() => {
+              const ORDER = ['member', 'trainer', 'gym_owner', 'educator'];
+              return Object.entries(ROLE_META)
+                .filter(([key]) => ORDER.includes(key))
+                .sort(([a], [b]) => ORDER.indexOf(a) - ORDER.indexOf(b));
+            })().map(([key, r]) => (
                 <div key={key}
                   className={`role-card ${regRole === key ? 'selected' : ''}`}
                   onClick={() => setRegRole(key)}>

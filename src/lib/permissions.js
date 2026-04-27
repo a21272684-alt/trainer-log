@@ -25,15 +25,15 @@ export const ROLE_META = {
     emoji:  '💪',
     color:  '#c8f135',
     auth:   'phone',   // 이름 + 전화 뒷 4자리
-    desc:   '퍼스널 트레이너 · 수업일지 작성 및 회원 관리',
+    desc:   '수업받을 회원 구하기 · 수업일지 작성 및 회원 관리',
     photoRequired: true,
   },
   member: {
-    label:  '회원',
+    label:  '일반 회원',
     emoji:  '🏃',
     color:  '#4fc3f7',
     auth:   'phone',
-    desc:   '피트니스 수강 회원 · 수업일지 열람 및 건강 기록',
+    desc:   '나에게 맞는 트레이너 구하기 · 수업일지 열람 및 건강 기록',
     photoRequired: false,
   },
   gym_owner: {
@@ -105,15 +105,15 @@ export const COMMUNITY_ACCESS = {
 
   // ── 기존 카테고리 ─────────────────────────────────────────────────────────
 
-  trainer_seeks_member: {
-    label: '직원 구인',
-    desc:  '직원 모집',
-    emoji: '💼',
+  trainer_lesson_recruit: {
+    label: '레슨 회원 모집',
+    desc:  '레슨 모집',
+    emoji: '💪',
     color: '#c8f135',
     bg:    'rgba(200,241,53,0.12)',
-    hint:  '모집 조건, 전문 분야, 근무 지역 등을 적어주세요',
-    view:  ['gym_owner', 'trainer'],
-    write: ['gym_owner', 'trainer'],
+    hint:  '레슨 종류, 대상, 가능 시간대, 비용 등을 적어주세요',
+    view:  ['member', 'trainer', 'gym_owner', 'educator', 'instructor'],
+    write: ['trainer'],
   },
 
   member_seeks_trainer: {
