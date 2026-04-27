@@ -20,8 +20,9 @@ const PORTAL_TABS = {
     { id:'kakao',     label:'카카오 메시지' },
     { id:'targets',   label:'타겟 분기' },
     { id:'members',   label:'회원 포털 기능' },
-    { id:'plans',     label:'요금제' },
-    { id:'faqs',      label:'FAQ' },
+    { id:'plans',      label:'요금제' },
+    { id:'faqs',       label:'FAQ' },
+    { id:'comparison', label:'기능 비교' },
   ],
 }
 
@@ -85,6 +86,15 @@ const DEFAULT_LANDING_MEMBER_FEATURES = [
   { icon:'⚖️', title:'체중·건강 추적', desc:'공복/저녁 체중, 수면 레벨을 기록하고 14일 추이를 확인' },
   { icon:'🏃', title:'개인운동 일지', desc:'60+ 종목 자동완성, 세트·볼륨 계산, 앞뒤 근육 다이어그램' },
   { icon:'🤝', title:'회원 커뮤니티', desc:'같은 센터 회원들과 운동 일상을 사진·이모지로 공유' },
+]
+const DEFAULT_LANDING_COMPARISON = [
+  { feature:'AI 수업일지 작성',  legacy:'수기 메모 · 10~30분',      ours:'AI 자동 생성 · 3분' },
+  { feature:'회원 리포트 발송',  legacy:'별도 없음',                 ours:'카카오톡 자동 발송' },
+  { feature:'이탈 회원 감지',    legacy:'감 또는 직접 연락',          ours:'AI 이탈위험 자동 알림' },
+  { feature:'매출 계산',         legacy:'엑셀·메모장 수기 집계',      ours:'결제 등록 시 자동 집계' },
+  { feature:'건강 기록 추적',    legacy:'없음',                      ours:'체중·수면·체성분 추적' },
+  { feature:'회원 전용 포털',    legacy:'없음',                      ours:'전용 포털 + 개인운동 일지' },
+  { feature:'시작 비용',         legacy:'유료 구독 필요',             ours:'0원 (무료 플랜)' },
 ]
 const DEFAULT_LANDING_PLANS_LANDING = [
   { name:'무료 플랜', price:'0원', period:'영구 무료', highlight:false, tag:null, features:['AI 수업일지 월 20회','회원 관리 (최대 20명)','수업 리포트 카카오 발송','체중·건강 기록','주간 스케줄','매출 기본 분석'], cta:'무료로 시작하기', ctaLink:'/trainer', note:'결제 수단 등록 불필요' },
@@ -180,6 +190,7 @@ export default function AdminPortal() {
   const [landingTargets,        setLandingTargets]        = useState(DEFAULT_LANDING_TARGETS)
   const [landingMemberFeatures, setLandingMemberFeatures] = useState(DEFAULT_LANDING_MEMBER_FEATURES)
   const [landingPlansLanding,   setLandingPlansLanding]   = useState(DEFAULT_LANDING_PLANS_LANDING)
+  const [landingComparison,     setLandingComparison]     = useState(DEFAULT_LANDING_COMPARISON)
 
   // 크레딧 / API 키 관리
   const [creditAmount, setCreditAmount] = useState('10')
@@ -213,7 +224,7 @@ export default function AdminPortal() {
           'plan_guide_visible', 'plans', 'gemini_api_key',
           'landing_hero', 'landing_stats', 'landing_problems', 'landing_solutions',
           'landing_reviews', 'landing_kakao', 'landing_targets', 'landing_member_features',
-          'landing_plans_landing', 'landing_faqs',
+          'landing_plans_landing', 'landing_faqs', 'landing_comparison',
         ]),
         supabase.from('inquiries').select('*, trainer:trainers(name)').order('created_at', { ascending: false }),
         supabase.from('notices').select('*').order('is_pinned', { ascending: false }).order('created_at', { ascending: false }),
@@ -243,12 +254,14 @@ export default function AdminPortal() {
         const lTargets = settings.data.find(r => r.key === 'landing_targets')
         const lMembers = settings.data.find(r => r.key === 'landing_member_features')
         const lPlansl  = settings.data.find(r => r.key === 'landing_plans_landing')
-        if (lHero?.value)    setLandingHero(lHero.value)
-        if (lProbs?.value)   setLandingProblems(lProbs.value)
-        if (lSols?.value)    setLandingSolutions(lSols.value)
-        if (lTargets?.value) setLandingTargets(lTargets.value)
-        if (lMembers?.value) setLandingMemberFeatures(lMembers.value)
-        if (lPlansl?.value)  setLandingPlansLanding(lPlansl.value)
+        const lComparison = settings.data.find(r => r.key === 'landing_comparison')
+        if (lHero?.value)         setLandingHero(lHero.value)
+        if (lProbs?.value)        setLandingProblems(lProbs.value)
+        if (lSols?.value)         setLandingSolutions(lSols.value)
+        if (lTargets?.value)      setLandingTargets(lTargets.value)
+        if (lMembers?.value)      setLandingMemberFeatures(lMembers.value)
+        if (lPlansl?.value)       setLandingPlansLanding(lPlansl.value)
+        if (lComparison?.value)   setLandingComparison(lComparison.value)
         const apiKeyRow = settings.data.find(r => r.key === 'gemini_api_key')
         if (apiKeyRow?.value) setCentralApiKey(String(apiKeyRow.value).replace(/^"|"$/g, ''))
         setApiKeyLoaded(true)
@@ -510,6 +523,7 @@ export default function AdminPortal() {
   async function saveLandingTargets(next)       { setLandingTargets(next);       await saveLandingKey('landing_targets', next);         showToast('✓ 타겟 분기 저장됨') }
   async function saveLandingMemberFeatures(next){ setLandingMemberFeatures(next);await saveLandingKey('landing_member_features', next); showToast('✓ 회원 포털 기능 저장됨') }
   async function saveLandingPlansLanding(next)  { setLandingPlansLanding(next);  await saveLandingKey('landing_plans_landing', next);   showToast('✓ 요금제 저장됨') }
+  async function saveLandingComparison(next)    { setLandingComparison(next);    await saveLandingKey('landing_comparison', next);        showToast('✓ 기능 비교 저장됨') }
 
   function openLandingEdit(type, index, data) {
     setLandingEditModal({ type, index, data: { ...data } })
@@ -544,6 +558,9 @@ export default function AdminPortal() {
     } else if (type === 'landing_plans') {
       const next = index === -1 ? [...landingPlansLanding, data] : landingPlansLanding.map((r,i) => i === index ? data : r)
       await saveLandingPlansLanding(next)
+    } else if (type === 'comparison') {
+      const next = index === -1 ? [...landingComparison, data] : landingComparison.map((r,i) => i === index ? data : r)
+      await saveLandingComparison(next)
     }
     closeLandingEdit()
   }
@@ -557,6 +574,7 @@ export default function AdminPortal() {
     else if (type === 'targets')  await saveLandingTargets(landingTargets.filter((_,i) => i !== index))
     else if (type === 'members')  await saveLandingMemberFeatures(landingMemberFeatures.filter((_,i) => i !== index))
     else if (type === 'landing_plans') await saveLandingPlansLanding(landingPlansLanding.filter((_,i) => i !== index))
+    else if (type === 'comparison')    await saveLandingComparison(landingComparison.filter((_,i) => i !== index))
   }
 
   const navItems = [
@@ -1397,6 +1415,40 @@ export default function AdminPortal() {
             </div>
           )}
 
+          {page === 'landing' && subTab === 'comparison' && (
+            <div>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
+                <div className="section-title" style={{margin:0}}>기능 비교 행</div>
+                <button className="btn btn-primary btn-sm" onClick={() => openLandingEdit('comparison', -1, {feature:'',legacy:'',ours:''})}>+ 행 추가</button>
+              </div>
+              {/* 미리보기 테이블 */}
+              <div className="card" style={{padding:'0',overflow:'hidden',marginBottom:'20px'}}>
+                <div style={{display:'grid',gridTemplateColumns:'1.2fr 1fr 1fr',background:'var(--surface)'}}>
+                  <div style={{padding:'10px 14px',fontSize:'11px',fontWeight:700,letterSpacing:'0.06em',color:'var(--text-dim)',borderBottom:'1px solid var(--border)'}}>기능</div>
+                  <div style={{padding:'10px 14px',fontSize:'11px',fontWeight:700,letterSpacing:'0.06em',color:'var(--text-dim)',borderLeft:'1px solid var(--border)',borderBottom:'1px solid var(--border)'}}>기존 방식</div>
+                  <div style={{padding:'10px 14px',fontSize:'11px',fontWeight:700,letterSpacing:'0.06em',color:'var(--accent)',borderLeft:'1px solid var(--border)',borderBottom:'1px solid var(--border)'}}>✦ 오운</div>
+                </div>
+                {landingComparison.map((row, i) => (
+                  <div key={i} style={{display:'grid',gridTemplateColumns:'1.2fr 1fr 1fr',borderBottom: i < landingComparison.length-1 ? '1px solid var(--border)' : 'none', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)'}}>
+                    <div style={{padding:'12px 14px',fontSize:'13px',fontWeight:600,color:'var(--text)',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px'}}>
+                      <span>{row.feature}</span>
+                      <div style={{display:'flex',gap:'4px',flexShrink:0}}>
+                        <button className="btn btn-ghost btn-sm" style={{fontSize:'11px',padding:'2px 8px'}} onClick={() => openLandingEdit('comparison', i, row)}>수정</button>
+                        <button className="btn btn-sm" style={{fontSize:'11px',padding:'2px 8px',background:'rgba(239,68,68,0.1)',color:'#ef4444',border:'1px solid rgba(239,68,68,0.2)'}} onClick={() => deleteLandingItem('comparison', i)}>삭제</button>
+                      </div>
+                    </div>
+                    <div style={{padding:'12px 14px',fontSize:'12px',color:'var(--text-dim)',borderLeft:'1px solid var(--border)',display:'flex',alignItems:'center',gap:'6px'}}>
+                      <span style={{color:'#ef4444',fontWeight:700}}>✗</span>{row.legacy}
+                    </div>
+                    <div style={{padding:'12px 14px',fontSize:'12px',color:'var(--accent)',borderLeft:'1px solid var(--border)',display:'flex',alignItems:'center',gap:'6px',fontWeight:600}}>
+                      <span>✓</span>{row.ours}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {page === 'trainer' && subTab === 'plans' && (
             <div>
               <div className="section-title">플랜 관리</div>
@@ -1467,7 +1519,8 @@ export default function AdminPortal() {
         landingEditModal?.type === 'solutions'     ? (landingEditModal.index === -1 ? '솔루션 카드 추가' : '솔루션 카드 수정') :
         landingEditModal?.type === 'targets'       ? (landingEditModal.index === -1 ? '타겟 추가' : '타겟 수정') :
         landingEditModal?.type === 'members'       ? (landingEditModal.index === -1 ? '회원 기능 추가' : '회원 기능 수정') :
-        landingEditModal?.type === 'landing_plans' ? (landingEditModal.index === -1 ? '요금제 추가' : '요금제 수정') : ''
+        landingEditModal?.type === 'landing_plans' ? (landingEditModal.index === -1 ? '요금제 추가' : '요금제 수정') :
+        landingEditModal?.type === 'comparison'    ? (landingEditModal.index === -1 ? '비교 행 추가' : '비교 행 수정') : ''
       }>
         {landingEditModal && (() => {
           const d = landingEditModal.data
@@ -1571,6 +1624,20 @@ export default function AdminPortal() {
               <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'16px'}}>
                 <input type="checkbox" id="planHighlightChk" checked={!!d.highlight} onChange={e=>upd({highlight:e.target.checked})} style={{width:'16px',height:'16px',cursor:'pointer'}}/>
                 <label htmlFor="planHighlightChk" style={{cursor:'pointer',fontSize:'13px',fontWeight:500,marginBottom:0}}>✨ 추천 플랜 (하이라이트)</label>
+              </div>
+              <button className="btn btn-primary btn-full" onClick={saveLandingEdit}>저장</button>
+            </>
+          )
+          if (landingEditModal.type === 'comparison') return (
+            <>
+              <div className="form-group"><label>기능명</label><input value={d.feature||''} onChange={e=>upd({feature:e.target.value})} placeholder="AI 수업일지 작성"/></div>
+              <div className="form-group">
+                <label>기존 방식 <span style={{color:'#ef4444'}}>✗</span></label>
+                <input value={d.legacy||''} onChange={e=>upd({legacy:e.target.value})} placeholder="수기 메모 · 10~30분"/>
+              </div>
+              <div className="form-group">
+                <label>오운 <span style={{color:'var(--accent)'}}>✓</span></label>
+                <input value={d.ours||''} onChange={e=>upd({ours:e.target.value})} placeholder="AI 자동 생성 · 3분"/>
               </div>
               <button className="btn btn-primary btn-full" onClick={saveLandingEdit}>저장</button>
             </>

@@ -178,6 +178,16 @@ const PLANS = [
   },
 ]
 
+const COMPARISON = [
+  { feature: 'AI 수업일지 작성',  legacy: '수기 메모 · 10~30분',      ours: 'AI 자동 생성 · 3분' },
+  { feature: '회원 리포트 발송',  legacy: '별도 없음',                 ours: '카카오톡 자동 발송' },
+  { feature: '이탈 회원 감지',    legacy: '감 또는 직접 연락',          ours: 'AI 이탈위험 자동 알림' },
+  { feature: '매출 계산',         legacy: '엑셀·메모장 수기 집계',      ours: '결제 등록 시 자동 집계' },
+  { feature: '건강 기록 추적',    legacy: '없음',                      ours: '체중·수면·체성분 추적' },
+  { feature: '회원 전용 포털',    legacy: '없음',                      ours: '전용 포털 + 개인운동 일지' },
+  { feature: '시작 비용',         legacy: '유료 구독 필요',             ours: '0원 (무료 플랜)' },
+]
+
 const FAQS = [
   {
     q: 'AI 수업일지를 만들려면 별도 비용이 드나요?',
@@ -300,6 +310,7 @@ export default function Landing() {
   const [memberFeatures, setMemberFeatures] = useState(MEMBER_FEATURES)
   const [landingPlans,   setLandingPlans]   = useState(PLANS)
   const [faqs,           setFaqs]           = useState(FAQS)
+  const [comparison,     setComparison]     = useState(COMPARISON)
 
   useEffect(() => {
     supabase.from('app_settings')
@@ -307,7 +318,7 @@ export default function Landing() {
       .in('key', [
         'landing_hero', 'landing_stats', 'landing_problems', 'landing_solutions',
         'landing_reviews', 'landing_kakao', 'landing_targets', 'landing_member_features',
-        'landing_plans_landing', 'landing_faqs',
+        'landing_plans_landing', 'landing_faqs', 'landing_comparison',
       ])
       .then(({ data }) => {
         if (!data) return
@@ -322,6 +333,7 @@ export default function Landing() {
           if (row.key === 'landing_member_features'  && Array.isArray(row.value))    setMemberFeatures(row.value)
           if (row.key === 'landing_plans_landing'    && Array.isArray(row.value))    setLandingPlans(row.value)
           if (row.key === 'landing_faqs'             && Array.isArray(row.value))    setFaqs(row.value)
+          if (row.key === 'landing_comparison'       && Array.isArray(row.value))    setComparison(row.value)
         })
       })
   }, [])
@@ -584,6 +596,53 @@ export default function Landing() {
               </SlideCard>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── 기능 비교 (COMPARISON) ── */}
+      <section style={{background:'#0f172a',padding:'80px 24px'}}>
+        <div style={{maxWidth:'860px',margin:'0 auto'}}>
+          <FadeUp>
+            <div style={{textAlign:'center',marginBottom:'48px'}}>
+              <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',color:'#c8f135',marginBottom:'10px'}}>COMPARISON</div>
+              <h2 style={{fontSize:'clamp(22px,4vw,32px)',fontWeight:800,color:'#fff',letterSpacing:'-1px',margin:'0 0 10px',lineHeight:1.3}}>
+                오운 vs 기존 방식
+              </h2>
+              <p style={{fontSize:'14px',color:'rgba(255,255,255,0.45)',margin:0}}>지금 쓰는 방법과 무엇이 다른지 확인해보세요</p>
+            </div>
+          </FadeUp>
+          <FadeUp delay={100}>
+            <div style={{borderRadius:'20px',overflow:'hidden',border:'1px solid rgba(255,255,255,0.08)'}}>
+              {/* 헤더 */}
+              <div style={{display:'grid',gridTemplateColumns:'1.2fr 1fr 1fr'}}>
+                <div style={{padding:'14px 20px',fontSize:'11px',fontWeight:700,letterSpacing:'0.08em',color:'rgba(255,255,255,0.35)',background:'rgba(255,255,255,0.03)',borderBottom:'1px solid rgba(255,255,255,0.08)'}}>기능</div>
+                <div style={{padding:'14px 20px',fontSize:'11px',fontWeight:700,letterSpacing:'0.08em',color:'rgba(255,255,255,0.35)',background:'rgba(255,255,255,0.03)',borderLeft:'1px solid rgba(255,255,255,0.06)',borderBottom:'1px solid rgba(255,255,255,0.08)'}}>기존 방식</div>
+                <div style={{padding:'14px 20px',fontSize:'11px',fontWeight:700,letterSpacing:'0.08em',color:'#c8f135',background:'rgba(200,241,53,0.05)',borderLeft:'1px solid rgba(200,241,53,0.15)',borderBottom:'1px solid rgba(200,241,53,0.12)',display:'flex',alignItems:'center',gap:'5px'}}>
+                  <span>✦</span> 오운
+                </div>
+              </div>
+              {/* 행 */}
+              {comparison.map((row, i) => (
+                <div key={i} style={{
+                  display:'grid',gridTemplateColumns:'1.2fr 1fr 1fr',
+                  borderBottom: i < comparison.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                  background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
+                }}>
+                  <div style={{padding:'15px 20px',fontSize:'13px',fontWeight:600,color:'rgba(255,255,255,0.75)',lineHeight:1.4}}>
+                    {row.feature}
+                  </div>
+                  <div style={{padding:'15px 20px',fontSize:'13px',color:'rgba(255,255,255,0.35)',borderLeft:'1px solid rgba(255,255,255,0.05)',display:'flex',alignItems:'center',gap:'8px',lineHeight:1.4}}>
+                    <span style={{color:'#ef4444',fontSize:'13px',flexShrink:0,fontWeight:700}}>✗</span>
+                    {row.legacy}
+                  </div>
+                  <div style={{padding:'15px 20px',fontSize:'13px',color:'#c8f135',borderLeft:'1px solid rgba(200,241,53,0.12)',background:'rgba(200,241,53,0.03)',display:'flex',alignItems:'center',gap:'8px',fontWeight:600,lineHeight:1.4}}>
+                    <span style={{color:'#c8f135',fontSize:'13px',flexShrink:0}}>✓</span>
+                    {row.ours}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </FadeUp>
         </div>
       </section>
 
