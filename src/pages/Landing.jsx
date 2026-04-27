@@ -718,7 +718,6 @@ export default function Landing() {
           <Link to="/trainer" style={{fontSize:'12px',color:'#475569',textDecoration:'none'}}>트레이너 앱</Link>
           <Link to="/member" style={{fontSize:'12px',color:'#475569',textDecoration:'none'}}>회원 포털</Link>
           <Link to="/community" style={{fontSize:'12px',color:'#475569',textDecoration:'none'}}>커뮤니티</Link>
-          <Link to="/admin" style={{fontSize:'12px',color:'#334155',textDecoration:'none'}}>관리자</Link>
         </div>
         <div style={{display:'flex',justifyContent:'center',gap:'20px',marginBottom:'16px'}}>
           <Link to="/terms" style={{fontSize:'11px',color:'#64748b',textDecoration:'none'}}>이용약관</Link>
