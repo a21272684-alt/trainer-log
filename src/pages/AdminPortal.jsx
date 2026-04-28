@@ -33,8 +33,9 @@ const LANDING_TABS = {
     { id:'targets',    label:'타겟 분기' },
     { id:'members',    label:'회원 포털 기능' },
     { id:'plans',      label:'요금제' },
-    { id:'faqs',       label:'FAQ' },
-    { id:'comparison', label:'기능 비교' },
+    { id:'faqs',           label:'FAQ' },
+    { id:'comparison',     label:'기능 비교' },
+    { id:'portal_buttons', label:'포털 버튼' },
   ],
   community: [
     { id:'hero', label:'히어로' },
@@ -250,6 +251,9 @@ export default function AdminPortal() {
   const [landingPlansLanding,   setLandingPlansLanding]   = useState(DEFAULT_LANDING_PLANS_LANDING)
   const [landingComparison,     setLandingComparison]     = useState(DEFAULT_LANDING_COMPARISON)
 
+  // 포털 버튼 ON/OFF
+  const [landingPortalButtons, setLandingPortalButtons] = useState({ trainer: true, member: true, community: true, crm: true })
+
   // 커뮤니티·CRM 포털 랜딩
   const [landingCommHero,      setLandingCommHero]      = useState(DEFAULT_LANDING_COMMUNITY_HERO)
   const [landingCrmHero,       setLandingCrmHero]       = useState(DEFAULT_LANDING_CRM_HERO)
@@ -297,6 +301,7 @@ export default function AdminPortal() {
           'landing_plans_landing', 'landing_faqs', 'landing_comparison',
           'landing_community_hero',
           'landing_crm_hero', 'landing_crm_features', 'landing_crm_painpoints', 'landing_crm_roadmap',
+          'landing_portal_buttons',
         ]),
         supabase.from('inquiries').select('*, trainer:trainers(name)').order('created_at', { ascending: false }),
         supabase.from('notices').select('*').order('is_pinned', { ascending: false }).order('created_at', { ascending: false }),
@@ -344,6 +349,8 @@ export default function AdminPortal() {
         if (Array.isArray(lCrmFeat?.value))   setLandingCrmFeatures(lCrmFeat.value)
         if (Array.isArray(lCrmPain?.value))   setLandingCrmPainpoints(lCrmPain.value)
         if (Array.isArray(lCrmRoad?.value))   setLandingCrmRoadmap(lCrmRoad.value)
+        const lPortalBtns = settings.data.find(r => r.key === 'landing_portal_buttons')
+        if (lPortalBtns?.value && typeof lPortalBtns.value === 'object') setLandingPortalButtons(prev => ({ ...prev, ...lPortalBtns.value }))
         const apiKeyRow = settings.data.find(r => r.key === 'gemini_api_key')
         if (apiKeyRow?.value) setCentralApiKey(String(apiKeyRow.value).replace(/^"|"$/g, ''))
         setApiKeyLoaded(true)
@@ -606,6 +613,7 @@ export default function AdminPortal() {
   async function saveLandingMemberFeatures(next){ setLandingMemberFeatures(next);await saveLandingKey('landing_member_features', next); showToast('✓ 회원 포털 기능 저장됨') }
   async function saveLandingPlansLanding(next)  { setLandingPlansLanding(next);  await saveLandingKey('landing_plans_landing', next);   showToast('✓ 요금제 저장됨') }
   async function saveLandingComparison(next)    { setLandingComparison(next);    await saveLandingKey('landing_comparison', next);        showToast('✓ 기능 비교 저장됨') }
+  async function saveLandingPortalButtons(next) { setLandingPortalButtons(next); await saveLandingKey('landing_portal_buttons', next); showToast('✓ 포털 버튼 설정 저장됨') }
   async function saveLandingCommHero(next)      { setLandingCommHero(next);      await saveLandingKey('landing_community_hero', next);    showToast('✓ 커뮤니티 히어로 저장됨') }
   async function saveLandingCrmHero(next)       { setLandingCrmHero(next);       await saveLandingKey('landing_crm_hero', next);           showToast('✓ CRM 히어로 저장됨') }
   async function saveLandingCrmFeatures(next)   { setLandingCrmFeatures(next);   await saveLandingKey('landing_crm_features', next);       showToast('✓ CRM 기능 저장됨') }
@@ -1586,6 +1594,62 @@ export default function AdminPortal() {
               </div>
             </div>
           )}
+
+          {/* ── 포털 버튼 ON/OFF ── */}
+          {page === 'landing' && landingSite === 'main' && subTab === 'portal_buttons' && (() => {
+            const PORTALS = [
+              { key: 'trainer',   label: '트레이너 앱',  icon: '💪', color: '#c8f135', desc: '/trainer — AI 수업일지 · 회원관리 · 스케줄 · 매출' },
+              { key: 'member',    label: '회원 포털',    icon: '🏃', color: '#4fc3f7', desc: '/member — 수업일지 · 체중관리 · 개인운동 · 커뮤니티' },
+              { key: 'community', label: '커뮤니티',     icon: '🤝', color: '#ff9800', desc: '/community — 구인·구직 · 센터 매칭 · 수강생 모집' },
+              { key: 'crm',       label: '헬스장 CRM',   icon: '🏢', color: '#e040fb', desc: '/gym — 트레이너 관리 · 매출 현황 · 정산' },
+            ]
+            const toggle = (key) => {
+              const next = { ...landingPortalButtons, [key]: !landingPortalButtons[key] }
+              saveLandingPortalButtons(next)
+            }
+            return (
+              <div>
+                <div className="section-title">포털 버튼 노출 관리</div>
+                <div style={{fontSize:'13px',color:'var(--text-dim)',marginBottom:'20px',lineHeight:1.7}}>
+                  OFF로 설정하면 랜딩페이지 <strong style={{color:'var(--text)'}}>GET STARTED</strong> 섹션에서 해당 포털 카드가 <strong style={{color:'#ef4444'}}>준비중</strong>으로 표시되고 클릭이 비활성화돼요.
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+                  {PORTALS.map(p => {
+                    const isOn = landingPortalButtons[p.key] !== false
+                    return (
+                      <div key={p.key} className="card" style={{
+                        display:'flex',alignItems:'center',gap:'16px',
+                        border: `1px solid ${isOn ? p.color+'33' : 'var(--border)'}`,
+                        opacity: isOn ? 1 : 0.65,
+                      }}>
+                        <div style={{fontSize:'28px',flexShrink:0}}>{p.icon}</div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'3px'}}>
+                            <span style={{fontWeight:700,fontSize:'14px',color: isOn ? p.color : 'var(--text-dim)'}}>{p.label}</span>
+                            {isOn
+                              ? <span style={{fontSize:'10px',fontWeight:700,background:'rgba(200,241,53,0.12)',color:'#c8f135',padding:'2px 7px',borderRadius:'10px',border:'1px solid rgba(200,241,53,0.25)'}}>ON</span>
+                              : <span style={{fontSize:'10px',fontWeight:700,background:'rgba(239,68,68,0.12)',color:'#ef4444',padding:'2px 7px',borderRadius:'10px',border:'1px solid rgba(239,68,68,0.25)'}}>OFF · 준비중</span>
+                            }
+                          </div>
+                          <div style={{fontSize:'11px',color:'var(--text-dim)',fontFamily:"'DM Mono',monospace"}}>{p.desc}</div>
+                        </div>
+                        <button
+                          className={`crm-toggle${isOn?' on':''}`}
+                          style={{flexShrink:0}}
+                          onClick={() => toggle(p.key)}
+                        >
+                          {isOn ? 'ON' : 'OFF'}
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div style={{marginTop:'16px',padding:'12px 14px',background:'rgba(255,152,0,0.06)',border:'1px solid rgba(255,152,0,0.2)',borderRadius:'10px',fontSize:'12px',color:'rgba(255,152,0,0.8)',lineHeight:1.7}}>
+                  ⚠️ 변경 즉시 저장됩니다. 토글을 클릭하면 바로 랜딩페이지에 반영돼요.
+                </div>
+              </div>
+            )
+          })()}
 
           {/* ── 커뮤니티 랜딩 > 히어로 ── */}
           {page === 'landing' && landingSite === 'community' && subTab === 'hero' && (

@@ -317,6 +317,7 @@ export default function Landing() {
   const [landingPlans,   setLandingPlans]   = useState(PLANS)
   const [faqs,           setFaqs]           = useState(FAQS)
   const [comparison,     setComparison]     = useState(COMPARISON)
+  const [portalButtons,  setPortalButtons]  = useState({ trainer: true, member: true, community: true, crm: true })
 
   useEffect(() => {
     supabase.from('app_settings')
@@ -325,6 +326,7 @@ export default function Landing() {
         'landing_hero', 'landing_stats', 'landing_problems', 'landing_solutions',
         'landing_reviews', 'landing_kakao', 'landing_targets', 'landing_member_features',
         'landing_plans_landing', 'landing_faqs', 'landing_comparison',
+        'landing_portal_buttons',
       ])
       .then(({ data }) => {
         if (!data) return
@@ -340,6 +342,7 @@ export default function Landing() {
           if (row.key === 'landing_plans_landing'    && Array.isArray(row.value))    setLandingPlans(row.value)
           if (row.key === 'landing_faqs'             && Array.isArray(row.value))    setFaqs(row.value)
           if (row.key === 'landing_comparison'       && Array.isArray(row.value))    setComparison(row.value)
+          if (row.key === 'landing_portal_buttons'   && row.value && typeof row.value === 'object') setPortalButtons(prev => ({ ...prev, ...row.value }))
         })
       })
   }, [])
@@ -863,88 +866,178 @@ export default function Landing() {
           </FadeUp>
 
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'14px',marginBottom:'14px'}}>
+            {/* 트레이너 앱 */}
             <SlideCard delay={0}>
-              <Link to="/trainer" style={{
-                background:'linear-gradient(145deg,#1e293b,#162004)',
-                border:'1px solid rgba(200,241,53,0.3)',borderRadius:'20px',padding:'32px 24px',
-                textAlign:'center',textDecoration:'none',color:'#fff',display:'block',
-                boxShadow:'0 8px 32px rgba(0,0,0,0.3)',height:'100%',boxSizing:'border-box'}}>
-                <div style={{fontSize:'36px',marginBottom:'14px'}}>💪</div>
-                <div style={{fontSize:'17px',fontWeight:800,marginBottom:'8px',letterSpacing:'-0.5px'}}>트레이너 앱</div>
-                <div style={{fontSize:'12px',color:'rgba(255,255,255,0.5)',lineHeight:1.7,marginBottom:'18px'}}>
-                  수업일지 · 회원관리<br/>스케줄 · 매출 분석
+              {portalButtons.trainer !== false ? (
+                <Link to="/trainer" style={{
+                  background:'linear-gradient(145deg,#1e293b,#162004)',
+                  border:'1px solid rgba(200,241,53,0.3)',borderRadius:'20px',padding:'32px 24px',
+                  textAlign:'center',textDecoration:'none',color:'#fff',display:'block',
+                  boxShadow:'0 8px 32px rgba(0,0,0,0.3)',height:'100%',boxSizing:'border-box'}}>
+                  <div style={{fontSize:'36px',marginBottom:'14px'}}>💪</div>
+                  <div style={{fontSize:'17px',fontWeight:800,marginBottom:'8px',letterSpacing:'-0.5px'}}>트레이너 앱</div>
+                  <div style={{fontSize:'12px',color:'rgba(255,255,255,0.5)',lineHeight:1.7,marginBottom:'18px'}}>
+                    수업일지 · 회원관리<br/>스케줄 · 매출 분석
+                  </div>
+                  <div style={{display:'inline-block',fontSize:'13px',color:'#c8f135',fontWeight:700,
+                    background:'rgba(200,241,53,0.1)',padding:'7px 16px',borderRadius:'8px',
+                    border:'1px solid rgba(200,241,53,0.25)'}}>
+                    무료로 시작하기 →
+                  </div>
+                </Link>
+              ) : (
+                <div style={{
+                  background:'linear-gradient(145deg,#1e293b,#162004)',
+                  border:'1px solid rgba(200,241,53,0.12)',borderRadius:'20px',padding:'32px 24px',
+                  textAlign:'center',color:'rgba(255,255,255,0.3)',display:'block',
+                  boxShadow:'0 8px 32px rgba(0,0,0,0.3)',height:'100%',boxSizing:'border-box',
+                  cursor:'not-allowed',filter:'grayscale(0.4)'}}>
+                  <div style={{fontSize:'36px',marginBottom:'14px',opacity:0.4}}>💪</div>
+                  <div style={{fontSize:'17px',fontWeight:800,marginBottom:'8px',letterSpacing:'-0.5px'}}>트레이너 앱</div>
+                  <div style={{fontSize:'12px',color:'rgba(255,255,255,0.25)',lineHeight:1.7,marginBottom:'18px'}}>
+                    수업일지 · 회원관리<br/>스케줄 · 매출 분석
+                  </div>
+                  <div style={{display:'inline-block',fontSize:'12px',fontWeight:700,
+                    background:'rgba(255,255,255,0.06)',color:'rgba(255,255,255,0.35)',padding:'7px 16px',borderRadius:'8px',
+                    border:'1px solid rgba(255,255,255,0.1)'}}>
+                    🔜 준비중
+                  </div>
                 </div>
-                <div style={{display:'inline-block',fontSize:'13px',color:'#c8f135',fontWeight:700,
-                  background:'rgba(200,241,53,0.1)',padding:'7px 16px',borderRadius:'8px',
-                  border:'1px solid rgba(200,241,53,0.25)'}}>
-                  무료로 시작하기 →
-                </div>
-              </Link>
+              )}
             </SlideCard>
 
+            {/* 회원 포털 */}
             <SlideCard delay={150}>
-              <Link to="/member" style={{
-                background:'linear-gradient(145deg,#1e293b,#041020)',
-                border:'1px solid rgba(79,195,247,0.3)',borderRadius:'20px',padding:'32px 24px',
-                textAlign:'center',textDecoration:'none',color:'#fff',display:'block',
-                boxShadow:'0 8px 32px rgba(0,0,0,0.3)',height:'100%',boxSizing:'border-box'}}>
-                <div style={{fontSize:'36px',marginBottom:'14px'}}>🏃</div>
-                <div style={{fontSize:'17px',fontWeight:800,marginBottom:'8px',letterSpacing:'-0.5px'}}>회원 포털</div>
-                <div style={{fontSize:'12px',color:'rgba(255,255,255,0.5)',lineHeight:1.7,marginBottom:'18px'}}>
-                  수업일지 · 체중관리<br/>개인운동 · 커뮤니티
+              {portalButtons.member !== false ? (
+                <Link to="/member" style={{
+                  background:'linear-gradient(145deg,#1e293b,#041020)',
+                  border:'1px solid rgba(79,195,247,0.3)',borderRadius:'20px',padding:'32px 24px',
+                  textAlign:'center',textDecoration:'none',color:'#fff',display:'block',
+                  boxShadow:'0 8px 32px rgba(0,0,0,0.3)',height:'100%',boxSizing:'border-box'}}>
+                  <div style={{fontSize:'36px',marginBottom:'14px'}}>🏃</div>
+                  <div style={{fontSize:'17px',fontWeight:800,marginBottom:'8px',letterSpacing:'-0.5px'}}>회원 포털</div>
+                  <div style={{fontSize:'12px',color:'rgba(255,255,255,0.5)',lineHeight:1.7,marginBottom:'18px'}}>
+                    수업일지 · 체중관리<br/>개인운동 · 커뮤니티
+                  </div>
+                  <div style={{display:'inline-block',fontSize:'13px',color:'#4fc3f7',fontWeight:700,
+                    background:'rgba(79,195,247,0.1)',padding:'7px 16px',borderRadius:'8px',
+                    border:'1px solid rgba(79,195,247,0.25)'}}>
+                    입장하기 →
+                  </div>
+                </Link>
+              ) : (
+                <div style={{
+                  background:'linear-gradient(145deg,#1e293b,#041020)',
+                  border:'1px solid rgba(79,195,247,0.1)',borderRadius:'20px',padding:'32px 24px',
+                  textAlign:'center',color:'rgba(255,255,255,0.3)',display:'block',
+                  boxShadow:'0 8px 32px rgba(0,0,0,0.3)',height:'100%',boxSizing:'border-box',
+                  cursor:'not-allowed',filter:'grayscale(0.4)'}}>
+                  <div style={{fontSize:'36px',marginBottom:'14px',opacity:0.4}}>🏃</div>
+                  <div style={{fontSize:'17px',fontWeight:800,marginBottom:'8px',letterSpacing:'-0.5px'}}>회원 포털</div>
+                  <div style={{fontSize:'12px',color:'rgba(255,255,255,0.25)',lineHeight:1.7,marginBottom:'18px'}}>
+                    수업일지 · 체중관리<br/>개인운동 · 커뮤니티
+                  </div>
+                  <div style={{display:'inline-block',fontSize:'12px',fontWeight:700,
+                    background:'rgba(255,255,255,0.06)',color:'rgba(255,255,255,0.35)',padding:'7px 16px',borderRadius:'8px',
+                    border:'1px solid rgba(255,255,255,0.1)'}}>
+                    🔜 준비중
+                  </div>
                 </div>
-                <div style={{display:'inline-block',fontSize:'13px',color:'#4fc3f7',fontWeight:700,
-                  background:'rgba(79,195,247,0.1)',padding:'7px 16px',borderRadius:'8px',
-                  border:'1px solid rgba(79,195,247,0.25)'}}>
-                  입장하기 →
-                </div>
-              </Link>
+              )}
             </SlideCard>
           </div>
 
+          {/* 커뮤니티 */}
           <SlideCard delay={300}>
-            <Link to="/community" style={{
-              background:'linear-gradient(145deg,#1e293b,#1a0d04)',
-              border:'1px solid rgba(255,152,0,0.3)',borderRadius:'20px',padding:'26px 30px',
-              textDecoration:'none',color:'#fff',display:'flex',alignItems:'center',
-              justifyContent:'space-between',gap:'16px',boxShadow:'0 8px 32px rgba(0,0,0,0.3)'}}>
-              <div style={{display:'flex',alignItems:'center',gap:'18px'}}>
-                <div style={{fontSize:'36px'}}>🤝</div>
-                <div>
-                  <div style={{fontSize:'16px',fontWeight:800,marginBottom:'4px',letterSpacing:'-0.5px'}}>커뮤니티</div>
-                  <div style={{fontSize:'12px',color:'rgba(255,255,255,0.5)'}}>트레이너 구인 · 구직 · 센터 매칭 · 수강생 모집</div>
+            {portalButtons.community !== false ? (
+              <Link to="/community" style={{
+                background:'linear-gradient(145deg,#1e293b,#1a0d04)',
+                border:'1px solid rgba(255,152,0,0.3)',borderRadius:'20px',padding:'26px 30px',
+                textDecoration:'none',color:'#fff',display:'flex',alignItems:'center',
+                justifyContent:'space-between',gap:'16px',boxShadow:'0 8px 32px rgba(0,0,0,0.3)'}}>
+                <div style={{display:'flex',alignItems:'center',gap:'18px'}}>
+                  <div style={{fontSize:'36px'}}>🤝</div>
+                  <div>
+                    <div style={{fontSize:'16px',fontWeight:800,marginBottom:'4px',letterSpacing:'-0.5px'}}>커뮤니티</div>
+                    <div style={{fontSize:'12px',color:'rgba(255,255,255,0.5)'}}>트레이너 구인 · 구직 · 센터 매칭 · 수강생 모집</div>
+                  </div>
+                </div>
+                <div style={{display:'inline-block',fontSize:'13px',color:'#ff9800',fontWeight:700,
+                  background:'rgba(255,152,0,0.1)',padding:'7px 16px',borderRadius:'8px',
+                  border:'1px solid rgba(255,152,0,0.25)',flexShrink:0}}>
+                  입장하기 →
+                </div>
+              </Link>
+            ) : (
+              <div style={{
+                background:'linear-gradient(145deg,#1e293b,#1a0d04)',
+                border:'1px solid rgba(255,152,0,0.1)',borderRadius:'20px',padding:'26px 30px',
+                color:'rgba(255,255,255,0.3)',display:'flex',alignItems:'center',
+                justifyContent:'space-between',gap:'16px',boxShadow:'0 8px 32px rgba(0,0,0,0.3)',
+                cursor:'not-allowed',filter:'grayscale(0.4)'}}>
+                <div style={{display:'flex',alignItems:'center',gap:'18px'}}>
+                  <div style={{fontSize:'36px',opacity:0.4}}>🤝</div>
+                  <div>
+                    <div style={{fontSize:'16px',fontWeight:800,marginBottom:'4px',letterSpacing:'-0.5px'}}>커뮤니티</div>
+                    <div style={{fontSize:'12px',color:'rgba(255,255,255,0.25)'}}>트레이너 구인 · 구직 · 센터 매칭 · 수강생 모집</div>
+                  </div>
+                </div>
+                <div style={{display:'inline-block',fontSize:'12px',fontWeight:700,
+                  background:'rgba(255,255,255,0.06)',color:'rgba(255,255,255,0.35)',padding:'7px 16px',borderRadius:'8px',
+                  border:'1px solid rgba(255,255,255,0.1)',flexShrink:0}}>
+                  🔜 준비중
                 </div>
               </div>
-              <div style={{display:'inline-block',fontSize:'13px',color:'#ff9800',fontWeight:700,
-                background:'rgba(255,152,0,0.1)',padding:'7px 16px',borderRadius:'8px',
-                border:'1px solid rgba(255,152,0,0.25)',flexShrink:0}}>
-                입장하기 →
-              </div>
-            </Link>
+            )}
           </SlideCard>
 
+          {/* 헬스장 CRM */}
           <SlideCard delay={450}>
-            <Link to="/gym" style={{
-              background:'linear-gradient(145deg,#1e293b,#1a0520)',
-              border:'1px solid rgba(224,64,251,0.3)',borderRadius:'20px',padding:'26px 30px',
-              textDecoration:'none',color:'#fff',display:'flex',alignItems:'center',
-              justifyContent:'space-between',gap:'16px',boxShadow:'0 8px 32px rgba(0,0,0,0.3)'}}>
-              <div style={{display:'flex',alignItems:'center',gap:'18px'}}>
-                <div style={{fontSize:'36px'}}>🏢</div>
-                <div>
-                  <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'4px'}}>
-                    <div style={{fontSize:'16px',fontWeight:800,letterSpacing:'-0.5px'}}>헬스장 CRM</div>
-                    <span style={{fontSize:'10px',fontWeight:700,background:'rgba(224,64,251,0.15)',color:'#e040fb',padding:'2px 7px',borderRadius:'20px',border:'1px solid rgba(224,64,251,0.3)'}}>BETA</span>
+            {portalButtons.crm !== false ? (
+              <Link to="/gym" style={{
+                background:'linear-gradient(145deg,#1e293b,#1a0520)',
+                border:'1px solid rgba(224,64,251,0.3)',borderRadius:'20px',padding:'26px 30px',
+                textDecoration:'none',color:'#fff',display:'flex',alignItems:'center',
+                justifyContent:'space-between',gap:'16px',boxShadow:'0 8px 32px rgba(0,0,0,0.3)'}}>
+                <div style={{display:'flex',alignItems:'center',gap:'18px'}}>
+                  <div style={{fontSize:'36px'}}>🏢</div>
+                  <div>
+                    <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'4px'}}>
+                      <div style={{fontSize:'16px',fontWeight:800,letterSpacing:'-0.5px'}}>헬스장 CRM</div>
+                      <span style={{fontSize:'10px',fontWeight:700,background:'rgba(224,64,251,0.15)',color:'#e040fb',padding:'2px 7px',borderRadius:'20px',border:'1px solid rgba(224,64,251,0.3)'}}>BETA</span>
+                    </div>
+                    <div style={{fontSize:'12px',color:'rgba(255,255,255,0.5)'}}>트레이너 관리 · 매출 현황 · 회원 CRM · 정산</div>
                   </div>
-                  <div style={{fontSize:'12px',color:'rgba(255,255,255,0.5)'}}>트레이너 관리 · 매출 현황 · 회원 CRM · 정산</div>
+                </div>
+                <div style={{display:'inline-block',fontSize:'13px',color:'#e040fb',fontWeight:700,
+                  background:'rgba(224,64,251,0.1)',padding:'7px 16px',borderRadius:'8px',
+                  border:'1px solid rgba(224,64,251,0.25)',flexShrink:0}}>
+                  입장하기 →
+                </div>
+              </Link>
+            ) : (
+              <div style={{
+                background:'linear-gradient(145deg,#1e293b,#1a0520)',
+                border:'1px solid rgba(224,64,251,0.1)',borderRadius:'20px',padding:'26px 30px',
+                color:'rgba(255,255,255,0.3)',display:'flex',alignItems:'center',
+                justifyContent:'space-between',gap:'16px',boxShadow:'0 8px 32px rgba(0,0,0,0.3)',
+                cursor:'not-allowed',filter:'grayscale(0.4)'}}>
+                <div style={{display:'flex',alignItems:'center',gap:'18px'}}>
+                  <div style={{fontSize:'36px',opacity:0.4}}>🏢</div>
+                  <div>
+                    <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'4px'}}>
+                      <div style={{fontSize:'16px',fontWeight:800,letterSpacing:'-0.5px'}}>헬스장 CRM</div>
+                    </div>
+                    <div style={{fontSize:'12px',color:'rgba(255,255,255,0.25)'}}>트레이너 관리 · 매출 현황 · 회원 CRM · 정산</div>
+                  </div>
+                </div>
+                <div style={{display:'inline-block',fontSize:'12px',fontWeight:700,
+                  background:'rgba(255,255,255,0.06)',color:'rgba(255,255,255,0.35)',padding:'7px 16px',borderRadius:'8px',
+                  border:'1px solid rgba(255,255,255,0.1)',flexShrink:0}}>
+                  🔜 준비중
                 </div>
               </div>
-              <div style={{display:'inline-block',fontSize:'13px',color:'#e040fb',fontWeight:700,
-                background:'rgba(224,64,251,0.1)',padding:'7px 16px',borderRadius:'8px',
-                border:'1px solid rgba(224,64,251,0.25)',flexShrink:0}}>
-                입장하기 →
-              </div>
-            </Link>
+            )}
           </SlideCard>
         </div>
       </section>
