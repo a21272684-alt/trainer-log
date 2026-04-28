@@ -2372,25 +2372,32 @@ export default function TrainerApp() {
     setWorkoutModal(true)
   }
   function calcVolume(exercises) {
-    return exercises.reduce((total, ex) => total + ex.sets.reduce((s, set) => s + ((parseFloat(set.weight)||0) * (parseInt(set.reps)||0)), 0), 0)
+    return (exercises||[]).reduce((total, ex) => {
+      const sets = ex?.sets || []
+      return total + sets.reduce((s, set) => s + ((parseFloat(set?.weight)||0) * (parseInt(set?.reps)||0)), 0)
+    }, 0)
   }
   async function saveWorkoutSession() {
     const f = workoutForm
     if (!f.date) { showToast('날짜를 입력해주세요'); return }
-    const exercises = f.exercises.filter(e => e.name.trim())
-    const total_volume = calcVolume(exercises)
     try {
+      const exercises = (f.exercises||[]).filter(e => e?.name?.trim())
+      const total_volume = calcVolume(exercises)
+      const cleanExercises = exercises.map(({ localId, ...rest }) => rest)
       if (workoutEditId) {
-        const { error } = await supabase.from('workout_sessions').update({ title: f.title||null, workout_date: f.date, duration_min: parseInt(f.duration_min)||null, memo: f.memo||null, exercises, total_volume }).eq('id', workoutEditId)
+        const { error } = await supabase.from('workout_sessions').update({ title: f.title||null, workout_date: f.date, duration_min: parseInt(f.duration_min)||null, memo: f.memo||null, exercises: cleanExercises, total_volume }).eq('id', workoutEditId)
         if (error) throw error
       } else {
-        const { error } = await supabase.from('workout_sessions').insert({ member_id: currentMemberId, trainer_id: trainer.id, source: 'trainer', title: f.title||null, workout_date: f.date, duration_min: parseInt(f.duration_min)||null, memo: f.memo||null, exercises, total_volume })
+        const { error } = await supabase.from('workout_sessions').insert({ member_id: currentMemberId, trainer_id: trainer.id, source: 'trainer', title: f.title||null, workout_date: f.date, duration_min: parseInt(f.duration_min)||null, memo: f.memo||null, exercises: cleanExercises, total_volume })
         if (error) throw error
       }
       await loadWorkoutSessions(currentMemberId)
       setWorkoutModal(false)
       showToast(workoutEditId ? '✓ 운동일지가 수정됐어요' : '✓ 운동일지가 저장됐어요')
-    } catch(e) { showToast('오류: ' + e.message) }
+    } catch(e) {
+      console.error('saveWorkoutSession error:', e)
+      showToast('오류: ' + (e?.message || '알 수 없는 오류'))
+    }
   }
   async function deleteWorkoutSession(id) {
     const { error } = await supabase.from('workout_sessions').delete().eq('id', id)
