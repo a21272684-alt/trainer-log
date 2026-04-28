@@ -121,8 +121,7 @@ export default function MemberPortal() {
   const [healthRecords, setHealthRecords] = useState([])
   const [dietRecords, setDietRecords] = useState([])
   const [selectedSleep, setSelectedSleep] = useState(null)
-  const [loginName, setLoginName] = useState('')
-  const [loginPhone, setLoginPhone] = useState('')
+  const [authUser, setAuthUser] = useState(null)
   const [hMorning, setHMorning] = useState('')
   const [hEvening, setHEvening] = useState('')
   const [hDate, setHDate] = useState(() => new Date().toISOString().split('T')[0])
@@ -212,25 +211,70 @@ export default function MemberPortal() {
     return new Date(str).toLocaleDateString('ko-KR', {month:'short',day:'numeric'})
   }
 
-  async function login() {
-    if (!loginName || !loginPhone) { showToast('이름과 전화번호 뒷자리를 입력해주세요'); return }
+  /* ── OAuth 로그인 ────────────────────────────────────────── */
+  async function signInWithGoogle() {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + '/member' },
+    })
+    if (error) showToast('구글 로그인 오류: ' + error.message)
+  }
+  async function signInWithKakao() {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'kakao',
+      options: { redirectTo: window.location.origin + '/member' },
+    })
+    if (error) showToast('카카오 로그인 오류: ' + error.message)
+  }
+
+  async function handleAuthUser(au) {
+    setAuthUser(au)
     try {
-      const { data } = await supabase.from('members').select('*').eq('name', loginName).eq('phone', loginPhone)
-      if (!data?.length) { showToast('등록된 회원 정보가 없어요. 트레이너에게 문의하세요'); return }
-      const m = data[0]
-      setMember(m); setLoggedIn(true)
-      if (m.trainer_id) {
-        const { data: tData } = await supabase.from('trainers').select('api_key').eq('id', m.trainer_id).single()
-        if (tData?.api_key) setTrainerApiKey(tData.api_key)
+      // auth_id로 조회
+      const { data: byId } = await supabase.from('members').select('*').eq('auth_id', au.id).maybeSingle()
+      if (byId) { await _loginWithRecord(byId); return }
+      // email로 조회 (기존 회원 연동)
+      if (au.email) {
+        const { data: byEmail } = await supabase.from('members').select('*').eq('email', au.email).maybeSingle()
+        if (byEmail) {
+          await supabase.from('members').update({ auth_id: au.id }).eq('id', byEmail.id)
+          await _loginWithRecord({ ...byEmail, auth_id: au.id }); return
+        }
       }
-      showToast('✓ 환영해요, '+m.name+'님!')
+      // 미등록 회원
+      showToast('등록된 회원 정보가 없어요. 트레이너에게 이메일 등록을 요청하세요')
+      await supabase.auth.signOut()
+      setAuthUser(null)
     } catch(e) { showToast('오류: ' + e.message) }
   }
 
-  function logout() {
-    setMember(null); setLoggedIn(false); setLoginName(''); setLoginPhone('')
+  async function _loginWithRecord(m) {
+    setMember(m); setLoggedIn(true)
+    if (m.trainer_id) {
+      const { data: tData } = await supabase.from('trainers').select('api_key').eq('id', m.trainer_id).single()
+      if (tData?.api_key) setTrainerApiKey(tData.api_key)
+    }
+    showToast('✓ 환영해요, ' + m.name + '님!')
+  }
+
+  async function logout() {
+    await supabase.auth.signOut()
+    setMember(null); setLoggedIn(false); setAuthUser(null)
     if (chartInstance.current) { chartInstance.current.destroy(); chartInstance.current = null }
   }
+
+  // OAuth 인증 상태 감지
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) handleAuthUser(session.user)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) handleAuthUser(session.user)
+      if (event === 'SIGNED_OUT') { setAuthUser(null); setMember(null); setLoggedIn(false) }
+    })
+    return () => subscription.unsubscribe()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (member) {
@@ -935,20 +979,35 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
               <div className="m-login-sub">회원 전용 포털에 오신 것을 환영해요</div>
             </div>
 
-            <div className="form-group">
-              <label>이름</label>
-              <input type="text" value={loginName} onChange={e=>setLoginName(e.target.value)} placeholder="홍길동" />
+            <div style={{display:'flex',flexDirection:'column',gap:'10px',marginTop:'8px'}}>
+              {/* Google */}
+              <button onClick={signInWithGoogle} style={{
+                display:'flex',alignItems:'center',justifyContent:'center',gap:10,
+                width:'100%',padding:'13px 20px',borderRadius:'10px',
+                border:'1px solid #E1E4D9',background:'#fff',color:'#111',
+                fontSize:'14px',fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                <svg width="18" height="18" viewBox="0 0 18 18" style={{flexShrink:0}}>
+                  <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
+                  <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
+                  <path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z"/>
+                  <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
+                </svg>
+                Google로 로그인
+              </button>
+              {/* Kakao */}
+              <button onClick={signInWithKakao} style={{
+                display:'flex',alignItems:'center',justifyContent:'center',gap:10,
+                width:'100%',padding:'13px 20px',borderRadius:'10px',
+                border:'none',background:'#FEE500',color:'#191919',
+                fontSize:'14px',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{flexShrink:0}}>
+                  <path fillRule="evenodd" clipRule="evenodd"
+                    d="M9 1C4.582 1 1 3.806 1 7.25c0 2.178 1.417 4.09 3.56 5.19l-.91 3.394c-.08.3.264.535.518.356L8.44 13.84c.184.016.37.024.56.024 4.418 0 8-2.806 8-6.25S13.418 1 9 1z"
+                    fill="#191919"/>
+                </svg>
+                카카오로 로그인
+              </button>
             </div>
-            <div className="form-group">
-              <label>전화번호 뒷 4자리</label>
-              <input type="password" value={loginPhone} onChange={e=>setLoginPhone(e.target.value)}
-                placeholder="1234" maxLength={4} onKeyDown={e=>e.key==='Enter'&&login()} />
-            </div>
-
-            <button className="btn btn-primary"
-              style={{width:'100%',marginTop:'4px',padding:'13px',fontSize:'14px'}} onClick={login}>
-              로그인
-            </button>
 
             <div style={{textAlign:'center',marginTop:'16px'}}>
               <span style={{fontSize:'13px',color:'#4d7c0f',cursor:'pointer',fontWeight:600}}
@@ -957,7 +1016,7 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
           </div>
 
           <div style={{textAlign:'center',marginTop:'14px',fontSize:'12px',color:'#9CA3AF'}}>
-            트레이너에게 등록된 회원만 로그인할 수 있어요
+            트레이너에게 이메일이 등록된 회원만 로그인할 수 있어요
           </div>
         </div>
       </div>

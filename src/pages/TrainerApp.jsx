@@ -1709,11 +1709,9 @@ export default function TrainerApp() {
   const [notifEnabled, setNotifEnabled] = useState(() => localStorage.getItem('tl_notif_enabled') === 'true')
   const [notifMinutes, setNotifMinutes] = useState(() => parseInt(localStorage.getItem('tl_notif_minutes')||'30'))
 
-  // Login
-  const [loginName, setLoginName] = useState('')
-  const [loginPhone, setLoginPhone] = useState('')
+  // Login / OAuth
+  const [authUser, setAuthUser] = useState(null)   // Supabase Auth user
   const [regName, setRegName] = useState('')
-  const [regPhone, setRegPhone] = useState('')
   const [regApi, setRegApi] = useState('')
 
   const audioInputRef = useRef(null)
@@ -1865,33 +1863,74 @@ export default function TrainerApp() {
       .catch(() => {})
   }, [])
 
-  async function login() {
-    if (!loginName || !loginPhone) { showToast('이름과 전화번호를 입력해주세요'); return }
-    try {
-      const { data } = await supabase.from('trainers').select('*').eq('name', loginName).eq('phone', loginPhone)
-      if (!data?.length) { showToast('등록된 트레이너 정보가 없어요'); return }
-      setTrainer(data[0]); setCredits(data[0].credits ?? 0); setScreen('app')
-      showToast('✓ 환영해요, ' + data[0].name + ' 트레이너님!')
-      // 마켓 구매 루틴 라이브러리 로드
-      const { data: libData } = await supabase
-        .from('workout_routines').select('*')
-        .eq('trainer_id', data[0].id).is('member_id', null)
-        .order('created_at', { ascending: false })
-      setTrainerLibraryRoutines(libData || [])
-      // AI 사용량 로드
-      loadAiUsage(data[0].id)
-    } catch(e) { showToast('오류: ' + e.message) }
+  /* ── OAuth 로그인 ────────────────────────────────────────── */
+  async function signInWithGoogle() {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + '/trainer' },
+    })
+    if (error) showToast('구글 로그인 오류: ' + error.message)
+  }
+  async function signInWithKakao() {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'kakao',
+      options: { redirectTo: window.location.origin + '/trainer' },
+    })
+    if (error) showToast('카카오 로그인 오류: ' + error.message)
+  }
+
+  async function handleAuthUser(au) {
+    setAuthUser(au)
+    // auth_id로 조회
+    const { data: byId } = await supabase.from('trainers').select('*').eq('auth_id', au.id).maybeSingle()
+    if (byId) { await _loginWithRecord(byId); return }
+    // email로 조회 (기존 트레이너 연동)
+    if (au.email) {
+      const { data: byEmail } = await supabase.from('trainers').select('*').eq('email', au.email).maybeSingle()
+      if (byEmail) {
+        await supabase.from('trainers').update({ auth_id: au.id }).eq('id', byEmail.id)
+        await _loginWithRecord({ ...byEmail, auth_id: au.id }); return
+      }
+    }
+    // 신규 트레이너 → 등록 화면
+    setRegName(au.user_metadata?.full_name || au.user_metadata?.name || au.email?.split('@')[0] || '')
+    setScreen('reg')
+  }
+
+  async function _loginWithRecord(t) {
+    setTrainer(t); setCredits(t.credits ?? 0); setScreen('app')
+    showToast('✓ 환영해요, ' + t.name + ' 트레이너님!')
+    const { data: libData } = await supabase.from('workout_routines').select('*')
+      .eq('trainer_id', t.id).is('member_id', null).order('created_at', { ascending: false })
+    setTrainerLibraryRoutines(libData || [])
+    loadAiUsage(t.id)
   }
 
   async function register() {
-    if (!regName || !regPhone) { showToast('이름과 전화번호를 입력해주세요'); return }
+    if (!regName) { showToast('이름을 입력해주세요'); return }
+    if (!authUser) { showToast('먼저 소셜 로그인을 해주세요'); setScreen('login'); return }
     try {
-      const { data: ex } = await supabase.from('trainers').select('*').eq('name', regName).eq('phone', regPhone)
-      if (ex?.length) { showToast('이미 등록됐어요. 로그인해주세요'); setScreen('login'); return }
-      await supabase.from('trainers').insert({ name: regName, phone: regPhone })
-      showToast('✓ 등록 완료! 로그인해주세요'); setScreen('login')
+      const { data: inserted, error } = await supabase
+        .from('trainers')
+        .insert({ name: regName, auth_id: authUser.id, email: authUser.email })
+        .select().single()
+      if (error) throw error
+      await _loginWithRecord(inserted)
     } catch(e) { showToast('오류: ' + e.message) }
   }
+
+  // OAuth 인증 상태 감지
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) handleAuthUser(session.user)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) handleAuthUser(session.user)
+      if (event === 'SIGNED_OUT') { setAuthUser(null); setTrainer(null); setMembers([]); setLogs([]); setScreen('landing') }
+    })
+    return () => subscription.unsubscribe()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => { if (trainer) { loadMembers(); loadLogs(); loadProducts() } }, [trainer])
 
@@ -2961,24 +3000,37 @@ export default function TrainerApp() {
               <div style={{fontSize:'13px',color:'#6B7280'}}>트레이너 전용 앱에 오신 것을 환영해요</div>
             </div>
 
-            <div className="form-group">
-              <label>이름</label>
-              <input type="text" value={loginName} onChange={e=>setLoginName(e.target.value)} placeholder="홍길동" />
-            </div>
-            <div className="form-group">
-              <label>전화번호 뒷 4자리</label>
-              <input type="password" value={loginPhone} onChange={e=>setLoginPhone(e.target.value)}
-                placeholder="1234" maxLength={4} onKeyDown={e=>e.key==='Enter'&&login()} />
+            <div style={{display:'flex',flexDirection:'column',gap:'10px',marginTop:'8px'}}>
+              {/* Google */}
+              <button onClick={signInWithGoogle} style={{
+                display:'flex',alignItems:'center',justifyContent:'center',gap:10,
+                width:'100%',padding:'13px 20px',borderRadius:'10px',
+                border:'1px solid #E1E4D9',background:'#fff',color:'#111',
+                fontSize:'14px',fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                <svg width="18" height="18" viewBox="0 0 18 18" style={{flexShrink:0}}>
+                  <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
+                  <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
+                  <path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z"/>
+                  <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
+                </svg>
+                Google로 로그인
+              </button>
+              {/* Kakao */}
+              <button onClick={signInWithKakao} style={{
+                display:'flex',alignItems:'center',justifyContent:'center',gap:10,
+                width:'100%',padding:'13px 20px',borderRadius:'10px',
+                border:'none',background:'#FEE500',color:'#191919',
+                fontSize:'14px',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{flexShrink:0}}>
+                  <path fillRule="evenodd" clipRule="evenodd"
+                    d="M9 1C4.582 1 1 3.806 1 7.25c0 2.178 1.417 4.09 3.56 5.19l-.91 3.394c-.08.3.264.535.518.356L8.44 13.84c.184.016.37.024.56.024 4.418 0 8-2.806 8-6.25S13.418 1 9 1z"
+                    fill="#191919"/>
+                </svg>
+                카카오로 로그인
+              </button>
             </div>
 
-            <button className="btn btn-primary btn-full"
-              style={{marginTop:'4px',padding:'13px',fontSize:'14px'}} onClick={login}>
-              로그인
-            </button>
-
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:'18px'}}>
-              <span style={{fontSize:'13px',color:'#4d7c0f',cursor:'pointer',fontWeight:600}}
-                onClick={()=>setScreen('reg')}>트레이너 등록 →</span>
+            <div style={{textAlign:'center',marginTop:'18px'}}>
               <Link to="/" style={{fontSize:'12px',color:'#9CA3AF',textDecoration:'none'}}>← 메인으로</Link>
             </div>
           </div>
@@ -3007,21 +3059,24 @@ export default function TrainerApp() {
               <div style={{fontSize:'13px',color:'#6B7280'}}>처음 한 번만 등록하면 바로 시작할 수 있어요</div>
             </div>
 
+            {authUser?.email && (
+              <div style={{background:'#f9fafb',border:'1px solid #E1E4D9',borderRadius:'8px',
+                padding:'10px 14px',marginBottom:'16px',fontSize:'13px',color:'#6B7280'}}>
+                연결된 계정: <strong style={{color:'#111'}}>{authUser.email}</strong>
+              </div>
+            )}
             <div className="form-group">
-              <label>이름</label>
-              <input type="text" value={regName} onChange={e=>setRegName(e.target.value)} placeholder="홍길동" />
-            </div>
-            <div className="form-group">
-              <label>전화번호 뒷 4자리 <span style={{color:'#9CA3AF',fontWeight:400}}>(로그인 비밀번호로 사용)</span></label>
-              <input type="password" value={regPhone} onChange={e=>setRegPhone(e.target.value)} placeholder="1234" maxLength={4} />
+              <label>이름 <span style={{color:'#9CA3AF',fontWeight:400}}>(앱에서 표시될 이름)</span></label>
+              <input type="text" value={regName} onChange={e=>setRegName(e.target.value)} placeholder="홍길동"
+                onKeyDown={e=>e.key==='Enter'&&register()} />
             </div>
             <button className="btn btn-primary btn-full"
               style={{marginTop:'4px',padding:'13px',fontSize:'14px'}} onClick={register}>
-              등록 완료
+              트레이너 등록 완료
             </button>
             <div style={{textAlign:'center',marginTop:'16px'}}>
               <span style={{fontSize:'13px',color:'#4d7c0f',cursor:'pointer',fontWeight:600}}
-                onClick={()=>setScreen('login')}>← 로그인으로</span>
+                onClick={()=>setScreen('login')}>← 뒤로</span>
             </div>
           </div>
         </div>
@@ -3677,11 +3732,11 @@ export default function TrainerApp() {
           {/* ── 로그아웃 ── */}
           <div style={{marginTop:'32px'}}>
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (window.confirm('로그아웃 하시겠습니까?')) {
-                  setTrainer(null)
-                  setMembers([])
-                  setLogs([])
+                  await supabase.auth.signOut()
+                  setAuthUser(null); setTrainer(null)
+                  setMembers([]); setLogs([])
                   setScreen('landing')
                 }
               }}

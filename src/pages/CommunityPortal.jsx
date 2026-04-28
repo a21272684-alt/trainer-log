@@ -295,6 +295,15 @@ export default function CommunityPortal() {
     if (error) showToast('구글 로그인 오류: ' + error.message)
   }
 
+  /* ── Kakao 로그인 ────────────────────────────────────────── */
+  async function signInWithKakao() {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'kakao',
+      options: { redirectTo: window.location.origin + '/community' },
+    })
+    if (error) showToast('카카오 로그인 오류: ' + error.message)
+  }
+
   async function signOut() {
     await supabase.auth.signOut()
     setUser(null); setAuthUser(null); setScreen('login')
@@ -957,6 +966,22 @@ export default function CommunityPortal() {
             <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
           </svg>
           Google로 시작하기
+        </button>
+
+        <button
+          onClick={signInWithKakao}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+            width: '100%', padding: '12px 20px', borderRadius: 10, border: 'none',
+            background: '#FEE500', color: '#191919', fontSize: 14, fontWeight: 700,
+            cursor: 'pointer', fontFamily: 'inherit', marginTop: 10,
+          }}>
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{ flexShrink: 0 }}>
+            <path fillRule="evenodd" clipRule="evenodd"
+              d="M9 1C4.582 1 1 3.806 1 7.25c0 2.178 1.417 4.09 3.56 5.19l-.91 3.394c-.08.3.264.535.518.356L8.44 13.84c.184.016.37.024.56.024 4.418 0 8-2.806 8-6.25S13.418 1 9 1z"
+              fill="#191919"/>
+          </svg>
+          카카오로 시작하기
         </button>
 
         <div style={{ marginTop: 20, textAlign: 'center' }}>

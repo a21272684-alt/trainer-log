@@ -2,8 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
-const GYM_PW = 'gym2024!'
-
 /* ── 피처 데이터 ── */
 const CRM_FEATURES = [
   {
@@ -100,8 +98,7 @@ function SlideCard({ children, delay = 0 }) {
 ═══════════════════════════════════════════════════════════════ */
 export default function GymPortal() {
   const [screen,   setScreen]   = useState('landing') // 'landing' | 'login' | 'dashboard'
-  const [pw,       setPw]       = useState('')
-  const [error,    setError]    = useState('')
+  const [authUser, setAuthUser] = useState(null)
   const [trainers, setTrainers] = useState([])
   const [members,  setMembers]  = useState([])
   const [loading,  setLoading]  = useState(false)
@@ -131,10 +128,38 @@ export default function GymPortal() {
     })
   }, [])
 
-  const login = () => {
-    if (pw !== GYM_PW) { setError('비밀번호가 틀렸어요'); return }
+  /* ── OAuth 로그인 ────────────────────────────────────────── */
+  async function signInWithGoogle() {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + '/gym' },
+    })
+    if (error) console.error('구글 로그인 오류:', error.message)
+  }
+  async function signInWithKakao() {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'kakao',
+      options: { redirectTo: window.location.origin + '/gym' },
+    })
+    if (error) console.error('카카오 로그인 오류:', error.message)
+  }
+  function handleAuthUser(au) {
+    setAuthUser(au)
     setScreen('dashboard')
   }
+
+  // OAuth 인증 상태 감지
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) handleAuthUser(session.user)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) handleAuthUser(session.user)
+      if (event === 'SIGNED_OUT') { setAuthUser(null); setScreen('landing') }
+    })
+    return () => subscription.unsubscribe()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (screen !== 'dashboard') return
@@ -214,7 +239,7 @@ export default function GymPortal() {
                   fontFamily:'inherit',letterSpacing:'-0.3px'}}>
                 {crmHero.cta} →
               </button>
-              <p style={{fontSize:'12px',color:'rgba(255,255,255,0.3)',margin:0}}>비밀번호만 입력하면 바로 시작할 수 있어요</p>
+              <p style={{fontSize:'12px',color:'rgba(255,255,255,0.3)',margin:0}}>Google 또는 카카오 계정으로 바로 시작할 수 있어요</p>
             </div>
           </div>
           </FadeUp>
@@ -367,28 +392,35 @@ export default function GymPortal() {
 
           <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',
             borderRadius:'20px',padding:'28px'}}>
-            <div style={{marginBottom:'16px'}}>
-              <label style={{fontSize:'12px',fontWeight:700,color:'rgba(255,255,255,0.45)',
-                display:'block',marginBottom:'7px',letterSpacing:'0.04em'}}>비밀번호</label>
-              <input
-                type="password"
-                value={pw}
-                onChange={e => { setPw(e.target.value); setError('') }}
-                onKeyDown={e => e.key === 'Enter' && login()}
-                placeholder="비밀번호를 입력하세요"
-                style={{width:'100%',boxSizing:'border-box',background:'rgba(255,255,255,0.06)',
-                  border:'1px solid rgba(255,255,255,0.12)',borderRadius:'10px',color:'#fff',
-                  fontSize:'14px',padding:'12px 14px',outline:'none',fontFamily:'inherit'}}
-              />
+            <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+              {/* Google */}
+              <button onClick={signInWithGoogle} style={{
+                display:'flex',alignItems:'center',justifyContent:'center',gap:10,
+                width:'100%',padding:'13px 20px',borderRadius:'10px',
+                border:'1px solid rgba(255,255,255,0.15)',background:'rgba(255,255,255,0.08)',color:'#fff',
+                fontSize:'14px',fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                <svg width="18" height="18" viewBox="0 0 18 18" style={{flexShrink:0}}>
+                  <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
+                  <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
+                  <path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z"/>
+                  <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
+                </svg>
+                Google로 입장하기
+              </button>
+              {/* Kakao */}
+              <button onClick={signInWithKakao} style={{
+                display:'flex',alignItems:'center',justifyContent:'center',gap:10,
+                width:'100%',padding:'13px 20px',borderRadius:'10px',
+                border:'none',background:'#FEE500',color:'#191919',
+                fontSize:'14px',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{flexShrink:0}}>
+                  <path fillRule="evenodd" clipRule="evenodd"
+                    d="M9 1C4.582 1 1 3.806 1 7.25c0 2.178 1.417 4.09 3.56 5.19l-.91 3.394c-.08.3.264.535.518.356L8.44 13.84c.184.016.37.024.56.024 4.418 0 8-2.806 8-6.25S13.418 1 9 1z"
+                    fill="#191919"/>
+                </svg>
+                카카오로 입장하기
+              </button>
             </div>
-            {error && <div style={{fontSize:'12px',color:'#ef4444',marginBottom:'12px'}}>{error}</div>}
-            <button
-              onClick={login}
-              style={{width:'100%',background:'linear-gradient(135deg,#e040fb,#9c27b0)',color:'#fff',
-                border:'none',borderRadius:'10px',padding:'13px',fontSize:'14px',fontWeight:700,
-                cursor:'pointer',fontFamily:'inherit',letterSpacing:'-0.2px'}}>
-              입장하기 →
-            </button>
           </div>
 
           <div style={{textAlign:'center',marginTop:'16px',display:'flex',justifyContent:'center',gap:'20px'}}>
@@ -436,7 +468,7 @@ export default function GymPortal() {
               border:'1px solid rgba(224,64,251,0.3)',letterSpacing:'0.05em'}}>BETA</span>
           </div>
           <button
-            onClick={() => { setScreen('landing'); setPw('') }}
+            onClick={async () => { await supabase.auth.signOut(); setAuthUser(null); setScreen('landing') }}
             style={{background:'none',border:'1px solid rgba(255,255,255,0.1)',
               color:'rgba(255,255,255,0.4)',borderRadius:'8px',padding:'5px 12px',
               fontSize:'12px',cursor:'pointer',fontFamily:'inherit'}}>
