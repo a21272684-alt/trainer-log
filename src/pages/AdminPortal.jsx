@@ -52,15 +52,16 @@ const LANDING_PORTALS = [
 ]
 const LANDING_TABS = {
   main: [
-    { id:'hero',       label:'히어로' },
-    { id:'stats',      label:'통계 수치' },
-    { id:'problems',   label:'문제 인식' },
-    { id:'solutions',  label:'솔루션' },
-    { id:'reviews',    label:'트레이너 후기' },
-    { id:'kakao',      label:'카카오 메시지' },
-    { id:'targets',    label:'타겟 분기' },
-    { id:'members',    label:'회원 포털 기능' },
-    { id:'plans',      label:'요금제' },
+    { id:'hero',         label:'히어로' },
+    { id:'stats',        label:'통계 수치' },
+    { id:'problems',     label:'문제 인식' },
+    { id:'solutions',    label:'솔루션' },
+    { id:'ai_highlight', label:'AI 하이라이트' },
+    { id:'reviews',      label:'트레이너 후기' },
+    { id:'kakao',        label:'카카오 메시지' },
+    { id:'targets',      label:'타겟 분기' },
+    { id:'members',      label:'회원 포털 기능' },
+    { id:'plans',        label:'요금제' },
     { id:'faqs',           label:'FAQ' },
     { id:'comparison',     label:'기능 비교' },
     { id:'portal_buttons', label:'포털 버튼' },
@@ -105,6 +106,13 @@ const DEFAULT_PLANS = [
   { id:'pro',     name:'Pro',     price:'₩9,900/월',  color:'#60a5fa', highlight:false, current:false, badge:'출시 예정', enabled:true, features:['회원 무제한','AI 일지 무제한','주간 리포트 AI','매출 분석'] },
   { id:'premium', name:'Premium', price:'₩19,900/월', color:'#c8f135', highlight:true,  current:false, badge:'출시 예정', enabled:true, features:['Pro 전체 포함','루틴 마켓 무제한','카카오 자동 발송','우선 지원'] },
 ]
+
+const DEFAULT_LANDING_AI_HIGHLIGHT = {
+  badge: 'AI POWERED',
+  headline: '수업 후 녹음 파일만 올리면\n수업일지가 완성됩니다',
+  desc: 'Gemini AI가 음성을 분석해 운동 종목·세트·느낀점을 자동으로 일지로 변환해요.\n완성된 일지는 카카오톡으로 회원에게 즉시 전달됩니다.',
+  steps: '녹음 업로드,AI 분석,일지 완성,카카오 발송',
+}
 
 const DEFAULT_LANDING_HERO = {
   badge: 'FOR PERSONAL TRAINERS & MEMBERS',
@@ -271,6 +279,7 @@ export default function AdminPortal() {
   const [landingEditModal, setLandingEditModal] = useState(null) // {type, index, data}
 
   // 랜딩 추가 섹션
+  const [landingAiHighlight, setLandingAiHighlight] = useState(DEFAULT_LANDING_AI_HIGHLIGHT)
   const [landingHero,           setLandingHero]           = useState(DEFAULT_LANDING_HERO)
   const [landingProblems,       setLandingProblems]       = useState(DEFAULT_LANDING_PROBLEMS)
   const [landingSolutions,      setLandingSolutions]      = useState(DEFAULT_LANDING_SOLUTIONS)
@@ -328,6 +337,7 @@ export default function AdminPortal() {
         supabase.from('app_settings').select('key, value').in('key', [
           'plan_guide_visible', 'plans', 'gemini_api_key',
           'landing_hero', 'landing_stats', 'landing_problems', 'landing_solutions',
+          'landing_ai_highlight',
           'landing_reviews', 'landing_kakao', 'landing_targets', 'landing_member_features',
           'landing_plans_landing', 'landing_faqs', 'landing_comparison',
           'landing_community_hero',
@@ -363,6 +373,8 @@ export default function AdminPortal() {
         const lMembers = settings.data.find(r => r.key === 'landing_member_features')
         const lPlansl  = settings.data.find(r => r.key === 'landing_plans_landing')
         const lComparison = settings.data.find(r => r.key === 'landing_comparison')
+        const lAiHl   = settings.data.find(r => r.key === 'landing_ai_highlight')
+        if (lAiHl?.value)         setLandingAiHighlight(lAiHl.value)
         if (lHero?.value)         setLandingHero(lHero.value)
         if (lProbs?.value)        setLandingProblems(lProbs.value)
         if (lSols?.value)         setLandingSolutions(lSols.value)
@@ -655,6 +667,7 @@ export default function AdminPortal() {
     await saveLandingKey('landing_faqs', next)
     showToast('✓ FAQ 저장됨')
   }
+  async function saveLandingAiHighlight(next)   { setLandingAiHighlight(next);   await saveLandingKey('landing_ai_highlight', next);   showToast('✓ AI 하이라이트 저장됨') }
   async function saveLandingHero(next)          { setLandingHero(next);          await saveLandingKey('landing_hero', next);            showToast('✓ 히어로 저장됨') }
   async function saveLandingProblems(next)      { setLandingProblems(next);      await saveLandingKey('landing_problems', next);        showToast('✓ 문제 인식 저장됨') }
   async function saveLandingSolutions(next)     { setLandingSolutions(next);     await saveLandingKey('landing_solutions', next);       showToast('✓ 솔루션 저장됨') }
@@ -1525,6 +1538,102 @@ export default function AdminPortal() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* ── AI 하이라이트 ── */}
+          {page === 'landing' && landingSite === 'main' && subTab === 'ai_highlight' && (
+            <div>
+              <div className="section-title">AI 하이라이트 카드 (솔루션 섹션 하단)</div>
+              <div style={{fontSize:'12px',color:'var(--text-dim)',marginBottom:'20px'}}>
+                솔루션 섹션 아래에 표시되는 AI POWERED 하이라이트 카드를 수정합니다.
+              </div>
+
+              {/* 뱃지 */}
+              <div className="form-group" style={{marginBottom:'14px'}}>
+                <label style={{fontSize:'12px',color:'var(--text-dim)',marginBottom:'5px',display:'block'}}>뱃지 텍스트 (✦ 옆)</label>
+                <input
+                  className="input"
+                  value={landingAiHighlight.badge || ''}
+                  onChange={e => setLandingAiHighlight(h => ({...h, badge: e.target.value}))}
+                  placeholder="AI POWERED"
+                />
+              </div>
+
+              {/* 헤드라인 */}
+              <div className="form-group" style={{marginBottom:'14px'}}>
+                <label style={{fontSize:'12px',color:'var(--text-dim)',marginBottom:'5px',display:'block'}}>헤드라인 (줄바꿈은 \n)</label>
+                <textarea
+                  className="input"
+                  rows={3}
+                  value={landingAiHighlight.headline || ''}
+                  onChange={e => setLandingAiHighlight(h => ({...h, headline: e.target.value}))}
+                  placeholder="수업 후 녹음 파일만 올리면\n수업일지가 완성됩니다"
+                  style={{resize:'vertical'}}
+                />
+              </div>
+
+              {/* 설명 */}
+              <div className="form-group" style={{marginBottom:'14px'}}>
+                <label style={{fontSize:'12px',color:'var(--text-dim)',marginBottom:'5px',display:'block'}}>설명 (줄바꿈은 \n)</label>
+                <textarea
+                  className="input"
+                  rows={4}
+                  value={landingAiHighlight.desc || ''}
+                  onChange={e => setLandingAiHighlight(h => ({...h, desc: e.target.value}))}
+                  placeholder="Gemini AI가 음성을 분석해..."
+                  style={{resize:'vertical'}}
+                />
+              </div>
+
+              {/* 단계 스텝 */}
+              <div className="form-group" style={{marginBottom:'20px'}}>
+                <label style={{fontSize:'12px',color:'var(--text-dim)',marginBottom:'5px',display:'block'}}>진행 단계 (쉼표로 구분)</label>
+                <input
+                  className="input"
+                  value={landingAiHighlight.steps || ''}
+                  onChange={e => setLandingAiHighlight(h => ({...h, steps: e.target.value}))}
+                  placeholder="녹음 업로드,AI 분석,일지 완성,카카오 발송"
+                />
+                <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'4px'}}>예: 녹음 업로드,AI 분석,일지 완성,카카오 발송</div>
+              </div>
+
+              {/* 미리보기 */}
+              <div style={{background:'linear-gradient(135deg,#0f172a 0%,#14290a 100%)',borderRadius:'16px',padding:'24px',color:'#fff',marginBottom:'20px',position:'relative',overflow:'hidden'}}>
+                <div style={{position:'absolute',top:'-40px',right:'-40px',width:'160px',height:'160px',background:'radial-gradient(circle,rgba(200,241,53,0.18) 0%,transparent 70%)',pointerEvents:'none'}}/>
+                <div style={{position:'relative',zIndex:1}}>
+                  <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'12px'}}>
+                    <span style={{fontSize:'18px'}}>✦</span>
+                    <span style={{fontSize:'11px',fontWeight:700,color:'#c8f135',letterSpacing:'0.1em'}}>{landingAiHighlight.badge || 'AI POWERED'}</span>
+                  </div>
+                  <div style={{fontSize:'16px',fontWeight:800,lineHeight:1.3,marginBottom:'10px'}}>
+                    {(landingAiHighlight.headline || '').split('\\n').map((line,i) => (
+                      <span key={i}>{line}{i === 0 && <br/>}</span>
+                    ))}
+                  </div>
+                  <div style={{fontSize:'12px',color:'rgba(255,255,255,0.65)',lineHeight:1.75,marginBottom:'16px'}}>
+                    {(landingAiHighlight.desc || '').split('\\n').map((line,i) => (
+                      <span key={i}>{line}{i < (landingAiHighlight.desc||'').split('\\n').length-1 && <br/>}</span>
+                    ))}
+                  </div>
+                  <div style={{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center'}}>
+                    {(landingAiHighlight.steps || '').split(',').filter(Boolean).map((step, i, arr) => (
+                      <div key={i} style={{display:'flex',alignItems:'center',gap:'6px'}}>
+                        <span style={{background:'rgba(200,241,53,0.18)',color:'#c8f135',borderRadius:'50%',width:'20px',height:'20px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'11px',fontWeight:700,flexShrink:0,border:'1px solid rgba(200,241,53,0.3)'}}>{i+1}</span>
+                        <span style={{fontSize:'12px',color:'rgba(255,255,255,0.8)'}}>{step.trim()}</span>
+                        {i < arr.length-1 && <span style={{color:'#334155',fontSize:'14px'}}>›</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                className="btn btn-primary"
+                onClick={() => saveLandingAiHighlight(landingAiHighlight)}
+              >
+                저장
+              </button>
             </div>
           )}
 

@@ -318,12 +318,19 @@ export default function Landing() {
   const [faqs,           setFaqs]           = useState(FAQS)
   const [comparison,     setComparison]     = useState(COMPARISON)
   const [portalButtons,  setPortalButtons]  = useState({ trainer: true, member: true, community: true, crm: true })
+  const [aiHighlight,    setAiHighlight]    = useState({
+    badge: 'AI POWERED',
+    headline: '수업 후 녹음 파일만 올리면\n수업일지가 완성됩니다',
+    desc: 'Gemini AI가 음성을 분석해 운동 종목·세트·느낀점을 자동으로 일지로 변환해요.\n완성된 일지는 카카오톡으로 회원에게 즉시 전달됩니다.',
+    steps: '녹음 업로드,AI 분석,일지 완성,카카오 발송',
+  })
 
   useEffect(() => {
     supabase.from('app_settings')
       .select('key, value')
       .in('key', [
         'landing_hero', 'landing_stats', 'landing_problems', 'landing_solutions',
+        'landing_ai_highlight',
         'landing_reviews', 'landing_kakao', 'landing_targets', 'landing_member_features',
         'landing_plans_landing', 'landing_faqs', 'landing_comparison',
         'landing_portal_buttons',
@@ -342,6 +349,7 @@ export default function Landing() {
           if (row.key === 'landing_plans_landing'    && Array.isArray(row.value))    setLandingPlans(row.value)
           if (row.key === 'landing_faqs'             && Array.isArray(row.value))    setFaqs(row.value)
           if (row.key === 'landing_comparison'       && Array.isArray(row.value))    setComparison(row.value)
+          if (row.key === 'landing_ai_highlight'     && row.value && typeof row.value === 'object') setAiHighlight(row.value)
           if (row.key === 'landing_portal_buttons'   && row.value && typeof row.value === 'object') setPortalButtons(prev => ({ ...prev, ...row.value }))
         })
       })
@@ -501,25 +509,28 @@ export default function Landing() {
               <div style={{position:'relative',zIndex:1}}>
                 <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'18px'}}>
                   <span style={{fontSize:'24px'}}>✦</span>
-                  <span style={{fontSize:'12px',fontWeight:700,color:'#c8f135',letterSpacing:'0.1em'}}>AI POWERED</span>
+                  <span style={{fontSize:'12px',fontWeight:700,color:'#c8f135',letterSpacing:'0.1em'}}>{aiHighlight.badge || 'AI POWERED'}</span>
                 </div>
                 <div style={{fontSize:'clamp(20px,4vw,28px)',fontWeight:800,lineHeight:1.3,marginBottom:'16px',letterSpacing:'-0.5px'}}>
-                  수업 후 녹음 파일만 올리면<br/>수업일지가 완성됩니다
+                  {(aiHighlight.headline || '').split('\\n').map((line, i, arr) => (
+                    <span key={i}>{line}{i < arr.length - 1 && <br/>}</span>
+                  ))}
                 </div>
                 <div style={{fontSize:'14px',color:'rgba(255,255,255,0.65)',lineHeight:1.85,marginBottom:'28px'}}>
-                  Gemini AI가 음성을 분석해 운동 종목·세트·느낀점을 자동으로 일지로 변환해요.<br/>
-                  완성된 일지는 카카오톡으로 회원에게 즉시 전달됩니다.
+                  {(aiHighlight.desc || '').split('\\n').map((line, i, arr) => (
+                    <span key={i}>{line}{i < arr.length - 1 && <br/>}</span>
+                  ))}
                 </div>
                 <div style={{display:'flex',gap:'10px',flexWrap:'wrap',alignItems:'center'}}>
-                  {['녹음 업로드','AI 분석','일지 완성','카카오 발송'].map((step,i) => (
+                  {(aiHighlight.steps || '').split(',').filter(Boolean).map((step, i, arr) => (
                     <div key={i} style={{display:'flex',alignItems:'center',gap:'8px'}}>
                       <span style={{background:'rgba(200,241,53,0.18)',color:'#c8f135',borderRadius:'50%',
                         width:'24px',height:'24px',display:'flex',alignItems:'center',justifyContent:'center',
                         fontSize:'12px',fontWeight:700,flexShrink:0,border:'1px solid rgba(200,241,53,0.3)'}}>
                         {i+1}
                       </span>
-                      <span style={{fontSize:'13px',color:'rgba(255,255,255,0.8)'}}>{step}</span>
-                      {i < 3 && <span style={{color:'#334155',fontSize:'16px'}}>›</span>}
+                      <span style={{fontSize:'13px',color:'rgba(255,255,255,0.8)'}}>{step.trim()}</span>
+                      {i < arr.length - 1 && <span style={{color:'#334155',fontSize:'16px'}}>›</span>}
                     </div>
                   ))}
                 </div>
