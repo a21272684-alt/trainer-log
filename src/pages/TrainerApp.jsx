@@ -1709,6 +1709,18 @@ export default function TrainerApp() {
   const [notifEnabled, setNotifEnabled] = useState(() => localStorage.getItem('tl_notif_enabled') === 'true')
   const [notifMinutes, setNotifMinutes] = useState(() => parseInt(localStorage.getItem('tl_notif_minutes')||'30'))
 
+  // Feature gates
+  const DEFAULT_FEATURE_GATES = {
+    free: { ai_journal:false, history_tab:true, revenue_tab:false, settlement:false, weekly_report:false, ai_insight:false, risk_analysis:false, push_notif:false, schedule_tab:true, member_limit:5 },
+    paid: { ai_journal:true,  history_tab:true, revenue_tab:true,  settlement:true,  weekly_report:true,  ai_insight:true,  risk_analysis:true,  push_notif:true,  schedule_tab:true, member_limit:9999 },
+  }
+  const [featureGates, setFeatureGates] = useState(DEFAULT_FEATURE_GATES)
+  const [isPaid, setIsPaid] = useState(false)
+  function canUse(key) {
+    const plan = isPaid ? 'paid' : 'free'
+    return featureGates[plan]?.[key] !== false
+  }
+
   // Login / OAuth
   const [authUser, setAuthUser] = useState(null)   // Supabase Auth user
   const [regName, setRegName] = useState('')
@@ -1898,6 +1910,23 @@ export default function TrainerApp() {
     setScreen('reg')
   }
 
+  async function loadFeatureGates(trainerId) {
+    try {
+      // 구독 상태 확인
+      const now = new Date().toISOString()
+      const { data: sub } = await supabase
+        .from('subscriptions')
+        .select('id')
+        .eq('trainer_id', trainerId)
+        .gt('valid_until', now)
+        .maybeSingle()
+      setIsPaid(!!sub)
+      // 관리자가 설정한 feature gates 불러오기
+      const { data: fg } = await supabase.from('app_settings').select('value').eq('key', 'feature_gates').maybeSingle()
+      if (fg?.value?.free && fg?.value?.paid) setFeatureGates(fg.value)
+    } catch(_) {}
+  }
+
   async function _loginWithRecord(t) {
     setTrainer(t); setCredits(t.credits ?? 0); setScreen('app')
     showToast('✓ 환영해요, ' + t.name + ' 트레이너님!')
@@ -1907,6 +1936,7 @@ export default function TrainerApp() {
       setTrainerLibraryRoutines(libData || [])
     } catch(_) {}
     try { loadAiUsage(t.id) } catch(_) {}
+    try { await loadFeatureGates(t.id) } catch(_) {}
   }
 
   async function register() {
@@ -2248,6 +2278,11 @@ export default function TrainerApp() {
   useEffect(() => { if (rtab === 'attendance' && currentMemberId) loadAttendance(currentMemberId) }, [rtab, attendanceMonth, currentMemberId])
 
   function showTabFn(t) {
+    const TAB_GATE = { history:'history_tab', schedule:'schedule_tab', revenue:'revenue_tab' }
+    if (TAB_GATE[t] && !canUse(TAB_GATE[t])) {
+      showToast('🔒 유료 플랜 전용 기능이에요. 플랜 업그레이드 후 이용 가능합니다.')
+      return
+    }
     setTab(t)
     setActivePage('page-' + t)
   }
@@ -2807,29 +2842,53 @@ export default function TrainerApp() {
         </div>
 
         {/* 주간 리포트 — 접기/펼치기 */}
-        <button
-          onClick={() => setWeeklyReportOpen(o => !o)}
-          style={{
-            display:'flex', alignItems:'center', justifyContent:'space-between',
-            width:'100%', background:'var(--surface2)', border:'1px solid var(--border)',
-            borderRadius:'10px', padding:'12px 14px', cursor:'pointer',
-            fontFamily:'inherit', marginBottom: weeklyReportOpen ? '10px' : '16px',
-            transition:'background 0.15s',
-          }}
-        >
-          <span style={{fontSize:'13px', fontWeight:700, color:'var(--text)'}}>📋 주간 리포트</span>
-          <span style={{fontSize:'16px', color:'var(--text-muted)', lineHeight:1}}>
-            {weeklyReportOpen ? '▲' : '▼'}
-          </span>
-        </button>
-        {weeklyReportOpen && (
-          <div style={{marginBottom:'16px'}}>
-            <WeeklyReportPanel gymId={trainer?.gym_id} apiKey={centralApiKey} />
+        {canUse('weekly_report') ? (
+          <>
+            <button
+              onClick={() => setWeeklyReportOpen(o => !o)}
+              style={{
+                display:'flex', alignItems:'center', justifyContent:'space-between',
+                width:'100%', background:'var(--surface2)', border:'1px solid var(--border)',
+                borderRadius:'10px', padding:'12px 14px', cursor:'pointer',
+                fontFamily:'inherit', marginBottom: weeklyReportOpen ? '10px' : '16px',
+                transition:'background 0.15s',
+              }}
+            >
+              <span style={{fontSize:'13px', fontWeight:700, color:'var(--text)'}}>📋 주간 리포트</span>
+              <span style={{fontSize:'16px', color:'var(--text-muted)', lineHeight:1}}>
+                {weeklyReportOpen ? '▲' : '▼'}
+              </span>
+            </button>
+            {weeklyReportOpen && (
+              <div style={{marginBottom:'16px'}}>
+                <WeeklyReportPanel gymId={trainer?.gym_id} apiKey={centralApiKey} />
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{background:'rgba(255,255,255,0.03)',border:'1px dashed rgba(255,255,255,0.12)',borderRadius:'10px',padding:'14px 16px',marginBottom:'16px',display:'flex',alignItems:'center',gap:'10px',opacity:0.7}}>
+            <span style={{fontSize:'20px'}}>🔒</span>
+            <div>
+              <div style={{fontSize:'13px',fontWeight:700}}>주간 AI 리포트</div>
+              <div style={{fontSize:'11px',color:'var(--text-dim)'}}>유료 플랜에서 이용 가능해요.</div>
+            </div>
           </div>
         )}
 
-        <div className="section-label">정산 분석</div>
-        <SettlementBreakdown trainerId={trainer?.id} showToast={showToast} members={members} />
+        {canUse('settlement') ? (
+          <>
+            <div className="section-label">정산 분석</div>
+            <SettlementBreakdown trainerId={trainer?.id} showToast={showToast} members={members} />
+          </>
+        ) : (
+          <div style={{background:'rgba(255,255,255,0.03)',border:'1px dashed rgba(255,255,255,0.12)',borderRadius:'10px',padding:'14px 16px',marginBottom:'16px',display:'flex',alignItems:'center',gap:'10px',opacity:0.7}}>
+            <span style={{fontSize:'20px'}}>🔒</span>
+            <div>
+              <div style={{fontSize:'13px',fontWeight:700}}>정산 분석</div>
+              <div style={{fontSize:'11px',color:'var(--text-dim)'}}>유료 플랜에서 이용 가능해요.</div>
+            </div>
+          </div>
+        )}
 
         <div className="section-label">통합 매출 내역</div>
         <RevenuePaymentList trainerId={trainer?.id} members={members} refreshKey={revenueRefreshKey} />
@@ -3131,18 +3190,28 @@ export default function TrainerApp() {
         <button className="settings-btn" onClick={()=>setSettingsModal(true)}>⚙ AI 설정</button>
       </div>
       <div className="tabs-t">
-        {['members','history','schedule','revenue','settings','support'].map(t => (
-          <div key={t} className={`tab-t${tab===t?' active':''}`} onClick={()=>showTabFn(t)}>
-            {{members:'회원',history:'발송기록',schedule:'시간표',revenue:'매출관리',settings:'설정',support:'문의'}[t]}
-          </div>
-        ))}
+        {['members','history','schedule','revenue','settings','support'].map(t => {
+          const TAB_GATE = { history:'history_tab', schedule:'schedule_tab', revenue:'revenue_tab' }
+          const locked = TAB_GATE[t] && !canUse(TAB_GATE[t])
+          return (
+            <div key={t} className={`tab-t${tab===t?' active':''}${locked?' tab-locked':''}`} onClick={()=>showTabFn(t)} style={locked?{opacity:0.55}:{}}>
+              {{members:'회원',history:'발송기록',schedule:'시간표',revenue:'매출관리',settings:'설정',support:'문의'}[t]}
+              {locked && <span style={{fontSize:'9px',marginLeft:'3px'}}>🔒</span>}
+            </div>
+          )
+        })}
       </div>
 
       {/* MEMBERS LIST */}
       {activePage === 'page-members' && (
         <div className="page-t">
           <div style={{display:'flex',gap:'8px',marginBottom:'10px'}}>
-            <button className="btn btn-primary" style={{flex:1}} onClick={()=>{setAddForm({name:'',kakao_phone:'',phone:'',birthdate:'',address:'',email:'',special_notes:'',purpose:'체형교정',visit_source:'',visit_source_memo:'',total:'',done:'0',price:'',memo:''});setActivePage('page-add-member')}}>+ 회원 추가</button>
+            <button className="btn btn-primary" style={{flex:1}} onClick={()=>{
+              const plan = isPaid ? 'paid' : 'free'
+              const limit = featureGates[plan]?.member_limit ?? 9999
+              if (members.length >= limit) { showToast(`🔒 현재 플랜에서는 최대 ${limit}명까지 등록 가능해요. 플랜 업그레이드 후 이용하세요.`); return }
+              setAddForm({name:'',kakao_phone:'',phone:'',birthdate:'',address:'',email:'',special_notes:'',purpose:'체형교정',visit_source:'',visit_source_memo:'',total:'',done:'0',price:'',memo:''});setActivePage('page-add-member')
+            }}>+ 회원 추가</button>
             <button
               onClick={() => setShowReadModal(true)}
               title="일지 확인 현황"
@@ -3231,7 +3300,7 @@ export default function TrainerApp() {
                     </button>
                   ))}
                   {/* 이탈위험 필터 */}
-                  {Object.keys(riskMap).length > 0 && (() => {
+                  {canUse('risk_analysis') && Object.keys(riskMap).length > 0 && (() => {
                     const riskCount = members.filter(m => {
                       const rs = riskMap[m.id]
                       return rs && (rs.riskLevel === 'risk' || rs.riskLevel === 'critical')
@@ -3532,7 +3601,16 @@ export default function TrainerApp() {
           </div>
 
           {/* 알림 설정 */}
-          <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'10px',padding:'12px 14px',marginBottom:'12px'}}>
+          {!canUse('push_notif') && (
+            <div style={{background:'rgba(255,255,255,0.03)',border:'1px dashed rgba(255,255,255,0.12)',borderRadius:'10px',padding:'12px 14px',marginBottom:'12px',display:'flex',alignItems:'center',gap:'10px',opacity:0.7}}>
+              <span style={{fontSize:'18px'}}>🔒</span>
+              <div>
+                <div style={{fontSize:'13px',fontWeight:600}}>Web Push 알림</div>
+                <div style={{fontSize:'11px',color:'var(--text-dim)'}}>유료 플랜에서 이용 가능해요.</div>
+              </div>
+            </div>
+          )}
+          {canUse('push_notif') && <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'10px',padding:'12px 14px',marginBottom:'12px'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
               <div>
                 <div style={{fontSize:'13px',fontWeight:500}}>알림 사용</div>
@@ -3574,7 +3652,7 @@ export default function TrainerApp() {
                 )}
               </div>
             )}
-          </div>
+          </div>}
 
           {renderScheduleGrid()}
         </div>
@@ -4410,13 +4488,21 @@ export default function TrainerApp() {
                 )
               }())}
               {!generating && !showPreview && (
-                <button
-                  className="btn btn-primary"
-                  style={{width:'100%',marginBottom:'10px',opacity: credits <= 0 ? 0.5 : 1,cursor: credits <= 0 ? 'not-allowed' : 'pointer'}}
-                  onClick={generateLog}
-                >
-                  {credits <= 0 ? '🔒 크레딧 부족' : '✦ AI 수업일지 생성'}
-                </button>
+                canUse('ai_journal') ? (
+                  <button
+                    className="btn btn-primary"
+                    style={{width:'100%',marginBottom:'10px',opacity: credits <= 0 ? 0.5 : 1,cursor: credits <= 0 ? 'not-allowed' : 'pointer'}}
+                    onClick={generateLog}
+                  >
+                    {credits <= 0 ? '🔒 크레딧 부족' : '✦ AI 수업일지 생성'}
+                  </button>
+                ) : (
+                  <div style={{background:'rgba(255,255,255,0.04)',border:'1px dashed rgba(255,255,255,0.15)',borderRadius:'10px',padding:'18px',textAlign:'center',marginBottom:'10px'}}>
+                    <div style={{fontSize:'24px',marginBottom:'6px'}}>🔒</div>
+                    <div style={{fontWeight:700,fontSize:'13px',marginBottom:'4px'}}>유료 플랜 전용 기능</div>
+                    <div style={{fontSize:'12px',color:'var(--text-dim)'}}>AI 수업일지 생성은 유료 플랜에서 이용 가능해요.</div>
+                  </div>
+                )
               )}
               {showSend && (
                 <div>
@@ -4449,7 +4535,15 @@ export default function TrainerApp() {
               <div style={{height:'1px',background:'var(--border)',marginBottom:'18px'}} />
               {/* AI 인사이트 */}
               <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',marginBottom:'10px'}}>🤖 AI 인사이트</div>
-              <AiInsightPanel member={currentMember} apiKey={centralApiKey} />
+              {canUse('ai_insight') ? (
+                <AiInsightPanel member={currentMember} apiKey={centralApiKey} />
+              ) : (
+                <div style={{background:'rgba(255,255,255,0.04)',border:'1px dashed rgba(255,255,255,0.15)',borderRadius:'10px',padding:'16px',textAlign:'center',marginBottom:'10px'}}>
+                  <div style={{fontSize:'20px',marginBottom:'6px'}}>🔒</div>
+                  <div style={{fontWeight:700,fontSize:'13px',marginBottom:'4px'}}>유료 플랜 전용</div>
+                  <div style={{fontSize:'12px',color:'var(--text-dim)'}}>AI 회원 인사이트는 유료 플랜에서 이용 가능해요.</div>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -16,6 +16,34 @@ const PORTAL_TABS = {
 
 const DEFAULT_TAB = { trainer:'list', member:'status', community:'posts', crm:'permissions', landing:'hero' }
 
+// ── 기능 게이트 정의 ─────────────────────────────────────────
+const FEATURE_DEFS = [
+  { key:'ai_journal',    icon:'🤖', label:'AI 수업일지 생성',   desc:'음성·텍스트 → AI 분석 → 수업일지 자동 완성' },
+  { key:'history_tab',   icon:'📋', label:'발송기록 탭',         desc:'생성된 수업일지 전체 이력 조회' },
+  { key:'revenue_tab',   icon:'💰', label:'매출관리 탭',         desc:'결제·상품·정산·주간 리포트 전체' },
+  { key:'settlement',    icon:'📊', label:'정산 분석',           desc:'고용 형태별 자동 정산 계산 (대관·프리랜서·정직원)' },
+  { key:'weekly_report', icon:'📈', label:'주간 AI 리포트',      desc:'AI가 주차별 운영 요약 리포트 자동 생성' },
+  { key:'ai_insight',    icon:'🧠', label:'AI 회원 인사이트',    desc:'회원 데이터 기반 AI 분석 및 조언' },
+  { key:'risk_analysis', icon:'⚠️', label:'이탈위험 분석',       desc:'회원별 이탈 위험 점수 자동 계산' },
+  { key:'push_notif',    icon:'🔔', label:'Web Push 알림',       desc:'브라우저 종료 후에도 수업 전 알림 발송' },
+  { key:'schedule_tab',  icon:'📅', label:'시간표 탭',           desc:'주간 24시간 수업 일정 블록 관리' },
+]
+
+const DEFAULT_FEATURE_GATES = {
+  free: {
+    ai_journal:false, history_tab:true,  revenue_tab:false,
+    settlement:false,  weekly_report:false, ai_insight:false,
+    risk_analysis:false, push_notif:false, schedule_tab:true,
+    member_limit: 5,
+  },
+  paid: {
+    ai_journal:true, history_tab:true, revenue_tab:true,
+    settlement:true, weekly_report:true, ai_insight:true,
+    risk_analysis:true, push_notif:true, schedule_tab:true,
+    member_limit: 9999,
+  },
+}
+
 // ── 랜딩 2단계 네비 ──────────────────────────────────────────
 const LANDING_PORTALS = [
   { id:'main',      label:'🌐 메인 랜딩' },
@@ -261,6 +289,9 @@ export default function AdminPortal() {
   const [landingCrmPainpoints, setLandingCrmPainpoints] = useState(DEFAULT_LANDING_CRM_PAINPOINTS)
   const [landingCrmRoadmap,    setLandingCrmRoadmap]    = useState(DEFAULT_LANDING_CRM_ROADMAP)
 
+  // 기능 게이트
+  const [featureGates, setFeatureGates] = useState(DEFAULT_FEATURE_GATES)
+
   // 크레딧 / API 키 관리
   const [creditAmount, setCreditAmount] = useState('10')
   const [centralApiKey, setCentralApiKey] = useState('')
@@ -301,7 +332,7 @@ export default function AdminPortal() {
           'landing_plans_landing', 'landing_faqs', 'landing_comparison',
           'landing_community_hero',
           'landing_crm_hero', 'landing_crm_features', 'landing_crm_painpoints', 'landing_crm_roadmap',
-          'landing_portal_buttons',
+          'landing_portal_buttons', 'feature_gates',
         ]),
         supabase.from('inquiries').select('*, trainer:trainers(name)').order('created_at', { ascending: false }),
         supabase.from('notices').select('*').order('is_pinned', { ascending: false }).order('created_at', { ascending: false }),
@@ -351,12 +382,30 @@ export default function AdminPortal() {
         if (Array.isArray(lCrmRoad?.value))   setLandingCrmRoadmap(lCrmRoad.value)
         const lPortalBtns = settings.data.find(r => r.key === 'landing_portal_buttons')
         if (lPortalBtns?.value && typeof lPortalBtns.value === 'object') setLandingPortalButtons(prev => ({ ...prev, ...lPortalBtns.value }))
+        const fGates = settings.data.find(r => r.key === 'feature_gates')
+        if (fGates?.value?.free && fGates?.value?.paid) setFeatureGates(fGates.value)
         const apiKeyRow = settings.data.find(r => r.key === 'gemini_api_key')
         if (apiKeyRow?.value) setCentralApiKey(String(apiKeyRow.value).replace(/^"|"$/g, ''))
         setApiKeyLoaded(true)
       }
     } catch(e) { showToast('데이터 로드 오류: ' + e.message) }
   }
+
+  // 기능 게이트 저장
+  async function saveFeatureGates(next) {
+    setFeatureGates(next)
+    await supabase.from('app_settings').upsert({ key:'feature_gates', value:next }, { onConflict:'key' })
+    showToast('✓ 기능 설정 저장됨')
+  }
+  function toggleGate(plan, key) {
+    const next = { ...featureGates, [plan]: { ...featureGates[plan], [key]: !featureGates[plan][key] } }
+    saveFeatureGates(next)
+  }
+  function setMemberLimit(plan, val) {
+    const n = Math.max(0, parseInt(val) || 0)
+    setFeatureGates(prev => ({ ...prev, [plan]: { ...prev[plan], member_limit: n } }))
+  }
+  function saveMemberLimit() { saveFeatureGates(featureGates) }
 
   // 크레딧 충전
   async function addTrainerCredits(trainerId, amount) {
@@ -691,6 +740,7 @@ export default function AdminPortal() {
     { id:'community', icon:'🤝', label:'커뮤니티 포털' },
     { id:'crm',       icon:'🗂️',  label:'CRM 포털' },
     { id:'landing',   icon:'🌐', label:'랜딩페이지' },
+    { id:'features',  icon:'🔐', label:'기능 관리' },
   ]
 
   return (
@@ -1861,6 +1911,105 @@ export default function AdminPortal() {
                     </div>
                   )
                 })}
+              </div>
+            </div>
+          )}
+
+          {page === 'features' && (
+            <div>
+              <div className="section-title">🔐 기능별 플랜 설정</div>
+              <div style={{fontSize:'13px',color:'var(--text-dim)',marginBottom:'20px'}}>
+                무료/유료 트레이너가 사용할 수 있는 기능을 ON/OFF로 관리합니다. 변경 즉시 저장됩니다.
+              </div>
+
+              {/* 기능 토글 테이블 */}
+              <div className="card" style={{padding:0,overflow:'hidden',marginBottom:'20px'}}>
+                {/* 헤더 */}
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 90px 90px',gap:0,background:'rgba(255,255,255,0.04)',padding:'10px 18px',fontSize:'11px',fontWeight:700,color:'var(--text-dim)',borderBottom:'1px solid var(--border)',textTransform:'uppercase',letterSpacing:'0.04em'}}>
+                  <div>기능</div>
+                  <div>설명</div>
+                  <div style={{textAlign:'center'}}>무료</div>
+                  <div style={{textAlign:'center'}}>유료</div>
+                </div>
+                {FEATURE_DEFS.map((fd, i) => (
+                  <div key={fd.key} style={{
+                    display:'grid',gridTemplateColumns:'1fr 1fr 90px 90px',gap:0,
+                    padding:'13px 18px',alignItems:'center',
+                    borderBottom: i < FEATURE_DEFS.length-1 ? '1px solid var(--border)' : 'none',
+                    background: i%2===0 ? 'transparent' : 'rgba(255,255,255,0.015)',
+                  }}>
+                    <div style={{display:'flex',alignItems:'center',gap:'8px',fontWeight:600,fontSize:'13px'}}>
+                      <span style={{fontSize:'16px'}}>{fd.icon}</span>
+                      {fd.label}
+                    </div>
+                    <div style={{fontSize:'12px',color:'var(--text-dim)',paddingRight:'12px'}}>{fd.desc}</div>
+                    {['free','paid'].map(plan => {
+                      const isOn = !!featureGates[plan]?.[fd.key]
+                      return (
+                        <div key={plan} style={{textAlign:'center'}}>
+                          <button
+                            className={`crm-toggle crm-toggle-sm${isOn?' on':''}`}
+                            onClick={() => toggleGate(plan, fd.key)}
+                          >
+                            {isOn ? 'ON' : 'OFF'}
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+
+              {/* 회원 수 제한 */}
+              <div className="card">
+                <div style={{fontWeight:700,fontSize:'14px',marginBottom:'14px'}}>👥 관리 가능한 최대 회원 수</div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'16px'}}>
+                  {[{plan:'free',label:'무료 플랜'},{plan:'paid',label:'유료 플랜'}].map(({plan,label}) => (
+                    <div key={plan}>
+                      <div style={{fontSize:'12px',color:'var(--text-dim)',marginBottom:'6px'}}>{label}</div>
+                      <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
+                        <input
+                          type="number"
+                          min="0"
+                          className="input"
+                          style={{width:'100px'}}
+                          value={featureGates[plan]?.member_limit ?? 0}
+                          onChange={e => setMemberLimit(plan, e.target.value)}
+                          onBlur={saveMemberLimit}
+                        />
+                        <span style={{fontSize:'12px',color:'var(--text-dim)'}}>명 (9999 = 무제한)</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button className="btn btn-primary btn-sm" style={{marginTop:'16px'}} onClick={saveMemberLimit}>
+                  저장
+                </button>
+              </div>
+
+              {/* 현재 설정 미리보기 */}
+              <div className="card" style={{marginTop:'20px'}}>
+                <div style={{fontWeight:700,fontSize:'14px',marginBottom:'12px'}}>📋 현재 설정 요약</div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'16px'}}>
+                  {[{plan:'free',label:'무료',color:'#9ca3af'},{plan:'paid',label:'유료',color:'var(--accent)'}].map(({plan,label,color}) => (
+                    <div key={plan} style={{background:'rgba(255,255,255,0.03)',borderRadius:'10px',padding:'14px'}}>
+                      <div style={{fontWeight:700,color,marginBottom:'10px',fontSize:'13px'}}>{label} 플랜</div>
+                      {FEATURE_DEFS.map(fd => {
+                        const isOn = !!featureGates[plan]?.[fd.key]
+                        return (
+                          <div key={fd.key} style={{display:'flex',alignItems:'center',justifyContent:'space-between',fontSize:'12px',padding:'3px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
+                            <span style={{color:'var(--text-dim)'}}>{fd.icon} {fd.label}</span>
+                            <span style={{color: isOn ? '#4ade80' : '#f87171', fontWeight:700, fontSize:'11px'}}>{isOn ? 'ON' : 'OFF'}</span>
+                          </div>
+                        )
+                      })}
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',fontSize:'12px',paddingTop:'6px'}}>
+                        <span style={{color:'var(--text-dim)'}}>👥 최대 회원</span>
+                        <span style={{fontWeight:700}}>{featureGates[plan]?.member_limit >= 9999 ? '무제한' : featureGates[plan]?.member_limit + '명'}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
