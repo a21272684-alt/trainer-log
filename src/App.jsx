@@ -8,6 +8,7 @@ import CommunityPortal from './pages/CommunityPortal'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 import Refund from './pages/Refund'
+import GymPortal from './pages/GymPortal'
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="/member" element={<MemberPortal />} />
           <Route path="/report" element={<Report />} />
           <Route path="/community" element={<CommunityPortal />} />
+          <Route path="/gym" element={<GymPortal />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/refund" element={<Refund />} />

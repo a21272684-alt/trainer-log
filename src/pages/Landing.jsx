@@ -922,6 +922,30 @@ export default function Landing() {
               </div>
             </Link>
           </SlideCard>
+
+          <SlideCard delay={450}>
+            <Link to="/gym" style={{
+              background:'linear-gradient(145deg,#1e293b,#1a0520)',
+              border:'1px solid rgba(224,64,251,0.3)',borderRadius:'20px',padding:'26px 30px',
+              textDecoration:'none',color:'#fff',display:'flex',alignItems:'center',
+              justifyContent:'space-between',gap:'16px',boxShadow:'0 8px 32px rgba(0,0,0,0.3)'}}>
+              <div style={{display:'flex',alignItems:'center',gap:'18px'}}>
+                <div style={{fontSize:'36px'}}>🏢</div>
+                <div>
+                  <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'4px'}}>
+                    <div style={{fontSize:'16px',fontWeight:800,letterSpacing:'-0.5px'}}>헬스장 CRM</div>
+                    <span style={{fontSize:'10px',fontWeight:700,background:'rgba(224,64,251,0.15)',color:'#e040fb',padding:'2px 7px',borderRadius:'20px',border:'1px solid rgba(224,64,251,0.3)'}}>BETA</span>
+                  </div>
+                  <div style={{fontSize:'12px',color:'rgba(255,255,255,0.5)'}}>트레이너 관리 · 매출 현황 · 회원 CRM · 정산</div>
+                </div>
+              </div>
+              <div style={{display:'inline-block',fontSize:'13px',color:'#e040fb',fontWeight:700,
+                background:'rgba(224,64,251,0.1)',padding:'7px 16px',borderRadius:'8px',
+                border:'1px solid rgba(224,64,251,0.25)',flexShrink:0}}>
+                입장하기 →
+              </div>
+            </Link>
+          </SlideCard>
         </div>
       </section>
 
@@ -934,6 +958,7 @@ export default function Landing() {
           <Link to="/trainer" style={{fontSize:'12px',color:'#475569',textDecoration:'none'}}>트레이너 앱</Link>
           <Link to="/member" style={{fontSize:'12px',color:'#475569',textDecoration:'none'}}>회원 포털</Link>
           <Link to="/community" style={{fontSize:'12px',color:'#475569',textDecoration:'none'}}>커뮤니티</Link>
+          <Link to="/gym" style={{fontSize:'12px',color:'#475569',textDecoration:'none'}}>헬스장 CRM</Link>
         </div>
         <div style={{display:'flex',justifyContent:'center',gap:'20px',marginBottom:'16px'}}>
           <Link to="/terms" style={{fontSize:'11px',color:'#64748b',textDecoration:'none'}}>이용약관</Link>
