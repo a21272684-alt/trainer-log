@@ -117,6 +117,42 @@ function Avatar({ user, size = 32 }) {
   )
 }
 
+// ── 스크롤 애니메이션 헬퍼 ─────────────────────────────────────
+function useInView(threshold = 0.12) {
+  const ref = useRef(null)
+  const [inView, setInView] = useState(false)
+  useEffect(() => {
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setInView(true); obs.disconnect() } },
+      { threshold }
+    )
+    if (ref.current) obs.observe(ref.current)
+    return () => obs.disconnect()
+  }, [])
+  return [ref, inView]
+}
+function FadeUp({ children, delay = 0 }) {
+  const [ref, inView] = useInView(0.08)
+  return (
+    <div ref={ref} style={{
+      opacity: inView ? 1 : 0,
+      transform: inView ? 'translateY(0px)' : 'translateY(44px)',
+      transition: `opacity 0.85s cubic-bezier(.22,1,.36,1) ${delay}ms, transform 0.85s cubic-bezier(.22,1,.36,1) ${delay}ms`,
+    }}>{children}</div>
+  )
+}
+function SlideCard({ children, delay = 0 }) {
+  const [ref, inView] = useInView(0.05)
+  return (
+    <div ref={ref} style={{
+      opacity: inView ? 1 : 0,
+      transform: inView ? 'translateY(0px)' : 'translateY(32px)',
+      transition: `opacity 0.6s ease ${delay}ms, transform 0.6s cubic-bezier(.22,1,.36,1) ${delay}ms`,
+      height: '100%',
+    }}>{children}</div>
+  )
+}
+
 /* ============================================================
    메인 컴포넌트
    ============================================================ */
@@ -822,72 +858,82 @@ export default function CommunityPortal() {
 
         <div style={{position:'relative',zIndex:1,maxWidth:'640px',margin:'0 auto',padding:'48px 24px 80px'}}>
           {/* 히어로 */}
-          <div style={{textAlign:'center',marginBottom:'52px'}}>
-            <div style={{display:'inline-block',fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',
-              color:'#ff9800',background:'rgba(255,152,0,0.1)',padding:'5px 14px',borderRadius:'20px',
-              border:'1px solid rgba(255,152,0,0.25)',marginBottom:'20px'}}>
-              {commHero.badge}
+          <FadeUp>
+            <div style={{textAlign:'center',marginBottom:'52px'}}>
+              <div style={{display:'inline-block',fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',
+                color:'#ff9800',background:'rgba(255,152,0,0.1)',padding:'5px 14px',borderRadius:'20px',
+                border:'1px solid rgba(255,152,0,0.25)',marginBottom:'20px'}}>
+                {commHero.badge}
+              </div>
+              <h1 style={{fontSize:'clamp(30px,7vw,50px)',fontWeight:900,letterSpacing:'-2px',lineHeight:1.1,margin:'0 0 16px'}}>
+                {commHero.headline}<br/><span style={{color:'#ff9800'}}>{commHero.highlight}</span>
+              </h1>
+              <p style={{fontSize:'14px',color:'rgba(255,255,255,0.5)',lineHeight:1.85,maxWidth:'360px',margin:'0 auto 36px',whiteSpace:'pre-line'}}>
+                {commHero.subheadline}
+              </p>
+              <button onClick={()=>setScreen('login')} style={{
+                background:'linear-gradient(135deg,#ff9800,#f57c00)',color:'#fff',
+                padding:'15px 36px',borderRadius:'12px',fontWeight:800,fontSize:'15px',
+                border:'none',cursor:'pointer',boxShadow:'0 4px 24px rgba(255,152,0,0.35)',
+                fontFamily:'inherit',display:'block',width:'100%',
+                maxWidth:'300px',marginLeft:'auto',marginRight:'auto',marginBottom:'12px'}}>
+                {commHero.cta}
+              </button>
+              <p style={{fontSize:'12px',color:'rgba(255,255,255,0.3)',margin:0}}>Google 계정으로 5초 만에 가입할 수 있어요</p>
             </div>
-            <h1 style={{fontSize:'clamp(30px,7vw,50px)',fontWeight:900,letterSpacing:'-2px',lineHeight:1.1,margin:'0 0 16px'}}>
-              {commHero.headline}<br/><span style={{color:'#ff9800'}}>{commHero.highlight}</span>
-            </h1>
-            <p style={{fontSize:'14px',color:'rgba(255,255,255,0.5)',lineHeight:1.85,maxWidth:'360px',margin:'0 auto 36px',whiteSpace:'pre-line'}}>
-              {commHero.subheadline}
-            </p>
-            <button onClick={()=>setScreen('login')} style={{
-              background:'linear-gradient(135deg,#ff9800,#f57c00)',color:'#fff',
-              padding:'15px 36px',borderRadius:'12px',fontWeight:800,fontSize:'15px',
-              border:'none',cursor:'pointer',boxShadow:'0 4px 24px rgba(255,152,0,0.35)',
-              fontFamily:'inherit',display:'block',width:'100%',
-              maxWidth:'300px',marginLeft:'auto',marginRight:'auto',marginBottom:'12px'}}>
-              {commHero.cta}
-            </button>
-            <p style={{fontSize:'12px',color:'rgba(255,255,255,0.3)',margin:0}}>Google 계정으로 5초 만에 가입할 수 있어요</p>
-          </div>
+          </FadeUp>
 
           {/* 카테고리 그리드 */}
-          <div style={{marginBottom:'36px'}}>
-            <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.1em',color:'rgba(255,255,255,0.3)',
-              textAlign:'center',marginBottom:'20px'}}>커뮤니티 카테고리 6가지</div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}}>
-              {COMM_FEATURES.map((f,i)=>(
-                <div key={i} style={{background:'rgba(255,255,255,0.04)',border:`1px solid ${f.color}25`,
-                  borderRadius:'14px',padding:'18px',backdropFilter:'blur(8px)'}}>
-                  <div style={{fontSize:'22px',marginBottom:'8px'}}>{f.icon}</div>
-                  <div style={{fontSize:'13px',fontWeight:700,color:f.color,marginBottom:'5px'}}>{f.title}</div>
-                  <div style={{fontSize:'11px',color:'rgba(255,255,255,0.4)',lineHeight:1.6}}>{f.desc}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 역할별 접근 배너 — permissions.js ROLE_META 기반 동적 렌더 */}
-          <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',
-            borderRadius:'16px',padding:'24px',marginBottom:'32px'}}>
-            <div style={{fontSize:'12px',fontWeight:700,color:'rgba(255,255,255,0.5)',
-              letterSpacing:'0.08em',marginBottom:'14px'}}>역할별 맞춤 접근</div>
-            <div style={{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'12px'}}>
-              {Object.entries(ROLE_META)
-                .filter(([key]) => key !== 'instructor')  // educator 별칭 중복 제거
-                .map(([key, r]) => (
-                  <span key={key} style={{fontSize:'12px',padding:'5px 12px',borderRadius:'8px',
-                    background:r.color+'15',color:r.color,border:`1px solid ${r.color}30`,fontWeight:600}}>
-                    {r.emoji} {r.label}
-                  </span>
+          <FadeUp delay={100}>
+            <div style={{marginBottom:'36px'}}>
+              <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.1em',color:'rgba(255,255,255,0.3)',
+                textAlign:'center',marginBottom:'20px'}}>커뮤니티 카테고리 6가지</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}}>
+                {COMM_FEATURES.map((f,i)=>(
+                  <SlideCard key={i} delay={i * 70}>
+                    <div style={{background:'rgba(255,255,255,0.04)',border:`1px solid ${f.color}25`,
+                      borderRadius:'14px',padding:'18px',backdropFilter:'blur(8px)',height:'100%',boxSizing:'border-box'}}>
+                      <div style={{fontSize:'22px',marginBottom:'8px'}}>{f.icon}</div>
+                      <div style={{fontSize:'13px',fontWeight:700,color:f.color,marginBottom:'5px'}}>{f.title}</div>
+                      <div style={{fontSize:'11px',color:'rgba(255,255,255,0.4)',lineHeight:1.6}}>{f.desc}</div>
+                    </div>
+                  </SlideCard>
                 ))}
+              </div>
             </div>
-            <div style={{fontSize:'12px',color:'rgba(255,255,255,0.35)',lineHeight:1.7}}>
-              역할에 따라 볼 수 있는 카테고리와 글쓰기 권한이 달라져요.
-            </div>
-          </div>
+          </FadeUp>
 
-          <button onClick={()=>setScreen('login')} style={{
-            width:'100%',background:'rgba(255,255,255,0.06)',
-            border:'1px solid rgba(255,255,255,0.15)',color:'#fff',
-            padding:'14px',borderRadius:'12px',fontWeight:600,fontSize:'14px',
-            cursor:'pointer',fontFamily:'inherit'}}>
-            커뮤니티 입장하기 →
-          </button>
+          {/* 역할별 접근 배너 */}
+          <FadeUp delay={150}>
+            <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',
+              borderRadius:'16px',padding:'24px',marginBottom:'32px'}}>
+              <div style={{fontSize:'12px',fontWeight:700,color:'rgba(255,255,255,0.5)',
+                letterSpacing:'0.08em',marginBottom:'14px'}}>역할별 맞춤 접근</div>
+              <div style={{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'12px'}}>
+                {Object.entries(ROLE_META)
+                  .filter(([key]) => key !== 'instructor')
+                  .map(([key, r]) => (
+                    <span key={key} style={{fontSize:'12px',padding:'5px 12px',borderRadius:'8px',
+                      background:r.color+'15',color:r.color,border:`1px solid ${r.color}30`,fontWeight:600}}>
+                      {r.emoji} {r.label}
+                    </span>
+                  ))}
+              </div>
+              <div style={{fontSize:'12px',color:'rgba(255,255,255,0.35)',lineHeight:1.7}}>
+                역할에 따라 볼 수 있는 카테고리와 글쓰기 권한이 달라져요.
+              </div>
+            </div>
+          </FadeUp>
+
+          <FadeUp delay={200}>
+            <button onClick={()=>setScreen('login')} style={{
+              width:'100%',background:'rgba(255,255,255,0.06)',
+              border:'1px solid rgba(255,255,255,0.15)',color:'#fff',
+              padding:'14px',borderRadius:'12px',fontWeight:600,fontSize:'14px',
+              cursor:'pointer',fontFamily:'inherit'}}>
+              커뮤니티 입장하기 →
+            </button>
+          </FadeUp>
         </div>
       </div>
     )

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
@@ -57,6 +57,42 @@ const DEFAULT_CRM_HERO = {
   headline2: '모든 것을 한 곳에',
   subheadline: '트레이너 관리부터 매출 정산, 회원 CRM까지.\n헬스장 원장님을 위한 전용 관리 시스템이에요.',
   cta: 'CRM 포털 입장하기',
+}
+
+// ── 스크롤 애니메이션 헬퍼 ─────────────────────────────────────
+function useInView(threshold = 0.12) {
+  const ref = useRef(null)
+  const [inView, setInView] = useState(false)
+  useEffect(() => {
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setInView(true); obs.disconnect() } },
+      { threshold }
+    )
+    if (ref.current) obs.observe(ref.current)
+    return () => obs.disconnect()
+  }, [])
+  return [ref, inView]
+}
+function FadeUp({ children, delay = 0 }) {
+  const [ref, inView] = useInView(0.08)
+  return (
+    <div ref={ref} style={{
+      opacity: inView ? 1 : 0,
+      transform: inView ? 'translateY(0px)' : 'translateY(44px)',
+      transition: `opacity 0.85s cubic-bezier(.22,1,.36,1) ${delay}ms, transform 0.85s cubic-bezier(.22,1,.36,1) ${delay}ms`,
+    }}>{children}</div>
+  )
+}
+function SlideCard({ children, delay = 0 }) {
+  const [ref, inView] = useInView(0.05)
+  return (
+    <div ref={ref} style={{
+      opacity: inView ? 1 : 0,
+      transform: inView ? 'translateY(0px)' : 'translateY(32px)',
+      transition: `opacity 0.6s ease ${delay}ms, transform 0.6s cubic-bezier(.22,1,.36,1) ${delay}ms`,
+      height: '100%',
+    }}>{children}</div>
+  )
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -150,6 +186,7 @@ export default function GymPortal() {
         <div style={{position:'relative',zIndex:1,maxWidth:'760px',margin:'0 auto',padding:'60px 24px 100px'}}>
 
           {/* ── 히어로 ── */}
+          <FadeUp>
           <div style={{textAlign:'center',marginBottom:'64px'}}>
             <div style={{display:'inline-block',fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',
               color:'#e040fb',background:'rgba(224,64,251,0.1)',padding:'5px 14px',borderRadius:'20px',
@@ -180,114 +217,127 @@ export default function GymPortal() {
               <p style={{fontSize:'12px',color:'rgba(255,255,255,0.3)',margin:0}}>비밀번호만 입력하면 바로 시작할 수 있어요</p>
             </div>
           </div>
+          </FadeUp>
 
           {/* ── 이런 분들을 위해 ── */}
-          <div style={{marginBottom:'64px'}}>
-            <div style={{textAlign:'center',marginBottom:'28px'}}>
-              <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.12em',
-                color:'rgba(255,255,255,0.35)',marginBottom:'10px'}}>PAIN POINT</div>
-              <h2 style={{fontSize:'clamp(20px,4vw,28px)',fontWeight:800,letterSpacing:'-1px',margin:0}}>
-                이런 경험, 있으신가요?
-              </h2>
+          <FadeUp delay={80}>
+            <div style={{marginBottom:'64px'}}>
+              <div style={{textAlign:'center',marginBottom:'28px'}}>
+                <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.12em',
+                  color:'rgba(255,255,255,0.35)',marginBottom:'10px'}}>PAIN POINT</div>
+                <h2 style={{fontSize:'clamp(20px,4vw,28px)',fontWeight:800,letterSpacing:'-1px',margin:0}}>
+                  이런 경험, 있으신가요?
+                </h2>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:'12px'}}>
+                {crmPainpoints.map((p, i) => (
+                  <SlideCard key={i} delay={i * 80}>
+                    <div style={{background:'rgba(255,255,255,0.03)',
+                      border:'1px solid rgba(239,68,68,0.15)',borderRadius:'14px',
+                      padding:'18px 20px',display:'flex',gap:'12px',alignItems:'flex-start',height:'100%',boxSizing:'border-box'}}>
+                      <span style={{fontSize:'22px',flexShrink:0}}>{p.icon}</span>
+                      <span style={{fontSize:'13px',color:'rgba(255,255,255,0.65)',lineHeight:1.7}}>{p.text}</span>
+                    </div>
+                  </SlideCard>
+                ))}
+              </div>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:'12px'}}>
-              {crmPainpoints.map((p, i) => (
-                <div key={i} style={{background:'rgba(255,255,255,0.03)',
-                  border:'1px solid rgba(239,68,68,0.15)',borderRadius:'14px',
-                  padding:'18px 20px',display:'flex',gap:'12px',alignItems:'flex-start'}}>
-                  <span style={{fontSize:'22px',flexShrink:0}}>{p.icon}</span>
-                  <span style={{fontSize:'13px',color:'rgba(255,255,255,0.65)',lineHeight:1.7}}>{p.text}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          </FadeUp>
 
           {/* ── CRM 기능 ── */}
-          <div style={{marginBottom:'64px'}}>
-            <div style={{textAlign:'center',marginBottom:'28px'}}>
-              <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.12em',
-                color:'#e040fb',marginBottom:'10px'}}>FEATURES</div>
-              <h2 style={{fontSize:'clamp(20px,4vw,28px)',fontWeight:800,letterSpacing:'-1px',margin:'0 0 8px'}}>
-                오운 CRM이 해결해드려요
-              </h2>
-              <p style={{fontSize:'13px',color:'rgba(255,255,255,0.4)',margin:0}}>헬스장 운영에 필요한 모든 기능을 하나로</p>
+          <FadeUp delay={100}>
+            <div style={{marginBottom:'64px'}}>
+              <div style={{textAlign:'center',marginBottom:'28px'}}>
+                <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.12em',
+                  color:'#e040fb',marginBottom:'10px'}}>FEATURES</div>
+                <h2 style={{fontSize:'clamp(20px,4vw,28px)',fontWeight:800,letterSpacing:'-1px',margin:'0 0 8px'}}>
+                  오운 CRM이 해결해드려요
+                </h2>
+                <p style={{fontSize:'13px',color:'rgba(255,255,255,0.4)',margin:0}}>헬스장 운영에 필요한 모든 기능을 하나로</p>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(230px,1fr))',gap:'12px'}}>
+                {crmFeatures.map((f, i) => (
+                  <SlideCard key={i} delay={i * 70}>
+                    <div style={{
+                      background:'rgba(255,255,255,0.03)',
+                      border:`1px solid ${f.color}20`,
+                      borderRadius:'16px',padding:'22px',
+                      transition:'border-color 0.2s',
+                      height:'100%',boxSizing:'border-box',
+                    }}>
+                      <div style={{fontSize:'26px',marginBottom:'12px'}}>{f.icon}</div>
+                      <div style={{fontSize:'14px',fontWeight:700,color:f.color,marginBottom:'8px',letterSpacing:'-0.3px'}}>{f.title}</div>
+                      <div style={{fontSize:'12px',color:'rgba(255,255,255,0.45)',lineHeight:1.7}}>{f.desc}</div>
+                    </div>
+                  </SlideCard>
+                ))}
+              </div>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(230px,1fr))',gap:'12px'}}>
-              {crmFeatures.map((f, i) => (
-                <div key={i} style={{
-                  background:'rgba(255,255,255,0.03)',
-                  border:`1px solid ${f.color}20`,
-                  borderRadius:'16px',padding:'22px',
-                  transition:'border-color 0.2s',
-                }}>
-                  <div style={{fontSize:'26px',marginBottom:'12px'}}>{f.icon}</div>
-                  <div style={{fontSize:'14px',fontWeight:700,color:f.color,marginBottom:'8px',letterSpacing:'-0.3px'}}>{f.title}</div>
-                  <div style={{fontSize:'12px',color:'rgba(255,255,255,0.45)',lineHeight:1.7}}>{f.desc}</div>
-                </div>
-              ))}
-            </div>
-          </div>
+          </FadeUp>
 
           {/* ── 현재 제공 vs 준비 중 ── */}
-          <div style={{marginBottom:'64px'}}>
-            <div style={{textAlign:'center',marginBottom:'28px'}}>
-              <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.12em',
-                color:'rgba(255,255,255,0.35)',marginBottom:'10px'}}>ROADMAP</div>
-              <h2 style={{fontSize:'clamp(20px,4vw,28px)',fontWeight:800,letterSpacing:'-1px',margin:0}}>
-                지금 바로 쓸 수 있는 기능
-              </h2>
-            </div>
-            <div style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.08)',
-              borderRadius:'20px',overflow:'hidden'}}>
-              {/* 헤더 */}
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',
-                background:'rgba(255,255,255,0.04)',borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
-                <div style={{padding:'12px 20px',fontSize:'12px',fontWeight:700,
-                  color:'#22c55e',letterSpacing:'0.06em'}}>✓ 지금 사용 가능</div>
-                <div style={{padding:'12px 20px',fontSize:'12px',fontWeight:700,
-                  color:'rgba(255,255,255,0.3)',borderLeft:'1px solid rgba(255,255,255,0.07)',
-                  letterSpacing:'0.06em'}}>⚙ 준비 중</div>
+          <FadeUp delay={120}>
+            <div style={{marginBottom:'64px'}}>
+              <div style={{textAlign:'center',marginBottom:'28px'}}>
+                <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.12em',
+                  color:'rgba(255,255,255,0.35)',marginBottom:'10px'}}>ROADMAP</div>
+                <h2 style={{fontSize:'clamp(20px,4vw,28px)',fontWeight:800,letterSpacing:'-1px',margin:0}}>
+                  지금 바로 쓸 수 있는 기능
+                </h2>
               </div>
-              {crmRoadmap.map((row, i) => (
-                <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 1fr',
-                  borderBottom: i < crmRoadmap.length-1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
-                  background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)'}}>
-                  <div style={{padding:'14px 20px',fontSize:'13px',color:'rgba(255,255,255,0.75)',
-                    display:'flex',alignItems:'center',gap:'8px'}}>
-                    <span style={{color:'#22c55e',flexShrink:0}}>✓</span>{row.now}
-                  </div>
-                  <div style={{padding:'14px 20px',fontSize:'13px',color:'rgba(255,255,255,0.3)',
-                    borderLeft:'1px solid rgba(255,255,255,0.05)',display:'flex',alignItems:'center',gap:'8px'}}>
-                    <span style={{flexShrink:0}}>⚙</span>{row.coming}
-                  </div>
+              <div style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.08)',
+                borderRadius:'20px',overflow:'hidden'}}>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',
+                  background:'rgba(255,255,255,0.04)',borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
+                  <div style={{padding:'12px 20px',fontSize:'12px',fontWeight:700,
+                    color:'#22c55e',letterSpacing:'0.06em'}}>✓ 지금 사용 가능</div>
+                  <div style={{padding:'12px 20px',fontSize:'12px',fontWeight:700,
+                    color:'rgba(255,255,255,0.3)',borderLeft:'1px solid rgba(255,255,255,0.07)',
+                    letterSpacing:'0.06em'}}>⚙ 준비 중</div>
                 </div>
-              ))}
+                {crmRoadmap.map((row, i) => (
+                  <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 1fr',
+                    borderBottom: i < crmRoadmap.length-1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                    background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)'}}>
+                    <div style={{padding:'14px 20px',fontSize:'13px',color:'rgba(255,255,255,0.75)',
+                      display:'flex',alignItems:'center',gap:'8px'}}>
+                      <span style={{color:'#22c55e',flexShrink:0}}>✓</span>{row.now}
+                    </div>
+                    <div style={{padding:'14px 20px',fontSize:'13px',color:'rgba(255,255,255,0.3)',
+                      borderLeft:'1px solid rgba(255,255,255,0.05)',display:'flex',alignItems:'center',gap:'8px'}}>
+                      <span style={{flexShrink:0}}>⚙</span>{row.coming}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          </FadeUp>
 
           {/* ── 하단 CTA ── */}
-          <div style={{textAlign:'center',padding:'40px 24px',
-            background:'linear-gradient(135deg,rgba(224,64,251,0.08),rgba(156,39,176,0.05))',
-            border:'1px solid rgba(224,64,251,0.2)',borderRadius:'24px'}}>
-            <div style={{fontSize:'24px',marginBottom:'14px'}}>🏢</div>
-            <h2 style={{fontSize:'clamp(20px,4vw,26px)',fontWeight:800,letterSpacing:'-1px',
-              margin:'0 0 10px'}}>
-              지금 바로 시작해보세요
-            </h2>
-            <p style={{fontSize:'13px',color:'rgba(255,255,255,0.45)',lineHeight:1.7,
-              margin:'0 0 28px'}}>
-              별도 설치 없이 브라우저에서 바로 사용 가능해요.<br/>
-              오운에 등록된 트레이너 데이터를 즉시 연동합니다.
-            </p>
-            <button
-              onClick={() => setScreen('login')}
-              style={{background:'linear-gradient(135deg,#e040fb,#9c27b0)',color:'#fff',
-                padding:'14px 40px',borderRadius:'12px',fontWeight:800,fontSize:'14px',
-                border:'none',cursor:'pointer',boxShadow:'0 4px 20px rgba(224,64,251,0.35)',
-                fontFamily:'inherit',letterSpacing:'-0.2px'}}>
-              CRM 포털 입장하기 →
-            </button>
-          </div>
+          <FadeUp delay={150}>
+            <div style={{textAlign:'center',padding:'40px 24px',
+              background:'linear-gradient(135deg,rgba(224,64,251,0.08),rgba(156,39,176,0.05))',
+              border:'1px solid rgba(224,64,251,0.2)',borderRadius:'24px'}}>
+              <div style={{fontSize:'24px',marginBottom:'14px'}}>🏢</div>
+              <h2 style={{fontSize:'clamp(20px,4vw,26px)',fontWeight:800,letterSpacing:'-1px',
+                margin:'0 0 10px'}}>
+                지금 바로 시작해보세요
+              </h2>
+              <p style={{fontSize:'13px',color:'rgba(255,255,255,0.45)',lineHeight:1.7,
+                margin:'0 0 28px'}}>
+                별도 설치 없이 브라우저에서 바로 사용 가능해요.<br/>
+                오운에 등록된 트레이너 데이터를 즉시 연동합니다.
+              </p>
+              <button
+                onClick={() => setScreen('login')}
+                style={{background:'linear-gradient(135deg,#e040fb,#9c27b0)',color:'#fff',
+                  padding:'14px 40px',borderRadius:'12px',fontWeight:800,fontSize:'14px',
+                  border:'none',cursor:'pointer',boxShadow:'0 4px 20px rgba(224,64,251,0.35)',
+                  fontFamily:'inherit',letterSpacing:'-0.2px'}}>
+                CRM 포털 입장하기 →
+              </button>
+            </div>
+          </FadeUp>
 
         </div>
       </div>

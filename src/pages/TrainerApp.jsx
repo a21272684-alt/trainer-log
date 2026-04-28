@@ -1522,6 +1522,42 @@ const COLORS=[{id:'green',bg:'#c8f135',tx:'#1a3300'},{id:'blue',bg:'#60a5fa',tx:
 const DAYS=['월','화','수','목','금','토','일']
 const SH=0,EH=24,SMIN=5,SPX=4
 
+// ── 스크롤 애니메이션 헬퍼 ─────────────────────────────────────
+function useInView(threshold = 0.12) {
+  const ref = useRef(null)
+  const [inView, setInView] = useState(false)
+  useEffect(() => {
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setInView(true); obs.disconnect() } },
+      { threshold }
+    )
+    if (ref.current) obs.observe(ref.current)
+    return () => obs.disconnect()
+  }, [])
+  return [ref, inView]
+}
+function FadeUp({ children, delay = 0 }) {
+  const [ref, inView] = useInView(0.1)
+  return (
+    <div ref={ref} style={{
+      opacity: inView ? 1 : 0,
+      transform: inView ? 'translateY(0px)' : 'translateY(40px)',
+      transition: `opacity 0.8s cubic-bezier(.22,1,.36,1) ${delay}ms, transform 0.8s cubic-bezier(.22,1,.36,1) ${delay}ms`,
+    }}>{children}</div>
+  )
+}
+function SlideCard({ children, delay = 0 }) {
+  const [ref, inView] = useInView(0.06)
+  return (
+    <div ref={ref} style={{
+      opacity: inView ? 1 : 0,
+      transform: inView ? 'translateY(0px)' : 'translateY(36px)',
+      transition: `opacity 0.6s ease ${delay}ms, transform 0.6s cubic-bezier(.22,1,.36,1) ${delay}ms`,
+      height: '100%',
+    }}>{children}</div>
+  )
+}
+
 export default function TrainerApp() {
   const showToast = useToast()
   const [screen, setScreen] = useState('landing') // landing, login, reg, app
@@ -2834,67 +2870,75 @@ export default function TrainerApp() {
         </div>
 
         {/* ── 히어로 ── */}
-        <div style={{background:'#fff',borderBottom:'1px solid #E1E4D9',padding:'52px 24px 48px',textAlign:'center'}}>
-          <div style={{maxWidth:'480px',margin:'0 auto'}}>
-            <div style={{display:'inline-flex',alignItems:'center',gap:'6px',fontSize:'11px',fontWeight:700,
-              letterSpacing:'0.13em',color:'#4d7c0f',background:'rgba(200,241,53,0.2)',padding:'5px 14px',
-              borderRadius:'20px',border:'1px solid rgba(200,241,53,0.45)',marginBottom:'22px'}}>
-              <span style={{width:'6px',height:'6px',borderRadius:'50%',background:'#84cc16',display:'inline-block'}}/>
-              TRAINER APP
+        <FadeUp>
+          <div style={{background:'#fff',borderBottom:'1px solid #E1E4D9',padding:'52px 24px 48px',textAlign:'center'}}>
+            <div style={{maxWidth:'480px',margin:'0 auto'}}>
+              <div style={{display:'inline-flex',alignItems:'center',gap:'6px',fontSize:'11px',fontWeight:700,
+                letterSpacing:'0.13em',color:'#4d7c0f',background:'rgba(200,241,53,0.2)',padding:'5px 14px',
+                borderRadius:'20px',border:'1px solid rgba(200,241,53,0.45)',marginBottom:'22px'}}>
+                <span style={{width:'6px',height:'6px',borderRadius:'50%',background:'#84cc16',display:'inline-block'}}/>
+                TRAINER APP
+              </div>
+              <h1 style={{fontSize:'clamp(30px,7vw,48px)',fontWeight:900,letterSpacing:'-2px',lineHeight:1.08,
+                color:'#111827',margin:'0 0 16px'}}>
+                트레이너의 모든 것<br/>
+                <span style={{color:'#4d7c0f',background:'rgba(200,241,53,0.18)',padding:'2px 12px',borderRadius:'10px'}}>하나로 연결</span>
+              </h1>
+              <p style={{fontSize:'14px',color:'#6B7280',lineHeight:1.9,maxWidth:'340px',margin:'0 auto 32px'}}>
+                AI 수업일지부터 매출 분석까지, 수업에만 집중할 수 있도록
+                나머지는 오운이 처리합니다.
+              </p>
+              <button onClick={()=>setScreen('login')} style={{
+                background:'#c8f135',color:'#111',padding:'15px 36px',borderRadius:'12px',
+                fontWeight:800,fontSize:'15px',border:'none',cursor:'pointer',
+                boxShadow:'0 4px 20px rgba(200,241,53,0.42)',letterSpacing:'-0.3px',
+                fontFamily:'inherit',display:'block',width:'100%',maxWidth:'300px',
+                marginLeft:'auto',marginRight:'auto',marginBottom:'12px',transition:'all 0.2s'}}>
+                트레이너 로그인 / 등록하기
+              </button>
+              <p style={{fontSize:'12px',color:'#9CA3AF',margin:0}}>이미 등록된 트레이너라면 바로 로그인하세요</p>
             </div>
-            <h1 style={{fontSize:'clamp(30px,7vw,48px)',fontWeight:900,letterSpacing:'-2px',lineHeight:1.08,
-              color:'#111827',margin:'0 0 16px'}}>
-              트레이너의 모든 것<br/>
-              <span style={{color:'#4d7c0f',background:'rgba(200,241,53,0.18)',padding:'2px 12px',borderRadius:'10px'}}>하나로 연결</span>
-            </h1>
-            <p style={{fontSize:'14px',color:'#6B7280',lineHeight:1.9,maxWidth:'340px',margin:'0 auto 32px'}}>
-              AI 수업일지부터 매출 분석까지, 수업에만 집중할 수 있도록
-              나머지는 오운이 처리합니다.
-            </p>
-            <button onClick={()=>setScreen('login')} style={{
-              background:'#c8f135',color:'#111',padding:'15px 36px',borderRadius:'12px',
-              fontWeight:800,fontSize:'15px',border:'none',cursor:'pointer',
-              boxShadow:'0 4px 20px rgba(200,241,53,0.42)',letterSpacing:'-0.3px',
-              fontFamily:'inherit',display:'block',width:'100%',maxWidth:'300px',
-              marginLeft:'auto',marginRight:'auto',marginBottom:'12px',transition:'all 0.2s'}}>
-              트레이너 로그인 / 등록하기
-            </button>
-            <p style={{fontSize:'12px',color:'#9CA3AF',margin:0}}>이미 등록된 트레이너라면 바로 로그인하세요</p>
           </div>
-        </div>
+        </FadeUp>
 
         {/* ── 기능 그리드 ── */}
         <div style={{maxWidth:'640px',margin:'0 auto',padding:'40px 20px 60px'}}>
-          <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.1em',color:'#9CA3AF',
-            textAlign:'center',marginBottom:'20px'}}>핵심 기능 6가지</div>
+          <FadeUp>
+            <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.1em',color:'#9CA3AF',
+              textAlign:'center',marginBottom:'20px'}}>핵심 기능 6가지</div>
+          </FadeUp>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'28px'}}>
             {FEATURES.map((f,i)=>(
-              <div key={i} style={{background:'#fff',border:'1px solid #E1E4D9',
-                borderRadius:'14px',padding:'18px 16px',boxShadow:'0 1px 4px rgba(0,0,0,0.04)',
-                transition:'box-shadow 0.2s'}}>
-                <div style={{fontSize:'22px',marginBottom:'9px'}}>{f.icon}</div>
-                <div style={{fontSize:'13px',fontWeight:700,color:'#111827',marginBottom:'5px',letterSpacing:'-0.2px'}}>{f.title}</div>
-                <div style={{fontSize:'11px',color:'#6B7280',lineHeight:1.65}}>{f.desc}</div>
-              </div>
+              <SlideCard key={i} delay={i * 80}>
+                <div style={{background:'#fff',border:'1px solid #E1E4D9',
+                  borderRadius:'14px',padding:'18px 16px',boxShadow:'0 1px 4px rgba(0,0,0,0.04)',
+                  transition:'box-shadow 0.2s',height:'100%',boxSizing:'border-box'}}>
+                  <div style={{fontSize:'22px',marginBottom:'9px'}}>{f.icon}</div>
+                  <div style={{fontSize:'13px',fontWeight:700,color:'#111827',marginBottom:'5px',letterSpacing:'-0.2px'}}>{f.title}</div>
+                  <div style={{fontSize:'11px',color:'#6B7280',lineHeight:1.65}}>{f.desc}</div>
+                </div>
+              </SlideCard>
             ))}
           </div>
 
           {/* AI 하이라이트 배너 */}
-          <div style={{background:'linear-gradient(135deg,#f0fcd4,#ecfccb)',
-            border:'1px solid rgba(200,241,53,0.52)',borderRadius:'16px',padding:'24px',marginBottom:'12px'}}>
-            <div style={{fontSize:'12px',fontWeight:700,color:'#4d7c0f',letterSpacing:'0.08em',marginBottom:'10px'}}>✦ AI POWERED</div>
-            <div style={{fontSize:'15px',fontWeight:800,marginBottom:'10px',lineHeight:1.4,color:'#111827'}}>
-              녹음 파일 하나로<br/>수업일지 완성 + 카카오 발송
+          <FadeUp delay={100}>
+            <div style={{background:'linear-gradient(135deg,#f0fcd4,#ecfccb)',
+              border:'1px solid rgba(200,241,53,0.52)',borderRadius:'16px',padding:'24px',marginBottom:'12px'}}>
+              <div style={{fontSize:'12px',fontWeight:700,color:'#4d7c0f',letterSpacing:'0.08em',marginBottom:'10px'}}>✦ AI POWERED</div>
+              <div style={{fontSize:'15px',fontWeight:800,marginBottom:'10px',lineHeight:1.4,color:'#111827'}}>
+                녹음 파일 하나로<br/>수업일지 완성 + 카카오 발송
+              </div>
+              <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+                {['녹음 업로드','AI 분석','일지 생성','카카오 발송'].map((s,i)=>(
+                  <span key={i} style={{fontSize:'11px',padding:'4px 10px',borderRadius:'6px',
+                    background:'rgba(200,241,53,0.38)',color:'#4d7c0f',fontWeight:600}}>
+                    {i+1}. {s}
+                  </span>
+                ))}
+              </div>
             </div>
-            <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
-              {['녹음 업로드','AI 분석','일지 생성','카카오 발송'].map((s,i)=>(
-                <span key={i} style={{fontSize:'11px',padding:'4px 10px',borderRadius:'6px',
-                  background:'rgba(200,241,53,0.38)',color:'#4d7c0f',fontWeight:600}}>
-                  {i+1}. {s}
-                </span>
-              ))}
-            </div>
-          </div>
+          </FadeUp>
         </div>
       </div>
     )
