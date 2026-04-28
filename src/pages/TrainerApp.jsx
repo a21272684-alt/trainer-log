@@ -1912,7 +1912,7 @@ export default function TrainerApp() {
     try {
       const { data: inserted, error } = await supabase
         .from('trainers')
-        .insert({ name: regName, auth_id: authUser.id, email: authUser.email })
+        .insert({ name: regName, phone: '', auth_id: authUser.id, email: authUser.email })
         .select().single()
       if (error) throw error
       await _loginWithRecord(inserted)
