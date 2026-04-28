@@ -1713,6 +1713,7 @@ export default function TrainerApp() {
   const [authUser, setAuthUser] = useState(null)   // Supabase Auth user
   const [regName, setRegName] = useState('')
   const [regApi, setRegApi] = useState('')
+  const [regError, setRegError] = useState('')
 
   const audioInputRef = useRef(null)
 
@@ -1900,23 +1901,54 @@ export default function TrainerApp() {
   async function _loginWithRecord(t) {
     setTrainer(t); setCredits(t.credits ?? 0); setScreen('app')
     showToast('✓ 환영해요, ' + t.name + ' 트레이너님!')
-    const { data: libData } = await supabase.from('workout_routines').select('*')
-      .eq('trainer_id', t.id).is('member_id', null).order('created_at', { ascending: false })
-    setTrainerLibraryRoutines(libData || [])
-    loadAiUsage(t.id)
+    try {
+      const { data: libData } = await supabase.from('workout_routines').select('*')
+        .eq('trainer_id', t.id).is('member_id', null).order('created_at', { ascending: false })
+      setTrainerLibraryRoutines(libData || [])
+    } catch(_) {}
+    try { loadAiUsage(t.id) } catch(_) {}
   }
 
   async function register() {
     if (!regName) { showToast('이름을 입력해주세요'); return }
     if (!authUser) { showToast('먼저 소셜 로그인을 해주세요'); setScreen('login'); return }
     try {
-      const { data: inserted, error } = await supabase
+      // ① insert
+      const { data: inserted, error: insertErr } = await supabase
         .from('trainers')
         .insert({ name: regName, phone: '', auth_id: authUser.id, email: authUser.email })
         .select().single()
-      if (error) throw error
-      await _loginWithRecord(inserted)
-    } catch(e) { showToast('오류: ' + e.message) }
+
+      if (insertErr) {
+        console.error('[register] insert error:', insertErr)
+        // auth_id 컬럼 미생성(037 마이그레이션 미실행) 방어
+        if (insertErr.message?.includes('auth_id') || insertErr.code === '42703') {
+          const { data: ins2, error: e2 } = await supabase
+            .from('trainers')
+            .insert({ name: regName, phone: '' })
+            .select().single()
+          if (e2) throw new Error('등록 실패: ' + (e2.message || e2.code))
+          await _loginWithRecord(ins2)
+          return
+        }
+        throw new Error(insertErr.message || insertErr.code || JSON.stringify(insertErr))
+      }
+
+      // ② 로그인
+      try {
+        await _loginWithRecord(inserted)
+      } catch(loginErr) {
+        console.error('[register] _loginWithRecord error:', loginErr)
+        // 로그인 단계 실패해도 등록은 됐으니 앱 화면 진입
+        setTrainer(inserted); setCredits(inserted.credits ?? 0); setScreen('app')
+        showToast('✓ 등록됐어요. ' + inserted.name + ' 트레이너님!')
+      }
+    } catch(e) {
+      console.error('[register] catch:', e)
+      const msg = e.message || JSON.stringify(e)
+      setRegError(msg)
+      showToast('오류: ' + msg)
+    }
   }
 
   // OAuth 인증 상태 감지
@@ -3074,6 +3106,13 @@ export default function TrainerApp() {
               style={{marginTop:'4px',padding:'13px',fontSize:'14px'}} onClick={register}>
               트레이너 등록 완료
             </button>
+            {regError && (
+              <div style={{marginTop:'10px',padding:'10px 12px',background:'rgba(239,68,68,0.08)',
+                border:'1px solid rgba(239,68,68,0.3)',borderRadius:'8px',
+                fontSize:'11px',color:'#ef4444',lineHeight:1.5,wordBreak:'break-all'}}>
+                ⚠️ {regError}
+              </div>
+            )}
             <div style={{textAlign:'center',marginTop:'16px'}}>
               <span style={{fontSize:'13px',color:'#4d7c0f',cursor:'pointer',fontWeight:600}}
                 onClick={()=>setScreen('login')}>← 뒤로</span>
