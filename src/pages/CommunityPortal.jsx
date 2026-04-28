@@ -204,6 +204,23 @@ export default function CommunityPortal() {
   const [routineAnalysis,    setRoutineAnalysis]    = useState('')
   const [analyzingRoutine,   setAnalyzingRoutine]   = useState(false)
 
+  // ── 커뮤니티 랜딩 CMS ─────────────────────────────────────
+  const [commHero, setCommHero] = useState({
+    badge:       'FITNESS COMMUNITY',
+    headline:    '피트니스 업계의',
+    highlight:   '구인·구직 커뮤니티',
+    subheadline: '트레이너·회원·교육강사·센터 대표가 함께하는\n피트니스 전문 매칭 플랫폼입니다.',
+    cta:         'Google로 시작하기',
+  })
+
+  useEffect(() => {
+    supabase.from('app_settings').select('key, value').eq('key', 'landing_community_hero')
+      .then(({ data }) => {
+        const row = data?.find(r => r.key === 'landing_community_hero')
+        if (row?.value) setCommHero(row.value)
+      })
+  }, [])
+
   /* ── 앱 시작 시 인증 확인 ─────────────────────────────────── */
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -809,14 +826,13 @@ export default function CommunityPortal() {
             <div style={{display:'inline-block',fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',
               color:'#ff9800',background:'rgba(255,152,0,0.1)',padding:'5px 14px',borderRadius:'20px',
               border:'1px solid rgba(255,152,0,0.25)',marginBottom:'20px'}}>
-              FITNESS COMMUNITY
+              {commHero.badge}
             </div>
             <h1 style={{fontSize:'clamp(30px,7vw,50px)',fontWeight:900,letterSpacing:'-2px',lineHeight:1.1,margin:'0 0 16px'}}>
-              피트니스 업계의<br/><span style={{color:'#ff9800'}}>구인·구직 커뮤니티</span>
+              {commHero.headline}<br/><span style={{color:'#ff9800'}}>{commHero.highlight}</span>
             </h1>
-            <p style={{fontSize:'14px',color:'rgba(255,255,255,0.5)',lineHeight:1.85,maxWidth:'360px',margin:'0 auto 36px'}}>
-              트레이너·회원·교육강사·센터 대표가 함께하는
-              피트니스 전문 매칭 플랫폼입니다.
+            <p style={{fontSize:'14px',color:'rgba(255,255,255,0.5)',lineHeight:1.85,maxWidth:'360px',margin:'0 auto 36px',whiteSpace:'pre-line'}}>
+              {commHero.subheadline}
             </p>
             <button onClick={()=>setScreen('login')} style={{
               background:'linear-gradient(135deg,#ff9800,#f57c00)',color:'#fff',
@@ -824,7 +840,7 @@ export default function CommunityPortal() {
               border:'none',cursor:'pointer',boxShadow:'0 4px 24px rgba(255,152,0,0.35)',
               fontFamily:'inherit',display:'block',width:'100%',
               maxWidth:'300px',marginLeft:'auto',marginRight:'auto',marginBottom:'12px'}}>
-              Google로 시작하기
+              {commHero.cta}
             </button>
             <p style={{fontSize:'12px',color:'rgba(255,255,255,0.3)',margin:0}}>Google 계정으로 5초 만에 가입할 수 있어요</p>
           </div>

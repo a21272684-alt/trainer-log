@@ -51,6 +51,14 @@ const PAIN_POINTS = [
   { icon: '📉', text: '비수기에 갑작스러운 매출 급락을 미리 알지 못했던 원장님' },
 ]
 
+const DEFAULT_CRM_HERO = {
+  badge: 'FOR GYM OWNERS',
+  headline1: '헬스장 운영의',
+  headline2: '모든 것을 한 곳에',
+  subheadline: '트레이너 관리부터 매출 정산, 회원 CRM까지.\n헬스장 원장님을 위한 전용 관리 시스템이에요.',
+  cta: 'CRM 포털 입장하기',
+}
+
 /* ═══════════════════════════════════════════════════════════════
    컴포넌트
 ═══════════════════════════════════════════════════════════════ */
@@ -61,6 +69,31 @@ export default function GymPortal() {
   const [trainers, setTrainers] = useState([])
   const [members,  setMembers]  = useState([])
   const [loading,  setLoading]  = useState(false)
+
+  // CRM 랜딩 콘텐츠 (Supabase에서 로드)
+  const [crmHero,       setCrmHero]       = useState(DEFAULT_CRM_HERO)
+  const [crmFeatures,   setCrmFeatures]   = useState(CRM_FEATURES)
+  const [crmPainpoints, setCrmPainpoints] = useState(PAIN_POINTS)
+  const [crmRoadmap,    setCrmRoadmap]    = useState([
+    { now: '트레이너 목록 · 회원 현황 조회', coming: '트레이너별 매출 정산 자동화' },
+    { now: '소속 트레이너별 회원 수 통계',    coming: '회원 이탈 예측 · CRM 알림' },
+    { now: '활성 회원 · 신규 회원 KPI',      coming: '마케팅 도구 · 쿠폰 발급' },
+    { now: '실시간 대시보드',                coming: '트레이너 계약 · 고용형태 관리' },
+  ])
+
+  // 랜딩 콘텐츠 로드
+  useEffect(() => {
+    supabase.from('app_settings').select('key, value').in('key', [
+      'landing_crm_hero', 'landing_crm_features', 'landing_crm_painpoints', 'landing_crm_roadmap',
+    ]).then(({ data }) => {
+      if (!data) return
+      const find = (k) => data.find(r => r.key === k)
+      if (find('landing_crm_hero')?.value)              setCrmHero(find('landing_crm_hero').value)
+      if (Array.isArray(find('landing_crm_features')?.value))   setCrmFeatures(find('landing_crm_features').value)
+      if (Array.isArray(find('landing_crm_painpoints')?.value)) setCrmPainpoints(find('landing_crm_painpoints').value)
+      if (Array.isArray(find('landing_crm_roadmap')?.value))    setCrmRoadmap(find('landing_crm_roadmap').value)
+    })
+  }, [])
 
   const login = () => {
     if (pw !== GYM_PW) { setError('비밀번호가 틀렸어요'); return }
@@ -121,20 +154,19 @@ export default function GymPortal() {
             <div style={{display:'inline-block',fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',
               color:'#e040fb',background:'rgba(224,64,251,0.1)',padding:'5px 14px',borderRadius:'20px',
               border:'1px solid rgba(224,64,251,0.25)',marginBottom:'24px'}}>
-              FOR GYM OWNERS
+              {crmHero.badge}
             </div>
             <h1 style={{fontSize:'clamp(28px,6vw,52px)',fontWeight:900,letterSpacing:'-2px',
               lineHeight:1.1,margin:'0 0 20px'}}>
-              헬스장 운영의<br/>
+              {crmHero.headline1}<br/>
               <span style={{background:'linear-gradient(90deg,#e040fb,#9c27b0)',
                 WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>
-                모든 것을 한 곳에
+                {crmHero.headline2}
               </span>
             </h1>
             <p style={{fontSize:'15px',color:'rgba(255,255,255,0.55)',lineHeight:1.85,
-              maxWidth:'420px',margin:'0 auto 40px',letterSpacing:'-0.2px'}}>
-              트레이너 관리부터 매출 정산, 회원 CRM까지.<br/>
-              헬스장 원장님을 위한 전용 관리 시스템이에요.
+              maxWidth:'420px',margin:'0 auto 40px',letterSpacing:'-0.2px',whiteSpace:'pre-line'}}>
+              {crmHero.subheadline}
             </p>
             <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'10px'}}>
               <button
@@ -143,7 +175,7 @@ export default function GymPortal() {
                   padding:'16px 48px',borderRadius:'12px',fontWeight:800,fontSize:'15px',
                   border:'none',cursor:'pointer',boxShadow:'0 4px 28px rgba(224,64,251,0.4)',
                   fontFamily:'inherit',letterSpacing:'-0.3px'}}>
-                CRM 포털 입장하기 →
+                {crmHero.cta} →
               </button>
               <p style={{fontSize:'12px',color:'rgba(255,255,255,0.3)',margin:0}}>비밀번호만 입력하면 바로 시작할 수 있어요</p>
             </div>
@@ -159,7 +191,7 @@ export default function GymPortal() {
               </h2>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:'12px'}}>
-              {PAIN_POINTS.map((p, i) => (
+              {crmPainpoints.map((p, i) => (
                 <div key={i} style={{background:'rgba(255,255,255,0.03)',
                   border:'1px solid rgba(239,68,68,0.15)',borderRadius:'14px',
                   padding:'18px 20px',display:'flex',gap:'12px',alignItems:'flex-start'}}>
@@ -181,7 +213,7 @@ export default function GymPortal() {
               <p style={{fontSize:'13px',color:'rgba(255,255,255,0.4)',margin:0}}>헬스장 운영에 필요한 모든 기능을 하나로</p>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(230px,1fr))',gap:'12px'}}>
-              {CRM_FEATURES.map((f, i) => (
+              {crmFeatures.map((f, i) => (
                 <div key={i} style={{
                   background:'rgba(255,255,255,0.03)',
                   border:`1px solid ${f.color}20`,
@@ -216,22 +248,17 @@ export default function GymPortal() {
                   color:'rgba(255,255,255,0.3)',borderLeft:'1px solid rgba(255,255,255,0.07)',
                   letterSpacing:'0.06em'}}>⚙ 준비 중</div>
               </div>
-              {[
-                ['트레이너 목록 · 회원 현황 조회', '트레이너별 매출 정산 자동화'],
-                ['소속 트레이너별 회원 수 통계', '회원 이탈 예측 · CRM 알림'],
-                ['활성 회원 · 신규 회원 KPI', '마케팅 도구 · 쿠폰 발급'],
-                ['실시간 대시보드', '트레이너 계약 · 고용형태 관리'],
-              ].map(([a, b], i) => (
+              {crmRoadmap.map((row, i) => (
                 <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 1fr',
-                  borderBottom: i < 3 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                  borderBottom: i < crmRoadmap.length-1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
                   background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)'}}>
                   <div style={{padding:'14px 20px',fontSize:'13px',color:'rgba(255,255,255,0.75)',
                     display:'flex',alignItems:'center',gap:'8px'}}>
-                    <span style={{color:'#22c55e',flexShrink:0}}>✓</span>{a}
+                    <span style={{color:'#22c55e',flexShrink:0}}>✓</span>{row.now}
                   </div>
                   <div style={{padding:'14px 20px',fontSize:'13px',color:'rgba(255,255,255,0.3)',
                     borderLeft:'1px solid rgba(255,255,255,0.05)',display:'flex',alignItems:'center',gap:'8px'}}>
-                    <span style={{flexShrink:0}}>⚙</span>{b}
+                    <span style={{flexShrink:0}}>⚙</span>{row.coming}
                   </div>
                 </div>
               ))}

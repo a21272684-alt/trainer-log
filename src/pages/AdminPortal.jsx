@@ -11,22 +11,41 @@ const PORTAL_TABS = {
   member:    [{ id:'status', label:'회원 현황' }, { id:'notices', label:'공지사항 관리' }, { id:'free_board', label:'자유게시판 관리' }],
   community: [{ id:'posts', label:'게시글' }, { id:'users', label:'유저' }, { id:'contacts', label:'연락 요청' }],
   crm:       [{ id:'permissions', label:'권한 관리' }],
-  landing:   [
-    { id:'hero',      label:'히어로' },
-    { id:'stats',     label:'통계 수치' },
-    { id:'problems',  label:'문제 인식' },
-    { id:'solutions', label:'솔루션' },
-    { id:'reviews',   label:'트레이너 후기' },
-    { id:'kakao',     label:'카카오 메시지' },
-    { id:'targets',   label:'타겟 분기' },
-    { id:'members',   label:'회원 포털 기능' },
+  // landing 은 아래 LANDING_PORTALS / LANDING_TABS 로 2단계 관리
+}
+
+const DEFAULT_TAB = { trainer:'list', member:'status', community:'posts', crm:'permissions', landing:'hero' }
+
+// ── 랜딩 2단계 네비 ──────────────────────────────────────────
+const LANDING_PORTALS = [
+  { id:'main',      label:'🌐 메인 랜딩' },
+  { id:'community', label:'🤝 커뮤니티 랜딩' },
+  { id:'crm',       label:'🏢 CRM 랜딩' },
+]
+const LANDING_TABS = {
+  main: [
+    { id:'hero',       label:'히어로' },
+    { id:'stats',      label:'통계 수치' },
+    { id:'problems',   label:'문제 인식' },
+    { id:'solutions',  label:'솔루션' },
+    { id:'reviews',    label:'트레이너 후기' },
+    { id:'kakao',      label:'카카오 메시지' },
+    { id:'targets',    label:'타겟 분기' },
+    { id:'members',    label:'회원 포털 기능' },
     { id:'plans',      label:'요금제' },
     { id:'faqs',       label:'FAQ' },
     { id:'comparison', label:'기능 비교' },
   ],
+  community: [
+    { id:'hero', label:'히어로' },
+  ],
+  crm: [
+    { id:'hero',       label:'히어로' },
+    { id:'features',   label:'기능 소개' },
+    { id:'painpoints', label:'페인포인트' },
+    { id:'roadmap',    label:'로드맵' },
+  ],
 }
-
-const DEFAULT_TAB = { trainer:'list', member:'status', community:'posts', crm:'permissions', landing:'hero' }
 
 const DEFAULT_LANDING_STATS = [
   { num:'3분', label:'첫 수업일지 완성까지', sub:'녹음 업로드부터 발송까지' },
@@ -87,6 +106,44 @@ const DEFAULT_LANDING_MEMBER_FEATURES = [
   { icon:'🏃', title:'개인운동 일지', desc:'60+ 종목 자동완성, 세트·볼륨 계산, 앞뒤 근육 다이어그램' },
   { icon:'🤝', title:'회원 커뮤니티', desc:'같은 센터 회원들과 운동 일상을 사진·이모지로 공유' },
 ]
+// ── 커뮤니티 포털 랜딩 ──────────────────────────────────────
+const DEFAULT_LANDING_COMMUNITY_HERO = {
+  badge:       'FITNESS COMMUNITY',
+  headline:    '피트니스 업계의',
+  highlight:   '구인·구직 커뮤니티',
+  subheadline: '트레이너·회원·교육강사·센터 대표가 함께하는\n피트니스 전문 매칭 플랫폼입니다.',
+  cta:         'Google로 시작하기',
+}
+
+// ── CRM 포털 랜딩 ────────────────────────────────────────────
+const DEFAULT_LANDING_CRM_HERO = {
+  badge:      'FOR GYM OWNERS',
+  headline1:  '헬스장 운영의',
+  headline2:  '모든 것을 한 곳에',
+  subheadline:'트레이너 관리부터 매출 정산, 회원 CRM까지.\n헬스장 원장님을 위한 전용 관리 시스템이에요.',
+  cta:        'CRM 포털 입장하기',
+}
+const DEFAULT_LANDING_CRM_FEATURES = [
+  { icon:'💪', title:'트레이너 관리',    desc:'소속 트레이너 현황·담당 회원 수·활성 상태를 한눈에 파악해요',          color:'#c8f135' },
+  { icon:'📊', title:'매출 분석',        desc:'트레이너별 수익·정산 현황을 자동으로 집계해 월별 리포트를 제공해요',    color:'#e040fb' },
+  { icon:'🗂️', title:'회원 CRM',         desc:'전체 회원 현황·이탈 위험 분석·재등록 예측으로 매출 공백을 방지해요',   color:'#4fc3f7' },
+  { icon:'📣', title:'마케팅 도구',      desc:'공지·이벤트·프로모션·쿠폰을 회원에게 직접 발송할 수 있어요',           color:'#ff9800' },
+  { icon:'📋', title:'계약 관리',        desc:'트레이너 고용형태·계약서·인센티브 설정을 체계적으로 관리해요',           color:'#22c55e' },
+  { icon:'⚡', title:'실시간 대시보드',  desc:'오늘의 수업 현황·매출·신규 회원을 실시간으로 모니터링해요',             color:'#f59e0b' },
+]
+const DEFAULT_LANDING_CRM_PAINPOINTS = [
+  { icon:'😤', text:'트레이너별 매출을 엑셀로 정리하느라 정산일이 두려운 원장님' },
+  { icon:'😰', text:'회원이 왜 끊었는지 파악도 못 한 채 신규 마케팅만 하는 센터' },
+  { icon:'📱', text:'트레이너와 카톡으로 업무 연락하다 중요한 정보를 놓치는 분' },
+  { icon:'📉', text:'비수기에 갑작스러운 매출 급락을 미리 알지 못했던 원장님' },
+]
+const DEFAULT_LANDING_CRM_ROADMAP = [
+  { now:'트레이너 목록 · 회원 현황 조회',    coming:'트레이너별 매출 정산 자동화' },
+  { now:'소속 트레이너별 회원 수 통계',       coming:'회원 이탈 예측 · CRM 알림' },
+  { now:'활성 회원 · 신규 회원 KPI',         coming:'마케팅 도구 · 쿠폰 발급' },
+  { now:'실시간 대시보드',                   coming:'트레이너 계약 · 고용형태 관리' },
+]
+
 const DEFAULT_LANDING_COMPARISON = [
   { feature:'AI 수업일지 작성',  legacy:'수기 메모 · 10~30분',      ours:'AI 자동 생성 · 3분' },
   { feature:'회원 리포트 발송',  legacy:'별도 없음',                 ours:'카카오톡 자동 발송' },
@@ -139,6 +196,7 @@ export default function AdminPortal() {
   const [pw, setPw] = useState('')
   const [page, setPage] = useState('dashboard')
   const [subTab, setSubTab] = useState('')
+  const [landingSite, setLandingSite] = useState('main') // 'main' | 'community' | 'crm'
 
   const [trainers, setTrainers] = useState([])
   const [members, setMembers] = useState([])
@@ -192,6 +250,13 @@ export default function AdminPortal() {
   const [landingPlansLanding,   setLandingPlansLanding]   = useState(DEFAULT_LANDING_PLANS_LANDING)
   const [landingComparison,     setLandingComparison]     = useState(DEFAULT_LANDING_COMPARISON)
 
+  // 커뮤니티·CRM 포털 랜딩
+  const [landingCommHero,      setLandingCommHero]      = useState(DEFAULT_LANDING_COMMUNITY_HERO)
+  const [landingCrmHero,       setLandingCrmHero]       = useState(DEFAULT_LANDING_CRM_HERO)
+  const [landingCrmFeatures,   setLandingCrmFeatures]   = useState(DEFAULT_LANDING_CRM_FEATURES)
+  const [landingCrmPainpoints, setLandingCrmPainpoints] = useState(DEFAULT_LANDING_CRM_PAINPOINTS)
+  const [landingCrmRoadmap,    setLandingCrmRoadmap]    = useState(DEFAULT_LANDING_CRM_ROADMAP)
+
   // 크레딧 / API 키 관리
   const [creditAmount, setCreditAmount] = useState('10')
   const [centralApiKey, setCentralApiKey] = useState('')
@@ -200,6 +265,11 @@ export default function AdminPortal() {
   const navigate = (portalId) => {
     setPage(portalId)
     if (DEFAULT_TAB[portalId]) setSubTab(DEFAULT_TAB[portalId])
+    if (portalId === 'landing') { setLandingSite('main'); setSubTab('hero') }
+  }
+  const switchLandingSite = (site) => {
+    setLandingSite(site)
+    setSubTab(LANDING_TABS[site][0].id)
   }
 
   const login = () => {
@@ -225,6 +295,8 @@ export default function AdminPortal() {
           'landing_hero', 'landing_stats', 'landing_problems', 'landing_solutions',
           'landing_reviews', 'landing_kakao', 'landing_targets', 'landing_member_features',
           'landing_plans_landing', 'landing_faqs', 'landing_comparison',
+          'landing_community_hero',
+          'landing_crm_hero', 'landing_crm_features', 'landing_crm_painpoints', 'landing_crm_roadmap',
         ]),
         supabase.from('inquiries').select('*, trainer:trainers(name)').order('created_at', { ascending: false }),
         supabase.from('notices').select('*').order('is_pinned', { ascending: false }).order('created_at', { ascending: false }),
@@ -262,6 +334,16 @@ export default function AdminPortal() {
         if (lMembers?.value)      setLandingMemberFeatures(lMembers.value)
         if (lPlansl?.value)       setLandingPlansLanding(lPlansl.value)
         if (lComparison?.value)   setLandingComparison(lComparison.value)
+        const lCommHero   = settings.data.find(r => r.key === 'landing_community_hero')
+        const lCrmHero    = settings.data.find(r => r.key === 'landing_crm_hero')
+        const lCrmFeat    = settings.data.find(r => r.key === 'landing_crm_features')
+        const lCrmPain    = settings.data.find(r => r.key === 'landing_crm_painpoints')
+        const lCrmRoad    = settings.data.find(r => r.key === 'landing_crm_roadmap')
+        if (lCommHero?.value)             setLandingCommHero(lCommHero.value)
+        if (lCrmHero?.value)              setLandingCrmHero(lCrmHero.value)
+        if (Array.isArray(lCrmFeat?.value))   setLandingCrmFeatures(lCrmFeat.value)
+        if (Array.isArray(lCrmPain?.value))   setLandingCrmPainpoints(lCrmPain.value)
+        if (Array.isArray(lCrmRoad?.value))   setLandingCrmRoadmap(lCrmRoad.value)
         const apiKeyRow = settings.data.find(r => r.key === 'gemini_api_key')
         if (apiKeyRow?.value) setCentralApiKey(String(apiKeyRow.value).replace(/^"|"$/g, ''))
         setApiKeyLoaded(true)
@@ -524,6 +606,11 @@ export default function AdminPortal() {
   async function saveLandingMemberFeatures(next){ setLandingMemberFeatures(next);await saveLandingKey('landing_member_features', next); showToast('✓ 회원 포털 기능 저장됨') }
   async function saveLandingPlansLanding(next)  { setLandingPlansLanding(next);  await saveLandingKey('landing_plans_landing', next);   showToast('✓ 요금제 저장됨') }
   async function saveLandingComparison(next)    { setLandingComparison(next);    await saveLandingKey('landing_comparison', next);        showToast('✓ 기능 비교 저장됨') }
+  async function saveLandingCommHero(next)      { setLandingCommHero(next);      await saveLandingKey('landing_community_hero', next);    showToast('✓ 커뮤니티 히어로 저장됨') }
+  async function saveLandingCrmHero(next)       { setLandingCrmHero(next);       await saveLandingKey('landing_crm_hero', next);           showToast('✓ CRM 히어로 저장됨') }
+  async function saveLandingCrmFeatures(next)   { setLandingCrmFeatures(next);   await saveLandingKey('landing_crm_features', next);       showToast('✓ CRM 기능 저장됨') }
+  async function saveLandingCrmPainpoints(next) { setLandingCrmPainpoints(next); await saveLandingKey('landing_crm_painpoints', next);     showToast('✓ 페인포인트 저장됨') }
+  async function saveLandingCrmRoadmap(next)    { setLandingCrmRoadmap(next);    await saveLandingKey('landing_crm_roadmap', next);        showToast('✓ 로드맵 저장됨') }
 
   function openLandingEdit(type, index, data) {
     setLandingEditModal({ type, index, data: { ...data } })
@@ -561,6 +648,15 @@ export default function AdminPortal() {
     } else if (type === 'comparison') {
       const next = index === -1 ? [...landingComparison, data] : landingComparison.map((r,i) => i === index ? data : r)
       await saveLandingComparison(next)
+    } else if (type === 'crm_features') {
+      const next = index === -1 ? [...landingCrmFeatures, data] : landingCrmFeatures.map((r,i) => i === index ? data : r)
+      await saveLandingCrmFeatures(next)
+    } else if (type === 'crm_painpoints') {
+      const next = index === -1 ? [...landingCrmPainpoints, data] : landingCrmPainpoints.map((r,i) => i === index ? data : r)
+      await saveLandingCrmPainpoints(next)
+    } else if (type === 'crm_roadmap') {
+      const next = index === -1 ? [...landingCrmRoadmap, data] : landingCrmRoadmap.map((r,i) => i === index ? data : r)
+      await saveLandingCrmRoadmap(next)
     }
     closeLandingEdit()
   }
@@ -573,8 +669,11 @@ export default function AdminPortal() {
     else if (type === 'solutions')await saveLandingSolutions(landingSolutions.filter((_,i) => i !== index))
     else if (type === 'targets')  await saveLandingTargets(landingTargets.filter((_,i) => i !== index))
     else if (type === 'members')  await saveLandingMemberFeatures(landingMemberFeatures.filter((_,i) => i !== index))
-    else if (type === 'landing_plans') await saveLandingPlansLanding(landingPlansLanding.filter((_,i) => i !== index))
-    else if (type === 'comparison')    await saveLandingComparison(landingComparison.filter((_,i) => i !== index))
+    else if (type === 'landing_plans')  await saveLandingPlansLanding(landingPlansLanding.filter((_,i) => i !== index))
+    else if (type === 'comparison')     await saveLandingComparison(landingComparison.filter((_,i) => i !== index))
+    else if (type === 'crm_features')   await saveLandingCrmFeatures(landingCrmFeatures.filter((_,i) => i !== index))
+    else if (type === 'crm_painpoints') await saveLandingCrmPainpoints(landingCrmPainpoints.filter((_,i) => i !== index))
+    else if (type === 'crm_roadmap')    await saveLandingCrmRoadmap(landingCrmRoadmap.filter((_,i) => i !== index))
   }
 
   const navItems = [
@@ -610,8 +709,8 @@ export default function AdminPortal() {
         {/* CONTENT */}
         <div className="content">
 
-          {/* PORTAL SUB-TABS */}
-          {page !== 'dashboard' && PORTAL_TABS[page] && (
+          {/* PORTAL SUB-TABS (landing 제외) */}
+          {page !== 'dashboard' && page !== 'landing' && PORTAL_TABS[page] && (
             <div className="portal-tab-bar">
               {PORTAL_TABS[page].map(tab => (
                 <button key={tab.id} className={`portal-tab-btn${subTab===tab.id?' active':''}`} onClick={() => setSubTab(tab.id)}>
@@ -619,6 +718,33 @@ export default function AdminPortal() {
                 </button>
               ))}
             </div>
+          )}
+
+          {/* LANDING 2단계 네비 */}
+          {page === 'landing' && (
+            <>
+              {/* Level 1: 포털 선택 */}
+              <div className="portal-tab-bar" style={{background:'var(--surface-2,#1a1a24)',borderBottom:'2px solid var(--border)'}}>
+                {LANDING_PORTALS.map(p => (
+                  <button
+                    key={p.id}
+                    className={`portal-tab-btn${landingSite===p.id?' active':''}`}
+                    style={landingSite===p.id ? {fontWeight:800} : {}}
+                    onClick={() => switchLandingSite(p.id)}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              {/* Level 2: 섹션 탭 */}
+              <div className="portal-tab-bar">
+                {LANDING_TABS[landingSite].map(tab => (
+                  <button key={tab.id} className={`portal-tab-btn${subTab===tab.id?' active':''}`} onClick={() => setSubTab(tab.id)}>
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
 
           {/* ==================== DASHBOARD ==================== */}
@@ -1143,7 +1269,7 @@ export default function AdminPortal() {
           {/* ==================== 랜딩페이지 관리 ==================== */}
 
           {/* ── 히어로 ── */}
-          {page === 'landing' && subTab === 'hero' && (
+          {page === 'landing' && landingSite === 'main' && subTab === 'hero' && (
             <div>
               <div className="section-title">히어로 섹션</div>
               <div className="card">
@@ -1186,7 +1312,7 @@ export default function AdminPortal() {
           )}
 
           {/* ==================== 트레이너 포털 > 플랜 관리 ==================== */}
-          {page === 'landing' && subTab === 'stats' && (
+          {page === 'landing' && landingSite === 'main' && subTab === 'stats' && (
             <div>
               <div className="section-title">통계 수치</div>
               <div style={{fontSize:'13px',color:'var(--text-dim)',marginBottom:'16px'}}>히어로 섹션 아래 3개의 숫자 카드를 수정해요</div>
@@ -1203,7 +1329,7 @@ export default function AdminPortal() {
             </div>
           )}
 
-          {page === 'landing' && subTab === 'reviews' && (
+          {page === 'landing' && landingSite === 'main' && subTab === 'reviews' && (
             <div>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
                 <div className="section-title" style={{margin:0}}>트레이너 후기</div>
@@ -1239,7 +1365,7 @@ export default function AdminPortal() {
             </div>
           )}
 
-          {page === 'landing' && subTab === 'kakao' && (
+          {page === 'landing' && landingSite === 'main' && subTab === 'kakao' && (
             <div>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
                 <div className="section-title" style={{margin:0}}>카카오 메시지</div>
@@ -1266,7 +1392,7 @@ export default function AdminPortal() {
             </div>
           )}
 
-          {page === 'landing' && subTab === 'faqs' && (
+          {page === 'landing' && landingSite === 'main' && subTab === 'faqs' && (
             <div>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
                 <div className="section-title" style={{margin:0}}>FAQ</div>
@@ -1292,7 +1418,7 @@ export default function AdminPortal() {
           )}
 
           {/* ── 문제 인식 ── */}
-          {page === 'landing' && subTab === 'problems' && (
+          {page === 'landing' && landingSite === 'main' && subTab === 'problems' && (
             <div>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
                 <div className="section-title" style={{margin:0}}>문제 인식 카드</div>
@@ -1317,7 +1443,7 @@ export default function AdminPortal() {
           )}
 
           {/* ── 솔루션 ── */}
-          {page === 'landing' && subTab === 'solutions' && (
+          {page === 'landing' && landingSite === 'main' && subTab === 'solutions' && (
             <div>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
                 <div className="section-title" style={{margin:0}}>솔루션 카드</div>
@@ -1345,7 +1471,7 @@ export default function AdminPortal() {
           )}
 
           {/* ── 타겟 분기 ── */}
-          {page === 'landing' && subTab === 'targets' && (
+          {page === 'landing' && landingSite === 'main' && subTab === 'targets' && (
             <div>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
                 <div className="section-title" style={{margin:0}}>타겟 분기 카드</div>
@@ -1372,7 +1498,7 @@ export default function AdminPortal() {
           )}
 
           {/* ── 회원 포털 기능 ── */}
-          {page === 'landing' && subTab === 'members' && (
+          {page === 'landing' && landingSite === 'main' && subTab === 'members' && (
             <div>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
                 <div className="section-title" style={{margin:0}}>회원 포털 기능 카드</div>
@@ -1397,7 +1523,7 @@ export default function AdminPortal() {
           )}
 
           {/* ── 요금제 (랜딩) ── */}
-          {page === 'landing' && subTab === 'plans' && (
+          {page === 'landing' && landingSite === 'main' && subTab === 'plans' && (
             <div>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
                 <div className="section-title" style={{margin:0}}>요금제 카드</div>
@@ -1427,7 +1553,7 @@ export default function AdminPortal() {
             </div>
           )}
 
-          {page === 'landing' && subTab === 'comparison' && (
+          {page === 'landing' && landingSite === 'main' && subTab === 'comparison' && (
             <div>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
                 <div className="section-title" style={{margin:0}}>기능 비교 행</div>
@@ -1454,6 +1580,163 @@ export default function AdminPortal() {
                     </div>
                     <div style={{padding:'12px 14px',fontSize:'12px',color:'var(--accent)',borderLeft:'1px solid var(--border)',display:'flex',alignItems:'center',gap:'6px',fontWeight:600}}>
                       <span>✓</span>{row.ours}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── 커뮤니티 랜딩 > 히어로 ── */}
+          {page === 'landing' && landingSite === 'community' && subTab === 'hero' && (
+            <div>
+              <div className="section-title">커뮤니티 랜딩 · 히어로</div>
+              <div className="card">
+                <div className="form-group"><label>뱃지</label>
+                  <input value={landingCommHero.badge||''} onChange={e=>setLandingCommHero(h=>({...h,badge:e.target.value}))} placeholder="FITNESS COMMUNITY"/>
+                </div>
+                <div className="form-row">
+                  <div className="form-group"><label>헤드라인</label>
+                    <input value={landingCommHero.headline||''} onChange={e=>setLandingCommHero(h=>({...h,headline:e.target.value}))} placeholder="피트니스 업계의"/>
+                  </div>
+                  <div className="form-group"><label>강조 키워드</label>
+                    <input value={landingCommHero.highlight||''} onChange={e=>setLandingCommHero(h=>({...h,highlight:e.target.value}))} placeholder="구인·구직 커뮤니티"/>
+                  </div>
+                </div>
+                <div className="form-group"><label>서브헤드라인 (줄바꿈은 \n)</label>
+                  <textarea rows={2} value={landingCommHero.subheadline||''} onChange={e=>setLandingCommHero(h=>({...h,subheadline:e.target.value}))} placeholder="트레이너·회원·교육강사·센터 대표가 함께하는..."/>
+                </div>
+                <div className="form-group"><label>CTA 버튼</label>
+                  <input value={landingCommHero.cta||''} onChange={e=>setLandingCommHero(h=>({...h,cta:e.target.value}))} placeholder="Google로 시작하기"/>
+                </div>
+                {/* 미리보기 */}
+                <div className="form-group">
+                  <label>미리보기</label>
+                  <div style={{background:'var(--surface2)',borderRadius:'10px',padding:'18px',border:'1px solid var(--border)'}}>
+                    <div style={{fontSize:'10px',color:'#4fc3f7',fontWeight:700,letterSpacing:'0.1em',marginBottom:'8px'}}>{landingCommHero.badge}</div>
+                    <div style={{fontWeight:900,fontSize:'20px',lineHeight:1.2,marginBottom:'6px'}}>
+                      {landingCommHero.headline}<br/>
+                      <span style={{color:'#c8f135'}}>{landingCommHero.highlight}</span>
+                    </div>
+                    <div style={{fontSize:'12px',color:'var(--text-dim)',whiteSpace:'pre-line',lineHeight:1.7,marginBottom:'10px'}}>{landingCommHero.subheadline}</div>
+                    <div style={{display:'inline-block',background:'#4fc3f7',color:'#0f0f0f',padding:'6px 14px',borderRadius:'6px',fontSize:'12px',fontWeight:700}}>{landingCommHero.cta}</div>
+                  </div>
+                </div>
+                <button className="btn btn-primary" onClick={() => saveLandingCommHero(landingCommHero)}>저장</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── CRM 랜딩 > 히어로 ── */}
+          {page === 'landing' && landingSite === 'crm' && subTab === 'hero' && (
+            <div>
+              <div className="section-title">CRM 랜딩 · 히어로</div>
+              <div className="card">
+                <div className="form-group"><label>뱃지</label>
+                  <input value={landingCrmHero.badge||''} onChange={e=>setLandingCrmHero(h=>({...h,badge:e.target.value}))} placeholder="FOR GYM OWNERS"/>
+                </div>
+                <div className="form-row">
+                  <div className="form-group"><label>헤드라인 1줄</label>
+                    <input value={landingCrmHero.headline1||''} onChange={e=>setLandingCrmHero(h=>({...h,headline1:e.target.value}))} placeholder="헬스장 운영의"/>
+                  </div>
+                  <div className="form-group"><label>헤드라인 2줄 (강조)</label>
+                    <input value={landingCrmHero.headline2||''} onChange={e=>setLandingCrmHero(h=>({...h,headline2:e.target.value}))} placeholder="모든 것을 한 곳에"/>
+                  </div>
+                </div>
+                <div className="form-group"><label>서브헤드라인 (줄바꿈은 \n)</label>
+                  <textarea rows={2} value={landingCrmHero.subheadline||''} onChange={e=>setLandingCrmHero(h=>({...h,subheadline:e.target.value}))} placeholder="트레이너 관리부터 매출 정산..."/>
+                </div>
+                <div className="form-group"><label>CTA 버튼</label>
+                  <input value={landingCrmHero.cta||''} onChange={e=>setLandingCrmHero(h=>({...h,cta:e.target.value}))} placeholder="CRM 포털 입장하기"/>
+                </div>
+                {/* 미리보기 */}
+                <div className="form-group">
+                  <label>미리보기</label>
+                  <div style={{background:'var(--surface2)',borderRadius:'10px',padding:'18px',border:'1px solid var(--border)'}}>
+                    <div style={{fontSize:'10px',color:'var(--accent)',fontWeight:700,letterSpacing:'0.1em',marginBottom:'8px'}}>{landingCrmHero.badge}</div>
+                    <div style={{fontWeight:900,fontSize:'20px',lineHeight:1.2,marginBottom:'6px'}}>
+                      {landingCrmHero.headline1}<br/>
+                      <span style={{color:'#c8f135'}}>{landingCrmHero.headline2}</span>
+                    </div>
+                    <div style={{fontSize:'12px',color:'var(--text-dim)',whiteSpace:'pre-line',lineHeight:1.7,marginBottom:'10px'}}>{landingCrmHero.subheadline}</div>
+                    <div style={{display:'inline-block',background:'var(--accent)',color:'#0f0f0f',padding:'6px 14px',borderRadius:'6px',fontSize:'12px',fontWeight:700}}>{landingCrmHero.cta}</div>
+                  </div>
+                </div>
+                <button className="btn btn-primary" onClick={() => saveLandingCrmHero(landingCrmHero)}>저장</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── CRM 랜딩 > 기능 소개 ── */}
+          {page === 'landing' && landingSite === 'crm' && subTab === 'features' && (
+            <div>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
+                <div className="section-title" style={{margin:0}}>CRM 랜딩 · 기능 소개</div>
+                <button className="btn btn-primary btn-sm" onClick={() => openLandingEdit('crm_features', -1, {icon:'⚡',title:'',desc:'',color:'#c8f135'})}>+ 추가</button>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}}>
+                {landingCrmFeatures.map((f, i) => (
+                  <div key={i} className="card" style={{display:'flex',gap:'12px',alignItems:'flex-start'}}>
+                    <div style={{fontSize:'24px',lineHeight:1,flexShrink:0}}>{f.icon}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:700,fontSize:'13px',color:f.color||'var(--accent)',marginBottom:'4px'}}>{f.title}</div>
+                      <div style={{fontSize:'11px',color:'var(--text-dim)',lineHeight:1.6}}>{f.desc}</div>
+                    </div>
+                    <div style={{display:'flex',gap:'4px',flexShrink:0}}>
+                      <button className="btn btn-ghost btn-sm" onClick={() => openLandingEdit('crm_features', i, f)}>수정</button>
+                      <button className="btn btn-sm" style={{background:'rgba(239,68,68,0.1)',color:'#ef4444',border:'1px solid rgba(239,68,68,0.2)'}} onClick={() => deleteLandingItem('crm_features', i)}>삭제</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── CRM 랜딩 > 페인포인트 ── */}
+          {page === 'landing' && landingSite === 'crm' && subTab === 'painpoints' && (
+            <div>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
+                <div className="section-title" style={{margin:0}}>CRM 랜딩 · 페인포인트</div>
+                <button className="btn btn-primary btn-sm" onClick={() => openLandingEdit('crm_painpoints', -1, {icon:'😤',text:''})}>+ 추가</button>
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+                {landingCrmPainpoints.map((p, i) => (
+                  <div key={i} className="card" style={{display:'flex',alignItems:'center',gap:'12px',padding:'12px 16px'}}>
+                    <div style={{fontSize:'22px',flexShrink:0}}>{p.icon}</div>
+                    <div style={{flex:1,fontSize:'13px',color:'var(--text)'}}>{p.text}</div>
+                    <div style={{display:'flex',gap:'4px',flexShrink:0}}>
+                      <button className="btn btn-ghost btn-sm" onClick={() => openLandingEdit('crm_painpoints', i, p)}>수정</button>
+                      <button className="btn btn-sm" style={{background:'rgba(239,68,68,0.1)',color:'#ef4444',border:'1px solid rgba(239,68,68,0.2)'}} onClick={() => deleteLandingItem('crm_painpoints', i)}>삭제</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── CRM 랜딩 > 로드맵 ── */}
+          {page === 'landing' && landingSite === 'crm' && subTab === 'roadmap' && (
+            <div>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
+                <div className="section-title" style={{margin:0}}>CRM 랜딩 · 로드맵</div>
+                <button className="btn btn-primary btn-sm" onClick={() => openLandingEdit('crm_roadmap', -1, {now:'',coming:''})}>+ 행 추가</button>
+              </div>
+              <div className="card" style={{padding:'0',overflow:'hidden'}}>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',background:'var(--surface)'}}>
+                  <div style={{padding:'10px 14px',fontSize:'11px',fontWeight:700,letterSpacing:'0.06em',color:'var(--accent)',borderBottom:'1px solid var(--border)'}}>✅ 지금 사용 가능</div>
+                  <div style={{padding:'10px 14px',fontSize:'11px',fontWeight:700,letterSpacing:'0.06em',color:'var(--text-dim)',borderLeft:'1px solid var(--border)',borderBottom:'1px solid var(--border)'}}>🔜 출시 예정</div>
+                </div>
+                {landingCrmRoadmap.map((row, i) => (
+                  <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 1fr',borderBottom: i < landingCrmRoadmap.length-1 ? '1px solid var(--border)' : 'none', background: i%2===0 ? 'transparent' : 'rgba(255,255,255,0.01)'}}>
+                    <div style={{padding:'12px 14px',fontSize:'12px',color:'var(--text)',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px'}}>
+                      <span>{row.now}</span>
+                      <div style={{display:'flex',gap:'4px',flexShrink:0}}>
+                        <button className="btn btn-ghost btn-sm" style={{fontSize:'10px',padding:'2px 7px'}} onClick={() => openLandingEdit('crm_roadmap', i, row)}>수정</button>
+                        <button className="btn btn-sm" style={{fontSize:'10px',padding:'2px 7px',background:'rgba(239,68,68,0.1)',color:'#ef4444',border:'1px solid rgba(239,68,68,0.2)'}} onClick={() => deleteLandingItem('crm_roadmap', i)}>삭제</button>
+                      </div>
+                    </div>
+                    <div style={{padding:'12px 14px',fontSize:'12px',color:'var(--text-dim)',borderLeft:'1px solid var(--border)',display:'flex',alignItems:'center',gap:'6px'}}>
+                      <span style={{color:'#60a5fa',fontWeight:700}}>→</span>{row.coming}
                     </div>
                   </div>
                 ))}
@@ -1532,7 +1815,10 @@ export default function AdminPortal() {
         landingEditModal?.type === 'targets'       ? (landingEditModal.index === -1 ? '타겟 추가' : '타겟 수정') :
         landingEditModal?.type === 'members'       ? (landingEditModal.index === -1 ? '회원 기능 추가' : '회원 기능 수정') :
         landingEditModal?.type === 'landing_plans' ? (landingEditModal.index === -1 ? '요금제 추가' : '요금제 수정') :
-        landingEditModal?.type === 'comparison'    ? (landingEditModal.index === -1 ? '비교 행 추가' : '비교 행 수정') : ''
+        landingEditModal?.type === 'comparison'    ? (landingEditModal.index === -1 ? '비교 행 추가' : '비교 행 수정') :
+        landingEditModal?.type === 'crm_features'  ? (landingEditModal.index === -1 ? 'CRM 기능 추가' : 'CRM 기능 수정') :
+        landingEditModal?.type === 'crm_painpoints'? (landingEditModal.index === -1 ? '페인포인트 추가' : '페인포인트 수정') :
+        landingEditModal?.type === 'crm_roadmap'   ? (landingEditModal.index === -1 ? '로드맵 행 추가' : '로드맵 행 수정') : ''
       }>
         {landingEditModal && (() => {
           const d = landingEditModal.data
@@ -1672,6 +1958,33 @@ export default function AdminPortal() {
                 <label>오운 <span style={{color:'var(--accent)'}}>✓</span></label>
                 <input value={d.ours||''} onChange={e=>upd({ours:e.target.value})} placeholder="AI 자동 생성 · 3분"/>
               </div>
+              <button className="btn btn-primary btn-full" onClick={saveLandingEdit}>저장</button>
+            </>
+          )
+          if (landingEditModal.type === 'crm_features') return (
+            <>
+              <div className="form-row">
+                <div className="form-group"><label>이모지 아이콘</label><input value={d.icon||''} onChange={e=>upd({icon:e.target.value})} placeholder="💪"/></div>
+                <div className="form-group"><label>강조 색상 (hex)</label><input value={d.color||''} onChange={e=>upd({color:e.target.value})} placeholder="#c8f135"/></div>
+              </div>
+              <div className="form-group"><label>기능명</label><input value={d.title||''} onChange={e=>upd({title:e.target.value})} placeholder="트레이너 관리"/></div>
+              <div className="form-group"><label>설명</label><textarea rows={2} value={d.desc||''} onChange={e=>upd({desc:e.target.value})} placeholder="기능 설명"/></div>
+              <button className="btn btn-primary btn-full" onClick={saveLandingEdit}>저장</button>
+            </>
+          )
+          if (landingEditModal.type === 'crm_painpoints') return (
+            <>
+              <div className="form-row">
+                <div className="form-group"><label>이모지 아이콘</label><input value={d.icon||''} onChange={e=>upd({icon:e.target.value})} placeholder="😤"/></div>
+              </div>
+              <div className="form-group"><label>페인포인트 문구</label><textarea rows={2} value={d.text||''} onChange={e=>upd({text:e.target.value})} placeholder="트레이너별 매출을 엑셀로 정리하느라..."/></div>
+              <button className="btn btn-primary btn-full" onClick={saveLandingEdit}>저장</button>
+            </>
+          )
+          if (landingEditModal.type === 'crm_roadmap') return (
+            <>
+              <div className="form-group"><label>✅ 지금 사용 가능</label><input value={d.now||''} onChange={e=>upd({now:e.target.value})} placeholder="트레이너 목록 · 회원 현황 조회"/></div>
+              <div className="form-group"><label>🔜 출시 예정</label><input value={d.coming||''} onChange={e=>upd({coming:e.target.value})} placeholder="트레이너별 매출 정산 자동화"/></div>
               <button className="btn btn-primary btn-full" onClick={saveLandingEdit}>저장</button>
             </>
           )
