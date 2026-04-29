@@ -37,7 +37,7 @@ export default function Terms() {
         <div style={S.header}>
           <div style={S.badge}>LEGAL</div>
           <h1 style={S.title}>이용약관</h1>
-          <p style={S.meta}>시행일: 2026년 5월 1일 · 버전: 1.0</p>
+          <p style={S.meta}>시행일: 2026년 5월 1일 · 최종 개정: 2026년 4월 29일 · 버전: 1.1</p>
         </div>
 
         <div style={S.section}>
@@ -106,13 +106,15 @@ export default function Terms() {
         </div>
 
         <div style={S.section}>
-          <h2 style={S.h2}>제6조 (AI 서비스 이용)</h2>
+          <h2 style={S.h2}>제6조 (AI 서비스 이용 및 음성 데이터 처리)</h2>
           <div style={S.highlight}>
             AI 수업일지·음식 분석·회원 인사이트 기능은 Google Gemini API를 활용하며, AI 생성 결과는 참고 자료일 뿐 법적·의학적 판단의 근거가 될 수 없습니다.
           </div>
           <p style={S.p}>① AI가 생성한 결과물의 정확성을 회사가 보장하지 않으며, 최종 판단은 이용자 본인의 책임입니다.</p>
-          <p style={S.p}>② 트레이너가 입력한 수업 음성·텍스트는 AI 처리 후 수업일지로 변환되며, 원본 데이터는 서비스 외 제3자 AI 학습에 사용되지 않습니다.</p>
-          <p style={S.p}>③ 플랜별 AI 사용 한도를 초과하면 해당 기능이 제한되며, 플랜 업그레이드를 통해 재이용할 수 있습니다.</p>
+          <p style={S.p}>② 트레이너가 업로드한 수업 음성 녹음 파일은 AI 수업일지 생성 목적으로 Google Gemini API에 전송됩니다. 해당 파일은 회사 서버에 저장되지 않으며, AI 모델 학습에 활용되지 않습니다.</p>
+          <p style={S.p}>③ 트레이너는 AI 수업일지 기능 사용 시 수업에 참여한 회원에게 "<strong>수업 내용이 AI 분석을 위해 처리된다</strong>"는 사실을 사전에 고지하고 동의를 받아야 할 의무가 있습니다. 이를 이행하지 않아 발생하는 법적 책임은 트레이너 본인에게 있으며, 회사는 이에 대한 책임을 지지 않습니다.</p>
+          <p style={S.p}>④ 트레이너는 최초 등록 시 음성 데이터의 AI 처리에 동의하며, 동의 철회 시 AI 수업일지 기능 이용이 중단됩니다.</p>
+          <p style={S.p}>⑤ 플랜별 AI 사용 한도를 초과하면 해당 기능이 제한되며, 플랜 업그레이드를 통해 재이용할 수 있습니다.</p>
         </div>
 
         <div style={S.section}>

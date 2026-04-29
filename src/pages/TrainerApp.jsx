@@ -1728,6 +1728,10 @@ export default function TrainerApp() {
   const [regName, setRegName] = useState('')
   const [regApi, setRegApi] = useState('')
   const [regError, setRegError] = useState('')
+  // 등록 동의 체크박스
+  const [agreedTerms,   setAgreedTerms]   = useState(false) // 이용약관
+  const [agreedPrivacy, setAgreedPrivacy] = useState(false) // 개인정보처리방침
+  const [agreedAI,      setAgreedAI]      = useState(false) // 음성·AI 처리 동의
 
   const audioInputRef = useRef(null)
 
@@ -1949,6 +1953,8 @@ export default function TrainerApp() {
 
   async function register() {
     if (!regName) { showToast('이름을 입력해주세요'); return }
+    if (!agreedTerms || !agreedPrivacy) { showToast('이용약관 및 개인정보처리방침에 동의해주세요'); return }
+    if (!agreedAI) { showToast('AI 수업일지 기능 이용을 위한 음성 데이터 처리에 동의해주세요'); return }
     if (!authUser) { showToast('먼저 소셜 로그인을 해주세요'); setScreen('login'); return }
     try {
       // ① insert
@@ -3136,7 +3142,17 @@ export default function TrainerApp() {
               </button>
             </div>
 
-            <div style={{textAlign:'center',marginTop:'18px'}}>
+            <div style={{marginTop:'16px',padding:'10px 0',borderTop:'1px solid #F3F4F6',textAlign:'center'}}>
+              <span style={{fontSize:'11px',color:'#9CA3AF',lineHeight:1.7}}>
+                로그인 시{' '}
+                <a href="/terms" target="_blank" rel="noopener noreferrer" style={{color:'#6B7280',textDecoration:'underline'}}>이용약관</a>
+                {' '}및{' '}
+                <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:'#6B7280',textDecoration:'underline'}}>개인정보처리방침</a>
+                에 동의한 것으로 간주됩니다.
+              </span>
+            </div>
+
+            <div style={{textAlign:'center',marginTop:'12px'}}>
               <Link to="/" style={{fontSize:'12px',color:'#9CA3AF',textDecoration:'none'}}>← 메인으로</Link>
             </div>
           </div>
@@ -3176,8 +3192,59 @@ export default function TrainerApp() {
               <input type="text" value={regName} onChange={e=>setRegName(e.target.value)} placeholder="홍길동"
                 onKeyDown={e=>e.key==='Enter'&&register()} />
             </div>
+
+            {/* ── 동의 항목 ── */}
+            <div style={{marginTop:'20px',display:'flex',flexDirection:'column',gap:'10px'}}>
+              <div style={{fontSize:'12px',fontWeight:700,color:'#374151',marginBottom:'4px'}}>서비스 이용 동의</div>
+
+              {/* 이용약관 */}
+              <label style={{display:'flex',alignItems:'flex-start',gap:'10px',cursor:'pointer'}}>
+                <input type="checkbox" checked={agreedTerms} onChange={e=>setAgreedTerms(e.target.checked)}
+                  style={{marginTop:'2px',width:'16px',height:'16px',accentColor:'#4d7c0f',flexShrink:0}} />
+                <span style={{fontSize:'13px',color:'#374151',lineHeight:1.6}}>
+                  <span style={{color:'#ef4444',fontWeight:700,marginRight:'3px'}}>[필수]</span>
+                  <a href="/terms" target="_blank" rel="noopener noreferrer"
+                    style={{color:'#4d7c0f',fontWeight:600,textDecoration:'underline'}}>이용약관</a>에 동의합니다
+                </span>
+              </label>
+
+              {/* 개인정보처리방침 */}
+              <label style={{display:'flex',alignItems:'flex-start',gap:'10px',cursor:'pointer'}}>
+                <input type="checkbox" checked={agreedPrivacy} onChange={e=>setAgreedPrivacy(e.target.checked)}
+                  style={{marginTop:'2px',width:'16px',height:'16px',accentColor:'#4d7c0f',flexShrink:0}} />
+                <span style={{fontSize:'13px',color:'#374151',lineHeight:1.6}}>
+                  <span style={{color:'#ef4444',fontWeight:700,marginRight:'3px'}}>[필수]</span>
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer"
+                    style={{color:'#4d7c0f',fontWeight:600,textDecoration:'underline'}}>개인정보처리방침</a>에 동의합니다
+                </span>
+              </label>
+
+              {/* 음성·AI 데이터 처리 동의 */}
+              <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:'10px',padding:'12px 14px'}}>
+                <label style={{display:'flex',alignItems:'flex-start',gap:'10px',cursor:'pointer'}}>
+                  <input type="checkbox" checked={agreedAI} onChange={e=>setAgreedAI(e.target.checked)}
+                    style={{marginTop:'2px',width:'16px',height:'16px',accentColor:'#d97706',flexShrink:0}} />
+                  <span style={{fontSize:'13px',color:'#92400e',lineHeight:1.6}}>
+                    <span style={{color:'#ef4444',fontWeight:700,marginRight:'3px'}}>[필수]</span>
+                    AI 수업일지 기능 이용 시 수업 녹음 파일이 <strong>Google Gemini API</strong>로 전송되어 AI 분석에 활용됨을 이해하고 동의합니다.
+                  </span>
+                </label>
+                <div style={{marginTop:'8px',paddingLeft:'26px',fontSize:'11px',color:'#b45309',lineHeight:1.7}}>
+                  · 녹음 파일은 회사 서버에 저장되지 않으며 API 전송 후 즉시 처리됩니다.<br/>
+                  · AI 모델 학습에 활용되지 않습니다 (Google Gemini API 이용약관 기준).<br/>
+                  · 수업 참여 회원에게도 녹음 사실을 사전 고지할 책임이 트레이너에게 있습니다.<br/>
+                  · 동의 철회 시 AI 수업일지 기능 이용이 중단됩니다.
+                </div>
+              </div>
+            </div>
+
             <button className="btn btn-primary btn-full"
-              style={{marginTop:'4px',padding:'13px',fontSize:'14px'}} onClick={register}>
+              style={{
+                marginTop:'16px',padding:'13px',fontSize:'14px',
+                opacity: (agreedTerms && agreedPrivacy && agreedAI) ? 1 : 0.45,
+                cursor: (agreedTerms && agreedPrivacy && agreedAI) ? 'pointer' : 'not-allowed',
+              }}
+              onClick={register}>
               트레이너 등록 완료
             </button>
             {regError && (
