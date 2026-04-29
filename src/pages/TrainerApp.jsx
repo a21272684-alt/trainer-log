@@ -2406,7 +2406,14 @@ export default function TrainerApp() {
     if (credits <= 0) { setShowLimitModal(true); return }
     // ─────────────────────────────────────────────────────────
 
+    // ── 잔여 수업 체크 ────────────────────────────────────────
     const m = currentMember
+    const remainSessions = (m?.total_sessions || 0) - (m?.done_sessions || 0)
+    if (remainSessions <= 0) {
+      showToast('잔여 수업이 0회예요. 수업권을 먼저 추가해주세요.')
+      return
+    }
+    // ─────────────────────────────────────────────────────────
     setGenerating(true); setShowPreview(false); setShowSend(false)
     try {
       // ai_templates.buildSessionLogPrompt 로 프롬프트 생성
@@ -4502,10 +4509,16 @@ export default function TrainerApp() {
                 canUse('ai_journal') ? (
                   <button
                     className="btn btn-primary"
-                    style={{width:'100%',marginBottom:'10px',opacity: credits <= 0 ? 0.5 : 1,cursor: credits <= 0 ? 'not-allowed' : 'pointer'}}
+                    style={{width:'100%',marginBottom:'10px',
+                      opacity: credits <= 0 || ((currentMember?.total_sessions||0)-(currentMember?.done_sessions||0)) <= 0 ? 0.5 : 1,
+                      cursor: credits <= 0 || ((currentMember?.total_sessions||0)-(currentMember?.done_sessions||0)) <= 0 ? 'not-allowed' : 'pointer'}}
                     onClick={generateLog}
                   >
-                    {credits <= 0 ? '🔒 크레딧 부족' : '✦ AI 수업일지 생성'}
+                    {credits <= 0
+                      ? '🔒 크레딧 부족'
+                      : ((currentMember?.total_sessions||0)-(currentMember?.done_sessions||0)) <= 0
+                        ? '🔒 잔여 수업 없음'
+                        : '✦ AI 수업일지 생성'}
                   </button>
                 ) : (
                   <div style={{background:'rgba(255,255,255,0.04)',border:'1px dashed rgba(255,255,255,0.15)',borderRadius:'10px',padding:'18px',textAlign:'center',marginBottom:'10px'}}>
