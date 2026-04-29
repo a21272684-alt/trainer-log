@@ -1627,6 +1627,7 @@ export default function TrainerApp() {
   // Add member form
   const [addForm, setAddForm] = useState({name:'',kakao_phone:'',phone:'',birthdate:'',address:'',email:'',special_notes:'',purpose:'체형교정',visit_source:'',visit_source_memo:'',total:'',done:'0',price:'',memo:''})
   const [memberFilter, setMemberFilter] = useState('전체')
+  const [showEmailGuide, setShowEmailGuide] = useState(false)
   const [riskMap, setRiskMap]           = useState({})  // { [memberId]: riskResult }
 
   // Edit member modal
@@ -3984,7 +3985,17 @@ export default function TrainerApp() {
           <div className="form-group"><label>전화번호 뒷 4자리 (회원 포털 로그인용) *</label><input type="text" value={addForm.phone} onChange={e=>setAddForm({...addForm,phone:e.target.value})} placeholder="1234" maxLength={4} /></div>
           <div className="form-group"><label>생년월일</label><input type="date" value={addForm.birthdate} onChange={e=>setAddForm({...addForm,birthdate:e.target.value})} /></div>
           <div className="form-group"><label>주소</label><input type="text" value={addForm.address} onChange={e=>setAddForm({...addForm,address:e.target.value})} placeholder="서울시 강남구..." /></div>
-          <div className="form-group"><label>이메일 (선택)</label><input type="email" value={addForm.email} onChange={e=>setAddForm({...addForm,email:e.target.value})} placeholder="example@gmail.com" /></div>
+          <div className="form-group">
+            <label style={{display:'flex',alignItems:'center',gap:'6px'}}>
+              이메일 <span style={{color:'#ef4444',fontSize:'12px',fontWeight:700}}>필수</span>
+              <button type="button" onClick={()=>setShowEmailGuide(true)}
+                style={{width:'18px',height:'18px',borderRadius:'50%',border:'1px solid var(--text-dim)',
+                  background:'none',color:'var(--text-dim)',fontSize:'11px',fontWeight:700,
+                  cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
+                  flexShrink:0,fontFamily:'inherit',lineHeight:1}}>?</button>
+            </label>
+            <input type="email" value={addForm.email} onChange={e=>setAddForm({...addForm,email:e.target.value})} placeholder="example@gmail.com" />
+          </div>
           <div className="form-group"><label>특이사항</label><textarea value={addForm.special_notes} onChange={e=>setAddForm({...addForm,special_notes:e.target.value})} placeholder="부상 이력, 주의사항 등" rows={2} style={{resize:'vertical'}} /></div>
           <div className="form-group"><label>운동 목적</label>
             <select value={addForm.purpose} onChange={e=>setAddForm({...addForm,purpose:e.target.value})}>
@@ -5029,7 +5040,17 @@ export default function TrainerApp() {
         <div className="form-group"><label>전화번호 뒷 4자리 (회원 포털 로그인용) *</label><input type="text" value={editMemberForm.phone||''} onChange={e=>setEditMemberForm({...editMemberForm,phone:e.target.value})} placeholder="1234" maxLength={4} /></div>
         <div className="form-group"><label>생년월일</label><input type="date" value={editMemberForm.birthdate||''} onChange={e=>setEditMemberForm({...editMemberForm,birthdate:e.target.value})} /></div>
         <div className="form-group"><label>주소</label><input type="text" value={editMemberForm.address||''} onChange={e=>setEditMemberForm({...editMemberForm,address:e.target.value})} placeholder="서울시 강남구..." /></div>
-        <div className="form-group"><label>이메일 (선택)</label><input type="email" value={editMemberForm.email||''} onChange={e=>setEditMemberForm({...editMemberForm,email:e.target.value})} placeholder="example@gmail.com" /></div>
+        <div className="form-group">
+            <label style={{display:'flex',alignItems:'center',gap:'6px'}}>
+              이메일 <span style={{color:'#ef4444',fontSize:'12px',fontWeight:700}}>필수</span>
+              <button type="button" onClick={()=>setShowEmailGuide(true)}
+                style={{width:'18px',height:'18px',borderRadius:'50%',border:'1px solid var(--text-dim)',
+                  background:'none',color:'var(--text-dim)',fontSize:'11px',fontWeight:700,
+                  cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
+                  flexShrink:0,fontFamily:'inherit',lineHeight:1}}>?</button>
+            </label>
+            <input type="email" value={editMemberForm.email||''} onChange={e=>setEditMemberForm({...editMemberForm,email:e.target.value})} placeholder="example@gmail.com" />
+          </div>
         <div className="form-group"><label>특이사항</label><textarea value={editMemberForm.special_notes||''} onChange={e=>setEditMemberForm({...editMemberForm,special_notes:e.target.value})} placeholder="부상 이력, 주의사항 등" rows={2} style={{resize:'vertical'}} /></div>
         <div className="form-group"><label>운동 목적</label>
           <select value={editMemberForm.purpose||'체형교정'} onChange={e=>setEditMemberForm({...editMemberForm,purpose:e.target.value})}>
@@ -5603,6 +5624,31 @@ export default function TrainerApp() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* 이메일 필수 안내 모달 */}
+      <Modal open={showEmailGuide} onClose={()=>setShowEmailGuide(false)} title="이메일을 입력하는 이유">
+        <div style={{fontSize:'13px',lineHeight:1.7}}>
+          {[
+            { icon:'🔗', title:'수업 리포트 직접 전달', desc:'AI가 생성한 수업일지 리포트 링크를 이메일로도 전달할 수 있어요. 카카오톡이 없는 회원도 리포트를 받을 수 있어요.' },
+            { icon:'🔐', title:'회원 포털 로그인 연동', desc:'회원이 앱에서 자신의 수업 기록, 진행률, 식단을 직접 확인할 수 있는 회원 포털의 계정으로 사용돼요.' },
+            { icon:'📣', title:'공지 및 안내 발송', desc:'휴무일, 일정 변경 등 센터 공지를 이메일로 발송할 때 사용돼요.' },
+            { icon:'🛡️', title:'개인정보 보호', desc:'수집된 이메일은 오운 서비스 내에서만 사용되며 외부에 공유되지 않아요.' },
+          ].map(({ icon, title, desc }) => (
+            <div key={title} style={{display:'flex',gap:'12px',marginBottom:'16px',alignItems:'flex-start'}}>
+              <span style={{fontSize:'22px',flexShrink:0}}>{icon}</span>
+              <div>
+                <div style={{fontWeight:700,color:'var(--text)',marginBottom:'3px'}}>{title}</div>
+                <div style={{color:'var(--text-muted)',fontSize:'12px'}}>{desc}</div>
+              </div>
+            </div>
+          ))}
+          <div style={{background:'rgba(200,241,53,0.08)',border:'1px solid rgba(200,241,53,0.2)',
+            borderRadius:'10px',padding:'12px 14px',fontSize:'12px',color:'var(--text-muted)',marginTop:'4px'}}>
+            💡 이메일 입력 시 회원이 더 풍부한 서비스를 받을 수 있어요.
+          </div>
+        </div>
+        <button className="btn btn-primary" style={{width:'100%',marginTop:'16px'}} onClick={()=>setShowEmailGuide(false)}>확인</button>
       </Modal>
 
       {/* EXERCISE MODAL */}
