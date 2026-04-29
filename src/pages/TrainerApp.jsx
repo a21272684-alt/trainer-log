@@ -3989,8 +3989,8 @@ export default function TrainerApp() {
             <label style={{display:'flex',alignItems:'center',gap:'6px'}}>
               이메일 <span style={{color:'#ef4444',fontSize:'12px',fontWeight:700}}>필수</span>
               <button type="button" onClick={()=>setShowEmailGuide(true)}
-                style={{width:'18px',height:'18px',borderRadius:'50%',border:'1px solid var(--text-dim)',
-                  background:'none',color:'var(--text-dim)',fontSize:'11px',fontWeight:700,
+                style={{width:'18px',height:'18px',borderRadius:'50%',border:'1px solid #9CA3AF',
+                  background:'none',color:'#9CA3AF',fontSize:'11px',fontWeight:700,
                   cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
                   flexShrink:0,fontFamily:'inherit',lineHeight:1}}>?</button>
             </label>
@@ -5044,8 +5044,8 @@ export default function TrainerApp() {
             <label style={{display:'flex',alignItems:'center',gap:'6px'}}>
               이메일 <span style={{color:'#ef4444',fontSize:'12px',fontWeight:700}}>필수</span>
               <button type="button" onClick={()=>setShowEmailGuide(true)}
-                style={{width:'18px',height:'18px',borderRadius:'50%',border:'1px solid var(--text-dim)',
-                  background:'none',color:'var(--text-dim)',fontSize:'11px',fontWeight:700,
+                style={{width:'18px',height:'18px',borderRadius:'50%',border:'1px solid #9CA3AF',
+                  background:'none',color:'#9CA3AF',fontSize:'11px',fontWeight:700,
                   cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
                   flexShrink:0,fontFamily:'inherit',lineHeight:1}}>?</button>
             </label>
@@ -5638,13 +5638,13 @@ export default function TrainerApp() {
             <div key={title} style={{display:'flex',gap:'12px',marginBottom:'16px',alignItems:'flex-start'}}>
               <span style={{fontSize:'22px',flexShrink:0}}>{icon}</span>
               <div>
-                <div style={{fontWeight:700,color:'var(--text)',marginBottom:'3px'}}>{title}</div>
-                <div style={{color:'var(--text-muted)',fontSize:'12px'}}>{desc}</div>
+                <div style={{fontWeight:700,color:'#111',marginBottom:'3px'}}>{title}</div>
+                <div style={{color:'#6B7280',fontSize:'12px'}}>{desc}</div>
               </div>
             </div>
           ))}
-          <div style={{background:'rgba(200,241,53,0.08)',border:'1px solid rgba(200,241,53,0.2)',
-            borderRadius:'10px',padding:'12px 14px',fontSize:'12px',color:'var(--text-muted)',marginTop:'4px'}}>
+          <div style={{background:'#f9fafb',border:'1px solid #E1E4D9',
+            borderRadius:'10px',padding:'12px 14px',fontSize:'12px',color:'#6B7280',marginTop:'4px'}}>
             💡 이메일 입력 시 회원이 더 풍부한 서비스를 받을 수 있어요.
           </div>
         </div>
