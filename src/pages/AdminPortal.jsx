@@ -305,6 +305,7 @@ export default function AdminPortal() {
   const [creditAmount, setCreditAmount] = useState('10')
   const [centralApiKey, setCentralApiKey] = useState('')
   const [apiKeyLoaded, setApiKeyLoaded] = useState(false)
+  const [urgentInquiryUrl, setUrgentInquiryUrl] = useState('')   // 긴급문의 카카오 오픈채팅 링크
 
   const navigate = (portalId) => {
     setPage(portalId)
@@ -342,7 +343,7 @@ export default function AdminPortal() {
           'landing_plans_landing', 'landing_faqs', 'landing_comparison',
           'landing_community_hero',
           'landing_crm_hero', 'landing_crm_features', 'landing_crm_painpoints', 'landing_crm_roadmap',
-          'landing_portal_buttons', 'feature_gates',
+          'landing_portal_buttons', 'feature_gates', 'urgent_inquiry_url',
         ]),
         supabase.from('inquiries').select('*, trainer:trainers(name)').order('created_at', { ascending: false }),
         supabase.from('notices').select('*').order('is_pinned', { ascending: false }).order('created_at', { ascending: false }),
@@ -398,6 +399,8 @@ export default function AdminPortal() {
         if (fGates?.value?.free && fGates?.value?.paid) setFeatureGates(fGates.value)
         const apiKeyRow = settings.data.find(r => r.key === 'gemini_api_key')
         if (apiKeyRow?.value) setCentralApiKey(String(apiKeyRow.value).replace(/^"|"$/g, ''))
+        const urgentRow = settings.data.find(r => r.key === 'urgent_inquiry_url')
+        if (urgentRow?.value) setUrgentInquiryUrl(String(urgentRow.value).replace(/^"|"$/g, ''))
         setApiKeyLoaded(true)
       }
     } catch(e) { showToast('데이터 로드 오류: ' + e.message) }
@@ -434,6 +437,14 @@ export default function AdminPortal() {
     try {
       await supabase.from('app_settings').upsert({ key: 'gemini_api_key', value: centralApiKey }, { onConflict: 'key' })
       showToast('✓ API 키가 저장됐어요')
+    } catch(e) { showToast('오류: ' + e.message) }
+  }
+
+  // 긴급문의 링크 저장
+  async function saveUrgentInquiryUrl() {
+    try {
+      await supabase.from('app_settings').upsert({ key: 'urgent_inquiry_url', value: urgentInquiryUrl.trim() }, { onConflict: 'key' })
+      showToast('✓ 긴급문의 링크가 저장됐어요')
     } catch(e) { showToast('오류: ' + e.message) }
   }
 
@@ -885,6 +896,26 @@ export default function AdminPortal() {
                   <button className="btn btn-primary btn-sm" onClick={saveCentralApiKey}>저장</button>
                 </div>
                 {centralApiKey && <div style={{fontSize:'11px',color:'#4ade80',marginTop:'6px'}}>✓ API 키 설정됨 — 모든 트레이너가 이 키로 AI를 사용해요</div>}
+              </div>
+
+              {/* 긴급문의 링크 설정 */}
+              <div className="card" style={{marginBottom:'16px',padding:'14px 16px'}}>
+                <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'}}>💬 긴급문의 링크 (카카오 오픈채팅)</div>
+                <div style={{fontSize:'11px',color:'var(--text-dim)',marginBottom:'10px'}}>트레이너 포털 1:1 문의 탭의 "긴급문의" 버튼에 연결될 카카오톡 오픈채팅 URL</div>
+                <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
+                  <input
+                    type="url"
+                    value={urgentInquiryUrl}
+                    onChange={e => setUrgentInquiryUrl(e.target.value)}
+                    placeholder="https://open.kakao.com/o/..."
+                    style={{flex:1,padding:'8px 10px',borderRadius:'8px',border:'1px solid var(--border)',background:'var(--surface)',color:'var(--text)',fontSize:'13px',fontFamily:'monospace'}}
+                  />
+                  <button className="btn btn-primary btn-sm" onClick={saveUrgentInquiryUrl}>저장</button>
+                </div>
+                {urgentInquiryUrl
+                  ? <div style={{fontSize:'11px',color:'#4ade80',marginTop:'6px'}}>✓ 긴급문의 링크 설정됨 — 트레이너 포털 문의 탭에 버튼이 표시돼요</div>
+                  : <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'6px'}}>링크 미설정 시 트레이너 포털에 긴급문의 버튼이 표시되지 않아요</div>
+                }
               </div>
               <div className="section-title">트레이너 목록 <button className="btn btn-primary btn-sm" onClick={openAddSub}>+ 구독 추가</button></div>
               <div className="card table-wrap">

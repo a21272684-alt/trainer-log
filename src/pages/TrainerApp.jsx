@@ -1688,6 +1688,7 @@ export default function TrainerApp() {
   const [showLimitModal, setShowLimitModal] = useState(false)
   const [centralApiKey, setCentralApiKey] = useState('')  // 중앙화된 Gemini API 키
   const [credits, setCredits] = useState(0)               // 트레이너 크레딧 잔액
+  const [urgentInquiryUrl, setUrgentInquiryUrl] = useState('') // 긴급문의 카카오 오픈채팅 링크
 
   // Schedule
   const [weekOff, setWeekOff] = useState(0)
@@ -1870,10 +1871,16 @@ export default function TrainerApp() {
     } catch(_) {}
   }
 
-  // 중앙 Gemini API 키 로드 (앱 마운트 시 1회)
+  // 중앙 Gemini API 키 + 긴급문의 링크 로드 (앱 마운트 시 1회)
   useEffect(() => {
-    supabase.from('app_settings').select('value').eq('key', 'gemini_api_key').single()
-      .then(({ data }) => { if (data?.value) setCentralApiKey(String(data.value).replace(/^"|"$/g, '')) })
+    supabase.from('app_settings').select('key, value').in('key', ['gemini_api_key', 'urgent_inquiry_url'])
+      .then(({ data }) => {
+        if (!data) return
+        const apiKeyRow = data.find(r => r.key === 'gemini_api_key')
+        if (apiKeyRow?.value) setCentralApiKey(String(apiKeyRow.value).replace(/^"|"$/g, ''))
+        const urgentRow = data.find(r => r.key === 'urgent_inquiry_url')
+        if (urgentRow?.value) setUrgentInquiryUrl(String(urgentRow.value).replace(/^"|"$/g, ''))
+      })
       .catch(() => {})
   }, [])
 
@@ -3885,7 +3892,24 @@ export default function TrainerApp() {
 
           {/* 새 문의 작성 */}
           <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'14px',padding:'16px',marginBottom:'20px'}}>
-            <div style={{fontSize:'13px',fontWeight:700,marginBottom:'14px'}}>✉️ 새 문의 작성</div>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'14px'}}>
+              <div style={{fontSize:'13px',fontWeight:700}}>✉️ 새 문의 작성</div>
+              {urgentInquiryUrl && (
+                <a
+                  href={urgentInquiryUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{display:'inline-flex',alignItems:'center',gap:'5px',
+                    background:'#FEE500',color:'#3C1E1E',
+                    fontSize:'12px',fontWeight:700,
+                    padding:'6px 12px',borderRadius:'8px',
+                    textDecoration:'none',letterSpacing:'-0.2px',
+                    boxShadow:'0 1px 4px rgba(0,0,0,0.12)'}}
+                >
+                  💬 긴급문의
+                </a>
+              )}
+            </div>
 
             <div className="form-group">
               <label>문의 유형</label>
