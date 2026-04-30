@@ -1569,6 +1569,10 @@ export default function TrainerApp() {
   const [exercises, setExercises] = useState([])
   const [rawInput, setRawInput] = useState('')
   const [perspectiveInput, setPerspectiveInput] = useState('')  // AI 해석 관점
+  const [isListening, setIsListening] = useState(false)         // 음성 인식 활성 여부
+  const [speechSupported, setSpeechSupported] = useState(        // Web Speech API 지원 여부
+    typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+  )
   const [previewContent, setPreviewContent] = useState('')
   const [finalContent, setFinalContent] = useState('')
   const [generating, setGenerating] = useState(false)
@@ -1609,6 +1613,7 @@ export default function TrainerApp() {
   // Settings — profile photo upload
   const [profileUploading, setProfileUploading] = useState(false)
   const profileInputRef = useRef(null)
+  const recognitionRef = useRef(null)  // Web Speech API 인스턴스
 
   // Revenue tab — 월별 총 결제액
   const [payMonthStr, setPayMonthStr] = useState(() => {
@@ -2386,6 +2391,65 @@ export default function TrainerApp() {
   function editExercise(id) {
     const ex = exercises.find(e => e.id === id); if (!ex) return
     setEditingExId(id); setNewSets([...ex.sets]); setExName(ex.name); setExModal(true)
+  }
+
+  // === SPEECH (Web Speech API) ===
+  function toggleSpeech() {
+    // API 미지원 환경 처리
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      setSpeechSupported(false)
+      showToast('마이크 인식이 원활하지 않아요. 텍스트 창을 터치 후 스마트폰 키보드의 마이크 버튼을 사용해 보세요.')
+      return
+    }
+
+    // 이미 듣고 있으면 → 중지
+    if (isListening) {
+      try { recognitionRef.current?.stop() } catch(_) {}
+      setIsListening(false)
+      return
+    }
+
+    // 새 인스턴스 생성
+    const recognition = new SpeechRecognition()
+    recognition.lang = 'ko-KR'
+    recognition.continuous = false       // 짧은 브리핑 → 1회 완성 방식
+    recognition.interimResults = false   // 최종 결과만 받아 중간 노이즈 방지
+    recognition.maxAlternatives = 1
+
+    // 인식 결과 → rawInput에 이어붙이기
+    recognition.onresult = (e) => {
+      const transcript = e.results[0]?.[0]?.transcript || ''
+      if (transcript.trim()) {
+        setRawInput(prev => prev ? prev.trimEnd() + ' ' + transcript : transcript)
+      }
+    }
+
+    // 오류 처리 (iOS Safari 권한 거부 / network / aborted 모두 커버)
+    recognition.onerror = (e) => {
+      const ignorable = ['aborted', 'no-speech']
+      if (!ignorable.includes(e.error)) {
+        showToast('마이크 인식이 원활하지 않아요. 텍스트 창을 터치 후 스마트폰 키보드의 마이크 버튼을 사용해 보세요.')
+      }
+      setIsListening(false)
+      recognitionRef.current = null
+    }
+
+    // onend — iOS Safari가 권한 없이 강제 종료할 때 state 동기화
+    recognition.onend = () => {
+      setIsListening(false)
+      recognitionRef.current = null
+    }
+
+    recognitionRef.current = recognition
+    try {
+      recognition.start()
+      setIsListening(true)
+    } catch(e) {
+      showToast('마이크 인식이 원활하지 않아요. 텍스트 창을 터치 후 스마트폰 키보드의 마이크 버튼을 사용해 보세요.')
+      setIsListening(false)
+      recognitionRef.current = null
+    }
   }
 
   // === GENERATE ===
@@ -4367,6 +4431,66 @@ export default function TrainerApp() {
             <div>
               <div className="section-label">1단계 — 수업 브리핑 입력</div>
               <div className="card">
+
+                {/* ── AI 음성 마이크 버튼 (Web Speech API) ── */}
+                {speechSupported && (
+                  <button
+                    onClick={toggleSpeech}
+                    style={{
+                      width: '100%',
+                      marginBottom: '14px',
+                      padding: '14px 16px',
+                      borderRadius: '12px',
+                      border: isListening
+                        ? '1.5px solid rgba(239,68,68,0.5)'
+                        : '1.5px solid var(--border)',
+                      background: isListening
+                        ? 'rgba(239,68,68,0.08)'
+                        : 'var(--surface2)',
+                      color: isListening ? '#f87171' : 'var(--text-muted)',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      fontFamily: 'inherit',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '10px',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <span style={{
+                      fontSize: '20px',
+                      display: 'inline-block',
+                      animation: isListening ? 'pulse 1s ease-in-out infinite' : 'none',
+                    }}>
+                      🤖
+                    </span>
+                    <span>
+                      {isListening ? 'AI가 듣고 있어요 — 탭하면 중지' : 'AI 음성으로 일지 쓰기'}
+                    </span>
+                    {isListening && (
+                      <span style={{
+                        display: 'inline-flex',
+                        gap: '3px',
+                        alignItems: 'center',
+                        marginLeft: '2px',
+                      }}>
+                        {[0, 0.2, 0.4].map((delay, i) => (
+                          <span key={i} style={{
+                            width: '4px',
+                            height: '4px',
+                            borderRadius: '50%',
+                            background: '#f87171',
+                            animation: `pulse 1s ease-in-out ${delay}s infinite`,
+                            display: 'inline-block',
+                          }} />
+                        ))}
+                      </span>
+                    )}
+                  </button>
+                )}
+
                 {/* 모바일 STT 최적화 메인 텍스트 입력 */}
                 <div style={{marginBottom:'6px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                   <span style={{fontSize:'12px',fontWeight:600,color:'var(--text-muted)'}}>수업 내용 브리핑</span>
@@ -4382,13 +4506,17 @@ export default function TrainerApp() {
                 <textarea
                   value={rawInput}
                   onChange={e => setRawInput(e.target.value)}
-                  placeholder={'수업 내용을 입력하세요.\n\n💡 스마트폰 자판의 마이크 버튼을 누르면\n말로 쉽게 입력할 수 있어요!'}
+                  placeholder={speechSupported
+                    ? '위 버튼을 눌러 말로 입력하거나, 여기에 직접 입력하세요.\n\n💡 스마트폰 자판의 마이크 버튼도 사용할 수 있어요!'
+                    : '수업 내용을 입력하세요.\n\n💡 스마트폰 자판의 마이크 버튼을 누르면\n말로 쉽게 입력할 수 있어요!'}
                   style={{
                     width:'100%',
                     minHeight:'160px',
                     padding:'14px',
                     borderRadius:'10px',
-                    border:'1.5px solid var(--border)',
+                    border: isListening
+                      ? '1.5px solid rgba(239,68,68,0.4)'
+                      : '1.5px solid var(--border)',
                     background:'var(--surface2)',
                     color:'var(--text)',
                     fontSize:'14px',
@@ -4397,6 +4525,7 @@ export default function TrainerApp() {
                     resize:'vertical',
                     boxSizing:'border-box',
                     marginBottom:'8px',
+                    transition: 'border-color 0.2s',
                   }}
                 />
                 <div style={{fontSize:'11px',color:'var(--text-dim)',marginBottom:'16px',paddingLeft:'2px'}}>

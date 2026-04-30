@@ -115,3 +115,55 @@ tr:hover td { background:var(--surface2); }
 .period-tab { padding:6px 14px; border-radius:100px; font-size:12px; font-weight:500; cursor:pointer; border:1.5px solid var(--border); color:var(--text-muted); transition:all 0.2s; background:var(--surface); font-family:inherit; }
 .period-tab.active { background:var(--accent); color:#111; border-color:transparent; font-weight:700; }
 .period-tab:hover:not(.active) { border-color:var(--accent-dim); color:var(--text); }
+
+/* ========== ANIMATIONS ========== */
+@keyframes spin  { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%,100% { transform: scale(1); opacity:1; } 50% { transform: scale(1.3); opacity:0.65; } }
+
+/* ========== GYM PORTAL — 어두운 테마 (CRM 전용) ========== */
+/* GymPortal.jsx 루트 div에 gym-portal 클래스를 부여해 스코프 격리 */
+.gym-portal {
+  --bg:#0a0a0a; --surface:#141414; --surface2:#1e1e1e; --surface3:#252525;
+  --border:#2a2a2a;
+  --text:#f0f0f0; --text-muted:#888; --text-dim:#444;
+  --danger:#ff5c5c; --warning:#f5a623; --info:#378ADD;
+  --shadow-sm:none; --shadow:none; --shadow-lg:none;
+  /* accent 은 동일 (#c8f135) — 라이트/다크 공통 */
+
+  min-height:100vh;
+  background:var(--bg);
+  color:var(--text);
+}
+/* 다크 테마 input / select */
+.gym-portal input[type="text"],
+.gym-portal input[type="password"],
+.gym-portal input[type="number"],
+.gym-portal input[type="date"],
+.gym-portal input[type="email"],
+.gym-portal input[type="tel"],
+.gym-portal input[type="time"],
+.gym-portal select,
+.gym-portal textarea {
+  background:var(--surface2);
+  border-color:var(--border);
+  color:var(--text);
+}
+.gym-portal input::placeholder,
+.gym-portal textarea::placeholder { color:var(--text-dim); }
+.gym-portal select option { background:var(--surface2); }
+/* 다크 카드 */
+.gym-portal .card {
+  background:var(--surface);
+  border-color:var(--border);
+  box-shadow:none;
+}
+/* 다크 버튼 ghost */
+.gym-portal .btn-ghost {
+  border-color:var(--border);
+  color:var(--text-muted);
+}
+.gym-portal .btn-ghost:hover { border-color:var(--accent); color:var(--accent); background:none; }
+/* 다크 테이블 */
+.gym-portal th { background:var(--surface2); color:var(--text-dim); border-bottom-color:var(--border); }
+.gym-portal td { border-bottom-color:var(--border); color:var(--text-muted); }
+.gym-portal tr:hover td { background:var(--surface2); }
