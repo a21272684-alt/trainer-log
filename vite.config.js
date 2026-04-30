@@ -14,6 +14,19 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    open: true
+    open: true,
+    // FFmpeg.wasm requires SharedArrayBuffer → COOP/COEP headers mandatory
+    // Note: COOP: same-origin blocks window.opener (OAuth popup flow).
+    //       If Google/Kakao OAuth uses redirect (not popup), no issue.
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
+  },
+  preview: {
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
   }
 })

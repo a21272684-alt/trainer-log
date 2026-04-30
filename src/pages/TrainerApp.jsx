@@ -1573,6 +1573,10 @@ export default function TrainerApp() {
   const [speechSupported, setSpeechSupported] = useState(        // Web Speech API 지원 여부
     typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
   )
+  // V3 — 미디어 첨부
+  const [mediaFiles, setMediaFiles] = useState([])       // [{id, name, type, dataUrl, sizeKB}]
+  const [mediaProcessing, setMediaProcessing] = useState(false)
+  const [mediaProgress, setMediaProgress] = useState('')
   const [previewContent, setPreviewContent] = useState('')
   const [finalContent, setFinalContent] = useState('')
   const [generating, setGenerating] = useState(false)
@@ -1614,6 +1618,8 @@ export default function TrainerApp() {
   const [profileUploading, setProfileUploading] = useState(false)
   const profileInputRef = useRef(null)
   const recognitionRef = useRef(null)  // Web Speech API 인스턴스
+  const ffmpegRef     = useRef(null)  // FFmpeg.wasm 인스턴스 (lazy load)
+  const mediaInputRef = useRef(null)  // 미디어 파일 input
 
   // Revenue tab — 월별 총 결제액
   const [payMonthStr, setPayMonthStr] = useState(() => {
@@ -2393,6 +2399,170 @@ export default function TrainerApp() {
     setEditingExId(id); setNewSets([...ex.sets]); setExName(ex.name); setExModal(true)
   }
 
+  // === MEDIA (V3) ===
+
+  /** Canvas API로 이미지 압축 → WebP dataURL (의존성 없음, iOS 완벽 지원) */
+  async function compressImage(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      img.onload = () => {
+        const MAX = 1200
+        let { width, height } = img
+        if (width > MAX) { height = Math.round(height * MAX / width); width = MAX }
+        const canvas = document.createElement('canvas')
+        canvas.width = width; canvas.height = height
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+        canvas.toBlob(blob => {
+          if (!blob) { reject(new Error('이미지 변환 실패')); return }
+          const reader = new FileReader()
+          reader.onload = e => resolve({ dataUrl: e.target.result, sizeKB: Math.round(blob.size / 1024) })
+          reader.readAsDataURL(blob)
+        }, 'image/webp', 0.80)
+        URL.revokeObjectURL(url)
+      }
+      img.onerror = () => reject(new Error('이미지 로드 실패'))
+      img.src = url
+    })
+  }
+
+  /** Canvas + <video> 첫 프레임 추출 → WebP (FFmpeg 실패 시 폴백용) */
+  async function extractVideoThumbnail(file) {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video')
+      const url   = URL.createObjectURL(file)
+      video.muted = true; video.playsInline = true
+      video.onloadeddata = () => {
+        video.currentTime = 0
+      }
+      video.onseeked = () => {
+        const canvas = document.createElement('canvas')
+        const MAX = 480
+        let { videoWidth: w, videoHeight: h } = video
+        if (w > MAX) { h = Math.round(h * MAX / w); w = MAX }
+        canvas.width = w; canvas.height = h
+        canvas.getContext('2d').drawImage(video, 0, 0, w, h)
+        canvas.toBlob(blob => {
+          URL.revokeObjectURL(url)
+          if (!blob) { reject(new Error('썸네일 추출 실패')); return }
+          const reader = new FileReader()
+          reader.onload = e => resolve({ dataUrl: e.target.result, sizeKB: Math.round(blob.size / 1024), isFallback: true })
+          reader.readAsDataURL(blob)
+        }, 'image/webp', 0.75)
+      }
+      video.onerror = () => { URL.revokeObjectURL(url); reject(new Error('동영상 로드 실패')) }
+      video.src = url
+    })
+  }
+
+  /** FFmpeg.wasm으로 동영상 → GIF 변환 (10초·480px·8fps) */
+  async function convertVideoToGif(file) {
+    // FFmpeg lazy load (최초 1회만 CDN에서 다운로드)
+    if (!ffmpegRef.current) {
+      const { FFmpeg }     = await import('@ffmpeg/ffmpeg')
+      const { toBlobURL }  = await import('@ffmpeg/util')
+      const ff = new FFmpeg()
+      const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm'
+      ff.on('progress', ({ progress }) => {
+        setMediaProgress(`변환 중... ${Math.round(Math.min(progress, 1) * 100)}%`)
+      })
+      await ff.load({
+        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`,   'text/javascript'),
+        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+      })
+      ffmpegRef.current = ff
+    }
+    const ff = ffmpegRef.current
+    const { fetchFile } = await import('@ffmpeg/util')
+
+    const ext = file.name.split('.').pop().toLowerCase() || 'mp4'
+    const inName  = `input.${ext}`
+    const outName = 'output.gif'
+
+    setMediaProgress('파일 로딩 중...')
+    await ff.writeFile(inName, await fetchFile(file))
+
+    setMediaProgress('GIF 변환 시작...')
+    // 팔레트 최적화 2-pass GIF (고품질, 파일 크기 절충)
+    await ff.exec([
+      '-i', inName,
+      '-t', '10',
+      '-vf', 'fps=8,scale=480:-2:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=64[p];[s1][p]paletteuse=dither=bayer',
+      '-loop', '0',
+      outName,
+    ])
+
+    const data = await ff.readFile(outName)
+    await ff.deleteFile(inName)
+    await ff.deleteFile(outName)
+
+    const blob   = new Blob([data.buffer], { type: 'image/gif' })
+    const sizeKB = Math.round(blob.size / 1024)
+    const reader = new FileReader()
+    return new Promise((resolve, reject) => {
+      reader.onload  = e => resolve({ dataUrl: e.target.result, sizeKB })
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+  }
+
+  /** 파일 선택 핸들러 — 이미지/동영상 분기 처리 */
+  async function handleMediaSelect(e) {
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
+    if (mediaFiles.length + files.length > 5) {
+      showToast('미디어는 최대 5개까지 첨부할 수 있어요')
+      if (mediaInputRef.current) mediaInputRef.current.value = ''
+      return
+    }
+
+    setMediaProcessing(true)
+    setMediaProgress('미디어를 앱에 맞게 최적화하고 있습니다 ⏳')
+
+    const results = []
+    for (const file of files) {
+      try {
+        const isVideo = file.type.startsWith('video/')
+        let dataUrl, sizeKB, isFallback = false
+
+        if (isVideo) {
+          setMediaProgress(`동영상 처리 중: ${file.name}`)
+          try {
+            ;({ dataUrl, sizeKB } = await convertVideoToGif(file))
+          } catch (ffErr) {
+            console.warn('FFmpeg 변환 실패, 썸네일 폴백 사용:', ffErr.message)
+            ;({ dataUrl, sizeKB, isFallback } = await extractVideoThumbnail(file))
+            showToast('동영상은 첫 프레임 이미지로 저장됐어요 (움짤 변환 미지원 환경)')
+          }
+        } else {
+          setMediaProgress(`이미지 압축 중: ${file.name}`)
+          ;({ dataUrl, sizeKB } = await compressImage(file))
+        }
+
+        results.push({
+          id:       Date.now() + Math.random(),
+          name:     file.name,
+          type:     isVideo ? (isFallback ? 'image/webp' : 'image/gif') : 'image/webp',
+          dataUrl,
+          sizeKB,
+          isVideo,
+          isFallback,
+        })
+      } catch (err) {
+        showToast(`${file.name} 처리 실패: ${err.message}`)
+      }
+    }
+
+    setMediaFiles(prev => [...prev, ...results])
+    setMediaProcessing(false)
+    setMediaProgress('')
+    if (mediaInputRef.current) mediaInputRef.current.value = ''
+  }
+
+  function removeMedia(id) {
+    setMediaFiles(prev => prev.filter(f => f.id !== id))
+  }
+
   // === SPEECH (Web Speech API) ===
   function toggleSpeech() {
     // API 미지원 환경 처리
@@ -2486,6 +2656,14 @@ export default function TrainerApp() {
       const text = await callGemini(key, GEMINI_MODEL, prompt, { timeoutMs: 45000 })
 
       setShowPreview(true); setPreviewContent(text); setFinalContent(text); setShowSend(true)
+
+      // ── V3 미디어 페이로드 번들링 (Supabase 전송 준비) ──────
+      // mediaFiles 는 이미 state에 보관됨 (압축 완료된 { id, name, type, dataUrl, sizeKB }[])
+      // 실제 업로드 시 아래 payload 를 사용:
+      // const payload = { summary: text, media: mediaFiles }
+      // await supabase.storage.from('session-media').upload(...)
+      // ─────────────────────────────────────────────────────────
+
       showToast('✦ 수업일지 생성 완료!')
 
       // ── 크레딧 차감 ──────────────────────────────────────
@@ -4491,6 +4669,65 @@ export default function TrainerApp() {
                   </button>
                 )}
 
+                {/* ── V3 미디어 첨부 버튼 ── */}
+                <button
+                  onClick={() => !mediaProcessing && mediaFiles.length < 5 && mediaInputRef.current?.click()}
+                  disabled={mediaProcessing || mediaFiles.length >= 5}
+                  style={{
+                    width: '100%',
+                    marginBottom: '10px',
+                    padding: '11px 16px',
+                    borderRadius: '12px',
+                    border: '1.5px dashed var(--border)',
+                    background: 'transparent',
+                    color: mediaFiles.length >= 5 ? 'var(--text-dim)' : 'var(--text-muted)',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    fontFamily: 'inherit',
+                    cursor: mediaProcessing || mediaFiles.length >= 5 ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    opacity: mediaFiles.length >= 5 ? 0.45 : 1,
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <span>🖼️</span>
+                  <span>
+                    {mediaFiles.length >= 5
+                      ? '미디어 최대 5개 첨부됨'
+                      : `미디어 첨부 (최대 5개)${mediaFiles.length ? ` · ${mediaFiles.length}개 선택됨` : ''}`}
+                  </span>
+                </button>
+                <input
+                  ref={mediaInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  style={{display:'none'}}
+                  onChange={handleMediaSelect}
+                />
+
+                {/* 변환 중 프로그레스 */}
+                {mediaProcessing && (
+                  <div style={{
+                    display:'flex',alignItems:'center',gap:'10px',
+                    padding:'12px 14px',marginBottom:'10px',
+                    background:'var(--surface2)',borderRadius:'10px',
+                    border:'1px solid var(--border)',
+                  }}>
+                    <div style={{
+                      width:'18px',height:'18px',flexShrink:0,
+                      border:'2px solid var(--border)',borderTop:'2px solid var(--accent)',
+                      borderRadius:'50%',animation:'spin 0.9s linear infinite',
+                    }} />
+                    <span style={{fontSize:'12px',color:'var(--text-muted)',lineHeight:1.5}}>
+                      {mediaProgress || '미디어를 앱에 맞게 최적화하고 있습니다 ⏳'}
+                    </span>
+                  </div>
+                )}
+
                 {/* 모바일 STT 최적화 메인 텍스트 입력 */}
                 <div style={{marginBottom:'6px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                   <span style={{fontSize:'12px',fontWeight:600,color:'var(--text-muted)'}}>수업 내용 브리핑</span>
@@ -4528,9 +4765,61 @@ export default function TrainerApp() {
                     transition: 'border-color 0.2s',
                   }}
                 />
-                <div style={{fontSize:'11px',color:'var(--text-dim)',marginBottom:'16px',paddingLeft:'2px'}}>
+                <div style={{fontSize:'11px',color:'var(--text-dim)',marginBottom: mediaFiles.length ? '10px' : '16px',paddingLeft:'2px'}}>
                   ✦ 수업 후 1분간 핵심만 간단히 말하거나 입력하세요. AI가 전문 일지로 변환해 드려요.
                 </div>
+
+                {/* 썸네일 프리뷰 — 가로 스크롤 */}
+                {mediaFiles.length > 0 && (
+                  <div style={{
+                    display:'flex',gap:'10px',
+                    overflowX:'auto',
+                    paddingBottom:'10px',
+                    marginBottom:'6px',
+                    WebkitOverflowScrolling:'touch',
+                    scrollbarWidth:'none',
+                  }}>
+                    {mediaFiles.map(f => (
+                      <div key={f.id} style={{position:'relative',flexShrink:0}}>
+                        <img
+                          src={f.dataUrl}
+                          alt={f.name}
+                          style={{
+                            width:'96px',height:'96px',
+                            objectFit:'cover',
+                            borderRadius:'10px',
+                            border:'1px solid var(--border)',
+                            display:'block',
+                          }}
+                        />
+                        {/* 파일 크기 뱃지 */}
+                        <div style={{
+                          position:'absolute',bottom:'5px',left:'5px',
+                          background:'rgba(0,0,0,0.55)',
+                          color:'#fff',fontSize:'9px',fontWeight:600,
+                          padding:'2px 5px',borderRadius:'4px',
+                          backdropFilter:'blur(4px)',
+                        }}>
+                          {f.isVideo && !f.isFallback ? 'GIF ' : ''}{f.sizeKB}KB
+                        </div>
+                        {/* 삭제 버튼 */}
+                        <button
+                          onClick={() => removeMedia(f.id)}
+                          style={{
+                            position:'absolute',top:'-6px',right:'-6px',
+                            width:'20px',height:'20px',
+                            borderRadius:'50%',border:'none',
+                            background:'var(--danger, #ef4444)',
+                            color:'#fff',fontSize:'12px',lineHeight:'20px',
+                            cursor:'pointer',padding:0,
+                            display:'flex',alignItems:'center',justifyContent:'center',
+                            boxShadow:'0 1px 4px rgba(0,0,0,0.3)',
+                          }}
+                        >×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* ── AI 해석 관점 입력 ── */}
                 <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'14px',marginTop:'6px'}}>
