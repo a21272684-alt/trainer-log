@@ -4697,7 +4697,7 @@ export default function TrainerApp() {
                   <span>
                     {mediaFiles.length >= 5
                       ? '미디어 최대 5개 첨부됨'
-                      : `미디어 첨부 (최대 5개)${mediaFiles.length ? ` · ${mediaFiles.length}개 선택됨` : ''}`}
+                      : `사진·영상 첨부 (JPG · PNG · MP4 · MOV 등, 최대 5개)${mediaFiles.length ? ` · ${mediaFiles.length}개 선택됨` : ''}`}
                   </span>
                 </button>
                 <input
