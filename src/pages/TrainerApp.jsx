@@ -17,7 +17,6 @@ import {
 } from '../lib/gymReport'
 import {
   callGemini,
-  callGeminiMultipart,
   buildSessionLogPrompt,
 } from '../lib/ai_templates'
 
@@ -1568,10 +1567,6 @@ export default function TrainerApp() {
   const [activePage, setActivePage] = useState('page-members')
   const [currentMemberId, setCurrentMemberId] = useState(null)
   const [exercises, setExercises] = useState([])
-  const [audioData, setAudioData] = useState(null)
-  const [audioMime, setAudioMime] = useState(null)
-  const [audioName, setAudioName] = useState('')
-  const [audioSize, setAudioSize] = useState('')
   const [rawInput, setRawInput] = useState('')
   const [perspectiveInput, setPerspectiveInput] = useState('')  // AI 해석 관점
   const [previewContent, setPreviewContent] = useState('')
@@ -1733,7 +1728,6 @@ export default function TrainerApp() {
   const [agreedPrivacy, setAgreedPrivacy] = useState(false) // 개인정보처리방침
   const [agreedAI,      setAgreedAI]      = useState(false) // 음성·AI 처리 동의
 
-  const audioInputRef = useRef(null)
 
   useEffect(() => { localStorage.setItem('tl_sch', JSON.stringify(blocks)) }, [blocks])
 
@@ -2372,21 +2366,6 @@ export default function TrainerApp() {
     } catch(e) { showToast('오류: ' + e.message) }
   }
 
-  // === AUDIO ===
-  function handleAudio(e) {
-    const file = e.target.files[0]; if (!file) return
-    if (file.size > 100*1024*1024) { showToast('파일이 너무 커요. 100MB 이하만 가능해요.'); return }
-    setAudioName(file.name); setAudioSize((file.size/(1024*1024)).toFixed(1) + ' MB')
-    const reader = new FileReader()
-    reader.onload = ev => {
-      setAudioData(ev.target.result.split(',')[1])
-      setAudioMime(file.type || 'audio/m4a')
-      showToast('✓ 파일 업로드 완료!')
-    }
-    reader.readAsDataURL(file)
-  }
-  function removeAudio() { setAudioData(null); if (audioInputRef.current) audioInputRef.current.value = '' }
-
   // === EXERCISES ===
   function openAddExercise() { setNewSets([]); setEditingExId(null); setExName(''); setSetReps(''); setSetRir(''); setSetFeel(''); setExModal(true) }
   function addSet() {
@@ -2411,7 +2390,7 @@ export default function TrainerApp() {
 
   // === GENERATE ===
   async function generateLog() {
-    if (!audioData && !rawInput && !exercises.length) { showToast('녹음 파일을 업로드하거나 내용을 입력해주세요'); return }
+    if (!rawInput.trim() && !exercises.length) { showToast('수업 내용을 입력해주세요'); return }
     const key = centralApiKey
     if (!key) { showToast('AI 서비스 준비 중이에요. 잠시 후 다시 시도해주세요'); return }
 
@@ -2427,31 +2406,20 @@ export default function TrainerApp() {
       return
     }
     // ─────────────────────────────────────────────────────────
+
     setGenerating(true); setShowPreview(false); setShowSend(false)
+    setAiStatus('AI가 회원님을 위한 맞춤형 리포트를 작성하고 있습니다...')
     try {
-      // ai_templates.buildSessionLogPrompt 로 프롬프트 생성
       const prompt = buildSessionLogPrompt({
         trainer,
         member:      m,
         exercises,
         rawInput,
-        hasAudio:    !!audioData,
+        hasAudio:    false,
         perspective: perspectiveInput,
       })
 
-      let text
-      if (audioData) {
-        // 멀티파트(오디오 + 텍스트) — ai_templates.callGeminiMultipart
-        setAiStatus('AI가 수업 녹음을 분석하는 중...')
-        text = await callGeminiMultipart(key, GEMINI_MODEL, [
-          { inline_data: { mime_type: audioMime, data: audioData } },
-          { text: prompt },
-        ])
-      } else {
-        // 텍스트 전용 — ai_templates.callGemini
-        setAiStatus('AI가 수업일지를 작성하는 중...')
-        text = await callGemini(key, GEMINI_MODEL, prompt, { timeoutMs: 45000 })
-      }
+      const text = await callGemini(key, GEMINI_MODEL, prompt, { timeoutMs: 45000 })
 
       setShowPreview(true); setPreviewContent(text); setFinalContent(text); setShowSend(true)
       showToast('✦ 수업일지 생성 완료!')
@@ -2464,6 +2432,7 @@ export default function TrainerApp() {
       // ─────────────────────────────────────────────────────
     } catch(e) {
       showToast('오류: ' + e.message)
+      // rawInput 유지 — 에러 시 입력 내용 보존됨 (state 그대로)
     } finally {
       setGenerating(false)
       setAiStatus('')
@@ -4396,28 +4365,43 @@ export default function TrainerApp() {
 
           {rtab === 'write' && (
             <div>
-              <div className="section-label">1단계 — 수업 녹음 업로드</div>
+              <div className="section-label">1단계 — 수업 브리핑 입력</div>
               <div className="card">
-                {!audioData ? (
-                  <div id="upload-area" onClick={()=>audioInputRef.current?.click()} style={{border:'1.5px dashed var(--border)',borderRadius:'10px',padding:'22px 16px',textAlign:'center',cursor:'pointer',marginBottom:'14px'}}>
-                    <div style={{fontSize:'28px',marginBottom:'8px'}}>🎙</div>
-                    <div style={{fontSize:'13px',fontWeight:500,color:'var(--text-muted)'}}>음성 메모 파일 업로드</div>
-                    <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'4px'}}>m4a · mp3 · wav 지원</div>
-                  </div>
-                ) : (
-                  <div style={{display:'flex',background:'var(--surface2)',borderRadius:'8px',padding:'10px 14px',marginBottom:'14px',alignItems:'center',gap:'10px'}}>
-                    <span style={{fontSize:'20px'}}>🎵</span>
-                    <div style={{flex:1}}><div style={{fontSize:'13px',fontWeight:500}}>{audioName}</div><div style={{fontSize:'11px',color:'var(--text-dim)'}}>{audioSize}</div></div>
-                    <button onClick={removeAudio} style={{background:'none',border:'none',color:'var(--text-dim)',cursor:'pointer',fontSize:'18px'}}>×</button>
-                  </div>
-                )}
-                <input ref={audioInputRef} type="file" accept="audio/*" style={{display:'none'}} onChange={handleAudio} />
-                <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'14px'}}>
-                  <div style={{flex:1,height:'1px',background:'var(--border)'}}></div>
-                  <span style={{fontSize:'11px',color:'var(--text-dim)'}}>추가 메모 (선택)</span>
-                  <div style={{flex:1,height:'1px',background:'var(--border)'}}></div>
+                {/* 모바일 STT 최적화 메인 텍스트 입력 */}
+                <div style={{marginBottom:'6px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <span style={{fontSize:'12px',fontWeight:600,color:'var(--text-muted)'}}>수업 내용 브리핑</span>
+                  {rawInput.trim() && (
+                    <button
+                      onClick={() => setRawInput('')}
+                      style={{background:'none',border:'none',color:'var(--text-dim)',cursor:'pointer',fontSize:'12px',padding:'2px 6px',borderRadius:'4px'}}
+                    >
+                      지우기 ×
+                    </button>
+                  )}
                 </div>
-                <div className="form-group"><textarea value={rawInput} onChange={e=>setRawInput(e.target.value)} placeholder="녹음에 없는 내용을 추가로 입력하세요." rows={3}></textarea></div>
+                <textarea
+                  value={rawInput}
+                  onChange={e => setRawInput(e.target.value)}
+                  placeholder={'수업 내용을 입력하세요.\n\n💡 스마트폰 자판의 마이크 버튼을 누르면\n말로 쉽게 입력할 수 있어요!'}
+                  style={{
+                    width:'100%',
+                    minHeight:'160px',
+                    padding:'14px',
+                    borderRadius:'10px',
+                    border:'1.5px solid var(--border)',
+                    background:'var(--surface2)',
+                    color:'var(--text)',
+                    fontSize:'14px',
+                    lineHeight:'1.65',
+                    fontFamily:'inherit',
+                    resize:'vertical',
+                    boxSizing:'border-box',
+                    marginBottom:'8px',
+                  }}
+                />
+                <div style={{fontSize:'11px',color:'var(--text-dim)',marginBottom:'16px',paddingLeft:'2px'}}>
+                  ✦ 수업 후 1분간 핵심만 간단히 말하거나 입력하세요. AI가 전문 일지로 변환해 드려요.
+                </div>
 
                 {/* ── AI 해석 관점 입력 ── */}
                 <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'14px',marginTop:'6px'}}>
@@ -4557,7 +4541,25 @@ export default function TrainerApp() {
                 </div>
               </div>
               <div className="section-label">2단계 — AI 수업일지 생성</div>
-              {generating && <div className="ai-status"><div className="ai-dot"></div><span>{aiStatus}</span></div>}
+              {generating && (
+                <div style={{
+                  display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
+                  padding:'28px 16px',gap:'14px',
+                  background:'var(--surface)',border:'1px solid var(--border)',
+                  borderRadius:'14px',marginBottom:'14px',
+                }}>
+                  <div style={{
+                    width:'36px',height:'36px',
+                    border:'3px solid var(--border)',
+                    borderTop:'3px solid var(--accent)',
+                    borderRadius:'50%',
+                    animation:'spin 1s linear infinite',
+                  }} />
+                  <div style={{fontSize:'13px',fontWeight:500,color:'var(--text-muted)',textAlign:'center',lineHeight:1.6}}>
+                    {aiStatus || 'AI가 회원님을 위한 맞춤형 리포트를 작성하고 있습니다...'}
+                  </div>
+                </div>
+              )}
               {showPreview && (
                 <div>
                   <div className="preview-card">{previewContent}</div>
