@@ -547,11 +547,13 @@ export default function ProductsTab({ gymId }) {
 
   async function handleDelete() {
     if (!deleteTarget) return
-    const { error } = await supabase.from('gym_products').delete().eq('id', deleteTarget.id)
+    const targetId = deleteTarget.id
+    const { error } = await supabase.from('gym_products').delete().eq('id', targetId)
     if (error) { showToast('삭제 오류: ' + error.message); return }
-    showToast('✓ 상품이 삭제됐어요')
+    // 모달 닫기 + 로컬 상태에서 즉시 제거 (재조회 없이 즉각 반영)
     setDeleteTarget(null)
-    await load()
+    setProducts(prev => prev.filter(p => p.id !== targetId))
+    showToast('✓ 상품이 삭제됐어요')
   }
 
   const filtered = products

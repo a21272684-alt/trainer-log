@@ -1692,6 +1692,7 @@ export default function TrainerApp() {
   const [gymSearchResults, setGymSearchResults] = useState([])
   const [gymSearchLoading, setGymSearchLoading] = useState(false)
   const [joinLoading,      setJoinLoading]      = useState(false)
+  const [gymName,          setGymName]          = useState('')   // 승인된 센터명 캐시
 
   // Settings modal
   const [settingsModal, setSettingsModal] = useState(false)
@@ -2142,6 +2143,16 @@ export default function TrainerApp() {
   useEffect(() => { if (tab === 'revenue' && trainer) loadMonthPayments(payMonthStr) }, [tab, payMonthStr])
   useEffect(() => { if (tab === 'support' && trainer) loadInquiries() }, [tab])
 
+  // ── 승인된 센터명 조회 (gym_id → gyms.name) ─────────────────
+  useEffect(() => {
+    if (trainer?.gym_id && trainer?.approval_status !== 'pending') {
+      supabase.from('gyms').select('name').eq('id', trainer.gym_id).maybeSingle()
+        .then(({ data }) => { if (data?.name) setGymName(data.name) })
+    } else {
+      setGymName('')
+    }
+  }, [trainer?.gym_id, trainer?.approval_status])
+
   // ── 센터 검색 ────────────────────────────────────────────────
   async function searchGyms() {
     const q = gymSearchQuery.trim()
@@ -2167,6 +2178,7 @@ export default function TrainerApp() {
     if (error) { showToast('요청 중 오류가 발생했어요: ' + error.message); return }
     // 로컬 trainer 상태 업데이트
     setTrainer(prev => ({ ...prev, gym_id: gym.id, approval_status: 'pending' }))
+    setGymName(gym.name)   // 센터명 미리 캐시 (pending 화면에서도 이름 표시 가능)
     setGymSearchResults([])
     setGymSearchQuery('')
     showToast('✓ 가입 요청을 보냈어요! 센터 대표님 승인을 기다려주세요 🙏')
@@ -4198,8 +4210,12 @@ export default function TrainerApp() {
               borderRadius:'12px',padding:'14px 16px',display:'flex',alignItems:'center',gap:'10px'}}>
               <span style={{fontSize:'20px'}}>✅</span>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:'13px',fontWeight:600,color:'#4ade80'}}>센터 소속 확인됨</div>
-                <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'2px'}}>센터 ID: {trainer.gym_id}</div>
+                <div style={{fontSize:'13px',fontWeight:600,color:'#4ade80'}}>
+                  {gymName ? gymName : '센터 소속 확인됨'}
+                </div>
+                <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'2px'}}>
+                  {gymName ? '소속 센터가 확인됐어요' : '센터 정보를 불러오는 중...'}
+                </div>
               </div>
             </div>
           )}
@@ -4212,7 +4228,9 @@ export default function TrainerApp() {
                 <span style={{fontSize:'20px'}}>⏳</span>
                 <div style={{flex:1}}>
                   <div style={{fontSize:'13px',fontWeight:600,color:'#facc15'}}>승인 대기 중</div>
-                  <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'2px'}}>센터 대표님의 승인을 기다리고 있어요</div>
+                  <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'2px'}}>
+                    {gymName ? `${gymName} · ` : ''}센터 대표님의 승인을 기다리고 있어요
+                  </div>
                 </div>
               </div>
               <button onClick={cancelJoinRequest}
