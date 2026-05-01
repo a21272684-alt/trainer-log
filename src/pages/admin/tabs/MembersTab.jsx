@@ -263,23 +263,74 @@ function MemberDetailModal({ member, trainer, gymId, onClose }) {
   )
 }
 
-export default function MembersTab({ members, trainers, gymId }) {
+export default function MembersTab({ members: membersProp, trainers, gymId }) {
+  const showToast = useToast()
+  const [localMembers, setLocalMembers] = useState(membersProp)
   const [filter,   setFilter]   = useState('all')
   const [search,   setSearch]   = useState('')
   const [riskMap,  setRiskMap]  = useState({})
   const [selected, setSelected] = useState(null)
 
-  useEffect(() => { loadRiskScores() }, [members])
+  // ── 신규 회원 등록 모달 상태 ──
+  const [addModal,  setAddModal]  = useState(false)
+  const [addForm,   setAddForm]   = useState({ name: '', phone: '', trainer_id: '' })
+  const [addError,  setAddError]  = useState('')
+  const [saving,    setSaving]    = useState(false)
+
+  // 부모에서 members prop이 교체되면 동기화 (초기 로드 등)
+  useEffect(() => { setLocalMembers(membersProp) }, [membersProp])
+
+  useEffect(() => { loadRiskScores() }, [localMembers])
 
   async function loadRiskScores() {
-    if (!members.length) return
-    const { data } = await supabase.from('member_risk_scores').select('*').in('member_id', members.map(m => m.id))
+    if (!localMembers.length) return
+    const { data } = await supabase.from('member_risk_scores').select('*').in('member_id', localMembers.map(m => m.id))
     const map = {}
     ;(data||[]).forEach(r => { map[r.member_id] = r })
     setRiskMap(map)
   }
 
-  const filtered = members
+  // 재직 중인 트레이너만 선택 가능 (employment_status 미설정 레거시 포함)
+  const activeTrainers = trainers.filter(t => !t.employment_status || t.employment_status === 'active')
+
+  function openAddModal() {
+    setAddForm({ name: '', phone: '', trainer_id: activeTrainers[0]?.id ?? '' })
+    setAddError('')
+    setAddModal(true)
+  }
+
+  async function handleAdd() {
+    const name  = addForm.name.trim()
+    const phone = addForm.phone.trim()
+    if (!name)               { setAddError('이름을 입력해주세요.'); return }
+    if (!phone)              { setAddError('연락처를 입력해주세요.'); return }
+    if (!addForm.trainer_id) { setAddError('담당 트레이너를 선택해주세요.'); return }
+
+    setSaving(true)
+    setAddError('')
+    try {
+      // ── 중복 방어: 같은 gym 내 동일 phone ──
+      const { data: dup } = await supabase
+        .from('members').select('id').eq('gym_id', gymId).eq('phone', phone).maybeSingle()
+      if (dup) { setAddError('이미 등록된 연락처입니다.'); return }
+
+      // ── INSERT ──
+      const { data: inserted, error } = await supabase
+        .from('members')
+        .insert({ name, phone, trainer_id: addForm.trainer_id, gym_id: gymId })
+        .select().single()
+      if (error) { setAddError('오류: ' + error.message); return }
+
+      showToast(`✓ ${inserted.name} 회원이 등록됐어요`)
+      // 즉시 로컬 상태 앞에 추가 (await load() 없음)
+      setLocalMembers(prev => [inserted, ...prev])
+      setAddModal(false)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const filtered = localMembers
     .filter(m => {
       const rem  = Math.max(0,(m.total_sessions||0)-(m.done_sessions||0))
       const risk = riskMap[m.id]
@@ -303,6 +354,9 @@ export default function MembersTab({ members, trainers, gymId }) {
           <button key={v} className={`filter-chip ${filter===v?'active':''}`} onClick={() => setFilter(v)}>{l}</button>
         ))}
         <span style={{ marginLeft:'auto', fontSize:'12px', color:'var(--text-dim)' }}>{filtered.length}명</span>
+        <button className="btn btn-primary" style={{ padding:'6px 14px', fontSize:'12px', flexShrink:0 }} onClick={openAddModal}>
+          + 신규 회원 등록
+        </button>
       </div>
 
       <div className="card" style={{ padding:0, overflow:'hidden' }}>
@@ -356,6 +410,62 @@ export default function MembersTab({ members, trainers, gymId }) {
             onClose={() => setSelected(null)}
           />
         )}
+      </Modal>
+
+      {/* ── 신규 회원 등록 모달 ── */}
+      <Modal open={addModal} onClose={() => setAddModal(false)} title="신규 회원 등록" maxWidth="400px">
+        <div style={{ display:'flex', flexDirection:'column', gap:'14px', marginBottom:'20px' }}>
+
+          {/* 이름 */}
+          <div>
+            <div style={{ fontSize:'11px', color:'var(--text-muted)', fontWeight:600, marginBottom:'5px' }}>이름 *</div>
+            <input className="input" placeholder="홍길동"
+              value={addForm.name}
+              onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))} />
+          </div>
+
+          {/* 연락처 */}
+          <div>
+            <div style={{ fontSize:'11px', color:'var(--text-muted)', fontWeight:600, marginBottom:'5px' }}>연락처 *</div>
+            <input className="input" placeholder="010-0000-0000"
+              value={addForm.phone}
+              onChange={e => setAddForm(f => ({ ...f, phone: e.target.value }))} />
+          </div>
+
+          {/* 담당 트레이너 */}
+          <div>
+            <div style={{ fontSize:'11px', color:'var(--text-muted)', fontWeight:600, marginBottom:'5px' }}>담당 트레이너 *</div>
+            {activeTrainers.length === 0 ? (
+              <div style={{ fontSize:'12px', color:'var(--text-dim)', padding:'8px 0' }}>재직 중인 트레이너가 없어요</div>
+            ) : (
+              <select className="input" value={addForm.trainer_id}
+                onChange={e => setAddForm(f => ({ ...f, trainer_id: e.target.value }))}>
+                {activeTrainers.map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* 에러 메시지 */}
+          {addError && (
+            <div style={{
+              padding:'8px 12px', borderRadius:'8px', fontSize:'12px',
+              background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.25)', color:'#ef4444',
+            }}>
+              ⚠️ {addError}
+            </div>
+          )}
+        </div>
+
+        <div style={{ display:'flex', gap:'8px' }}>
+          <button className="btn btn-secondary" style={{ flex:1, justifyContent:'center' }}
+            onClick={() => setAddModal(false)}>취소</button>
+          <button className="btn btn-primary" style={{ flex:1, justifyContent:'center' }}
+            onClick={handleAdd} disabled={saving || activeTrainers.length === 0}>
+            {saving ? '등록 중...' : '등록'}
+          </button>
+        </div>
       </Modal>
     </div>
   )
