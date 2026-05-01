@@ -58,15 +58,18 @@ function SubTabBar({ tabs, active, onChange, variant = 'pill' }) {
 // ────────────────────────────────────────────────────────────────
 function StaffPanel({ gymId }) {
   const showToast = useToast()
-  const [trainers,        setTrainers]        = useState([])
-  const [pendingTrainers, setPendingTrainers] = useState([])
-  const [gymRanks,        setGymRanks]        = useState([])
-  const [loading,         setLoading]         = useState(true)
-  const [approving,       setApproving]       = useState(null) // id being processed
-  const [addModal,    setAddModal]    = useState(false)
-  const [editModal,   setEditModal]   = useState(false)
-  const [editTarget,  setEditTarget]  = useState(null)
-  const [removeTarget,setRemoveTarget]= useState(null)
+  const [trainers,         setTrainers]         = useState([])   // employment_status = active
+  const [resignedTrainers, setResignedTrainers] = useState([])   // employment_status = resigned
+  const [pendingTrainers,  setPendingTrainers]  = useState([])   // approval_status   = pending
+  const [gymRanks,         setGymRanks]         = useState([])
+  const [loading,          setLoading]          = useState(true)
+  const [approving,        setApproving]        = useState(null)
+  const [resigning,        setResigning]        = useState(null) // id being resigned/reinstated
+  const [showResigned,     setShowResigned]     = useState(false)
+  const [addModal,     setAddModal]     = useState(false)
+  const [editModal,    setEditModal]    = useState(false)
+  const [editTarget,   setEditTarget]   = useState(null)
+  const [resignTarget, setResignTarget] = useState(null)
   const [form, setForm] = useState({ name: '', phone: '' })
   const [saving, setSaving] = useState(false)
 
@@ -74,13 +77,20 @@ function StaffPanel({ gymId }) {
 
   async function load() {
     setLoading(true)
-    const [tRes, pRes, rRes] = await Promise.all([
-      // 승인된 트레이너
+    const [activeRes, resignedRes, pendingRes, rRes] = await Promise.all([
+      // 재직 중 (approved + active)
       supabase.from('trainers').select('*, trainer_ranks(*)')
         .eq('gym_id', gymId)
         .neq('approval_status', 'pending')
+        .eq('employment_status', 'active')
         .order('created_at'),
-      // 가입 대기 트레이너
+      // 퇴사자 (approved + resigned)
+      supabase.from('trainers').select('*, trainer_ranks(*)')
+        .eq('gym_id', gymId)
+        .neq('approval_status', 'pending')
+        .eq('employment_status', 'resigned')
+        .order('created_at'),
+      // 가입 대기
       supabase.from('trainers').select('id, name, email, phone, created_at')
         .eq('gym_id', gymId)
         .eq('approval_status', 'pending')
@@ -88,17 +98,19 @@ function StaffPanel({ gymId }) {
       supabase.from('gym_ranks').select('*')
         .eq('gym_id', gymId).order('sort_order'),
     ])
-    setTrainers(tRes.data || [])
-    setPendingTrainers(pRes.data || [])
+    setTrainers(activeRes.data || [])
+    setResignedTrainers(resignedRes.data || [])
+    setPendingTrainers(pendingRes.data || [])
     setGymRanks(rRes.data || [])
     setLoading(false)
   }
 
+  // 가입 승인
   async function handleApprove(trainer) {
     setApproving(trainer.id)
     const { error } = await supabase
       .from('trainers')
-      .update({ approval_status: 'approved' })
+      .update({ approval_status: 'approved', employment_status: 'active' })
       .eq('id', trainer.id)
     setApproving(null)
     if (error) { showToast('오류: ' + error.message); return }
@@ -106,6 +118,7 @@ function StaffPanel({ gymId }) {
     await load()
   }
 
+  // 가입 거절 (지원 단계이므로 gym_id 초기화는 유지)
   async function handleReject(trainer) {
     setApproving(trainer.id)
     const { error } = await supabase
@@ -125,7 +138,8 @@ function StaffPanel({ gymId }) {
     if (!form.phone.trim()) { showToast('연락처를 입력하세요'); return }
     setSaving(true)
     const { error } = await supabase.from('trainers').insert({
-      name: form.name.trim(), phone: form.phone.trim(), gym_id: gymId,
+      name: form.name.trim(), phone: form.phone.trim(),
+      gym_id: gymId, employment_status: 'active', approval_status: 'approved',
     })
     setSaving(false)
     if (error) { showToast('오류: ' + error.message); return }
@@ -145,16 +159,31 @@ function StaffPanel({ gymId }) {
     setEditModal(false); await load()
   }
 
-  async function handleRemove() {
+  // 퇴사 처리 — gym_id 보존, employment_status만 resigned
+  async function handleResign() {
+    if (!resignTarget) return
     const { error } = await supabase.from('trainers')
-      .update({ gym_id: null }).eq('id', removeTarget.id)
+      .update({ employment_status: 'resigned' })
+      .eq('id', resignTarget.id)
     if (error) { showToast('오류: ' + error.message); return }
-    showToast('✓ 직원이 센터에서 제거됐어요')
-    setRemoveTarget(null); await load()
+    showToast(`${resignTarget.name} 님을 퇴사 처리했어요`)
+    setResignTarget(null); await load()
+  }
+
+  // 복직 처리
+  async function handleReinstate(trainer) {
+    setResigning(trainer.id)
+    const { error } = await supabase.from('trainers')
+      .update({ employment_status: 'active' })
+      .eq('id', trainer.id)
+    setResigning(null)
+    if (error) { showToast('오류: ' + error.message); return }
+    showToast(`✓ ${trainer.name} 님을 복직 처리했어요`)
+    await load()
   }
 
   function openEdit(t) {
-    setEditTarget(t); setForm({ name: t.name, phone: t.phone }); setEditModal(true)
+    setEditTarget(t); setForm({ name: t.name, phone: t.phone || '' }); setEditModal(true)
   }
 
   return (
@@ -200,7 +229,7 @@ function StaffPanel({ gymId }) {
                     onClick={() => handleApprove(t)}
                     disabled={approving === t.id}
                     style={{
-                      padding: '5px 12px', borderRadius: '7px', border: 'none',
+                      padding: '5px 12px', borderRadius: '7px',
                       background: 'rgba(74,222,128,0.15)', color: '#4ade80',
                       fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
                       border: '1px solid rgba(74,222,128,0.3)', outline: 'none',
@@ -243,7 +272,7 @@ function StaffPanel({ gymId }) {
         </button>
       </div>
 
-      {/* ── 직원 테이블 ── */}
+      {/* ── 재직 중 직원 테이블 ── */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-dim)' }}>
           <span className="spinner" style={{ display: 'block', marginBottom: '8px', fontSize: '22px' }}>✦</span>
@@ -252,7 +281,7 @@ function StaffPanel({ gymId }) {
       ) : trainers.length === 0 ? (
         <div className="empty-state" style={{ marginBottom: '24px' }}>
           <div className="empty-state-icon">👤</div>
-          <div className="empty-state-text">등록된 직원이 없어요</div>
+          <div className="empty-state-text">재직 중인 직원이 없어요</div>
         </div>
       ) : (
         <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: '24px' }}>
@@ -264,7 +293,7 @@ function StaffPanel({ gymId }) {
                 <th>직급</th>
                 <th>고용형태</th>
                 <th>등록일</th>
-                <th style={{ width: '96px' }}></th>
+                <th style={{ width: '110px' }}></th>
               </tr>
             </thead>
             <tbody>
@@ -304,7 +333,7 @@ function StaffPanel({ gymId }) {
                           onClick={() => openEdit(t)}>편집</button>
                         <button className="btn btn-secondary"
                           style={{ padding: '3px 8px', fontSize: '10px', color: 'var(--red)', borderColor: 'rgba(248,113,113,0.3)' }}
-                          onClick={() => setRemoveTarget(t)}>제거</button>
+                          onClick={() => setResignTarget(t)}>퇴사</button>
                       </div>
                     </td>
                   </tr>
@@ -312,6 +341,90 @@ function StaffPanel({ gymId }) {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* ── 퇴사자 아코디언 ── */}
+      {resignedTrainers.length > 0 && (
+        <div style={{ marginBottom: '24px' }}>
+          <button
+            onClick={() => setShowResigned(v => !v)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
+              padding: '10px 14px', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit',
+              background: 'var(--surface)', border: '1px solid var(--border)',
+              color: 'var(--text-dim)', fontSize: '12px', fontWeight: 600, textAlign: 'left',
+            }}>
+            <span>{showResigned ? '▾' : '▸'}</span>
+            <span>퇴사자 {resignedTrainers.length}명</span>
+            <span style={{ marginLeft: 'auto', fontSize: '10px', opacity: 0.6 }}>
+              기록 보존 중 · gym_id 유지
+            </span>
+          </button>
+
+          {showResigned && (
+            <div style={{ marginTop: '8px' }}>
+              <table className="data-table" style={{
+                opacity: 0.65, filter: 'grayscale(40%)',
+                border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden',
+              }}>
+                <thead>
+                  <tr>
+                    <th>이름</th>
+                    <th>연락처</th>
+                    <th>직급</th>
+                    <th>고용형태</th>
+                    <th style={{ width: '80px' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resignedTrainers.map(t => {
+                    const rank = gymRanks.find(r => r.id === t.gym_rank_id)
+                    return (
+                      <tr key={t.id} style={{ color: 'var(--text-dim)' }}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+                            <div style={{
+                              width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0,
+                              background: 'rgba(150,150,150,0.1)', border: '1px solid rgba(150,150,150,0.2)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: '12px', fontWeight: 700, color: 'var(--text-dim)',
+                            }}>{t.name[0]}</div>
+                            <span style={{ fontWeight: 600, fontSize: '13px' }}>{t.name}</span>
+                          </div>
+                        </td>
+                        <td style={{ ...mono, fontSize: '12px' }}>{t.phone}</td>
+                        <td>
+                          {rank
+                            ? <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '5px', background: 'rgba(150,150,150,0.08)', border: '1px solid rgba(150,150,150,0.15)' }}>{rank.label}</span>
+                            : <span style={{ fontSize: '11px' }}>—</span>}
+                        </td>
+                        <td>
+                          <span style={{ fontSize: '11px' }}>
+                            {EMP_LABEL[t.employment_type] || '미설정'}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            onClick={() => handleReinstate(t)}
+                            disabled={resigning === t.id}
+                            style={{
+                              padding: '3px 8px', fontSize: '10px', borderRadius: '6px',
+                              background: 'rgba(74,222,128,0.08)', color: '#4ade80',
+                              border: '1px solid rgba(74,222,128,0.25)', cursor: 'pointer',
+                              fontFamily: 'inherit', fontWeight: 600,
+                              opacity: resigning === t.id ? 0.5 : 1,
+                            }}>
+                            {resigning === t.id ? '…' : '복직'}
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -360,18 +473,18 @@ function StaffPanel({ gymId }) {
         </div>
       </Modal>
 
-      {/* ── 제거 확인 모달 ── */}
-      <Modal open={!!removeTarget} onClose={() => setRemoveTarget(null)} title="직원 제거" maxWidth="360px">
+      {/* ── 퇴사 처리 확인 모달 ── */}
+      <Modal open={!!resignTarget} onClose={() => setResignTarget(null)} title="퇴사 처리" maxWidth="360px">
         <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.65, marginBottom: '20px' }}>
-          <strong style={{ color: 'var(--text)' }}>{removeTarget?.name}</strong>님을 이 센터에서 제거할까요?<br />
+          <strong style={{ color: 'var(--text)' }}>{resignTarget?.name}</strong>님을 퇴사 처리할까요?<br />
           <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
-            트레이너 계정은 삭제되지 않고, 센터 소속만 해제돼요.
+            수업 기록·정산 내역은 그대로 보존돼요. 언제든 복직 처리할 수 있어요.
           </span>
         </p>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setRemoveTarget(null)}>취소</button>
+          <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setResignTarget(null)}>취소</button>
           <button className="btn" style={{ flex: 1, justifyContent: 'center', background: 'var(--red)', color: '#fff', border: 'none' }}
-            onClick={handleRemove}>제거</button>
+            onClick={handleResign}>퇴사 처리</button>
         </div>
       </Modal>
     </div>

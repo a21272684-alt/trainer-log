@@ -3534,6 +3534,43 @@ export default function TrainerApp() {
     )
   }
 
+  // === 퇴사 처리된 계정 차단 화면 ===
+  if (trainer?.employment_status === 'resigned') {
+    return (
+      <div style={{
+        minHeight: '100dvh', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        background: 'var(--bg, #f4f4f2)', padding: '24px',
+      }}>
+        <div style={{
+          maxWidth: '360px', width: '100%',
+          background: '#fff', border: '1px solid #E1E4D9',
+          borderRadius: '20px', padding: '40px 28px', textAlign: 'center',
+          boxShadow: '0 8px 40px rgba(0,0,0,0.07)',
+        }}>
+          <div style={{ fontSize: '40px', marginBottom: '16px' }}>🚫</div>
+          <div style={{ fontSize: '18px', fontWeight: 800, color: '#111', marginBottom: '8px', letterSpacing: '-0.3px' }}>
+            접근이 제한됐어요
+          </div>
+          <div style={{ fontSize: '13px', color: '#6B7280', lineHeight: 1.7, marginBottom: '28px' }}>
+            현재 <strong style={{ color: '#111' }}>퇴사 처리된 계정</strong>입니다.<br />
+            소속 센터 대표님께 문의해 복직 처리를 요청하세요.
+          </div>
+          <button
+            onClick={async () => { await supabase.auth.signOut(); setTrainer(null); setScreen('landing') }}
+            style={{
+              width: '100%', padding: '12px', borderRadius: '10px',
+              background: '#f3f4f6', border: '1px solid #E1E4D9',
+              fontSize: '13px', fontWeight: 600, color: '#374151',
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+            로그아웃
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   // === MAIN APP ===
   return (
     <div>
