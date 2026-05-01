@@ -96,6 +96,196 @@ function SlideCard({ children, delay = 0 }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   신규 대표 셀프 온보딩 — 센터 개설 컴포넌트
+═══════════════════════════════════════════════════════════════ */
+function OnboardingSetup({ authUser, onComplete, onSwitchAccount }) {
+  const [gymName,  setGymName]  = useState('')
+  const [ownerName, setOwnerName] = useState(
+    authUser?.user_metadata?.full_name || authUser?.user_metadata?.name || ''
+  )
+  const [saving,   setSaving]   = useState(false)
+  const [error,    setError]    = useState('')
+
+  async function handleCreate() {
+    const trimName = gymName.trim()
+    const trimOwner = ownerName.trim()
+    if (!trimName)  { setError('센터 이름을 입력해주세요'); return }
+    if (!trimOwner) { setError('대표 이름을 입력해주세요'); return }
+    setSaving(true)
+    setError('')
+
+    try {
+      // ① gyms 테이블에 새 센터 INSERT
+      const { data: newGym, error: gymErr } = await supabase
+        .from('gyms')
+        .insert({ name: trimName })
+        .select()
+        .single()
+      if (gymErr) throw new Error('센터 생성 실패: ' + gymErr.message)
+
+      // ② trainers 테이블 — 기존 row 있으면 UPDATE, 없으면 INSERT
+      const { data: existing } = await supabase
+        .from('trainers')
+        .select('id')
+        .eq('email', authUser.email)
+        .maybeSingle()
+
+      let trainerRow
+      if (existing) {
+        // 기존 트레이너 계정에 gym_id + name 업데이트
+        const { data, error: upErr } = await supabase
+          .from('trainers')
+          .update({ gym_id: newGym.id, name: trimOwner })
+          .eq('id', existing.id)
+          .select('*, trainer_ranks(*)')
+          .single()
+        if (upErr) throw new Error('트레이너 연동 실패: ' + upErr.message)
+        trainerRow = data
+      } else {
+        // 신규 트레이너(대표) 계정 생성
+        const { data, error: insErr } = await supabase
+          .from('trainers')
+          .insert({
+            name:    trimOwner,
+            email:   authUser.email,
+            gym_id:  newGym.id,
+            role:    'owner',
+          })
+          .select('*, trainer_ranks(*)')
+          .single()
+        if (insErr) throw new Error('계정 생성 실패: ' + insErr.message)
+        trainerRow = data
+      }
+
+      // ③ 완료 → GymOwnerPortal로 전환
+      onComplete(trainerRow, newGym)
+
+    } catch (e) {
+      setError(e.message)
+      setSaving(false)
+    }
+  }
+
+  const inputStyle = {
+    width: '100%', boxSizing: 'border-box',
+    padding: '12px 14px', borderRadius: '10px',
+    background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.12)',
+    color: '#fff', fontSize: '14px',
+    fontFamily: "'Noto Sans KR', sans-serif",
+    outline: 'none',
+  }
+  const labelStyle = {
+    display: 'block', fontSize: '11px', fontWeight: 700,
+    color: 'rgba(255,255,255,0.45)', marginBottom: '7px', letterSpacing: '0.05em',
+  }
+
+  return (
+    <div style={{minHeight:'100vh',background:'#0a0f1a',display:'flex',alignItems:'center',
+      justifyContent:'center',fontFamily:"'Noto Sans KR',sans-serif",padding:'24px'}}>
+
+      {/* 배경 글로우 */}
+      <div style={{position:'fixed',inset:0,pointerEvents:'none'}}>
+        <div style={{position:'absolute',top:'20%',left:'50%',transform:'translateX(-50%)',
+          width:'500px',height:'400px',
+          background:'radial-gradient(ellipse,rgba(224,64,251,0.07) 0%,transparent 65%)'}}/>
+      </div>
+
+      <div style={{position:'relative',zIndex:1,width:'100%',maxWidth:'420px'}}>
+
+        {/* 헤더 */}
+        <div style={{textAlign:'center',marginBottom:'32px'}}>
+          <div style={{fontSize:'44px',marginBottom:'14px'}}>🏗️</div>
+          <div style={{fontSize:'22px',fontWeight:900,color:'#fff',
+            letterSpacing:'-0.5px',marginBottom:'8px'}}>
+            내 센터 개설하기
+          </div>
+          <div style={{fontSize:'13px',color:'rgba(255,255,255,0.4)',lineHeight:1.7}}>
+            처음 오셨군요! 센터 정보를 입력하면<br/>
+            바로 CRM을 시작할 수 있어요.
+          </div>
+        </div>
+
+        {/* 폼 카드 */}
+        <div style={{background:'rgba(255,255,255,0.04)',
+          border:'1px solid rgba(255,255,255,0.08)',
+          borderRadius:'20px',padding:'28px'}}>
+
+          {error && (
+            <div style={{marginBottom:'16px',padding:'10px 14px',
+              background:'rgba(248,113,113,0.1)',border:'1px solid rgba(248,113,113,0.3)',
+              borderRadius:'8px',fontSize:'12px',color:'#f87171'}}>
+              ⚠️ {error}
+            </div>
+          )}
+
+          <div style={{display:'flex',flexDirection:'column',gap:'18px',marginBottom:'24px'}}>
+
+            {/* 대표 이름 */}
+            <div>
+              <label style={labelStyle}>대표 이름 *</label>
+              <input
+                style={inputStyle}
+                placeholder="홍길동"
+                value={ownerName}
+                onChange={e => setOwnerName(e.target.value)}
+                autoFocus
+              />
+            </div>
+
+            {/* 센터 이름 */}
+            <div>
+              <label style={labelStyle}>센터 이름 *</label>
+              <input
+                style={inputStyle}
+                placeholder="예) 오운 피트니스 강남점"
+                value={gymName}
+                onChange={e => setGymName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleCreate()}
+              />
+            </div>
+
+            {/* 로그인 계정 표시 */}
+            <div style={{padding:'10px 14px',background:'rgba(255,255,255,0.03)',
+              borderRadius:'8px',fontSize:'11px',color:'rgba(255,255,255,0.3)',
+              display:'flex',alignItems:'center',gap:'7px'}}>
+              <span>🔗</span>
+              <span>로그인 계정: <strong style={{color:'rgba(255,255,255,0.55)'}}>{authUser?.email}</strong></span>
+            </div>
+          </div>
+
+          <button
+            onClick={handleCreate}
+            disabled={saving}
+            style={{width:'100%',padding:'14px',borderRadius:'12px',
+              background: saving ? 'rgba(224,64,251,0.4)' : 'linear-gradient(135deg,#e040fb,#9c27b0)',
+              color:'#fff',fontWeight:800,fontSize:'14px',border:'none',
+              cursor: saving ? 'not-allowed' : 'pointer',
+              fontFamily:'inherit',letterSpacing:'-0.2px',
+              boxShadow: saving ? 'none' : '0 4px 20px rgba(224,64,251,0.35)',
+              transition:'all 0.2s'}}>
+            {saving ? '⟳ 개설 중...' : '🏢 내 센터 개설하기'}
+          </button>
+        </div>
+
+        {/* 하단 링크 */}
+        <div style={{textAlign:'center',marginTop:'20px',display:'flex',
+          justifyContent:'center',gap:'20px'}}>
+          <button onClick={onSwitchAccount}
+            style={{fontSize:'12px',color:'rgba(255,255,255,0.25)',
+              background:'none',border:'none',cursor:'pointer',fontFamily:'inherit'}}>
+            ← 다른 계정으로 로그인
+          </button>
+          <Link to="/" style={{fontSize:'12px',color:'rgba(255,255,255,0.25)',textDecoration:'none'}}>
+            ← 메인으로
+          </Link>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════
    컴포넌트
 ═══════════════════════════════════════════════════════════════ */
 export default function GymPortal() {
@@ -460,38 +650,16 @@ export default function GymPortal() {
     )
   }
 
-  /* ── 온보딩 (trainers 테이블에 계정 미등록 or gym_id 없음) ── */
+  /* ── 온보딩 (신규 대표 셀프 센터 개설) ── */
   if (screen === 'onboarding') {
-    return (
-      <div style={{minHeight:'100vh',background:'#0a0f1a',display:'flex',alignItems:'center',
-        justifyContent:'center',fontFamily:"'Noto Sans KR',sans-serif",padding:'24px'}}>
-        <div style={{maxWidth:'420px',width:'100%',textAlign:'center'}}>
-          <div style={{fontSize:'48px',marginBottom:'20px'}}>🏗️</div>
-          <div style={{fontSize:'20px',fontWeight:800,color:'#fff',letterSpacing:'-0.5px',marginBottom:'10px'}}>
-            센터 정보가 아직 없어요
-          </div>
-          <div style={{fontSize:'13px',color:'rgba(255,255,255,0.45)',lineHeight:1.8,marginBottom:'32px'}}>
-            로그인한 계정(<strong style={{color:'rgba(255,255,255,0.7)'}}>{authUser?.email}</strong>)이<br/>
-            트레이너 앱에 등록되어 있지 않거나<br/>
-            소속 센터가 연결되지 않았어요.<br/><br/>
-            트레이너 앱에서 먼저 계정을 만들고<br/>
-            센터에 등록된 후 다시 입장해주세요.
-          </div>
-          <div style={{display:'flex',flexDirection:'column',gap:'10px',alignItems:'center'}}>
-            <button
-              onClick={async () => { await supabase.auth.signOut(); setAuthUser(null); setScreen('login') }}
-              style={{background:'linear-gradient(135deg,#e040fb,#9c27b0)',color:'#fff',
-                padding:'12px 32px',borderRadius:'10px',fontWeight:700,fontSize:'13px',
-                border:'none',cursor:'pointer',fontFamily:'inherit'}}>
-              다른 계정으로 로그인
-            </button>
-            <Link to="/" style={{fontSize:'12px',color:'rgba(255,255,255,0.25)',textDecoration:'none',marginTop:'4px'}}>
-              ← 메인으로
-            </Link>
-          </div>
-        </div>
-      </div>
-    )
+    return <OnboardingSetup authUser={authUser} onComplete={(trainer, gym) => {
+      setGymInfo({ trainer, gym })
+      setScreen('dashboard')
+    }} onSwitchAccount={async () => {
+      await supabase.auth.signOut()
+      setAuthUser(null)
+      setScreen('login')
+    }} />
   }
 
   /* ── 진짜 CRM 대시보드 ── */
