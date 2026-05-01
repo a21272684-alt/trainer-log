@@ -9,6 +9,7 @@ import {
 } from './lib/gymReport'
 import DashboardTab        from './tabs/DashboardTab'
 import MembersTab          from './tabs/MembersTab'
+import TrainersTab         from './tabs/TrainersTab'
 import CenterSettlementTab from './tabs/CenterSettlementTab'
 import ReportsTab          from './tabs/ReportsTab'
 import ScheduleTab         from './tabs/ScheduleTab'
@@ -20,6 +21,7 @@ import SettingsTab         from './tabs/SettingsTab'
 const NAV_ITEMS = [
   { key: 'dashboard',     icon: '📊', label: '대시보드' },
   { key: 'members',       icon: '👥', label: '회원 관리' },
+  { key: 'trainers',      icon: '👨‍💼', label: '트레이너 관리' },
   { key: 'settlement',    icon: '💵', label: '센터 정산' },
   { key: 'products',      icon: '📦', label: '상품 관리' },
   { key: 'schedule',      icon: '📅', label: '수업 예약' },
@@ -61,9 +63,10 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
   }
 
   const TAB_TITLES = {
-    dashboard:     { title: '대시보드',    sub: `${gym.name} 운영 현황` },
-    members:       { title: '회원 관리',   sub: `전체 ${members.length}명` },
-    settlement:    { title: '센터 정산',   sub: '월별 매출 · 트레이너 정산 · 엑셀 내보내기' },
+    dashboard:     { title: '대시보드',      sub: `${gym.name} 운영 현황` },
+    members:       { title: '회원 관리',     sub: `전체 ${members.length}명` },
+    trainers:      { title: '트레이너 관리', sub: '직급 · 고용형태 · 대관 계약 · 정산 설정' },
+    settlement:    { title: '센터 정산',     sub: '월별 매출 · 트레이너 정산 · 엑셀 내보내기' },
     products:      { title: '상품 관리',   sub: '센터 판매 상품 등록 및 조회' },
     schedule:      { title: '수업 예약',   sub: '센터 전체 수업 일정' },
     contracts:     { title: '전자 계약서', sub: '디지털 계약 관리' },
@@ -135,6 +138,7 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
             <>
               {activeTab === 'dashboard'     && <DashboardTab        gym={gym} gymId={gym.id} trainers={trainers} members={members} />}
               {activeTab === 'members'       && <MembersTab          members={members} trainers={trainers} gymId={gym.id} />}
+              {activeTab === 'trainers'      && <TrainersTab         trainers={trainers} members={members} gymId={gym.id} />}
               {activeTab === 'settlement'    && <CenterSettlementTab gymId={gym.id} trainers={trainers} />}
               {activeTab === 'products'      && <ProductsTab         gymId={gym.id} />}
               {activeTab === 'schedule'      && <ScheduleTab         gymId={gym.id} trainers={trainers} members={members} />}
