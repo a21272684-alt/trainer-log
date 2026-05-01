@@ -79,7 +79,7 @@ export default function DashboardTab({ gym, gymId, trainers, members }) {
                     <td style={{ fontWeight:600 }}>{t.name}</td>
                     <td><span className="badge" style={{ background:'rgba(96,165,250,0.12)', color:'var(--blue)' }}>{t.trainer_ranks?.label ?? '미설정'}</span></td>
                     <td style={{ color:'var(--text-muted)', fontSize:'12px' }}>
-                      {t.employment_type === 'fulltime' ? '정직원' : t.employment_type === 'freelance' ? '프리랜서' : '—'}
+                      {t.employment_type === 'employee' ? '정직원' : t.employment_type === 'freelance' ? '프리랜서' : t.employment_type === 'rental' ? '대관' : '—'}
                     </td>
                     <td style={{ textAlign:'right', ...mono }}>{tM.length}명</td>
                     <td style={{ textAlign:'right', ...mono, color:'var(--green)' }}>{tA}명</td>

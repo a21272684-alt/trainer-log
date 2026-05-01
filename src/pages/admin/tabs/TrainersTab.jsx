@@ -16,6 +16,13 @@ function RankEditModal({ trainer, gymId, onClose, onSaved }) {
   const [empType, setEmpType] = useState(trainer.employment_type || '')
   const [saving,  setSaving]  = useState(false)
 
+  // 대관 계약 설정 (employment_type === 'rental' 일 때만 저장)
+  const [rentalCfg, setRentalCfg] = useState({
+    payment_managed_by: trainer.settlement_config?.payment_managed_by || 'self',
+    rental_fee_type:    trainer.settlement_config?.rental_fee_type    || 'fixed',
+    rental_fee_amount:  trainer.settlement_config?.rental_fee_amount  || 0,
+  })
+
   useEffect(() => {
     supabase.from('gym_ranks').select('*').eq('gym_id', gymId).order('sort_order')
       .then(({ data }) => setGymRanks(data || []))
@@ -31,6 +38,8 @@ function RankEditModal({ trainer, gymId, onClose, onSaved }) {
       incentive_rate:  customRate !== '' ? Number(customRate) / 100
                        : selectedRank ? selectedRank.default_incentive_rate
                        : null,
+      // 대관일 때만 settlement_config 덮어쓰기, 아닐 땐 빈 객체로 초기화
+      settlement_config: empType === 'rental' ? rentalCfg : {},
     }
     const { error } = await supabase.from('trainers').update(updates).eq('id', trainer.id)
     setSaving(false)
@@ -84,20 +93,68 @@ function RankEditModal({ trainer, gymId, onClose, onSaved }) {
       </div>
 
       {/* 고용 형태 */}
-      <div style={{ marginBottom: '16px' }}>
+      <div style={{ marginBottom: empType === 'rental' ? '12px' : '16px' }}>
         <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '8px' }}>고용 형태</div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          {[['fulltime', '정직원'], ['freelance', '프리랜서'], ['', '미설정']].map(([v, l]) => (
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          {[['employee', '정직원'], ['freelance', '프리랜서'], ['rental', '대관'], ['', '미설정']].map(([v, l]) => (
             <button key={v} onClick={() => setEmpType(v)}
-              style={{ flex: 1, padding: '8px', borderRadius: '8px', fontSize: '12px', fontWeight: 600,
-                border: `1px solid ${empType === v ? 'var(--accent)' : 'var(--border)'}`,
-                background: empType === v ? 'rgba(200,241,53,0.08)' : 'var(--surface2)',
-                color: empType === v ? 'var(--accent)' : 'var(--text-muted)',
+              style={{ flex: 1, minWidth: '60px', padding: '8px 6px', borderRadius: '8px', fontSize: '12px', fontWeight: 600,
+                border: `1px solid ${empType === v ? (v === 'rental' ? 'rgba(250,204,21,0.6)' : 'var(--accent)') : 'var(--border)'}`,
+                background: empType === v ? (v === 'rental' ? 'rgba(250,204,21,0.1)' : 'rgba(200,241,53,0.08)') : 'var(--surface2)',
+                color: empType === v ? (v === 'rental' ? 'var(--yellow)' : 'var(--accent)') : 'var(--text-muted)',
                 cursor: 'pointer', fontFamily: 'inherit' }}
             >{l}</button>
           ))}
         </div>
       </div>
+
+      {/* 대관 계약 설정 (rental 선택 시만 노출) */}
+      {empType === 'rental' && (
+        <div style={{
+          marginBottom: '16px', padding: '14px', borderRadius: '10px',
+          border: '1px solid rgba(250,204,21,0.25)', background: 'rgba(250,204,21,0.05)',
+        }}>
+          <div style={{ fontSize: '11px', color: 'var(--yellow)', fontWeight: 700, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+            🏢 대관 계약 설정
+          </div>
+
+          {/* 결제 주체 */}
+          <div style={{ marginBottom: '10px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '5px' }}>결제 주체</div>
+            <select className="input" value={rentalCfg.payment_managed_by}
+              onChange={e => setRentalCfg(c => ({ ...c, payment_managed_by: e.target.value }))}>
+              <option value="self">독립 결제 — 트레이너가 직접 수령</option>
+              <option value="center">위탁 결제 — 센터가 수령 후 정산</option>
+            </select>
+          </div>
+
+          {/* 대관료 방식 */}
+          <div style={{ marginBottom: '10px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '5px' }}>대관료 방식</div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {[['fixed', '월 고정액'], ['per_session', '수업 건별']].map(([v, l]) => (
+                <button key={v} onClick={() => setRentalCfg(c => ({ ...c, rental_fee_type: v }))}
+                  style={{ flex: 1, padding: '7px', borderRadius: '7px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                    border: `1px solid ${rentalCfg.rental_fee_type === v ? 'rgba(250,204,21,0.5)' : 'var(--border)'}`,
+                    background: rentalCfg.rental_fee_type === v ? 'rgba(250,204,21,0.12)' : 'var(--surface2)',
+                    color: rentalCfg.rental_fee_type === v ? 'var(--yellow)' : 'var(--text-muted)' }}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 금액 */}
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '5px' }}>
+              {rentalCfg.rental_fee_type === 'per_session' ? '1회당 대관료 (원)' : '월 고정 대관료 (원)'}
+            </div>
+            <input className="input" type="number" placeholder="예: 300000"
+              value={rentalCfg.rental_fee_amount || ''}
+              onChange={e => setRentalCfg(c => ({ ...c, rental_fee_amount: Number(e.target.value) }))} />
+          </div>
+        </div>
+      )}
 
       {/* 개인 인센티브율 */}
       <div style={{ marginBottom: '20px' }}>
@@ -323,7 +380,7 @@ export default function TrainersTab({ trainers, members, gymId }) {
                   const tMembers   = members.filter(m => m.trainer_id === t.id)
                   const tActive    = tMembers.filter(m => Math.max(0,(m.total_sessions||0)-(m.done_sessions||0)) > 0).length
                   const isSelected = selectedTrainer?.id === t.id
-                  const empLabel   = t.employment_type === 'fulltime' ? '정직원' : t.employment_type === 'freelance' ? '프리랜서' : null
+                  const empLabel   = t.employment_type === 'employee' ? '정직원' : t.employment_type === 'freelance' ? '프리랜서' : t.employment_type === 'rental' ? '대관' : null
 
                   return (
                     <div key={t.id} style={{ borderBottom:'1px solid var(--border)' }}>
