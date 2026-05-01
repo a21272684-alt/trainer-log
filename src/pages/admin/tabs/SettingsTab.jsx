@@ -162,12 +162,17 @@ function StaffPanel({ gymId }) {
   // 퇴사 처리 — gym_id 보존, employment_status만 resigned
   async function handleResign() {
     if (!resignTarget) return
+    const target = resignTarget
     const { error } = await supabase.from('trainers')
       .update({ employment_status: 'resigned' })
-      .eq('id', resignTarget.id)
+      .eq('id', target.id)
     if (error) { showToast('오류: ' + error.message); return }
-    showToast(`${resignTarget.name} 님을 퇴사 처리했어요`)
-    setResignTarget(null); await load()
+    showToast(`${target.name} 님을 퇴사 처리했어요`)
+    setResignTarget(null)
+    // 로컬 상태 즉시 이동: active 목록에서 제거 → resigned 목록에 추가
+    const updated = { ...target, employment_status: 'resigned' }
+    setTrainers(prev => prev.filter(t => t.id !== target.id))
+    setResignedTrainers(prev => [...prev, updated])
   }
 
   // 복직 처리
@@ -179,7 +184,10 @@ function StaffPanel({ gymId }) {
     setResigning(null)
     if (error) { showToast('오류: ' + error.message); return }
     showToast(`✓ ${trainer.name} 님을 복직 처리했어요`)
-    await load()
+    // 로컬 상태 즉시 이동: resigned 목록에서 제거 → active 목록에 추가
+    const updated = { ...trainer, employment_status: 'active' }
+    setResignedTrainers(prev => prev.filter(t => t.id !== trainer.id))
+    setTrainers(prev => [...prev, updated])
   }
 
   function openEdit(t) {
