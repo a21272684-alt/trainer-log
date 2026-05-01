@@ -1,5 +1,7 @@
 ﻿import { useState, useEffect } from 'react'
 import { supabase } from '../../../lib/supabase'
+import { useToast } from '../components/Toast'
+import Modal from '../components/Modal'
 import * as XLSX from 'xlsx'
 
 const mono = { fontFamily: "'DM Mono', monospace" }
@@ -49,6 +51,358 @@ function Section({ title, children, action }) {
   )
 }
 
+// ── 대관 트레이너 대관료 관리 섹션 ────────────────────────────────
+function RentalSection({ gymId, rentalTrainers, year, month }) {
+  const showToast = useToast()
+  const monthStr  = `${year}-${String(month).padStart(2, '0')}`
+  const start     = `${monthStr}-01`
+  const endD      = new Date(year, month, 1)
+  const end       = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-01`
+
+  const [rentalFees,   setRentalFees]   = useState({})   // { trainerId: [fee rows] }
+  const [attendCounts, setAttendCounts] = useState({})   // { trainerId: 이달 완료 수업 수 }
+  const [loading,      setLoading]      = useState(true)
+
+  // 납부 등록 모달
+  const [payModal,  setPayModal]  = useState(null)        // trainer object
+  const [payForm,   setPayForm]   = useState({ amount: '', memo: '' })
+  const [paying,    setPaying]    = useState(false)
+
+  // 대관 계약 설정 모달
+  const [cfgModal,    setCfgModal]    = useState(null)    // trainer object
+  const [cfgForm,     setCfgForm]     = useState({})
+  const [savingCfg,   setSavingCfg]   = useState(false)
+  // 저장 후 즉시 반영용 오버라이드 맵 (부모 reload 없이 UI 업데이트)
+  const [cfgOverrides, setCfgOverrides] = useState({})   // { trainerId: settlement_config }
+
+  useEffect(() => { loadRental() }, [gymId, year, month])
+
+  async function loadRental() {
+    if (!rentalTrainers.length) { setLoading(false); return }
+    setLoading(true)
+    const tIds = rentalTrainers.map(t => t.id)
+
+    // 1. 이번 달 납부 내역
+    const { data: fees } = await supabase
+      .from('rental_fees').select('*')
+      .in('trainer_id', tIds).eq('target_month', monthStr)
+      .order('paid_at', { ascending: false })
+
+    // 2. 대관 트레이너 담당 회원 ID 목록 (per_session 계산용)
+    const { data: mems } = await supabase
+      .from('members').select('id, trainer_id')
+      .in('trainer_id', tIds)
+
+    // 3. 이번 달 출석 횟수 (per_session 청구액 계산 기준)
+    const memIds = (mems || []).map(m => m.id)
+    const { data: attends } = memIds.length
+      ? await supabase.from('attendance').select('member_id')
+          .in('member_id', memIds)
+          .gte('attended_date', start).lt('attended_date', end)
+      : { data: [] }
+
+    // 납부 내역 → trainer별 그룹핑
+    const feesMap = {}
+    for (const f of fees || []) {
+      if (!feesMap[f.trainer_id]) feesMap[f.trainer_id] = []
+      feesMap[f.trainer_id].push(f)
+    }
+    setRentalFees(feesMap)
+
+    // 출석 → member → trainer 매핑하여 카운트
+    const memTrainerMap = Object.fromEntries((mems || []).map(m => [m.id, m.trainer_id]))
+    const cntMap = {}
+    for (const a of attends || []) {
+      const tid = memTrainerMap[a.member_id]
+      if (tid) cntMap[tid] = (cntMap[tid] || 0) + 1
+    }
+    setAttendCounts(cntMap)
+    setLoading(false)
+  }
+
+  // 청구액 계산: fixed → 고정액 / per_session → 완료 수업 수 × 단가
+  function calcBilled(t) {
+    const cfg = cfgOverrides[t.id] ?? t.settlement_config ?? {}
+    if (cfg.rental_fee_type === 'fixed')       return Number(cfg.rental_fee_amount) || 0
+    if (cfg.rental_fee_type === 'per_session') return (attendCounts[t.id] || 0) * (Number(cfg.rental_fee_amount) || 0)
+    return 0
+  }
+  function calcPaid(t) {
+    return (rentalFees[t.id] || []).reduce((s, f) => s + Number(f.amount), 0)
+  }
+
+  // 납부 등록
+  async function handlePay() {
+    const amount = Number(payForm.amount)
+    if (!amount || amount <= 0) { showToast('금액을 입력해주세요'); return }
+    setPaying(true)
+    const { data, error } = await supabase.from('rental_fees').insert({
+      gym_id: gymId, trainer_id: payModal.id,
+      amount, target_month: monthStr,
+      memo: payForm.memo || null,
+    }).select().single()
+    setPaying(false)
+    if (error) { showToast('오류: ' + error.message); return }
+    showToast(`✓ ${payModal.name} 납부 내역이 등록됐어요`)
+    // 즉시 로컬 반영 (await loadRental() 없음)
+    setRentalFees(prev => ({ ...prev, [payModal.id]: [data, ...(prev[payModal.id] || [])] }))
+    setPayModal(null)
+    setPayForm({ amount: '', memo: '' })
+  }
+
+  // 대관 계약 설정 저장
+  async function handleSaveCfg() {
+    setSavingCfg(true)
+    const { error } = await supabase.from('trainers')
+      .update({ settlement_config: cfgForm })
+      .eq('id', cfgModal.id)
+    setSavingCfg(false)
+    if (error) { showToast('오류: ' + error.message); return }
+    showToast('✓ 대관 계약 조건이 저장됐어요')
+    // 즉시 UI에 반영 (부모 reload 없이)
+    setCfgOverrides(prev => ({ ...prev, [cfgModal.id]: { ...cfgForm } }))
+    setCfgModal(null)
+  }
+
+  function openCfgModal(t) {
+    const cfg = cfgOverrides[t.id] ?? t.settlement_config ?? {}
+    setCfgForm({
+      payment_managed_by: cfg.payment_managed_by || 'self',
+      rental_fee_type:    cfg.rental_fee_type    || 'fixed',
+      rental_fee_amount:  cfg.rental_fee_amount  || 0,
+    })
+    setCfgModal(t)
+  }
+
+  const totalBilled = rentalTrainers.reduce((s, t) => s + calcBilled(t), 0)
+  const totalPaid   = rentalTrainers.reduce((s, t) => s + calcPaid(t), 0)
+  const totalUnpaid = totalBilled - totalPaid
+
+  return (
+    <>
+      <Section title={`대관 트레이너 대관료 현황 (${rentalTrainers.length}명)`}>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-dim)', fontSize: '12px' }}>
+            <span className="spinner" style={{ display: 'block', fontSize: '20px', marginBottom: '8px' }}>✦</span>
+            불러오는 중...
+          </div>
+        ) : (
+          <>
+            {/* ── 소계 3개 ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '20px' }}>
+              <div style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '10px', padding: '14px', textAlign: 'center' }}>
+                <div style={{ fontSize: '10px', color: 'var(--blue)', fontWeight: 700, letterSpacing: '0.4px', marginBottom: '6px' }}>이달 총 청구액</div>
+                <div style={{ ...mono, fontSize: '17px', fontWeight: 700, color: 'var(--blue)' }}>{fmt(totalBilled)}<span style={{ fontSize: '11px', marginLeft: '2px' }}>원</span></div>
+              </div>
+              <div style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '10px', padding: '14px', textAlign: 'center' }}>
+                <div style={{ fontSize: '10px', color: 'var(--green)', fontWeight: 700, letterSpacing: '0.4px', marginBottom: '6px' }}>실제 납부액</div>
+                <div style={{ ...mono, fontSize: '17px', fontWeight: 700, color: 'var(--green)' }}>{fmt(totalPaid)}<span style={{ fontSize: '11px', marginLeft: '2px' }}>원</span></div>
+              </div>
+              <div style={{
+                background: totalUnpaid > 0 ? 'rgba(248,113,113,0.08)' : 'rgba(74,222,128,0.06)',
+                border: `1px solid ${totalUnpaid > 0 ? 'rgba(248,113,113,0.28)' : 'rgba(74,222,128,0.2)'}`,
+                borderRadius: '10px', padding: '14px', textAlign: 'center',
+              }}>
+                <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.4px', marginBottom: '6px', color: totalUnpaid > 0 ? 'var(--red)' : 'var(--green)' }}>미납액</div>
+                <div style={{ ...mono, fontSize: '17px', fontWeight: 700, color: totalUnpaid > 0 ? 'var(--red)' : 'var(--green)' }}>
+                  {totalUnpaid > 0 ? fmt(totalUnpaid) : '없음'}<span style={{ fontSize: '11px', marginLeft: '2px' }}>{totalUnpaid > 0 ? '원' : ''}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* ── 트레이너별 상세 테이블 ── */}
+            <div style={{ overflowX: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>트레이너</th>
+                    <th style={{ textAlign: 'center' }}>결제 주체</th>
+                    <th style={{ textAlign: 'center' }}>대관 방식</th>
+                    <th style={{ textAlign: 'right' }}>이달 청구액</th>
+                    <th style={{ textAlign: 'right' }}>납부액</th>
+                    <th style={{ textAlign: 'right' }}>미납액</th>
+                    <th style={{ textAlign: 'center' }}>관리</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rentalTrainers.map(t => {
+                    const cfg    = cfgOverrides[t.id] ?? t.settlement_config ?? {}
+                    const billed = calcBilled(t)
+                    const paid   = calcPaid(t)
+                    const unpaid = billed - paid
+                    const isSelf = cfg.payment_managed_by !== 'center'
+                    const fType  = cfg.rental_fee_type || 'fixed'
+                    return (
+                      <tr key={t.id}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{
+                              width: '26px', height: '26px', borderRadius: '50%', flexShrink: 0,
+                              background: 'rgba(250,204,21,0.12)', border: '1px solid rgba(250,204,21,0.25)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: '11px', fontWeight: 700, color: 'var(--yellow)',
+                            }}>{t.name[0]}</div>
+                            <span style={{ fontWeight: 600, fontSize: '13px' }}>{t.name}</span>
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span style={{
+                            fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '5px',
+                            background: isSelf ? 'rgba(250,204,21,0.1)' : 'rgba(96,165,250,0.1)',
+                            color:      isSelf ? 'var(--yellow)'        : 'var(--blue)',
+                            border:     `1px solid ${isSelf ? 'rgba(250,204,21,0.25)' : 'rgba(96,165,250,0.25)'}`,
+                          }}>
+                            {isSelf ? '독립 결제' : '위탁 결제'}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span style={{
+                            fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '5px',
+                            background: fType === 'fixed' ? 'rgba(167,139,250,0.1)' : 'rgba(200,241,53,0.1)',
+                            color:      fType === 'fixed' ? 'var(--purple)'         : 'var(--accent)',
+                            border:     `1px solid ${fType === 'fixed' ? 'rgba(167,139,250,0.25)' : 'rgba(200,241,53,0.25)'}`,
+                          }}>
+                            {fType === 'fixed' ? '월 고정' : '건별 차감'}
+                          </span>
+                          {fType === 'per_session' && (
+                            <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '3px' }}>
+                              {attendCounts[t.id] || 0}회 × {fmt(cfg.rental_fee_amount || 0)}원
+                            </div>
+                          )}
+                          {fType === 'fixed' && cfg.rental_fee_amount > 0 && (
+                            <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '3px' }}>
+                              {fmt(cfg.rental_fee_amount)}원/월
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'right', ...mono, fontWeight: 600, color: 'var(--blue)', fontSize: '13px' }}>
+                          {billed > 0 ? fmt(billed) : <span style={{ color: 'var(--text-dim)' }}>미설정</span>}
+                        </td>
+                        <td style={{ textAlign: 'right', ...mono, fontWeight: 600, color: 'var(--green)', fontSize: '13px' }}>
+                          {fmt(paid)}
+                        </td>
+                        <td style={{ textAlign: 'right', ...mono, fontWeight: 700, fontSize: '13px', color: unpaid > 0 ? 'var(--red)' : 'var(--text-dim)' }}>
+                          {unpaid > 0 ? `▲ ${fmt(unpaid)}` : '—'}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
+                            <button
+                              className="btn btn-primary"
+                              style={{ padding: '4px 9px', fontSize: '10px' }}
+                              onClick={() => {
+                                setPayModal(t)
+                                setPayForm({ amount: String(Math.max(0, billed - paid) || ''), memo: '' })
+                              }}>
+                              납부 등록
+                            </button>
+                            <button
+                              className="btn btn-secondary"
+                              style={{ padding: '4px 9px', fontSize: '10px' }}
+                              onClick={() => openCfgModal(t)}>
+                              설정
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </Section>
+
+      {/* ── 납부 등록 모달 ── */}
+      <Modal open={!!payModal} onClose={() => setPayModal(null)}
+        title={payModal ? `${payModal.name} 대관료 납부 등록` : ''} maxWidth="380px">
+        {payModal && (
+          <>
+            <p style={{ fontSize: '12px', color: 'var(--text-dim)', lineHeight: 1.7, marginBottom: '16px' }}>
+              <strong style={{ color: 'var(--text)' }}>{year}년 {month}월</strong> 납부 금액을 입력해주세요.
+              {calcBilled(payModal) > 0 && (
+                <> 이달 청구액은 <strong style={{ color: 'var(--blue)' }}>{fmt(calcBilled(payModal))}원</strong>이에요.</>
+              )}
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+              <div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '5px' }}>납부 금액 (원) *</div>
+                <input className="input" type="number" placeholder="예: 300000"
+                  value={payForm.amount}
+                  onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))} />
+              </div>
+              <div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '5px' }}>메모 (선택)</div>
+                <input className="input" placeholder="예: 현금 입금 확인"
+                  value={payForm.memo}
+                  onChange={e => setPayForm(f => ({ ...f, memo: e.target.value }))} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setPayModal(null)}>취소</button>
+              <button className="btn btn-primary"   style={{ flex: 1, justifyContent: 'center' }} onClick={handlePay} disabled={paying}>
+                {paying ? '등록 중...' : '납부 등록'}
+              </button>
+            </div>
+          </>
+        )}
+      </Modal>
+
+      {/* ── 대관 계약 설정 모달 ── */}
+      <Modal open={!!cfgModal} onClose={() => setCfgModal(null)}
+        title={cfgModal ? `${cfgModal.name} 대관 계약 설정` : ''} maxWidth="390px">
+        {cfgModal && (
+          <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
+              <div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '5px' }}>결제 주체</div>
+                <select className="input" value={cfgForm.payment_managed_by || 'self'}
+                  onChange={e => setCfgForm(f => ({ ...f, payment_managed_by: e.target.value }))}>
+                  <option value="self">독립 결제 — 트레이너가 직접 회원 결제 수령</option>
+                  <option value="center">위탁 결제 — 센터가 결제 수령 후 정산</option>
+                </select>
+                <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '4px', lineHeight: 1.6 }}>
+                  위탁 결제 선택 시 해당 트레이너 매출이 센터 총 매출에 포함됩니다.
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '5px' }}>대관료 방식</div>
+                <select className="input" value={cfgForm.rental_fee_type || 'fixed'}
+                  onChange={e => setCfgForm(f => ({ ...f, rental_fee_type: e.target.value }))}>
+                  <option value="fixed">월 고정액 — 매월 동일 금액</option>
+                  <option value="per_session">수업 건별 차감 — 완료 수업 × 단가</option>
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '5px' }}>
+                  {cfgForm.rental_fee_type === 'per_session' ? '1회당 대관료 (원)' : '월 고정 대관료 (원)'}
+                </div>
+                <input className="input" type="number" placeholder="예: 300000"
+                  value={cfgForm.rental_fee_amount || ''}
+                  onChange={e => setCfgForm(f => ({ ...f, rental_fee_amount: Number(e.target.value) }))} />
+                {cfgForm.rental_fee_type === 'per_session' && (
+                  <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '4px' }}>
+                    이달 완료 수업 {attendCounts[cfgModal.id] || 0}회 기준 예상 청구액:{' '}
+                    <strong style={{ color: 'var(--accent)' }}>
+                      {fmt((attendCounts[cfgModal.id] || 0) * (Number(cfgForm.rental_fee_amount) || 0))}원
+                    </strong>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setCfgModal(null)}>취소</button>
+              <button className="btn btn-primary"   style={{ flex: 1, justifyContent: 'center' }} onClick={handleSaveCfg} disabled={savingCfg}>
+                {savingCfg ? '저장 중...' : '저장'}
+              </button>
+            </div>
+          </>
+        )}
+      </Modal>
+    </>
+  )
+}
+
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────
 export default function CenterSettlementTab({ gymId, trainers = [] }) {
   const now = new Date()
@@ -85,8 +439,10 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
   }
 
   // ── 데이터 계산 ───────────────────────────────────────────────
-  const trainerMap = Object.fromEntries(trainers.map(t => [t.id, t]))
-  const rankMap    = Object.fromEntries(gymRanks.map(r => [r.id, r]))
+  const trainerMap    = Object.fromEntries(trainers.map(t => [t.id, t]))
+  const rankMap       = Object.fromEntries(gymRanks.map(r => [r.id, r]))
+  // 대관 트레이너 분리 (별도 섹션으로 렌더)
+  const rentalTrainers = trainers.filter(t => t.employment_type === 'rental')
 
   const trainerStats = trainers.map(t => {
     const tPays      = payments.filter(p => p.trainer_id === t.id)
@@ -375,6 +731,16 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* ── 대관 트레이너 대관료 섹션 ── */}
+          {rentalTrainers.length > 0 && (
+            <RentalSection
+              gymId={gymId}
+              rentalTrainers={rentalTrainers}
+              year={year}
+              month={month}
+            />
           )}
 
           {/* ── 결제 내역 전체 ── */}
