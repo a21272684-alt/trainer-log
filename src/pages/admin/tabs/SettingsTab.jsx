@@ -58,9 +58,11 @@ function SubTabBar({ tabs, active, onChange, variant = 'pill' }) {
 // ────────────────────────────────────────────────────────────────
 function StaffPanel({ gymId }) {
   const showToast = useToast()
-  const [trainers, setTrainers] = useState([])
-  const [gymRanks, setGymRanks] = useState([])
-  const [loading,  setLoading]  = useState(true)
+  const [trainers,        setTrainers]        = useState([])
+  const [pendingTrainers, setPendingTrainers] = useState([])
+  const [gymRanks,        setGymRanks]        = useState([])
+  const [loading,         setLoading]         = useState(true)
+  const [approving,       setApproving]       = useState(null) // id being processed
   const [addModal,    setAddModal]    = useState(false)
   const [editModal,   setEditModal]   = useState(false)
   const [editTarget,  setEditTarget]  = useState(null)
@@ -72,15 +74,48 @@ function StaffPanel({ gymId }) {
 
   async function load() {
     setLoading(true)
-    const [tRes, rRes] = await Promise.all([
+    const [tRes, pRes, rRes] = await Promise.all([
+      // 승인된 트레이너
       supabase.from('trainers').select('*, trainer_ranks(*)')
-        .eq('gym_id', gymId).order('created_at'),
+        .eq('gym_id', gymId)
+        .neq('approval_status', 'pending')
+        .order('created_at'),
+      // 가입 대기 트레이너
+      supabase.from('trainers').select('id, name, email, phone, created_at')
+        .eq('gym_id', gymId)
+        .eq('approval_status', 'pending')
+        .order('created_at'),
       supabase.from('gym_ranks').select('*')
         .eq('gym_id', gymId).order('sort_order'),
     ])
     setTrainers(tRes.data || [])
+    setPendingTrainers(pRes.data || [])
     setGymRanks(rRes.data || [])
     setLoading(false)
+  }
+
+  async function handleApprove(trainer) {
+    setApproving(trainer.id)
+    const { error } = await supabase
+      .from('trainers')
+      .update({ approval_status: 'approved' })
+      .eq('id', trainer.id)
+    setApproving(null)
+    if (error) { showToast('오류: ' + error.message); return }
+    showToast(`✓ ${trainer.name} 님을 승인했어요`)
+    await load()
+  }
+
+  async function handleReject(trainer) {
+    setApproving(trainer.id)
+    const { error } = await supabase
+      .from('trainers')
+      .update({ gym_id: null, approval_status: 'approved' })
+      .eq('id', trainer.id)
+    setApproving(null)
+    if (error) { showToast('오류: ' + error.message); return }
+    showToast(`${trainer.name} 님의 요청을 거절했어요`)
+    await load()
   }
 
   const EMP_LABEL = { rental: '대관', freelance: '프리랜서', employee: '정직원', fulltime: '정직원' }
@@ -124,6 +159,76 @@ function StaffPanel({ gymId }) {
 
   return (
     <div>
+
+      {/* ── 가입 대기열 ── */}
+      {pendingTrainers.length > 0 && (
+        <div style={{ marginBottom: '28px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+            <div style={{ fontSize: '14px', fontWeight: 700 }}>⏳ 가입 대기열</div>
+            <span style={{
+              fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px',
+              background: 'rgba(250,204,21,0.15)', color: '#facc15',
+              border: '1px solid rgba(250,204,21,0.3)',
+            }}>{pendingTrainers.length}명 대기 중</span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {pendingTrainers.map(t => (
+              <div key={t.id} style={{
+                display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px',
+                background: 'rgba(250,204,21,0.04)',
+                border: '1px solid rgba(250,204,21,0.2)',
+                borderRadius: '10px',
+              }}>
+                <div style={{
+                  width: '34px', height: '34px', borderRadius: '50%', flexShrink: 0,
+                  background: 'rgba(250,204,21,0.12)', border: '1px solid rgba(250,204,21,0.25)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '13px', fontWeight: 700, color: '#facc15',
+                }}>{t.name?.[0] || '?'}</div>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>{t.name}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '1px',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {t.email || t.phone || '연락처 없음'}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                  <button
+                    onClick={() => handleApprove(t)}
+                    disabled={approving === t.id}
+                    style={{
+                      padding: '5px 12px', borderRadius: '7px', border: 'none',
+                      background: 'rgba(74,222,128,0.15)', color: '#4ade80',
+                      fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                      border: '1px solid rgba(74,222,128,0.3)', outline: 'none',
+                      opacity: approving === t.id ? 0.5 : 1,
+                    }}>
+                    {approving === t.id ? '…' : '✓ 승인'}
+                  </button>
+                  <button
+                    onClick={() => handleReject(t)}
+                    disabled={approving === t.id}
+                    style={{
+                      padding: '5px 12px', borderRadius: '7px',
+                      background: 'rgba(248,113,113,0.08)', color: '#f87171',
+                      fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                      border: '1px solid rgba(248,113,113,0.25)',
+                      opacity: approving === t.id ? 0.5 : 1,
+                    }}>
+                    거절
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ height: '1px', background: 'var(--border)', margin: '20px 0' }} />
+        </div>
+      )}
+
       {/* ── 직원 목록 헤더 ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>

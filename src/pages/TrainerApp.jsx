@@ -1687,6 +1687,12 @@ export default function TrainerApp() {
   const [setRir, setSetRir] = useState('')
   const [setFeel, setSetFeel] = useState('')
 
+  // 센터 연동 (가입 요청)
+  const [gymSearchQuery,   setGymSearchQuery]   = useState('')
+  const [gymSearchResults, setGymSearchResults] = useState([])
+  const [gymSearchLoading, setGymSearchLoading] = useState(false)
+  const [joinLoading,      setJoinLoading]      = useState(false)
+
   // Settings modal
   const [settingsModal, setSettingsModal] = useState(false)
   const [weeklyReportOpen, setWeeklyReportOpen] = useState(false)
@@ -2135,6 +2141,47 @@ export default function TrainerApp() {
   }
   useEffect(() => { if (tab === 'revenue' && trainer) loadMonthPayments(payMonthStr) }, [tab, payMonthStr])
   useEffect(() => { if (tab === 'support' && trainer) loadInquiries() }, [tab])
+
+  // ── 센터 검색 ────────────────────────────────────────────────
+  async function searchGyms() {
+    const q = gymSearchQuery.trim()
+    if (!q) return
+    setGymSearchLoading(true)
+    const { data } = await supabase
+      .from('gyms')
+      .select('id, name, address')
+      .ilike('name', `%${q}%`)
+      .limit(8)
+    setGymSearchResults(data || [])
+    setGymSearchLoading(false)
+  }
+
+  async function submitJoinRequest(gym) {
+    if (!trainer?.id) return
+    setJoinLoading(true)
+    const { error } = await supabase
+      .from('trainers')
+      .update({ gym_id: gym.id, approval_status: 'pending' })
+      .eq('id', trainer.id)
+    setJoinLoading(false)
+    if (error) { showToast('요청 중 오류가 발생했어요: ' + error.message); return }
+    // 로컬 trainer 상태 업데이트
+    setTrainer(prev => ({ ...prev, gym_id: gym.id, approval_status: 'pending' }))
+    setGymSearchResults([])
+    setGymSearchQuery('')
+    showToast('✓ 가입 요청을 보냈어요! 센터 대표님 승인을 기다려주세요 🙏')
+  }
+
+  async function cancelJoinRequest() {
+    if (!trainer?.id) return
+    const { error } = await supabase
+      .from('trainers')
+      .update({ gym_id: null, approval_status: 'approved' })
+      .eq('id', trainer.id)
+    if (error) { showToast('취소 중 오류: ' + error.message); return }
+    setTrainer(prev => ({ ...prev, gym_id: null, approval_status: 'approved' }))
+    showToast('요청을 취소했어요')
+  }
 
   async function loadInquiries() {
     if (!trainer?.id) return
@@ -4137,6 +4184,100 @@ export default function TrainerApp() {
           )}
           {!lbLoading && !leaderboard && (
             <div style={{textAlign:'center',padding:'20px',color:'var(--text-dim)',fontSize:'12px'}}>데이터를 불러올 수 없어요</div>
+          )}
+
+          {/* ── 센터 연동 ── */}
+          <div style={{margin:'28px 0 0',height:'1px',background:'var(--border)'}} />
+          <div style={{marginTop:'24px',marginBottom:'8px',fontSize:'12px',fontWeight:700,color:'var(--text-muted)',letterSpacing:'0.08em'}}>
+            🏢 센터 연동
+          </div>
+
+          {/* 상태 A: 이미 승인된 센터 소속 */}
+          {trainer?.gym_id && trainer?.approval_status !== 'pending' && (
+            <div style={{background:'rgba(74,222,128,0.06)',border:'1px solid rgba(74,222,128,0.2)',
+              borderRadius:'12px',padding:'14px 16px',display:'flex',alignItems:'center',gap:'10px'}}>
+              <span style={{fontSize:'20px'}}>✅</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:'13px',fontWeight:600,color:'#4ade80'}}>센터 소속 확인됨</div>
+                <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'2px'}}>센터 ID: {trainer.gym_id}</div>
+              </div>
+            </div>
+          )}
+
+          {/* 상태 B: 승인 대기 중 */}
+          {trainer?.gym_id && trainer?.approval_status === 'pending' && (
+            <div style={{background:'rgba(250,204,21,0.06)',border:'1px solid rgba(250,204,21,0.25)',
+              borderRadius:'12px',padding:'14px 16px'}}>
+              <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'10px'}}>
+                <span style={{fontSize:'20px'}}>⏳</span>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:'13px',fontWeight:600,color:'#facc15'}}>승인 대기 중</div>
+                  <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'2px'}}>센터 대표님의 승인을 기다리고 있어요</div>
+                </div>
+              </div>
+              <button onClick={cancelJoinRequest}
+                style={{width:'100%',padding:'8px',borderRadius:'8px',border:'1px solid rgba(239,68,68,0.3)',
+                  background:'rgba(239,68,68,0.06)',color:'#f87171',fontSize:'12px',fontWeight:600,
+                  cursor:'pointer',fontFamily:'inherit'}}>
+                요청 취소
+              </button>
+            </div>
+          )}
+
+          {/* 상태 C: 센터 미소속 → 검색 + 요청 */}
+          {!trainer?.gym_id && (
+            <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'12px',padding:'14px 16px'}}>
+              <div style={{fontSize:'12px',color:'var(--text-dim)',marginBottom:'12px',lineHeight:1.6}}>
+                소속 센터가 없어요. 센터를 검색해서 가입 요청을 보내세요.
+              </div>
+              <div style={{display:'flex',gap:'8px',marginBottom:'10px'}}>
+                <input
+                  value={gymSearchQuery}
+                  onChange={e => setGymSearchQuery(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && searchGyms()}
+                  placeholder="센터 이름 검색..."
+                  style={{flex:1,padding:'9px 12px',borderRadius:'8px',border:'1px solid var(--border)',
+                    background:'var(--surface2)',color:'var(--text)',fontSize:'13px',fontFamily:'inherit',outline:'none'}}
+                />
+                <button onClick={searchGyms} disabled={gymSearchLoading}
+                  style={{padding:'9px 14px',borderRadius:'8px',border:'none',
+                    background:'var(--accent)',color:'#0f0f0f',fontSize:'12px',fontWeight:700,
+                    cursor:'pointer',fontFamily:'inherit',flexShrink:0,
+                    opacity:gymSearchLoading?0.6:1}}>
+                  {gymSearchLoading ? '…' : '검색'}
+                </button>
+              </div>
+
+              {/* 검색 결과 */}
+              {gymSearchResults.length > 0 && (
+                <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
+                  {gymSearchResults.map(g => (
+                    <div key={g.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+                      padding:'10px 12px',borderRadius:'8px',
+                      background:'var(--surface2)',border:'1px solid var(--border)'}}>
+                      <div style={{minWidth:0}}>
+                        <div style={{fontSize:'13px',fontWeight:600,color:'var(--text)'}}>{g.name}</div>
+                        {g.address && <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'1px',
+                          overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{g.address}</div>}
+                      </div>
+                      <button
+                        onClick={() => submitJoinRequest(g)}
+                        disabled={joinLoading}
+                        style={{marginLeft:'10px',flexShrink:0,padding:'6px 12px',borderRadius:'7px',border:'none',
+                          background:'var(--accent)',color:'#0f0f0f',fontSize:'11px',fontWeight:700,
+                          cursor:'pointer',fontFamily:'inherit',opacity:joinLoading?0.6:1}}>
+                        요청
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {gymSearchResults.length === 0 && gymSearchQuery && !gymSearchLoading && (
+                <div style={{textAlign:'center',padding:'12px',fontSize:'12px',color:'var(--text-dim)'}}>
+                  검색 결과가 없어요
+                </div>
+              )}
+            </div>
           )}
 
           {/* ── 로그아웃 ── */}

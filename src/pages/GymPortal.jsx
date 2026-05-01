@@ -132,10 +132,10 @@ function OnboardingSetup({ authUser, onComplete, onSwitchAccount }) {
 
       let trainerRow
       if (existing) {
-        // 기존 트레이너 계정에 gym_id + name 업데이트
+        // 기존 트레이너 계정에 gym_id + name + 대표 승인 상태 업데이트
         const { data, error: upErr } = await supabase
           .from('trainers')
-          .update({ gym_id: newGym.id, name: trimOwner })
+          .update({ gym_id: newGym.id, name: trimOwner, approval_status: 'approved', role: 'owner' })
           .eq('id', existing.id)
           .select('*, trainer_ranks(*)')
           .single()
@@ -146,10 +146,11 @@ function OnboardingSetup({ authUser, onComplete, onSwitchAccount }) {
         const { data, error: insErr } = await supabase
           .from('trainers')
           .insert({
-            name:    trimOwner,
-            email:   authUser.email,
-            gym_id:  newGym.id,
-            role:    'owner',
+            name:            trimOwner,
+            email:           authUser.email,
+            gym_id:          newGym.id,
+            role:            'owner',
+            approval_status: 'approved',
           })
           .select('*, trainer_ranks(*)')
           .single()
