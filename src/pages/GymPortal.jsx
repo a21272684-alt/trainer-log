@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import GymOwnerPortal from './admin/GymOwnerPortal'
+import './admin/styles/crm.css'
 
 /* ── 피처 데이터 ── */
 const CRM_FEATURES = [
@@ -97,11 +99,9 @@ function SlideCard({ children, delay = 0 }) {
    컴포넌트
 ═══════════════════════════════════════════════════════════════ */
 export default function GymPortal() {
-  const [screen,   setScreen]   = useState('landing') // 'landing' | 'login' | 'dashboard'
+  const [screen,   setScreen]   = useState('landing') // 'landing' | 'login' | 'loading' | 'dashboard' | 'onboarding'
   const [authUser, setAuthUser] = useState(null)
-  const [trainers, setTrainers] = useState([])
-  const [members,  setMembers]  = useState([])
-  const [loading,  setLoading]  = useState(false)
+  const [gymInfo,  setGymInfo]  = useState(null)      // { trainer, gym }
 
   // CRM 랜딩 콘텐츠 (Supabase에서 로드)
   const [crmHero,       setCrmHero]       = useState(DEFAULT_CRM_HERO)
@@ -143,8 +143,36 @@ export default function GymPortal() {
     })
     if (error) console.error('카카오 로그인 오류:', error.message)
   }
-  function handleAuthUser(au) {
+  // OAuth 로그인 성공 후 trainers → gyms 순서로 조회
+  async function handleAuthUser(au) {
     setAuthUser(au)
+    setScreen('loading')
+
+    // ① email로 트레이너 계정 조회
+    const { data: trainerData } = await supabase
+      .from('trainers')
+      .select('*, trainer_ranks(*)')
+      .eq('email', au.email)
+      .maybeSingle()
+
+    if (!trainerData || !trainerData.gym_id) {
+      setScreen('onboarding')
+      return
+    }
+
+    // ② gym_id로 센터 정보 조회
+    const { data: gymData } = await supabase
+      .from('gyms')
+      .select('*')
+      .eq('id', trainerData.gym_id)
+      .maybeSingle()
+
+    if (!gymData) {
+      setScreen('onboarding')
+      return
+    }
+
+    setGymInfo({ trainer: trainerData, gym: gymData })
     setScreen('dashboard')
   }
 
@@ -155,24 +183,11 @@ export default function GymPortal() {
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session) handleAuthUser(session.user)
-      if (event === 'SIGNED_OUT') { setAuthUser(null); setScreen('landing') }
+      if (event === 'SIGNED_OUT') { setAuthUser(null); setGymInfo(null); setScreen('landing') }
     })
     return () => subscription.unsubscribe()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  useEffect(() => {
-    if (screen !== 'dashboard') return
-    setLoading(true)
-    Promise.all([
-      supabase.from('trainers').select('id, name, email, created_at').order('created_at', { ascending: false }),
-      supabase.from('members').select('id, name, trainer_id, status, created_at').order('created_at', { ascending: false }),
-    ]).then(([t, m]) => {
-      setTrainers(t.data || [])
-      setMembers(m.data || [])
-      setLoading(false)
-    })
-  }, [screen])
 
   /* ── 랜딩 ── */
   if (screen === 'landing') {
@@ -433,136 +448,68 @@ export default function GymPortal() {
     )
   }
 
-  /* ── 대시보드 ── */
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-  const activeMembers = members.filter(m => m.status === 'active').length
-  const newThisMonth  = members.filter(m => new Date(m.created_at) > thirtyDaysAgo).length
+  /* ── 로딩 (OAuth 후 DB 조회 중) ── */
+  if (screen === 'loading') {
+    return (
+      <div style={{minHeight:'100vh',background:'#0a0f1a',display:'flex',alignItems:'center',
+        justifyContent:'center',fontFamily:"'Noto Sans KR',sans-serif",color:'rgba(255,255,255,0.5)',
+        flexDirection:'column',gap:'16px'}}>
+        <div style={{fontSize:'32px',animation:'spin 1s linear infinite'}}>⟳</div>
+        <div style={{fontSize:'14px'}}>센터 정보를 불러오는 중...</div>
+      </div>
+    )
+  }
 
-  const KPI = [
-    { icon:'💪', label:'소속 트레이너', value: trainers.length, color:'#c8f135' },
-    { icon:'👥', label:'전체 회원',     value: members.length,  color:'#4fc3f7' },
-    { icon:'✅', label:'활성 회원',     value: activeMembers,   color:'#22c55e' },
-    { icon:'📈', label:'이달 신규',     value: newThisMonth,    color:'#e040fb' },
-  ]
-
-  const COMING = [
-    { icon:'📊', title:'매출 분석',   desc:'트레이너별 매출 · 정산 현황 · 세금 리포트' },
-    { icon:'🗂️',  title:'회원 CRM',   desc:'전체 회원 현황 · 이탈 분석 · 재등록 예측' },
-    { icon:'📣', title:'마케팅 도구', desc:'공지 · 이벤트 · 프로모션 · 쿠폰 관리' },
-    { icon:'📋', title:'계약 관리',   desc:'트레이너 계약서 · 고용형태 · 인센티브 설정' },
-  ]
-
-  return (
-    <div style={{minHeight:'100vh',background:'#0a0f1a',fontFamily:"'Noto Sans KR',sans-serif",color:'#fff'}}>
-
-      {/* TOPBAR */}
-      <div style={{background:'rgba(255,255,255,0.03)',borderBottom:'1px solid rgba(255,255,255,0.07)',
-        padding:'0 24px',position:'sticky',top:0,zIndex:50,backdropFilter:'blur(12px)'}}>
-        <div style={{maxWidth:'960px',margin:'0 auto',display:'flex',alignItems:'center',
-          justifyContent:'space-between',height:'54px'}}>
-          <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
-            <span style={{fontSize:'20px'}}>🏢</span>
-            <span style={{fontSize:'15px',fontWeight:900,letterSpacing:'-0.3px'}}>헬스장 CRM</span>
-            <span style={{fontSize:'10px',fontWeight:700,background:'rgba(224,64,251,0.15)',
-              color:'#e040fb',padding:'2px 8px',borderRadius:'20px',
-              border:'1px solid rgba(224,64,251,0.3)',letterSpacing:'0.05em'}}>BETA</span>
+  /* ── 온보딩 (trainers 테이블에 계정 미등록 or gym_id 없음) ── */
+  if (screen === 'onboarding') {
+    return (
+      <div style={{minHeight:'100vh',background:'#0a0f1a',display:'flex',alignItems:'center',
+        justifyContent:'center',fontFamily:"'Noto Sans KR',sans-serif",padding:'24px'}}>
+        <div style={{maxWidth:'420px',width:'100%',textAlign:'center'}}>
+          <div style={{fontSize:'48px',marginBottom:'20px'}}>🏗️</div>
+          <div style={{fontSize:'20px',fontWeight:800,color:'#fff',letterSpacing:'-0.5px',marginBottom:'10px'}}>
+            센터 정보가 아직 없어요
           </div>
-          <button
-            onClick={async () => { await supabase.auth.signOut(); setAuthUser(null); setScreen('landing') }}
-            style={{background:'none',border:'1px solid rgba(255,255,255,0.1)',
-              color:'rgba(255,255,255,0.4)',borderRadius:'8px',padding:'5px 12px',
-              fontSize:'12px',cursor:'pointer',fontFamily:'inherit'}}>
-            로그아웃
-          </button>
+          <div style={{fontSize:'13px',color:'rgba(255,255,255,0.45)',lineHeight:1.8,marginBottom:'32px'}}>
+            로그인한 계정(<strong style={{color:'rgba(255,255,255,0.7)'}}>{authUser?.email}</strong>)이<br/>
+            트레이너 앱에 등록되어 있지 않거나<br/>
+            소속 센터가 연결되지 않았어요.<br/><br/>
+            트레이너 앱에서 먼저 계정을 만들고<br/>
+            센터에 등록된 후 다시 입장해주세요.
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:'10px',alignItems:'center'}}>
+            <button
+              onClick={async () => { await supabase.auth.signOut(); setAuthUser(null); setScreen('login') }}
+              style={{background:'linear-gradient(135deg,#e040fb,#9c27b0)',color:'#fff',
+                padding:'12px 32px',borderRadius:'10px',fontWeight:700,fontSize:'13px',
+                border:'none',cursor:'pointer',fontFamily:'inherit'}}>
+              다른 계정으로 로그인
+            </button>
+            <Link to="/" style={{fontSize:'12px',color:'rgba(255,255,255,0.25)',textDecoration:'none',marginTop:'4px'}}>
+              ← 메인으로
+            </Link>
+          </div>
         </div>
       </div>
+    )
+  }
 
-      <div style={{maxWidth:'960px',margin:'0 auto',padding:'32px 24px'}}>
+  /* ── 진짜 CRM 대시보드 ── */
+  if (screen === 'dashboard' && gymInfo) {
+    return (
+      <GymOwnerPortal
+        trainer={gymInfo.trainer}
+        gym={gymInfo.gym}
+        onLogout={async () => {
+          await supabase.auth.signOut()
+          setAuthUser(null)
+          setGymInfo(null)
+          setScreen('landing')
+        }}
+      />
+    )
+  }
 
-        {/* KPI 카드 */}
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',
-          gap:'12px',marginBottom:'28px'}}>
-          {KPI.map((k, i) => (
-            <div key={i} style={{background:'rgba(255,255,255,0.04)',
-              border:'1px solid rgba(255,255,255,0.07)',borderRadius:'16px',padding:'20px'}}>
-              <div style={{fontSize:'22px',marginBottom:'10px'}}>{k.icon}</div>
-              <div style={{fontSize:'30px',fontWeight:900,color:k.color,
-                letterSpacing:'-1.5px',lineHeight:1,marginBottom:'6px'}}>
-                {loading ? '…' : k.value}
-              </div>
-              <div style={{fontSize:'12px',color:'rgba(255,255,255,0.4)'}}>{k.label}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* 트레이너 목록 */}
-        <div style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.07)',
-          borderRadius:'16px',padding:'20px 24px',marginBottom:'16px'}}>
-          <div style={{fontSize:'14px',fontWeight:700,marginBottom:'16px',
-            display:'flex',alignItems:'center',gap:'8px'}}>
-            💪 소속 트레이너
-            <span style={{fontSize:'11px',color:'rgba(255,255,255,0.35)',fontWeight:400}}>({trainers.length}명)</span>
-          </div>
-          {loading ? (
-            <div style={{textAlign:'center',padding:'24px',color:'rgba(255,255,255,0.3)',fontSize:'13px'}}>불러오는 중…</div>
-          ) : trainers.length === 0 ? (
-            <div style={{textAlign:'center',padding:'24px',color:'rgba(255,255,255,0.3)',fontSize:'13px'}}>등록된 트레이너가 없어요</div>
-          ) : (
-            <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
-              {trainers.map((t, i) => {
-                const myMembers = members.filter(m => m.trainer_id === t.id)
-                const myActive  = myMembers.filter(m => m.status === 'active').length
-                return (
-                  <div key={i} style={{display:'flex',alignItems:'center',gap:'12px',padding:'12px 14px',
-                    background:'rgba(255,255,255,0.03)',borderRadius:'10px',
-                    border:'1px solid rgba(255,255,255,0.06)'}}>
-                    <div style={{width:'36px',height:'36px',borderRadius:'50%',
-                      background:'rgba(200,241,53,0.12)',display:'flex',alignItems:'center',
-                      justifyContent:'center',fontSize:'15px',fontWeight:800,
-                      color:'#c8f135',flexShrink:0}}>
-                      {t.name?.[0] || '?'}
-                    </div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:'13px',fontWeight:700}}>{t.name}</div>
-                      <div style={{fontSize:'11px',color:'rgba(255,255,255,0.35)',marginTop:'1px',
-                        overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                        {t.email || '이메일 미등록'}
-                      </div>
-                    </div>
-                    <div style={{textAlign:'right',flexShrink:0}}>
-                      <div style={{fontSize:'13px',fontWeight:600,color:'#c8f135'}}>{myMembers.length}명</div>
-                      <div style={{fontSize:'10px',color:'rgba(255,255,255,0.35)',marginTop:'2px'}}>활성 {myActive}명</div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* 준비 중 기능 */}
-        <div>
-          <div style={{fontSize:'11px',fontWeight:700,color:'rgba(255,255,255,0.25)',
-            letterSpacing:'0.1em',marginBottom:'12px'}}>준비 중인 기능</div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:'10px'}}>
-            {COMING.map((s, i) => (
-              <div key={i} style={{background:'rgba(255,255,255,0.02)',
-                border:'1px solid rgba(255,255,255,0.05)',borderRadius:'14px',
-                padding:'18px',display:'flex',gap:'12px',alignItems:'flex-start',opacity:0.55}}>
-                <span style={{fontSize:'22px',flexShrink:0}}>{s.icon}</span>
-                <div>
-                  <div style={{fontSize:'13px',fontWeight:700,marginBottom:'4px'}}>{s.title}</div>
-                  <div style={{fontSize:'11px',color:'rgba(255,255,255,0.4)',lineHeight:1.6}}>{s.desc}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div style={{textAlign:'center',marginTop:'32px'}}>
-          <Link to="/" style={{fontSize:'12px',color:'rgba(255,255,255,0.25)',textDecoration:'none'}}>← 메인으로 돌아가기</Link>
-        </div>
-      </div>
-    </div>
-  )
+  // 예외 fallback (gymInfo 로딩 실패 등)
+  return null
 }
