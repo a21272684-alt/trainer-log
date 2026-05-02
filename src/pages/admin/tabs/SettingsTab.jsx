@@ -3,7 +3,6 @@ import { supabase } from '../../../lib/supabase'
 import { useToast } from '../components/Toast'
 import Modal from '../components/Modal'
 import GymRankManager from '../components/GymRankManager'
-import TrainersTab from './TrainersTab'
 
 const mono = { fontFamily: "'DM Mono', monospace" }
 
@@ -53,6 +52,157 @@ function SubTabBar({ tabs, active, onChange, variant = 'pill' }) {
   )
 }
 
+// ── 직급 · 고용형태 · 대관 계약 편집 모달 ────────────────────────
+function RankEditModal({ trainer, gymRanks, onClose, onSaved }) {
+  const showToast  = useToast()
+  const [rankId,     setRankId]     = useState(trainer.gym_rank_id || '')
+  const [customRate, setCustomRate] = useState(
+    trainer.incentive_rate != null ? String(Math.round(trainer.incentive_rate * 100)) : ''
+  )
+  const [empType,   setEmpType]   = useState(trainer.employment_type || '')
+  const [rentalCfg, setRentalCfg] = useState({
+    payment_managed_by: trainer.settlement_config?.payment_managed_by || 'self',
+    rental_fee_type:    trainer.settlement_config?.rental_fee_type    || 'fixed',
+    rental_fee_amount:  trainer.settlement_config?.rental_fee_amount  || 0,
+  })
+  const [saving, setSaving] = useState(false)
+
+  const selectedRank = gymRanks.find(r => r.id === rankId)
+
+  async function handleSave() {
+    setSaving(true)
+    const { error } = await supabase.from('trainers').update({
+      gym_rank_id:       rankId || null,
+      employment_type:   empType || null,
+      incentive_rate:    customRate !== '' ? Number(customRate) / 100
+                         : selectedRank ? selectedRank.default_incentive_rate : null,
+      settlement_config: empType === 'rental' ? rentalCfg : {},
+    }).eq('id', trainer.id)
+    setSaving(false)
+    if (error) { showToast('오류: ' + error.message); return }
+    showToast('✓ 저장 완료')
+    onSaved(); onClose()
+  }
+
+  return (
+    <div>
+      {/* 직급 */}
+      <div style={{ marginBottom: '16px' }}>
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '8px' }}>직급</div>
+        {gymRanks.length === 0 ? (
+          <div style={{ fontSize: '12px', color: 'var(--text-dim)', padding: '12px', background: 'var(--surface2)', borderRadius: '8px' }}>
+            등록된 직급이 없어요. 직급 관리에서 먼저 추가하세요.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <button onClick={() => setRankId('')}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit',
+                border: `1px solid ${rankId === '' ? 'var(--accent)' : 'var(--border)'}`,
+                background: rankId === '' ? 'rgba(200,241,53,0.08)' : 'var(--surface2)' }}>
+              <span style={{ fontSize: '13px', color: rankId === '' ? 'var(--accent)' : 'var(--text-muted)' }}>미설정</span>
+              {rankId === '' && <span style={{ color: 'var(--accent)' }}>✓</span>}
+            </button>
+            {gymRanks.map(r => (
+              <button key={r.id} onClick={() => setRankId(r.id)}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                  border: `1px solid ${rankId === r.id ? 'var(--accent)' : 'var(--border)'}`,
+                  background: rankId === r.id ? 'rgba(200,241,53,0.08)' : 'var(--surface2)' }}>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: rankId === r.id ? 'var(--accent)' : 'var(--text)' }}>{r.label}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '2px' }}>
+                    기본급 {Number(r.base_salary).toLocaleString()}원 · 인센티브 {Math.round(r.default_incentive_rate * 100)}%
+                  </div>
+                </div>
+                {rankId === r.id && <span style={{ color: 'var(--accent)', fontSize: '12px' }}>✓</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 고용 형태 */}
+      <div style={{ marginBottom: empType === 'rental' ? '12px' : '16px' }}>
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '8px' }}>고용 형태</div>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          {[['employee', '정직원'], ['freelance', '프리랜서'], ['rental', '대관'], ['', '미설정']].map(([v, l]) => (
+            <button key={v} onClick={() => setEmpType(v)}
+              style={{ flex: 1, minWidth: '60px', padding: '8px 6px', borderRadius: '8px',
+                fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                border: `1px solid ${empType === v ? (v === 'rental' ? 'rgba(250,204,21,0.6)' : 'var(--accent)') : 'var(--border)'}`,
+                background: empType === v ? (v === 'rental' ? 'rgba(250,204,21,0.1)' : 'rgba(200,241,53,0.08)') : 'var(--surface2)',
+                color: empType === v ? (v === 'rental' ? 'var(--yellow)' : 'var(--accent)') : 'var(--text-muted)' }}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 대관 계약 설정 (rental 선택 시만) */}
+      {empType === 'rental' && (
+        <div style={{ marginBottom: '16px', padding: '14px', borderRadius: '10px',
+          border: '1px solid rgba(250,204,21,0.25)', background: 'rgba(250,204,21,0.05)' }}>
+          <div style={{ fontSize: '11px', color: 'var(--yellow)', fontWeight: 700, marginBottom: '12px' }}>🏢 대관 계약 설정</div>
+          <div style={{ marginBottom: '10px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '5px' }}>결제 주체</div>
+            <select className="input" value={rentalCfg.payment_managed_by}
+              onChange={e => setRentalCfg(c => ({ ...c, payment_managed_by: e.target.value }))}>
+              <option value="self">독립 결제 — 트레이너가 직접 수령</option>
+              <option value="center">위탁 결제 — 센터가 수령 후 정산</option>
+            </select>
+          </div>
+          <div style={{ marginBottom: '10px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '5px' }}>대관료 방식</div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {[['fixed', '월 고정액'], ['per_session', '수업 건별']].map(([v, l]) => (
+                <button key={v} onClick={() => setRentalCfg(c => ({ ...c, rental_fee_type: v }))}
+                  style={{ flex: 1, padding: '7px', borderRadius: '7px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                    border: `1px solid ${rentalCfg.rental_fee_type === v ? 'rgba(250,204,21,0.5)' : 'var(--border)'}`,
+                    background: rentalCfg.rental_fee_type === v ? 'rgba(250,204,21,0.12)' : 'var(--surface2)',
+                    color: rentalCfg.rental_fee_type === v ? 'var(--yellow)' : 'var(--text-muted)' }}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '5px' }}>
+              {rentalCfg.rental_fee_type === 'per_session' ? '1회당 대관료 (원)' : '월 고정 대관료 (원)'}
+            </div>
+            <input className="input" type="number" placeholder="예: 300000"
+              value={rentalCfg.rental_fee_amount || ''}
+              onChange={e => setRentalCfg(c => ({ ...c, rental_fee_amount: Number(e.target.value) }))} />
+          </div>
+        </div>
+      )}
+
+      {/* 개인 인센티브율 */}
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}>
+          개인 인센티브율 <span style={{ fontWeight: 400, color: 'var(--text-dim)' }}>(비워두면 직급 기본값 적용)</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <input className="input" type="number" min={0} max={100}
+            placeholder={selectedRank ? `기본: ${Math.round(selectedRank.default_incentive_rate * 100)}%` : '예: 12'}
+            value={customRate} onChange={e => setCustomRate(e.target.value)} style={{ flex: 1 }} />
+          <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>%</span>
+        </div>
+        {customRate !== '' && (
+          <div style={{ fontSize: '11px', color: 'var(--accent)', marginTop: '4px' }}>✓ 직급 기본값 대신 {customRate}% 적용</div>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={onClose}>취소</button>
+        <button className="btn btn-primary"   style={{ flex: 1, justifyContent: 'center' }} onClick={handleSave} disabled={saving}>
+          {saving ? '저장 중...' : '저장'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ────────────────────────────────────────────────────────────────
 // ① 직원 관리
 // ────────────────────────────────────────────────────────────────
@@ -70,6 +220,7 @@ function StaffPanel({ gymId }) {
   const [editModal,    setEditModal]    = useState(false)
   const [editTarget,   setEditTarget]   = useState(null)
   const [resignTarget, setResignTarget] = useState(null)
+  const [rankModal,    setRankModal]    = useState(null)  // 직급/고용형태/대관 편집 대상
   const [form, setForm] = useState({ name: '', phone: '' })
   const [saving, setSaving] = useState(false)
 
@@ -301,7 +452,7 @@ function StaffPanel({ gymId }) {
                 <th>직급</th>
                 <th>고용형태</th>
                 <th>등록일</th>
-                <th style={{ width: '110px' }}></th>
+                <th style={{ width: '150px' }}></th>
               </tr>
             </thead>
             <tbody>
@@ -336,6 +487,9 @@ function StaffPanel({ gymId }) {
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end' }}>
+                        <button className="btn btn-secondary"
+                          style={{ padding: '3px 8px', fontSize: '10px', color: 'var(--accent)', borderColor: 'rgba(200,241,53,0.3)' }}
+                          onClick={() => setRankModal(t)}>직급/계약</button>
                         <button className="btn btn-secondary"
                           style={{ padding: '3px 8px', fontSize: '10px' }}
                           onClick={() => openEdit(t)}>편집</button>
@@ -479,6 +633,19 @@ function StaffPanel({ gymId }) {
             {saving ? '저장 중...' : '저장'}
           </button>
         </div>
+      </Modal>
+
+      {/* ── 직급 · 고용형태 · 대관 계약 편집 모달 ── */}
+      <Modal open={!!rankModal} onClose={() => setRankModal(null)}
+        title={rankModal ? `${rankModal.name} · 직급 및 계약 설정` : ''} maxWidth="440px">
+        {rankModal && (
+          <RankEditModal
+            trainer={rankModal}
+            gymRanks={gymRanks}
+            onClose={() => setRankModal(null)}
+            onSaved={() => { setRankModal(null); load() }}
+          />
+        )}
       </Modal>
 
       {/* ── 퇴사 처리 확인 모달 ── */}
