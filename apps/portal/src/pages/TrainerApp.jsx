@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import ScheduleModal from '../components/ScheduleModal'
 import { supabase, GEMINI_MODEL } from '@trainer-log/shared/lib/supabase'
 import { subscribeToPush, scheduleNotification, deleteScheduledNotification } from '../lib/push'
 import { useToast } from '@trainer-log/shared/components/common/Toast'
@@ -1729,33 +1730,16 @@ export default function TrainerApp() {
   // Schedule
   const [weekOff, setWeekOff] = useState(0)
   const [blocks, setBlocks] = useState(() => JSON.parse(localStorage.getItem('tl_sch')||'[]'))
-  const [schModal, setSchModal] = useState(false)
-  const [editBlockId, setEditBlockId] = useState(null)
-  const [selColor, setSelColor] = useState('green')
-  const [selType, setSelType] = useState('lesson')
-  const [blockDate, setBlockDate] = useState('')
-  const [blockStart, setBlockStart] = useState('09:00')
-  const [blockEnd, setBlockEnd] = useState('10:00')
-  const [blockMemo, setBlockMemo] = useState('')
-  const [blockMemberId, setBlockMemberId] = useState('')
-  const [blockTitle, setBlockTitle] = useState('')
-  const [showCancelForm, setShowCancelForm] = useState(false)
-  const [cancelType, setCancelType] = useState('')
-  const [cancelDetail, setCancelDetail] = useState('')
+  // 모달 form state 는 ScheduleModal 컴포넌트 내부에서 관리.
+  // 부모는 "어떤 block 을 편집할지" 만 보유 — null = 모달 닫힘 / 객체 = 모달 열림.
+  const [editingBlock, setEditingBlock] = useState(null)
 
-  // perf: 시간표 모달 input 키 입력마다 부모 re-render → 7일 그리드의 blocks.filter
-  // 7번 반복으로 비용 누적. blocks 변경 시 1회만 그룹핑하고 lookup.
+  // perf: 7일 그리드 render 마다 blocks.filter 7회 → blocks 변경 시 1회 그룹핑.
   const blocksByDate = useMemo(() => {
     const map = {}
     for (const b of blocks) (map[b.date] ||= []).push(b)
     return map
   }, [blocks])
-
-  // perf: 모달의 회원 select options. 부모 re-render 마다 새 array 생성 방지.
-  const memberOptions = useMemo(
-    () => members.map(m => <option key={m.id} value={m.id}>{m.name}</option>),
-    [members]
-  )
 
   // Notifications
   const [notifEnabled, setNotifEnabled] = useState(() => localStorage.getItem('tl_notif_enabled') === 'true')
@@ -3343,51 +3327,60 @@ export default function TrainerApp() {
   const tToSlot = t => { const[h,m]=t.split(':').map(Number); return(h-SH)*60/SMIN+m/SMIN }
   const slotToT = s => { const tot=SH*60+s*SMIN; return String(Math.floor(tot/60)).padStart(2,'0')+':'+String(tot%60).padStart(2,'0') }
 
+  // 모달 열기 — initialBlock 으로 add/edit 분기. 모달 자체는 ScheduleModal 이 관리.
   function openAddBlock(ds, start, end) {
-    setEditBlockId(null); setBlockDate(ds||dStr(new Date())); setBlockStart(start||'09:00'); setBlockEnd(end||'10:00')
-    setBlockMemo(''); setBlockTitle(''); setSelType('lesson'); setSelColor('green')
-    setBlockMemberId(members[0]?.id || ''); setShowCancelForm(false); setCancelType(''); setCancelDetail(''); setSchModal(true)
+    setEditingBlock({
+      date: ds || dStr(new Date()),
+      start: start || '09:00',
+      end:   end   || '10:00',
+      type:  'lesson',
+      color: 'green',
+      memberId: members[0]?.id || '',
+    })
   }
   function openEditBlock(id) {
-    const b = blocks.find(x => x.id === id); if (!b) return
-    setEditBlockId(id); setBlockDate(b.date); setBlockStart(b.start); setBlockEnd(b.end)
-    setBlockMemo(b.memo||''); setBlockTitle(b.title||''); setSelType(b.type); setSelColor(b.color)
-    setBlockMemberId(b.memberId||''); setShowCancelForm(false); setCancelType(''); setCancelDetail(''); setSchModal(true)
+    const b = blocks.find(x => x.id === id)
+    if (b) setEditingBlock(b)
   }
-  function toggleCancel() {
-    if (showCancelForm) {
-      if (!cancelType) { showToast('취소 사유를 선택해주세요'); return }
-      if (!editBlockId) return
-      setBlocks(blocks.map(b => b.id===editBlockId ? {...b, cancelled:true, cancelType, cancelDetail} : b))
-      setSchModal(false); showToast('취소 처리됐어요')
-    } else {
-      setShowCancelForm(true)
-    }
-  }
-  async function saveBlock() {
-    if (!blockDate||!blockStart||!blockEnd) { showToast('날짜와 시간을 입력해주세요'); return }
-    if (blockStart>=blockEnd) { showToast('종료 시간이 시작보다 늦어야 해요'); return }
-    const block = { id:editBlockId||Date.now().toString(), date:blockDate, start:blockStart, end:blockEnd, type:selType, color:selColor, memo:blockMemo.trim(), memberId:selType==='lesson'?blockMemberId:null, title:selType==='personal'?blockTitle.trim():null }
-    setBlocks(editBlockId ? blocks.map(b=>b.id===editBlockId?block:b) : [...blocks,block])
-    setSchModal(false); showToast(editBlockId?'✓ 수정됐어요!':'✓ 스케쥴 추가됐어요!')
-    // Web Push 알림 예약 (설정 ON + 권한 허용 + 트레이너 로그인 상태)
-    if (notifEnabled && Notification.permission==='granted' && trainer?.id && import.meta.env.VITE_VAPID_PUBLIC_KEY) {
+
+  // 콜백 — useCallback 으로 메모. ScheduleModal(memo) 의 props 안정화.
+  const closeScheduleModal = useCallback(() => setEditingBlock(null), [])
+
+  const handleSaveBlock = useCallback(async (block, errorMsg) => {
+    // 모달 내부 검증 실패 시 errorMsg 만 전달됨
+    if (errorMsg) { showToast(errorMsg); return }
+    const id = block.id || Date.now().toString()
+    const next = { ...block, id }
+    setBlocks(prev => block.id
+      ? prev.map(b => b.id === block.id ? next : b)
+      : [...prev, next])
+    setEditingBlock(null)
+    showToast(block.id ? '✓ 수정됐어요!' : '✓ 스케쥴 추가됐어요!')
+    if (notifEnabled && Notification.permission === 'granted' && trainer?.id && import.meta.env.VITE_VAPID_PUBLIC_KEY) {
       try {
-        const memberName = block.type==='lesson'
-          ? (members.find(m=>m.id===block.memberId)?.name||'회원')
-          : (block.title||'개인일정')
-        await scheduleNotification(trainer.id, block, memberName, notifMinutes)
+        const memberName = next.type === 'lesson'
+          ? (members.find(m => m.id === next.memberId)?.name || '회원')
+          : (next.title || '개인일정')
+        await scheduleNotification(trainer.id, next, memberName, notifMinutes)
       } catch(e) { console.warn('알림 예약 실패:', e) }
     }
-  }
-  async function deleteBlock() {
-    if (!editBlockId) return
-    setBlocks(blocks.filter(b=>b.id!==editBlockId))
-    setSchModal(false); showToast('삭제됐어요')
+  // showToast 는 외부 hook 결과라 안정적이라 가정. trainer.id / notif* / members 는 deps.
+  }, [notifEnabled, notifMinutes, trainer?.id, members])
+
+  const handleDeleteBlock = useCallback(async (id) => {
+    setBlocks(prev => prev.filter(b => b.id !== id))
+    setEditingBlock(null)
+    showToast('삭제됐어요')
     if (trainer?.id && import.meta.env.VITE_VAPID_PUBLIC_KEY) {
-      try { await deleteScheduledNotification(trainer.id, editBlockId) } catch(e) {}
+      try { await deleteScheduledNotification(trainer.id, id) } catch(e) {}
     }
-  }
+  }, [trainer?.id])
+
+  const handleCancelLesson = useCallback((id, cancelType, cancelDetail) => {
+    setBlocks(prev => prev.map(b => b.id === id ? { ...b, cancelled: true, cancelType, cancelDetail } : b))
+    setEditingBlock(null)
+    showToast('취소 처리됐어요')
+  }, [])
 
   // === RENDER SCHEDULE GRID ===
   function renderScheduleGrid() {
@@ -7100,48 +7093,18 @@ export default function TrainerApp() {
         <button className="btn btn-primary" style={{width:'100%',marginTop:'10px'}} onClick={confirmAddExercise}>운동 저장</button>
       </Modal>
 
-      {/* SCHEDULE MODAL */}
-      <Modal open={schModal} onClose={()=>setSchModal(false)} title={editBlockId?'스케쥴 수정':'스케쥴 추가'} maxWidth="360px">
-        <div className="type-row">
-          <button className={`type-btn${selType==='lesson'?' active':''}`} onClick={()=>setSelType('lesson')}>🏋️ 수업</button>
-          <button className={`type-btn${selType==='personal'?' active':''}`} onClick={()=>setSelType('personal')}>📌 개인일정</button>
-        </div>
-        {selType==='lesson' && <div className="form-group"><label>회원</label><select value={blockMemberId} onChange={e=>setBlockMemberId(e.target.value)}>{memberOptions}</select></div>}
-        {selType==='personal' && <div className="form-group"><label>일정 제목</label><input type="text" value={blockTitle} onChange={e=>setBlockTitle(e.target.value)} placeholder="미팅, 휴식 등" /></div>}
-        <div className="form-group"><label>날짜</label><input type="date" value={blockDate} onChange={e=>setBlockDate(e.target.value)} /></div>
-        <div className="form-group"><label>시간</label><div className="time-row"><input type="time" value={blockStart} onChange={e=>setBlockStart(e.target.value)} step="300" /><span>~</span><input type="time" value={blockEnd} onChange={e=>setBlockEnd(e.target.value)} step="300" /></div></div>
-        <div className="form-group"><label>메모 (선택)</label><input type="text" value={blockMemo} onChange={e=>setBlockMemo(e.target.value)} placeholder="특이사항" /></div>
-        <div className="form-group"><label>색상</label><div className="color-row">{COLORS.map(c=><div key={c.id} className={`color-btn${selColor===c.id?' sel':''}`} style={{background:c.bg}} onClick={()=>setSelColor(c.id)}></div>)}</div></div>
-        {showCancelForm && (
-          <div>
-            <div style={{height:'1px',background:'var(--border)',margin:'12px 0'}}></div>
-            <div className="form-group">
-              <label style={{color:'var(--danger)'}}>취소 사유</label>
-              <select value={cancelType} onChange={e=>setCancelType(e.target.value)}>
-                <option value="">사유 선택</option>
-                <option value="회원 개인 사정">회원 개인 사정</option>
-                <option value="회원 질병/부상">회원 질병/부상</option>
-                <option value="트레이너 사정">트레이너 사정</option>
-                <option value="시설 문제">시설 문제</option>
-                <option value="기타">기타</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label style={{color:'var(--danger)'}}>취소 상세 내용 (선택)</label>
-              <textarea value={cancelDetail} onChange={e=>setCancelDetail(e.target.value)} placeholder="취소 사유를 자세히 적어주세요" rows={2} style={{minHeight:'60px'}}></textarea>
-            </div>
-          </div>
-        )}
-        <div style={{display:'flex',gap:'8px'}}>
-          <button className="btn btn-primary" style={{flex:1}} onClick={saveBlock}>저장</button>
-          {editBlockId && (
-            <button className="btn btn-ghost btn-sm" onClick={toggleCancel} style={{color:'var(--danger)',borderColor:'rgba(255,92,92,0.3)',background:showCancelForm?'rgba(255,92,92,0.1)':'none'}}>
-              {showCancelForm ? '취소 확정' : '취소 처리'}
-            </button>
-          )}
-          {editBlockId && !showCancelForm && <button className="btn btn-ghost btn-sm" style={{color:'var(--danger)',borderColor:'rgba(255,92,92,0.3)'}} onClick={deleteBlock}>삭제</button>}
-        </div>
-      </Modal>
+      {/* SCHEDULE MODAL — form state 가 자체적으로 격리된 별도 컴포넌트.
+          부모(TrainerApp) 의 다른 state 변경에 영향 없음 → 모달 input 응답성 ↑ */}
+      <ScheduleModal
+        open={!!editingBlock}
+        initialBlock={editingBlock}
+        members={members}
+        colors={COLORS}
+        onClose={closeScheduleModal}
+        onSave={handleSaveBlock}
+        onDelete={handleDeleteBlock}
+        onCancelLesson={handleCancelLesson}
+      />
     </div>
   )
 }
