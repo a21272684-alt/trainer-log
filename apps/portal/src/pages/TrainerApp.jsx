@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { supabase, GEMINI_MODEL } from '@trainer-log/shared/lib/supabase'
 import { subscribeToPush, scheduleNotification, deleteScheduledNotification } from '../lib/push'
 import { useToast } from '@trainer-log/shared/components/common/Toast'
@@ -1743,6 +1743,20 @@ export default function TrainerApp() {
   const [cancelType, setCancelType] = useState('')
   const [cancelDetail, setCancelDetail] = useState('')
 
+  // perf: 시간표 모달 input 키 입력마다 부모 re-render → 7일 그리드의 blocks.filter
+  // 7번 반복으로 비용 누적. blocks 변경 시 1회만 그룹핑하고 lookup.
+  const blocksByDate = useMemo(() => {
+    const map = {}
+    for (const b of blocks) (map[b.date] ||= []).push(b)
+    return map
+  }, [blocks])
+
+  // perf: 모달의 회원 select options. 부모 re-render 마다 새 array 생성 방지.
+  const memberOptions = useMemo(
+    () => members.map(m => <option key={m.id} value={m.id}>{m.name}</option>),
+    [members]
+  )
+
   // Notifications
   const [notifEnabled, setNotifEnabled] = useState(() => localStorage.getItem('tl_notif_enabled') === 'true')
   const [notifMinutes, setNotifMinutes] = useState(() => parseInt(localStorage.getItem('tl_notif_minutes')||'30'))
@@ -2040,13 +2054,27 @@ export default function TrainerApp() {
   }
 
   // OAuth 인증 상태 감지
+  // Supabase v2 의 SIGNED_IN 이벤트는 token refresh 시점 (탭 활성화 / focus 등) 에도
+  // 다시 발화됨. 가드 없이 처리하면 창 전환마다 handleAuthUser → _loginWithRecord
+  // 가 재실행되어 환영 toast 가 반복적으로 노출됨. ref 로 1회 처리만 보장.
+  const isAuthenticatedRef = useRef(false)
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) handleAuthUser(session.user)
+      if (session && !isAuthenticatedRef.current) {
+        isAuthenticatedRef.current = true
+        handleAuthUser(session.user)
+      }
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) handleAuthUser(session.user)
-      if (event === 'SIGNED_OUT') { setAuthUser(null); setTrainer(null); setMembers([]); setLogs([]); setScreen('landing') }
+      if (event === 'SIGNED_IN' && session) {
+        if (isAuthenticatedRef.current) return  // token refresh 재진입 무시
+        isAuthenticatedRef.current = true
+        handleAuthUser(session.user)
+      }
+      if (event === 'SIGNED_OUT') {
+        isAuthenticatedRef.current = false
+        setAuthUser(null); setTrainer(null); setMembers([]); setLogs([]); setScreen('landing')
+      }
     })
     return () => subscription.unsubscribe()
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2062,7 +2090,10 @@ export default function TrainerApp() {
   }, [trainer])
 
   async function loadMembers() {
-    const { data } = await supabase.from('members').select('*').eq('trainer_id', trainer.id).order('created_at', { ascending: false })
+    // is_personal=true 만 조회: CRM 에서 등록된 센터 회원(false)은 트레이너 포털에 노출 X
+    const { data } = await supabase.from('members').select('*')
+      .eq('trainer_id', trainer.id).eq('is_personal', true)
+      .order('created_at', { ascending: false })
     setMembers(data || [])
     computeAllRiskScores(data || [])  // 리스크 점수는 회원 데이터 필요 → 직후 호출
     // loadTodayAttendance 는 useEffect에서 명시적으로 독립 호출됨
@@ -3378,7 +3409,7 @@ export default function TrainerApp() {
             })}
           </div>
           {dates.map(d => {
-            const ds = dStr(d); const dayBlocks = blocks.filter(b=>b.date===ds)
+            const ds = dStr(d); const dayBlocks = blocksByDate[ds] || []
             return (
               <div key={ds} className="sg-dc" style={{height:totalPx+'px'}} onClick={e => {
                 const rect = e.currentTarget.getBoundingClientRect(); const y = e.clientY-rect.top
@@ -7075,7 +7106,7 @@ export default function TrainerApp() {
           <button className={`type-btn${selType==='lesson'?' active':''}`} onClick={()=>setSelType('lesson')}>🏋️ 수업</button>
           <button className={`type-btn${selType==='personal'?' active':''}`} onClick={()=>setSelType('personal')}>📌 개인일정</button>
         </div>
-        {selType==='lesson' && <div className="form-group"><label>회원</label><select value={blockMemberId} onChange={e=>setBlockMemberId(e.target.value)}>{members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></div>}
+        {selType==='lesson' && <div className="form-group"><label>회원</label><select value={blockMemberId} onChange={e=>setBlockMemberId(e.target.value)}>{memberOptions}</select></div>}
         {selType==='personal' && <div className="form-group"><label>일정 제목</label><input type="text" value={blockTitle} onChange={e=>setBlockTitle(e.target.value)} placeholder="미팅, 휴식 등" /></div>}
         <div className="form-group"><label>날짜</label><input type="date" value={blockDate} onChange={e=>setBlockDate(e.target.value)} /></div>
         <div className="form-group"><label>시간</label><div className="time-row"><input type="time" value={blockStart} onChange={e=>setBlockStart(e.target.value)} step="300" /><span>~</span><input type="time" value={blockEnd} onChange={e=>setBlockEnd(e.target.value)} step="300" /></div></div>
