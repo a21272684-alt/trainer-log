@@ -1108,6 +1108,9 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
           name,
           phone,
           trainer_id: addForm.trainer_id,
+          // 센터(CRM) 등록 회원은 트레이너 포털의 "개인 레슨 회원" 목록에 노출 X
+          // (migration 049 의 is_personal 컬럼)
+          is_personal: false,
         })
         .select().single()
       if (error) { setAddError('오류: ' + error.message); return }
