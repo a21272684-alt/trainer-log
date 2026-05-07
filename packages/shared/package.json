@@ -1,0 +1,17 @@
+{
+  "name": "@trainer-log/shared",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    "./lib/*":        "./lib/*.js",
+    "./components/*": "./components/*.jsx",
+    "./styles/*":     "./styles/*"
+  },
+  "peerDependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "@supabase/supabase-js": "^2.49.0"
+  }
+}
