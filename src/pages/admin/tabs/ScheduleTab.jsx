@@ -48,61 +48,34 @@ export default function ScheduleTab({ gymId, trainers, members }) {
 
   useEffect(() => { loadSchedules() }, [gymId, weekStart])
 
+  // class_schedules / class_bookings 테이블은 DB 미배포 — 호출 차단 후 빈 데이터 폴백.
+  // 테이블 도입 시 본 함수 본문을 다시 활성화한다.
   async function loadSchedules() {
     if (!gymId) return
-    setLoading(true)
-    const rangeStart = weekDays[0].toISOString()
-    const rangeEnd   = new Date(weekDays[6].setHours(23,59,59)).toISOString()
-
-    const [schedRes, bookRes] = await Promise.all([
-      supabase.from('class_schedules').select('*')
-        .eq('gym_id', gymId).gte('start_at', rangeStart).lte('start_at', rangeEnd)
-        .order('start_at'),
-      supabase.from('class_bookings').select('*, members(name)')
-        .eq('gym_id', gymId),
-    ])
-    setSchedules(schedRes.data || [])
-    setBookings(bookRes.data || [])
+    setSchedules([])
+    setBookings([])
     setLoading(false)
   }
 
   async function handleCreate(e) {
     e.preventDefault()
-    if (!form.title || !form.start_at || !form.end_at) { showToast('제목, 시작/종료 시간을 입력해주세요'); return }
-    const { error } = await supabase.from('class_schedules').insert({
-      gym_id: gymId, trainer_id: form.trainer_id || null,
-      class_type: form.class_type, title: form.title, description: form.description,
-      start_at: new Date(form.start_at).toISOString(), end_at: new Date(form.end_at).toISOString(),
-      max_capacity: Number(form.max_capacity), color: form.color,
-    })
-    if (error) { showToast('오류: ' + error.message); return }
-    showToast('✓ 수업 일정 등록 완료')
+    showToast('수업 일정 기능은 준비 중이에요')
     setShowForm(false)
     setForm({ trainer_id:'', class_type:'pt', title:'', description:'', start_at:'', end_at:'', max_capacity:1, color:'blue' })
-    loadSchedules()
   }
 
   async function handleCancel(id) {
-    const reason = prompt('취소 사유를 입력하세요 (선택)')
-    await supabase.from('class_schedules').update({ is_cancelled: true, cancel_reason: reason || '' }).eq('id', id)
-    showToast('✓ 수업 취소 처리됨')
+    showToast('수업 일정 기능은 준비 중이에요')
     setSelected(null)
-    loadSchedules()
   }
 
   async function handleBook(scheduleId, memberId) {
-    const { error } = await supabase.from('class_bookings').insert({
-      schedule_id: scheduleId, member_id: memberId, gym_id: gymId, status: 'confirmed'
-    })
-    if (error) { showToast('오류: ' + error.message); return }
-    showToast('✓ 예약 완료')
-    loadSchedules()
+    showToast('수업 일정 기능은 준비 중이에요')
   }
 
   async function handleCancelBooking(bookingId) {
-    await supabase.from('class_bookings').update({ status: 'cancelled' }).eq('id', bookingId)
-    showToast('✓ 예약 취소')
-    loadSchedules()
+    // class_bookings 테이블 미배포 — 차단. 테이블 도입 시 재활성화.
+    showToast('수업 일정 기능은 준비 중이에요')
   }
 
   function prevWeek() { const d = new Date(weekStart); d.setDate(d.getDate()-7); setWeekStart(d) }
@@ -240,6 +213,7 @@ export default function ScheduleTab({ gymId, trainers, members }) {
           {schedules.length === 0 ? (
             <div className="empty-state"><div className="empty-state-icon">📅</div><div className="empty-state-text">이번 주 수업이 없어요</div></div>
           ) : (
+            <div style={{ overflowX: 'auto' }}>
             <table className="data-table">
               <thead><tr><th>일시</th><th>수업</th><th>트레이너</th><th style={{textAlign:'right'}}>예약/정원</th><th>상태</th><th></th></tr></thead>
               <tbody>
@@ -270,6 +244,7 @@ export default function ScheduleTab({ gymId, trainers, members }) {
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       )}

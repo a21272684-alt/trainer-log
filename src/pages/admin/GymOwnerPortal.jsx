@@ -1,7 +1,21 @@
 ﻿import { useState, useEffect, useRef, useCallback } from 'react'
+
+// sessionStorage 기반 탭 상태 — 외부 요인으로 컴포넌트가 리마운트돼도 탭 위치 유지
+function useSessionTab(storageKey, defaultVal) {
+  const [val, setVal] = useState(() => {
+    try { const s = sessionStorage.getItem(storageKey); return s || defaultVal }
+    catch { return defaultVal }
+  })
+  const save = useCallback((v) => {
+    setVal(v)
+    try { sessionStorage.setItem(storageKey, v) } catch {}
+  }, [storageKey])
+  return [val, save]
+}
 import { supabase } from '../../lib/supabase'
 import { useToast } from './components/Toast'
 import Modal from './components/Modal'
+import TermsAgreementModal from '../../components/common/TermsAgreementModal'
 import { computeRiskScore, getRiskLevel, RISK_LEVELS } from './lib/churnRisk'
 import {
   generateWeeklyReport, checkAndEnsurePendingReport,
@@ -16,6 +30,23 @@ import ContractsTab        from './tabs/ContractsTab'
 import NotificationsTab    from './tabs/NotificationsTab'
 import ProductsTab         from './tabs/ProductsTab'
 import SettingsTab         from './tabs/SettingsTab'
+import AccessDenied        from './components/AccessDenied'
+
+// ── 탭별 필요 권한 매핑 ────────────────────────────────────────────
+// null            → 무제한 (모든 직원 접근 가능)
+// '__owner_only__'→ 대표(owner)만 접근
+// 문자열 키       → trainers.crm_permissions[key] === true 여야 접근
+const TAB_PERMISSIONS = {
+  dashboard:     null,
+  members:       null,
+  settlement:    'view_settlement',   // SettingsTab > 직원 권한 관리의 '정산 열람' 키
+  products:      'manage_products',   // SettingsTab > 직원 권한 관리의 '상품 관리' 키
+  schedule:      null,
+  contracts:     null,
+  notifications: null,
+  reports:       null,
+  settings:      '__owner_only__',    // 직원 관리 · 급여 정산 포함 → 대표 전용
+}
 
 const NAV_ITEMS = [
   { key: 'dashboard',     icon: '📊', label: '대시보드' },
@@ -30,7 +61,7 @@ const NAV_ITEMS = [
 ]
 
 export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
-  const [activeTab,    setActiveTab]    = useState('dashboard')
+  const [activeTab,    setActiveTab]    = useSessionTab('crm_activeTab', 'dashboard')
   const [trainers,     setTrainers]     = useState([])
   const [members,      setMembers]      = useState([])
   const [loading,      setLoading]      = useState(true)
@@ -39,18 +70,41 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
   const [showApiModal, setShowApiModal] = useState(false)
   const [apiKeyInput,  setApiKeyInput]  = useState('')
 
+  // 현재 로그인 트레이너의 탭 접근 권한 검사 — DB 재조회 없이 동기 판단
+  // trainer.role === 'owner' 이면 전체 탭 패스, 그 외는 crm_permissions 키 확인
+  // crm_permissions 가 없거나 해당 키가 없으면 false (secure-by-default)
+  function canAccess(tabKey) {
+    if (trainer?.role === 'owner') return true
+    const required = TAB_PERMISSIONS[tabKey]
+    if (!required) return true
+    if (required === '__owner_only__') return false
+    return (trainer?.crm_permissions || {})[required] === true
+  }
+
   useEffect(() => { loadData() }, [initialGym.id])
 
   async function loadData() {
     setLoading(true)
-    const [trainersRes, membersRes, gymRes] = await Promise.all([
+    // members 는 gym_id 컬럼 부재 → 본 센터 소속 트레이너의 회원만 후속 조회
+    const [trainersRes, gymRes] = await Promise.all([
       supabase.from('trainers').select('*, trainer_ranks(*)').eq('gym_id', initialGym.id),
-      supabase.from('members').select('*').eq('gym_id', initialGym.id),
       supabase.from('gyms').select('*').eq('id', initialGym.id).single(),
     ])
-    setTrainers(trainersRes.data || [])
-    setMembers(membersRes.data || [])
+    const trainers = trainersRes.data || []
+    setTrainers(trainers)
     if (gymRes.data) setGym(gymRes.data)
+
+    // 트레이너 ID 목록으로 회원 조회 (members.gym_id 필터 환각 제거)
+    const trainerIds = trainers.map(t => t.id)
+    if (trainerIds.length > 0) {
+      const { data: membersData } = await supabase
+        .from('members')
+        .select('*')
+        .in('trainer_id', trainerIds)
+      setMembers(membersData || [])
+    } else {
+      setMembers([])
+    }
     setLoading(false)
   }
 
@@ -75,6 +129,8 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
 
   return (
     <div className="crm-layout">
+      {/* 최초 로그인 1회 약관 동의 모달 (user_metadata.terms_agreed 미설정 시 강제 노출) */}
+      <TermsAgreementModal />
       {/* 사이드바 */}
       <aside className="sidebar">
         <div className="sidebar-brand">
@@ -134,14 +190,20 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
           ) : (
             <>
               {activeTab === 'dashboard'     && <DashboardTab        gym={gym} gymId={gym.id} trainers={trainers} members={members} />}
-              {activeTab === 'members'       && <MembersTab          members={members} trainers={trainers} gymId={gym.id} />}
-              {activeTab === 'settlement'    && <CenterSettlementTab gymId={gym.id} trainers={trainers} />}
-              {activeTab === 'products'      && <ProductsTab         gymId={gym.id} />}
+              {activeTab === 'members'       && <MembersTab          members={members} trainers={trainers} gymId={gym.id} currentTrainer={trainer} />}
+              {activeTab === 'settlement'    && (canAccess('settlement')
+                ? <CenterSettlementTab gymId={gym.id} trainers={trainers} />
+                : <AccessDenied />)}
+              {activeTab === 'products'      && (canAccess('products')
+                ? <ProductsTab gymId={gym.id} />
+                : <AccessDenied />)}
               {activeTab === 'schedule'      && <ScheduleTab         gymId={gym.id} trainers={trainers} members={members} />}
-              {activeTab === 'contracts'     && <ContractsTab        gymId={gym.id} trainers={trainers} members={members} />}
+              {activeTab === 'contracts'     && <ContractsTab        gymId={gym.id} trainers={trainers} members={members} currentTrainer={trainer} />}
               {activeTab === 'notifications' && <NotificationsTab    gymId={gym.id} members={members} trainers={trainers} />}
               {activeTab === 'reports'       && <ReportsTab          gymId={gym.id} apiKey={apiKey} />}
-              {activeTab === 'settings'      && <SettingsTab         gymId={gym.id} gym={gym} trainers={trainers} members={members} onGymUpdate={g => setGym(g)} />}
+              {activeTab === 'settings'      && (canAccess('settings')
+                ? <SettingsTab gymId={gym.id} gym={gym} trainers={trainers} members={members} onGymUpdate={g => setGym(g)} />
+                : <AccessDenied />)}
             </>
           )}
         </div>

@@ -1,8 +1,22 @@
-﻿import { useState, useEffect } from 'react'
+﻿import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { useToast } from '../components/Toast'
 import Modal from '../components/Modal'
 import GymRankManager from '../components/GymRankManager'
+import StaffPayrollTab from './StaffPayrollTab'
+
+// sessionStorage 기반 탭 상태 — 리마운트 시에도 탭 위치 유지
+function useSessionTab(storageKey, defaultVal) {
+  const [val, setVal] = useState(() => {
+    try { const s = sessionStorage.getItem(storageKey); return s || defaultVal }
+    catch { return defaultVal }
+  })
+  const save = useCallback((v) => {
+    setVal(v)
+    try { sessionStorage.setItem(storageKey, v) } catch {}
+  }, [storageKey])
+  return [val, save]
+}
 
 const mono = { fontFamily: "'DM Mono', monospace" }
 
@@ -52,31 +66,58 @@ function SubTabBar({ tabs, active, onChange, variant = 'pill' }) {
   )
 }
 
-// ── 직급 · 고용형태 · 대관 계약 편집 모달 ────────────────────────
+// ── 직급 · 고용형태 · 대관 계약 · PT 수당 편집 모달 ─────────────
 function RankEditModal({ trainer, gymRanks, onClose, onSaved }) {
   const showToast  = useToast()
+  const sc0        = trainer.settlement_config   // 기존 DB 값 shorthand
+
   const [rankId,     setRankId]     = useState(trainer.gym_rank_id || '')
   const [customRate, setCustomRate] = useState(
     trainer.incentive_rate != null ? String(Math.round(trainer.incentive_rate * 100)) : ''
   )
   const [empType,   setEmpType]   = useState(trainer.employment_type || '')
-  const [rentalCfg, setRentalCfg] = useState({
-    payment_managed_by: trainer.settlement_config?.payment_managed_by || 'self',
-    rental_fee_type:    trainer.settlement_config?.rental_fee_type    || 'fixed',
-    rental_fee_amount:  trainer.settlement_config?.rental_fee_amount  || 0,
-  })
-  const [saving, setSaving] = useState(false)
 
+  // 대관 전용 설정
+  const [rentalCfg, setRentalCfg] = useState({
+    payment_managed_by: sc0?.payment_managed_by || 'self',
+    rental_fee_type:    sc0?.rental_fee_type    || 'fixed',
+    rental_fee_amount:  sc0?.rental_fee_amount  || 0,
+  })
+
+  // PT 수당 · 커미션 설정 (모든 고용형태 공통)
+  const [ptCfg, setPtCfg] = useState({
+    pt_calc_type:          sc0?.pt_calc_type          || 'ratio',
+    pt_value:              sc0?.pt_value          != null ? String(sc0.pt_value)              : '',
+    sales_commission_rate: sc0?.sales_commission_rate != null ? String(sc0.sales_commission_rate) : '',
+    noshow_payout_rate:    sc0?.noshow_payout_rate    != null ? String(sc0.noshow_payout_rate)    : '',
+    deduct_card_fee:       sc0?.deduct_card_fee       || false,
+    card_fee_rate:         sc0?.card_fee_rate     != null ? String(sc0.card_fee_rate)         : '',
+  })
+
+  const [saving, setSaving] = useState(false)
   const selectedRank = gymRanks.find(r => r.id === rankId)
+  const isRatio      = ptCfg.pt_calc_type === 'ratio'
 
   async function handleSave() {
     setSaving(true)
+    const sc = {
+      // 대관 설정 (rental 시만 포함)
+      ...(empType === 'rental' ? rentalCfg : {}),
+      // PT 수당 · 커미션 (전 고용형태 공통 저장)
+      pt_calc_type:          ptCfg.pt_calc_type,
+      pt_value:              ptCfg.pt_value              !== '' ? Number(ptCfg.pt_value)              : null,
+      sales_commission_rate: ptCfg.sales_commission_rate !== '' ? Number(ptCfg.sales_commission_rate) : null,
+      noshow_payout_rate:    ptCfg.noshow_payout_rate    !== '' ? Number(ptCfg.noshow_payout_rate)    : null,
+      deduct_card_fee:       ptCfg.deduct_card_fee,
+      card_fee_rate:         (ptCfg.deduct_card_fee && ptCfg.card_fee_rate !== '')
+                               ? Number(ptCfg.card_fee_rate) : null,
+    }
     const { error } = await supabase.from('trainers').update({
       gym_rank_id:       rankId || null,
       employment_type:   empType || null,
       incentive_rate:    customRate !== '' ? Number(customRate) / 100
                          : selectedRank ? selectedRank.default_incentive_rate : null,
-      settlement_config: empType === 'rental' ? rentalCfg : {},
+      settlement_config: sc,
     }).eq('id', trainer.id)
     setSaving(false)
     if (error) { showToast('오류: ' + error.message); return }
@@ -84,11 +125,21 @@ function RankEditModal({ trainer, gymRanks, onClose, onSaved }) {
     onSaved(); onClose()
   }
 
+  // ── 공용 인풋 레이블 ──────────────────────────────────────────────
+  function FieldLabel({ children, hint }) {
+    return (
+      <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '5px' }}>
+        {children}
+        {hint && <span style={{ fontWeight: 400, color: 'var(--text-dim)', marginLeft: '4px' }}>{hint}</span>}
+      </div>
+    )
+  }
+
   return (
     <div>
-      {/* 직급 */}
+      {/* ── 직급 ── */}
       <div style={{ marginBottom: '16px' }}>
-        <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '8px' }}>직급</div>
+        <FieldLabel>직급</FieldLabel>
         {gymRanks.length === 0 ? (
           <div style={{ fontSize: '12px', color: 'var(--text-dim)', padding: '12px', background: 'var(--surface2)', borderRadius: '8px' }}>
             등록된 직급이 없어요. 직급 관리에서 먼저 추가하세요.
@@ -122,9 +173,9 @@ function RankEditModal({ trainer, gymRanks, onClose, onSaved }) {
         )}
       </div>
 
-      {/* 고용 형태 */}
+      {/* ── 고용 형태 ── */}
       <div style={{ marginBottom: empType === 'rental' ? '12px' : '16px' }}>
-        <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '8px' }}>고용 형태</div>
+        <FieldLabel>고용 형태</FieldLabel>
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           {[['employee', '정직원'], ['freelance', '프리랜서'], ['rental', '대관'], ['', '미설정']].map(([v, l]) => (
             <button key={v} onClick={() => setEmpType(v)}
@@ -139,13 +190,13 @@ function RankEditModal({ trainer, gymRanks, onClose, onSaved }) {
         </div>
       </div>
 
-      {/* 대관 계약 설정 (rental 선택 시만) */}
+      {/* ── 대관 계약 설정 (rental 선택 시만) ── */}
       {empType === 'rental' && (
         <div style={{ marginBottom: '16px', padding: '14px', borderRadius: '10px',
           border: '1px solid rgba(250,204,21,0.25)', background: 'rgba(250,204,21,0.05)' }}>
           <div style={{ fontSize: '11px', color: 'var(--yellow)', fontWeight: 700, marginBottom: '12px' }}>🏢 대관 계약 설정</div>
           <div style={{ marginBottom: '10px' }}>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '5px' }}>결제 주체</div>
+            <FieldLabel>결제 주체</FieldLabel>
             <select className="input" value={rentalCfg.payment_managed_by}
               onChange={e => setRentalCfg(c => ({ ...c, payment_managed_by: e.target.value }))}>
               <option value="self">독립 결제 — 트레이너가 직접 수령</option>
@@ -153,7 +204,7 @@ function RankEditModal({ trainer, gymRanks, onClose, onSaved }) {
             </select>
           </div>
           <div style={{ marginBottom: '10px' }}>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '5px' }}>대관료 방식</div>
+            <FieldLabel>대관료 방식</FieldLabel>
             <div style={{ display: 'flex', gap: '6px' }}>
               {[['fixed', '월 고정액'], ['per_session', '수업 건별']].map(([v, l]) => (
                 <button key={v} onClick={() => setRentalCfg(c => ({ ...c, rental_fee_type: v }))}
@@ -167,9 +218,7 @@ function RankEditModal({ trainer, gymRanks, onClose, onSaved }) {
             </div>
           </div>
           <div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '5px' }}>
-              {rentalCfg.rental_fee_type === 'per_session' ? '1회당 대관료 (원)' : '월 고정 대관료 (원)'}
-            </div>
+            <FieldLabel>{rentalCfg.rental_fee_type === 'per_session' ? '1회당 대관료 (원)' : '월 고정 대관료 (원)'}</FieldLabel>
             <input className="input" type="number" placeholder="예: 300000"
               value={rentalCfg.rental_fee_amount || ''}
               onChange={e => setRentalCfg(c => ({ ...c, rental_fee_amount: Number(e.target.value) }))} />
@@ -177,11 +226,121 @@ function RankEditModal({ trainer, gymRanks, onClose, onSaved }) {
         </div>
       )}
 
-      {/* 개인 인센티브율 */}
-      <div style={{ marginBottom: '20px' }}>
-        <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}>
-          개인 인센티브율 <span style={{ fontWeight: 400, color: 'var(--text-dim)' }}>(비워두면 직급 기본값 적용)</span>
+      {/* ── PT 수당 및 커미션 설정 ── */}
+      <div style={{ marginBottom: '16px', padding: '14px', borderRadius: '10px',
+        border: '1px solid rgba(96,165,250,0.25)', background: 'rgba(96,165,250,0.04)' }}>
+        <div style={{ fontSize: '11px', color: 'var(--blue)', fontWeight: 700, marginBottom: '14px', letterSpacing: '0.3px' }}>
+          💰 PT 수당 및 커미션 설정
         </div>
+
+        {/* PT 정산 방식 선택 */}
+        <div style={{ marginBottom: '12px' }}>
+          <FieldLabel>PT 정산 방식</FieldLabel>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {[['ratio', '비율제 (%)'], ['fixed', '고정단가 (₩)']].map(([v, l]) => (
+              <button key={v} onClick={() => setPtCfg(c => ({ ...c, pt_calc_type: v }))}
+                style={{ flex: 1, padding: '7px', borderRadius: '7px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                  border: `1px solid ${ptCfg.pt_calc_type === v ? 'rgba(96,165,250,0.55)' : 'var(--border)'}`,
+                  background: ptCfg.pt_calc_type === v ? 'rgba(96,165,250,0.12)' : 'var(--surface2)',
+                  color: ptCfg.pt_calc_type === v ? 'var(--blue)' : 'var(--text-muted)' }}>
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* PT 단가 / 비율 — 단위가 동적으로 변함 */}
+        <div style={{ marginBottom: '12px' }}>
+          <FieldLabel>{isRatio ? 'PT 수당 비율' : 'PT 1회 고정단가'}</FieldLabel>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input className="input" type="number" min={0} max={isRatio ? 100 : undefined}
+              placeholder={isRatio ? '예: 70' : '예: 50000'}
+              value={ptCfg.pt_value}
+              onChange={e => setPtCfg(c => ({ ...c, pt_value: e.target.value }))}
+              style={{ flex: 1 }} />
+            <span style={{
+              fontSize: '14px', fontWeight: 700, minWidth: '22px', textAlign: 'right',
+              color: isRatio ? 'var(--blue)' : 'var(--accent)',
+            }}>
+              {isRatio ? '%' : '₩'}
+            </span>
+          </div>
+          {isRatio && ptCfg.pt_value !== '' && (
+            <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '3px', lineHeight: 1.5 }}>
+              결제 1건 매출의 {ptCfg.pt_value}%를 트레이너 수당으로 지급
+            </div>
+          )}
+        </div>
+
+        {/* 카드 수수료 차감 — 비율제 선택 시에만 노출 */}
+        {isRatio && (
+          <div style={{ marginBottom: '12px', padding: '10px 12px', borderRadius: '8px', transition: 'all 0.15s',
+            background: ptCfg.deduct_card_fee ? 'rgba(248,113,113,0.06)' : 'var(--surface2)',
+            border: `1px solid ${ptCfg.deduct_card_fee ? 'rgba(248,113,113,0.3)' : 'var(--border)'}` }}>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+              <input type="checkbox"
+                checked={ptCfg.deduct_card_fee}
+                onChange={e => setPtCfg(c => ({ ...c, deduct_card_fee: e.target.checked }))}
+                style={{ marginTop: '2px', width: '14px', height: '14px', accentColor: 'var(--red)', cursor: 'pointer', flexShrink: 0 }} />
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 600,
+                  color: ptCfg.deduct_card_fee ? 'var(--red)' : 'var(--text)' }}>
+                  카드 결제 건 수수료 선 차감
+                </div>
+                <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '2px', lineHeight: 1.55 }}>
+                  카드 결제 건에 한해 수수료를 먼저 뺀 금액 기준으로 수당 계산
+                </div>
+              </div>
+            </label>
+            {/* 수수료율 입력 — 체크 시에만 노출 */}
+            {ptCfg.deduct_card_fee && (
+              <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, minWidth: '72px' }}>카드 수수료율</div>
+                <input className="input" type="number" min={0} max={100} step={0.1}
+                  placeholder="예: 3.5"
+                  value={ptCfg.card_fee_rate}
+                  onChange={e => setPtCfg(c => ({ ...c, card_fee_rate: e.target.value }))}
+                  style={{ flex: 1 }} />
+                <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--red)' }}>%</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 매출/영업 인센티브율 */}
+        <div style={{ marginBottom: '12px' }}>
+          <FieldLabel hint="(선택)">매출/영업 인센티브율</FieldLabel>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input className="input" type="number" min={0} max={100} placeholder="예: 5"
+              value={ptCfg.sales_commission_rate}
+              onChange={e => setPtCfg(c => ({ ...c, sales_commission_rate: e.target.value }))}
+              style={{ flex: 1 }} />
+            <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-muted)' }}>%</span>
+          </div>
+          <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '3px' }}>
+            신규 회원 유치 · 매출 목표 달성 시 추가 지급
+          </div>
+        </div>
+
+        {/* 노쇼/당일취소 수당 지급률 */}
+        <div>
+          <FieldLabel hint="(선택)">당일취소/노쇼 수당 지급률</FieldLabel>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input className="input" type="number" min={0} max={100} placeholder="예: 50"
+              value={ptCfg.noshow_payout_rate}
+              onChange={e => setPtCfg(c => ({ ...c, noshow_payout_rate: e.target.value }))}
+              style={{ flex: 1 }} />
+            <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-muted)' }}>%</span>
+          </div>
+          <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '3px' }}>
+            정상 수당 대비 비율 — 0% 미지급 · 100% 전액 지급
+          </div>
+        </div>
+      </div>
+
+      {/* ── 개인 인센티브율 (직급 기본값 오버라이드) ── */}
+      <div style={{ marginBottom: '20px' }}>
+        <FieldLabel hint="(비워두면 직급 기본값 적용)">개인 인센티브율</FieldLabel>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <input className="input" type="number" min={0} max={100}
             placeholder={selectedRank ? `기본: ${Math.round(selectedRank.default_incentive_rate * 100)}%` : '예: 12'}
@@ -301,9 +460,15 @@ function StaffPanel({ gymId }) {
   async function handleEdit() {
     if (!form.name.trim()) { showToast('이름을 입력하세요'); return }
     setSaving(true)
-    const { error } = await supabase.from('trainers').update({
-      name: form.name.trim(), phone: form.phone.trim(),
-    }).eq('id', editTarget.id)
+    const updatePayload = {
+      name:  form.name.trim(),
+      phone: form.phone.trim(),
+    }
+    // owner 역할은 변경 불가 (본인 role 보호)
+    if (editTarget?.role !== 'owner' && form.role) {
+      updatePayload.role = form.role
+    }
+    const { error } = await supabase.from('trainers').update(updatePayload).eq('id', editTarget.id)
     setSaving(false)
     if (error) { showToast('오류: ' + error.message); return }
     showToast('✓ 정보가 수정됐어요')
@@ -342,7 +507,9 @@ function StaffPanel({ gymId }) {
   }
 
   function openEdit(t) {
-    setEditTarget(t); setForm({ name: t.name, phone: t.phone || '' }); setEditModal(true)
+    setEditTarget(t)
+    setForm({ name: t.name, phone: t.phone || '', role: t.role || 'staff' })
+    setEditModal(true)
   }
 
   return (
@@ -626,6 +793,28 @@ function StaffPanel({ gymId }) {
                 onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))} />
             </div>
           ))}
+
+          {/* 권한(Role) 설정 — owner 계정은 변경 불가 */}
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '5px' }}>
+              시스템 권한
+            </div>
+            {editTarget?.role === 'owner' ? (
+              <div style={{
+                padding: '8px 12px', borderRadius: '8px', fontSize: '12px',
+                background: 'rgba(200,241,53,0.08)', border: '1px solid rgba(200,241,53,0.2)',
+                color: 'var(--accent)', fontWeight: 600,
+              }}>
+                👑 대표 (변경 불가)
+              </div>
+            ) : (
+              <select className="input" value={form.role ?? 'staff'}
+                onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
+                <option value="manager">매니저 (환불 권한 포함)</option>
+                <option value="staff">일반 직원</option>
+              </select>
+            )}
+          </div>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setEditModal(false)}>취소</button>
@@ -1152,7 +1341,7 @@ function AdvancedPanel({ gymId, gym, onGymUpdate }) {
 // 메인 SettingsTab export
 // ────────────────────────────────────────────────────────────────
 export default function SettingsTab({ gymId, gym, trainers, members, onGymUpdate }) {
-  const [subTab, setSubTab] = useState('staff')
+  const [subTab, setSubTab] = useSessionTab('crm_settingsSubTab', 'staff')
 
   const MAIN_TABS = [
     { key: 'staff',      icon: '👥', label: '직원 관리' },
@@ -1166,7 +1355,7 @@ export default function SettingsTab({ gymId, gym, trainers, members, onGymUpdate
       <SubTabBar tabs={MAIN_TABS} active={subTab} onChange={setSubTab} />
 
       {subTab === 'staff'      && <StaffPanel gymId={gymId} />}
-      {subTab === 'settlement' && <TrainersTab trainers={trainers} members={members || []} gymId={gymId} />}
+      {subTab === 'settlement' && <StaffPayrollTab gymId={gymId} trainers={trainers || []} />}
       {subTab === 'log'        && <CenterLogPanel gymId={gymId} trainers={trainers} />}
       {subTab === 'advanced'   && <AdvancedPanel gymId={gymId} gym={gym} onGymUpdate={onGymUpdate} />}
     </div>

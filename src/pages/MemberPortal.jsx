@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../components/common/Toast'
 import Modal from '../components/common/Modal'
+import TermsAgreementModal from '../components/common/TermsAgreementModal'
 import { EXERCISE_DB } from '../lib/exercises'
 import { Link } from 'react-router-dom'
 import { Chart, registerables } from 'chart.js'
@@ -118,6 +119,12 @@ export default function MemberPortal() {
   const [member, setMember] = useState(null)
   const [tab, setTab] = useState('logs')
   const [memberLogs, setMemberLogs] = useState([])
+  const [logsOffset,  setLogsOffset]  = useState(0)
+  const [logsHasMore, setLogsHasMore] = useState(false)
+  const [logsLoading, setLogsLoading] = useState(false)
+  const [videoSpeeds, setVideoSpeeds] = useState({}) // logId → playbackRate
+  const [logRatings, setLogRatings]   = useState({}) // logId → 선택한 평점 (1~5, pending)
+  const [ratingSaving, setRatingSaving] = useState(null) // 저장 중인 logId
   const [healthRecords, setHealthRecords] = useState([])
   const [dietRecords, setDietRecords] = useState([])
   const [selectedSleep, setSelectedSleep] = useState(null)
@@ -169,20 +176,13 @@ export default function MemberPortal() {
   const [dietLogs, setDietLogs] = useState([])
   const [dietDate, setDietDate] = useState(() => new Date().toISOString().split('T')[0])
   const [showFoodModal, setShowFoodModal] = useState(false)
-  const [foodMealType, setFoodMealType] = useState('breakfast')
-  const [foodName, setFoodName] = useState('')
-  const [foodAmountG, setFoodAmountG] = useState('100')
-  const [foodCalPerG, setFoodCalPerG] = useState('')
-  const [foodProteinPerG, setFoodProteinPerG] = useState('')
-  const [foodCarbsPerG, setFoodCarbsPerG] = useState('')
-  const [foodFatPerG, setFoodFatPerG] = useState('')
-  const [foodFiberPerG, setFoodFiberPerG] = useState('')
-  const [foodSodiumPerG, setFoodSodiumPerG] = useState('')
-  const [foodSugarPerG, setFoodSugarPerG] = useState('')
-  const [foodPhotoFile, setFoodPhotoFile] = useState(null)
-  const [foodPhotoPreview, setFoodPhotoPreview] = useState('')
-  const [foodAiLoading, setFoodAiLoading] = useState(false)
-  const [foodAiConfidence, setFoodAiConfidence] = useState('')
+  const INITIAL_FOOD_FORM = {
+    mealType: 'breakfast', name: '', amountG: '100',
+    calPerG: '', proteinPerG: '', carbsPerG: '', fatPerG: '',
+    fiberPerG: '', sodiumPerG: '', sugarPerG: '',
+    photoFile: null, photoPreview: '', aiLoading: false, aiConfidence: '',
+  }
+  const [foodForm, setFoodForm] = useState(INITIAL_FOOD_FORM)
   const foodPhotoInputRef = useRef(null)
   const [foodSuggestions, setFoodSuggestions] = useState([])
   const [showFoodSuggestions, setShowFoodSuggestions] = useState(false)
@@ -196,6 +196,34 @@ export default function MemberPortal() {
   const [showApplyTemplateModal, setShowApplyTemplateModal] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState(null)
   const [applyTemplateMealType, setApplyTemplateMealType] = useState('breakfast')
+  // 비동기 액션 연타 방어 가드
+  const [savingTemplate, setSavingTemplate] = useState(false)
+  const [applyingTemplate, setApplyingTemplate] = useState(false)
+  const [savingWorkout, setSavingWorkout] = useState(false)
+  const [creatingPost, setCreatingPost] = useState(false)
+
+  // 1:1 문의 → 카카오 오픈채팅 우회 (inquiries 테이블 사용 중단, 운영 비용 절감)
+  // app_settings.urgent_inquiry_url 가 있으면 그 URL을, 없으면 폴백 URL을 새창으로 연다.
+  const FALLBACK_INQUIRY_URL = 'https://open.kakao.com/'
+  const [inquiryUrl, setInquiryUrl] = useState(FALLBACK_INQUIRY_URL)
+  useEffect(() => {
+    let cancelled = false
+    supabase.from('app_settings').select('value').eq('key', 'urgent_inquiry_url').maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return
+        const raw = data?.value
+        const url = typeof raw === 'string' ? raw.replace(/^"|"$/g, '').trim() : ''
+        if (url) setInquiryUrl(url)
+      })
+    return () => { cancelled = true }
+  }, [])
+  function openInquiryChat() {
+    try {
+      window.open(inquiryUrl, '_blank', 'noopener,noreferrer')
+    } catch {
+      showToast('1:1 문의 채널을 여는 데 실패했어요')
+    }
+  }
 
   const today = () => new Date().toISOString().split('T')[0]
   const formatDate = (str) => new Date(str+'T00:00:00').toLocaleDateString('ko-KR',{month:'short',day:'numeric'})
@@ -245,15 +273,15 @@ export default function MemberPortal() {
       showToast('등록된 회원 정보가 없어요. 트레이너에게 이메일 등록을 요청하세요')
       await supabase.auth.signOut()
       setAuthUser(null)
-    } catch(e) { showToast('오류: ' + e.message) }
+    } catch(e) {
+      showToast('오류: ' + e.message)
+      await supabase.auth.signOut()
+      setAuthUser(null)
+    }
   }
 
   async function _loginWithRecord(m) {
     setMember(m); setLoggedIn(true)
-    if (m.trainer_id) {
-      const { data: tData } = await supabase.from('trainers').select('api_key').eq('id', m.trainer_id).single()
-      if (tData?.api_key) setTrainerApiKey(tData.api_key)
-    }
     showToast('✓ 환영해요, ' + m.name + '님!')
   }
 
@@ -265,6 +293,20 @@ export default function MemberPortal() {
 
   // OAuth 인증 상태 감지
   useEffect(() => {
+    // 중앙 Gemini API 키 로드 (앱 마운트 시 1회)
+    supabase.from('app_settings')
+      .select('value')
+      .eq('key', 'gemini_api_key')
+      .single()
+      .then(({ data }) => {
+        if (data?.value) {
+          // JSONB 컬럼 특성상 이중따옴표 제거 필수
+          const centralKey = String(data.value).replace(/^"|"$/g, '')
+          if (centralKey) setTrainerApiKey(centralKey)
+        }
+      })
+      .catch(e => console.warn('[app_settings] Gemini 키 로드 실패:', e.message))
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) handleAuthUser(session.user)
     })
@@ -285,12 +327,68 @@ export default function MemberPortal() {
   }, [member])
 
   async function loadAll() {
-    const [l, h, d] = await Promise.all([
-      supabase.from('logs').select('*').eq('member_id', member.id).order('created_at', { ascending: false }),
-      supabase.from('health_records').select('*').eq('member_id', member.id).order('record_date', { ascending: false }).limit(60),
-      supabase.from('health_records').select('*').eq('member_id', member.id).not('diet_note','is',null).order('record_date', { ascending: false }).limit(30),
-    ])
-    setMemberLogs(l.data || []); setHealthRecords(h.data || []); setDietRecords(d.data || [])
+    try {
+      const [l, h] = await Promise.all([
+        supabase.from('logs')
+          .select('id, created_at, read_at, session_number, content, media_urls, session_rating, exercises_data, session_id, workout_session:workout_sessions(exercises)')
+          .eq('member_id', member.id)
+          .order('created_at', { ascending: false })
+          .limit(20),
+        supabase.from('health_records').select('*').eq('member_id', member.id).order('record_date', { ascending: false }).limit(60),
+      ])
+      const logRows = l.data || []
+      setMemberLogs(logRows)
+      setLogsOffset(logRows.length)
+      setLogsHasMore(logRows.length === 20)
+      const hRows = h.data || []
+      setHealthRecords(hRows)
+      setDietRecords(hRows.filter(r => r.diet_note != null).slice(0, 30))
+    } catch(e) {
+      console.warn('[loadAll] 데이터 로드 실패:', e.message)
+    }
+  }
+
+  async function loadMoreLogs() {
+    if (logsLoading || !logsHasMore || !member) return
+    setLogsLoading(true)
+    const { data } = await supabase
+      .from('logs')
+      .select('id, created_at, read_at, session_number, content, media_urls, session_rating, exercises_data, session_id, workout_session:workout_sessions(exercises)')
+      .eq('member_id', member.id)
+      .order('created_at', { ascending: false })
+      .range(logsOffset, logsOffset + 19)
+    const rows = data || []
+    setMemberLogs(prev => [...prev, ...rows])
+    setLogsOffset(prev => prev + rows.length)
+    setLogsHasMore(rows.length === 20)
+    setLogsLoading(false)
+  }
+
+  // 로그 카드 내 모든 <video> 의 배속을 일괄 변경
+  function changeVideoSpeed(logId, rate) {
+    document.querySelectorAll(`video[data-vid-key^="${logId}_"]`).forEach(vid => {
+      vid.playbackRate = rate
+    })
+    setVideoSpeeds(prev => ({ ...prev, [logId]: rate }))
+  }
+
+  // 수업 평점 저장 (회원이 직접 입력)
+  async function saveLogRating(logId, rating) {
+    if (!rating || ratingSaving) return
+    setRatingSaving(logId)
+    try {
+      const { error } = await supabase.from('logs').update({ session_rating: rating }).eq('id', logId)
+      if (error) { showToast('평점 저장에 실패했어요'); return }
+      // memberLogs state에도 즉시 반영
+      setMemberLogs(prev => prev.map(l => l.id === logId ? { ...l, session_rating: rating } : l))
+      // pending 선택 초기화
+      setLogRatings(prev => { const n = { ...prev }; delete n[logId]; return n })
+      showToast('✓ 평점이 저장됐어요!')
+    } catch (e) {
+      showToast('오류: ' + e.message)
+    } finally {
+      setRatingSaving(null)
+    }
   }
 
   useEffect(() => {
@@ -302,55 +400,63 @@ export default function MemberPortal() {
       loadWorkoutSessions()
       loadWorkoutRoutines()
     }
-  }, [tab])
+  }, [tab, member])
 
   useEffect(() => {
-    if (tab === 'logs' && member) {
-      supabase.from('logs').select('*').eq('member_id', member.id).order('created_at', { ascending: false })
-        .then(({ data }) => setMemberLogs(data || []))
+    if (tab === 'logs' && member && memberLogs.length === 0) {
+      supabase.from('logs')
+        .select('id, created_at, read_at, session_number, content, media_urls, session_rating, exercises_data, session_id, workout_session:workout_sessions(exercises)')
+        .eq('member_id', member.id)
+        .order('created_at', { ascending: false })
+        .limit(20)
+        .then(({ data }) => {
+          const rows = data || []
+          setMemberLogs(rows)
+          setLogsOffset(rows.length)
+          setLogsHasMore(rows.length === 20)
+        })
     }
-  }, [tab])
+  }, [tab, member])
 
   useEffect(() => {
     if (tab === 'community' && member) {
       loadPosts()
       loadNotices()
     }
-  }, [tab])
+  }, [tab, member])
 
   useEffect(() => {
     if (tab === 'diet' && member) {
       loadDietLogs(dietDate)
       loadDietTemplates()
     }
-  }, [tab, dietDate])
+  }, [tab, dietDate, member])
 
   // ── 식단 v2 함수 ─────────────────────────────────────────────
 
   async function loadDietLogs(date) {
     if (!member) return
-    const { data } = await supabase
-      .from('diet_logs')
-      .select('*')
-      .eq('member_id', member.id)
-      .eq('record_date', date)
-      .order('created_at', { ascending: true })
-    setDietLogs(data || [])
+    try {
+      const { data, error } = await supabase
+        .from('diet_logs')
+        .select('*')
+        .eq('member_id', member.id)
+        .eq('record_date', date)
+        .order('created_at', { ascending: true })
+      if (error) { console.warn('[loadDietLogs] 로드 실패:', error.message); return }
+      setDietLogs(data || [])
+    } catch(e) { console.warn('[loadDietLogs] 오류:', e.message) }
   }
 
   function openFoodModal(mealType) {
-    setFoodMealType(mealType)
-    setFoodName(''); setFoodAmountG('100')
-    setFoodCalPerG(''); setFoodProteinPerG(''); setFoodCarbsPerG('')
-    setFoodFatPerG(''); setFoodFiberPerG(''); setFoodSodiumPerG(''); setFoodSugarPerG('')
-    setFoodPhotoFile(null); setFoodPhotoPreview(''); setFoodAiConfidence('')
+    setFoodForm({ ...INITIAL_FOOD_FORM, mealType })
     setFoodSuggestions([]); setShowFoodSuggestions(false)
     setShowFoodModal(true)
   }
 
   async function recognizeFoodFromPhoto(file) {
-    if (!trainerApiKey) { showToast('트레이너에게 AI 기능 활성화를 요청해주세요'); return }
-    setFoodAiLoading(true)
+    if (!trainerApiKey) { showToast('AI 기능을 사용할 수 없어요. 잠시 후 다시 시도해주세요'); return }
+    setFoodForm(p => ({ ...p, aiLoading: true }))
     try {
       const reader = new FileReader()
       reader.onload = async (e) => {
@@ -362,32 +468,35 @@ export default function MemberPortal() {
           const GEMINI_MODEL = 'gemini-2.5-flash-lite'
           const text = await callGeminiMultipart(trainerApiKey, GEMINI_MODEL, parts, { timeoutMs: 45000 })
           const result = parseFoodVisionResult(text)
-          setFoodName(result.food_name)
-          setFoodAmountG(String(result.estimated_amount_g))
-          setFoodCalPerG(result.calories_per_g != null ? String(Number(result.calories_per_g).toFixed(6)) : '')
-          setFoodProteinPerG(result.protein_per_g != null ? String(Number(result.protein_per_g).toFixed(6)) : '')
-          setFoodCarbsPerG(result.carbs_per_g != null ? String(Number(result.carbs_per_g).toFixed(6)) : '')
-          setFoodFatPerG(result.fat_per_g != null ? String(Number(result.fat_per_g).toFixed(6)) : '')
-          setFoodFiberPerG(result.fiber_per_g != null ? String(Number(result.fiber_per_g).toFixed(6)) : '')
-          setFoodSodiumPerG(result.sodium_per_g != null ? String(Number(result.sodium_per_g).toFixed(6)) : '')
-          setFoodSugarPerG(result.sugar_per_g != null ? String(Number(result.sugar_per_g).toFixed(6)) : '')
-          setFoodAiConfidence(result.confidence)
+          setFoodForm(p => ({
+            ...p,
+            name:       result.food_name,
+            amountG:    String(result.estimated_amount_g),
+            calPerG:    result.calories_per_g != null ? String(Number(result.calories_per_g).toFixed(6)) : '',
+            proteinPerG:result.protein_per_g  != null ? String(Number(result.protein_per_g).toFixed(6))  : '',
+            carbsPerG:  result.carbs_per_g    != null ? String(Number(result.carbs_per_g).toFixed(6))    : '',
+            fatPerG:    result.fat_per_g      != null ? String(Number(result.fat_per_g).toFixed(6))      : '',
+            fiberPerG:  result.fiber_per_g    != null ? String(Number(result.fiber_per_g).toFixed(6))    : '',
+            sodiumPerG: result.sodium_per_g   != null ? String(Number(result.sodium_per_g).toFixed(6))   : '',
+            sugarPerG:  result.sugar_per_g    != null ? String(Number(result.sugar_per_g).toFixed(6))    : '',
+            aiConfidence: result.confidence,
+            aiLoading: false,
+          }))
           showToast('✓ 음식을 인식했어요! 내용을 확인해주세요')
         } catch (err) {
           showToast('인식 실패: ' + err.message)
-        } finally {
-          setFoodAiLoading(false)
+          setFoodForm(p => ({ ...p, aiLoading: false }))
         }
       }
       reader.readAsDataURL(file)
     } catch (err) {
       showToast('오류: ' + err.message)
-      setFoodAiLoading(false)
+      setFoodForm(p => ({ ...p, aiLoading: false }))
     }
   }
 
   function onFoodNameChange(val) {
-    setFoodName(val)
+    setFoodForm(p => ({ ...p, name: val }))
     clearTimeout(foodSearchTimer.current)
     if (val.trim().length < 2) { setFoodSuggestions([]); setShowFoodSuggestions(false); return }
     foodSearchTimer.current = setTimeout(async () => {
@@ -402,53 +511,62 @@ export default function MemberPortal() {
   }
 
   function selectFoodSuggestion(item) {
-    setFoodName(item.food_name)
-    if (item.calories_per_g != null) setFoodCalPerG(String(item.calories_per_g))
-    if (item.protein_per_g  != null) setFoodProteinPerG(String(item.protein_per_g))
-    if (item.carbs_per_g    != null) setFoodCarbsPerG(String(item.carbs_per_g))
-    if (item.fat_per_g      != null) setFoodFatPerG(String(item.fat_per_g))
-    if (item.fiber_per_g    != null) setFoodFiberPerG(String(item.fiber_per_g))
-    if (item.sodium_per_g   != null) setFoodSodiumPerG(String(item.sodium_per_g))
-    if (item.sugar_per_g    != null) setFoodSugarPerG(String(item.sugar_per_g))
+    setFoodForm(p => ({
+      ...p,
+      name:       item.food_name,
+      calPerG:    item.calories_per_g != null ? String(item.calories_per_g) : p.calPerG,
+      proteinPerG:item.protein_per_g  != null ? String(item.protein_per_g)  : p.proteinPerG,
+      carbsPerG:  item.carbs_per_g    != null ? String(item.carbs_per_g)    : p.carbsPerG,
+      fatPerG:    item.fat_per_g      != null ? String(item.fat_per_g)      : p.fatPerG,
+      fiberPerG:  item.fiber_per_g    != null ? String(item.fiber_per_g)    : p.fiberPerG,
+      sodiumPerG: item.sodium_per_g   != null ? String(item.sodium_per_g)   : p.sodiumPerG,
+      sugarPerG:  item.sugar_per_g    != null ? String(item.sugar_per_g)    : p.sugarPerG,
+    }))
     setShowFoodSuggestions(false)
     setFoodSuggestions([])
   }
 
   async function addFoodItem() {
-    if (!foodName.trim()) { showToast('음식 이름을 입력해주세요'); return }
-    const amtG = parseFloat(foodAmountG) || 100
+    if (!foodForm.name.trim()) { showToast('음식 이름을 입력해주세요'); return }
+    const amtG = parseFloat(foodForm.amountG) || 100
     try {
       let photo_url = null
-      if (foodPhotoFile) {
-        try {
-          const ext = (foodPhotoFile.name.split('.').pop() || 'jpg').toLowerCase()
-          const path = `${member.id}/${Date.now()}.${ext}`
-          const { data: upData, error: upErr } = await supabase.storage.from('diet-photos').upload(path, foodPhotoFile)
-          if (upErr) {
-            console.warn('사진 업로드 실패 (영양소 정보는 저장됩니다):', upErr.message)
-          } else if (upData) {
-            const { data: { publicUrl } } = supabase.storage.from('diet-photos').getPublicUrl(path)
-            photo_url = publicUrl
+      if (foodForm.photoFile) {
+        // Storage RLS: 첫 폴더 = auth.uid()::text 강제 (member.auth_id == auth.uid())
+        const authUid = member?.auth_id || null
+        if (!authUid) {
+          console.warn('사진 업로드 차단: 익명 상태(auth_id 없음)')
+        } else {
+          try {
+            const ext = (foodForm.photoFile.name.split('.').pop() || 'jpg').toLowerCase()
+            const path = `${authUid}/${Date.now()}.${ext}`
+            const { data: upData, error: upErr } = await supabase.storage.from('diet-photos').upload(path, foodForm.photoFile)
+            if (upErr) {
+              console.warn('사진 업로드 실패 (영양소 정보는 저장됩니다):', upErr.message)
+            } else if (upData) {
+              const { data: { publicUrl } } = supabase.storage.from('diet-photos').getPublicUrl(path)
+              photo_url = publicUrl
+            }
+          } catch (uploadErr) {
+            console.warn('사진 업로드 오류:', uploadErr)
           }
-        } catch (uploadErr) {
-          console.warn('사진 업로드 오류:', uploadErr)
         }
       }
       const row = {
         member_id:      member.id,
         record_date:    dietDate,
-        meal_type:      foodMealType,
-        food_name:      foodName.trim(),
+        meal_type:      foodForm.mealType,
+        food_name:      foodForm.name.trim(),
         amount_g:       amtG,
-        calories_per_g: parseFloat(foodCalPerG) || null,
-        protein_per_g:  parseFloat(foodProteinPerG) || null,
-        carbs_per_g:    parseFloat(foodCarbsPerG) || null,
-        fat_per_g:      parseFloat(foodFatPerG) || null,
-        fiber_per_g:    parseFloat(foodFiberPerG) || null,
-        sodium_per_g:   parseFloat(foodSodiumPerG) || null,
-        sugar_per_g:    parseFloat(foodSugarPerG) || null,
+        calories_per_g: parseFloat(foodForm.calPerG)     || null,
+        protein_per_g:  parseFloat(foodForm.proteinPerG) || null,
+        carbs_per_g:    parseFloat(foodForm.carbsPerG)   || null,
+        fat_per_g:      parseFloat(foodForm.fatPerG)     || null,
+        fiber_per_g:    parseFloat(foodForm.fiberPerG)   || null,
+        sodium_per_g:   parseFloat(foodForm.sodiumPerG)  || null,
+        sugar_per_g:    parseFloat(foodForm.sugarPerG)   || null,
         photo_url,
-        ai_recognized: !!foodAiConfidence,
+        ai_recognized: !!foodForm.aiConfidence,
       }
       const { error } = await supabase.from('diet_logs').insert(row)
       if (error) throw error
@@ -468,12 +586,15 @@ export default function MemberPortal() {
 
   async function loadDietTemplates() {
     if (!member) return
-    const { data } = await supabase
-      .from('diet_templates')
-      .select('*')
-      .eq('member_id', member.id)
-      .order('used_count', { ascending: false })
-    setDietTemplates(data || [])
+    try {
+      const { data, error } = await supabase
+        .from('diet_templates')
+        .select('*')
+        .eq('member_id', member.id)
+        .order('used_count', { ascending: false })
+      if (error) { console.warn('[loadDietTemplates] 로드 실패:', error.message); return }
+      setDietTemplates(data || [])
+    } catch(e) { console.warn('[loadDietTemplates] 오류:', e.message) }
   }
 
   function openSaveTemplateModal(mealType) {
@@ -486,6 +607,7 @@ export default function MemberPortal() {
   }
 
   async function saveCurrentMealAsTemplate() {
+    if (savingTemplate) return
     if (!saveTemplateName.trim()) { showToast('이름을 입력해주세요'); return }
     const items = dietLogs
       .filter(i => i.meal_type === saveTemplateMealType)
@@ -500,16 +622,24 @@ export default function MemberPortal() {
         sodium_per_g:   i.sodium_per_g,
         sugar_per_g:    i.sugar_per_g,
       }))
-    const { error } = await supabase.from('diet_templates').insert({
-      member_id: member.id,
-      name:      saveTemplateName.trim(),
-      meal_type: saveTemplateMealType,
-      items,
-    })
-    if (error) { showToast('오류: ' + error.message); return }
-    setShowSaveTemplateModal(false)
-    await loadDietTemplates()
-    showToast('✓ 식단 매크로가 저장됐어요!')
+    setSavingTemplate(true)
+    try {
+      const { error } = await supabase.from('diet_templates').insert({
+        member_id: member.id,
+        name:      saveTemplateName.trim(),
+        meal_type: saveTemplateMealType,
+        items,
+      })
+      if (error) throw error
+      setShowSaveTemplateModal(false)
+      await loadDietTemplates()
+      showToast('✓ 식단 매크로가 저장됐어요!')
+    } catch (e) {
+      console.error('식단 매크로 저장 오류:', e)
+      showToast('오류: ' + (e?.message || '저장 실패'))
+    } finally {
+      setSavingTemplate(false)
+    }
   }
 
   function openApplyTemplateModal(template) {
@@ -519,6 +649,7 @@ export default function MemberPortal() {
   }
 
   async function applyTemplate() {
+    if (applyingTemplate) return
     if (!selectedTemplate) return
     const rows = selectedTemplate.items.map(item => ({
       member_id:      member.id,
@@ -535,17 +666,27 @@ export default function MemberPortal() {
       sugar_per_g:    item.sugar_per_g,
       ai_recognized:  false,
     }))
-    const { error } = await supabase.from('diet_logs').insert(rows)
-    if (error) { showToast('오류: ' + error.message); return }
-    // used_count 증가
-    await supabase.from('diet_templates')
-      .update({ used_count: (selectedTemplate.used_count || 0) + 1 })
-      .eq('id', selectedTemplate.id)
-    setShowApplyTemplateModal(false)
-    setSelectedTemplate(null)
-    await loadDietLogs(dietDate)
-    await loadDietTemplates()
-    showToast(`✓ ${selectedTemplate.name} 식단이 적용됐어요!`)
+    setApplyingTemplate(true)
+    try {
+      const { error: insErr } = await supabase.from('diet_logs').insert(rows)
+      if (insErr) throw insErr
+      // used_count 증가
+      const { error: updErr } = await supabase.from('diet_templates')
+        .update({ used_count: (selectedTemplate.used_count || 0) + 1 })
+        .eq('id', selectedTemplate.id)
+      if (updErr) throw updErr
+      setShowApplyTemplateModal(false)
+      const appliedName = selectedTemplate.name
+      setSelectedTemplate(null)
+      await loadDietLogs(dietDate)
+      await loadDietTemplates()
+      showToast(`✓ ${appliedName} 식단이 적용됐어요!`)
+    } catch (e) {
+      console.error('식단 매크로 적용 오류:', e)
+      showToast('오류: ' + (e?.message || '적용 실패'))
+    } finally {
+      setApplyingTemplate(false)
+    }
   }
 
   async function deleteTemplate(id, e) {
@@ -562,10 +703,10 @@ export default function MemberPortal() {
     chartInstance.current = new Chart(ctx, {
       type:'line',
       data:{labels:records.map(r=>formatDate(r.record_date)),datasets:[
-        {label:'공복 체중',data:records.map(r=>r.morning_weight),borderColor:'#111',backgroundColor:'rgba(17,17,17,0.05)',tension:0.35,pointRadius:4,pointBackgroundColor:'#111',borderWidth:2,fill:true},
-        ...(member?.target_weight?[{label:'목표',data:Array(records.length).fill(member.target_weight),borderColor:'#c8f135',borderDash:[6,4],borderWidth:2,pointRadius:0,fill:false}]:[])
+        {label:'공복 체중',data:records.map(r=>r.morning_weight),borderColor:'#10B981',backgroundColor:'rgba(16,185,129,0.08)',tension:0.4,pointRadius:4,pointBackgroundColor:'#10B981',pointBorderColor:'#fff',pointBorderWidth:2,borderWidth:2.5,fill:true},
+        ...(member?.target_weight?[{label:'목표',data:Array(records.length).fill(member.target_weight),borderColor:'#d1fae5',borderDash:[5,4],borderWidth:2,pointRadius:0,fill:false}]:[])
       ]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#aaa'}},y:{grid:{color:'#f0f0ee'},ticks:{font:{size:10},color:'#aaa',callback:v=>v+'kg'}}}}
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#9CA3AF'}},y:{grid:{color:'#F3F4F6'},ticks:{font:{size:10},color:'#9CA3AF',callback:v=>v+'kg'}}}}
     })
   }
 
@@ -632,7 +773,7 @@ export default function MemberPortal() {
   <div class="section-title">수업 일지</div>
   <div class="content">${contentLines}</div>
 </div>
-${log.exercises_data ? `<div class="section"><div class="section-title">운동 데이터</div><div class="content">${JSON.stringify(log.exercises_data,null,2)}</div></div>` : ''}
+${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"><div class="section-title">운동 데이터</div><div class="content">${JSON.stringify(log.workout_session?.exercises || log.exercises_data,null,2)}</div></div>` : ''}
 <div class="footer">© 오운 &nbsp;·&nbsp; 본 일지는 트레이너와 회원 간 비공개 문서입니다.</div>
 <script>window.onload=function(){window.print()}<\/script>
 </body></html>`)
@@ -642,12 +783,18 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
 
   // === PERSONAL WORKOUT ===
   async function loadWorkoutSessions() {
-    const { data, error } = await supabase.from('workout_sessions').select('*').eq('member_id', member.id).order('workout_date', { ascending: false })
-    if (!error) setWorkoutSessions(data || [])
+    try {
+      const { data, error } = await supabase.from('workout_sessions').select('*').eq('member_id', member.id).order('workout_date', { ascending: false })
+      if (error) { console.warn('[loadWorkoutSessions] 로드 실패:', error.message); return }
+      setWorkoutSessions(data || [])
+    } catch(e) { console.warn('[loadWorkoutSessions] 오류:', e.message) }
   }
   async function loadWorkoutRoutines() {
-    const { data, error } = await supabase.from('workout_routines').select('*').eq('member_id', member.id).order('created_at', { ascending: false })
-    if (!error) setWorkoutRoutines(data || [])
+    try {
+      const { data, error } = await supabase.from('workout_routines').select('*').eq('member_id', member.id).order('created_at', { ascending: false })
+      if (error) { console.warn('[loadWorkoutRoutines] 로드 실패:', error.message); return }
+      setWorkoutRoutines(data || [])
+    } catch(e) { console.warn('[loadWorkoutRoutines] 오류:', e.message) }
   }
   function openWorkoutModal(session = null) {
     const t = new Date().toISOString().split('T')[0]
@@ -669,8 +816,10 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
     }, 0)
   }
   async function saveWorkoutSession() {
+    if (savingWorkout) return
     const f = workoutForm
     if (!f.date) { showToast('날짜를 입력해주세요'); return }
+    setSavingWorkout(true)
     try {
       const exercises = (f.exercises||[]).filter(e => e?.name?.trim())
       const total_volume = calcVolume(exercises)
@@ -703,6 +852,8 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
       } else {
         showToast('저장 실패: ' + (msg || '알 수 없는 오류'))
       }
+    } finally {
+      setSavingWorkout(false)
     }
   }
   async function deleteWorkoutSession(id) {
@@ -776,15 +927,20 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
           setMyReactions(mine)
         }
       }
-    } catch(e) { setPosts([]) }  // 오류 시 토스트 없이 빈 피드
+    } catch(e) { setPosts([]); console.warn('[loadPosts] 오류:', e.message) }
   }
   async function createPost() {
+    if (creatingPost) return
     if (!postContent.trim() && !postPhotoFile) { showToast('내용이나 사진을 추가해주세요'); return }
+    setCreatingPost(true)
     try {
       let photo_url = null
       if (postPhotoFile) {
+        // Storage RLS: 첫 폴더 = auth.uid()::text 강제
+        const authUid = member?.auth_id || null
+        if (!authUid) throw new Error('사진 업로드는 로그인 후 가능해요')
         const ext = postPhotoFile.name.split('.').pop()
-        const path = `${member.id}/${Date.now()}.${ext}`
+        const path = `${authUid}/${Date.now()}.${ext}`
         const { error: upErr } = await supabase.storage.from('community-photos').upload(path, postPhotoFile)
         if (upErr) throw upErr
         const { data: { publicUrl } } = supabase.storage.from('community-photos').getPublicUrl(path)
@@ -798,7 +954,12 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
       setPostContent(''); setPostPhotoFile(null); setPostPhotoPreview(''); setPostModal(false)
       await loadPosts()
       showToast('✓ 게시됐어요!')
-    } catch(e) { showToast('오류: ' + e.message) }
+    } catch(e) {
+      console.error('게시글 작성 오류:', e)
+      showToast('오류: ' + (e?.message || '게시 실패'))
+    } finally {
+      setCreatingPost(false)
+    }
   }
   async function toggleReaction(postId, reaction) {
     const mySet = myReactions[postId] || new Set()
@@ -841,7 +1002,7 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
         .order('created_at', { ascending: false })
       if (error) throw error
       setNotices(data || [])
-    } catch(e) { setNotices([]) }
+    } catch(e) { setNotices([]); console.warn('[loadNotices] 오류:', e.message) }
   }
 
   // === COMPUTED ===
@@ -877,7 +1038,7 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
           <div style={{background:'#fff',borderBottom:'1px solid #E1E4D9',padding:'52px 24px 44px',textAlign:'center'}}>
             <div style={{maxWidth:'440px',margin:'0 auto'}}>
               <div style={{display:'inline-flex',alignItems:'center',gap:'6px',fontSize:'11px',fontWeight:700,
-                letterSpacing:'0.13em',color:'#0369a1',background:'rgba(59,130,246,0.08)',padding:'5px 14px',
+                letterSpacing:'0.13em',color:'#10B981',background:'rgba(59,130,246,0.08)',padding:'5px 14px',
                 borderRadius:'20px',border:'1px solid rgba(59,130,246,0.22)',marginBottom:'22px'}}>
                 <span style={{width:'6px',height:'6px',borderRadius:'50%',background:'#3b82f6',display:'inline-block'}}/>
                 MEMBER PORTAL
@@ -885,7 +1046,7 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
               <h1 style={{fontSize:'clamp(26px,6vw,42px)',fontWeight:900,letterSpacing:'-2px',lineHeight:1.1,
                 color:'#111827',margin:'0 0 14px'}}>
                 내 운동 기록을<br/>
-                <span style={{color:'#0369a1',background:'rgba(59,130,246,0.08)',padding:'2px 10px',borderRadius:'8px'}}>한눈에 확인</span>
+                <span style={{color:'#10B981',background:'rgba(59,130,246,0.08)',padding:'2px 10px',borderRadius:'8px'}}>한눈에 확인</span>
               </h1>
               <p style={{fontSize:'14px',color:'#6B7280',lineHeight:1.9,margin:'0 auto 32px',maxWidth:'300px'}}>
                 트레이너와 연결된 나만의 건강 기록장.
@@ -1026,85 +1187,595 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
   const pct = member.total_sessions>0 ? Math.round((member.done_sessions/member.total_sessions)*100) : 0
   const remain = member.total_sessions - member.done_sessions
 
+  // ── 하단 네비 아이콘 정의 ────────────────────────────────────────
+  const NAV_ITEMS = [
+    {
+      key: 'logs', label: '수업일지',
+      icon: (active) => (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+          stroke={active ? '#10B981' : '#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+          <line x1="10" y1="9"  x2="8" y2="9"/>
+        </svg>
+      ),
+    },
+    {
+      key: 'health', label: '체중관리',
+      icon: (active) => (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+          stroke={active ? '#10B981' : '#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
+        </svg>
+      ),
+    },
+    {
+      key: 'diet', label: '식단',
+      icon: (active) => (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+          stroke={active ? '#10B981' : '#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 8h1a4 4 0 010 8h-1"/>
+          <path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/>
+          <line x1="6" y1="1" x2="6" y2="4"/>
+          <line x1="10" y1="1" x2="10" y2="4"/>
+          <line x1="14" y1="1" x2="14" y2="4"/>
+        </svg>
+      ),
+    },
+    {
+      key: 'workout', label: '운동',
+      icon: (active) => (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+          stroke={active ? '#10B981' : '#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6.5 6.5h11M6.5 17.5h11M3 10h3v4H3zM18 10h3v4h-3zM6.5 12h11"/>
+        </svg>
+      ),
+    },
+    {
+      key: 'community', label: '커뮤니티',
+      icon: (active) => (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+          stroke={active ? '#10B981' : '#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+        </svg>
+      ),
+    },
+  ]
+
   return (
-    <div className="member-portal">
+    <div className="member-portal" style={{paddingBottom:'72px'}}>
+      {/* 최초 로그인 1회 약관 동의 모달 (user_metadata.terms_agreed 미설정 시 강제 노출) */}
+      <TermsAgreementModal />
       <div className="m-topbar">
         <div className="m-topbar-title">오운</div>
-        <button className="m-logout-btn" onClick={logout}>로그아웃</button>
-      </div>
-      <div className="m-tabs" style={{overflowX:'auto',display:'flex',WebkitOverflowScrolling:'touch',scrollbarWidth:'none'}}>
-        {['logs','health','diet','workout','community'].map(t => (
-          <div key={t} className={`m-tab${tab===t?' active':''}`} onClick={()=>setTab(t)} style={{whiteSpace:'nowrap',flexShrink:0}}>
-            {{logs:'📋 수업일지',health:'⚖️ 체중관리',diet:'🥗 식단기록',workout:'🏃 개인운동',community:'🤝 커뮤니티'}[t]}
-          </div>
-        ))}
+        <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+          <button
+            type="button"
+            onClick={openInquiryChat}
+            title="1:1 문의 (카카오 오픈채팅)"
+            style={{
+              border:'1px solid #FEE500',background:'#FEE500',color:'#191919',
+              fontWeight:700,fontSize:'12px',borderRadius:'8px',padding:'6px 10px',
+              cursor:'pointer',fontFamily:'inherit'
+            }}
+          >
+            💬 1:1 문의
+          </button>
+          <button className="m-logout-btn" onClick={logout}>로그아웃</button>
+        </div>
       </div>
 
-      {/* 수업일지 */}
+      {/* ── 하단 고정 네비게이션 ── */}
+      <div style={{
+        position:'fixed', bottom:0, left:0, right:0, zIndex:200,
+        background:'#fff',
+        borderTop:'1px solid #E5E7EB',
+        display:'flex',
+        boxShadow:'0 -2px 16px rgba(0,0,0,0.07)',
+        paddingBottom:'env(safe-area-inset-bottom)',
+      }}>
+        {NAV_ITEMS.map(({ key, label, icon }) => {
+          const active = tab === key
+          return (
+            <button key={key} onClick={()=>setTab(key)} style={{
+              flex:1, display:'flex', flexDirection:'column',
+              alignItems:'center', justifyContent:'center',
+              gap:'3px', padding:'9px 4px 7px',
+              border:'none', background:'none',
+              cursor:'pointer', fontFamily:'inherit',
+              transition:'color 0.15s', minHeight:'54px',
+              position:'relative',
+            }}>
+              {active && (
+                <span style={{
+                  position:'absolute', top:0, left:'50%', transform:'translateX(-50%)',
+                  width:'28px', height:'2.5px', borderRadius:'0 0 3px 3px',
+                  background:'#10B981',
+                }}/>
+              )}
+              {icon(active)}
+              <span style={{
+                fontSize:'10px', fontWeight: active ? 700 : 400, lineHeight:1,
+                color: active ? '#10B981' : '#9CA3AF',
+              }}>{label}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* ── 수업일지 ── */}
       {tab === 'logs' && (
         <div className="m-page">
-          <div className="m-member-header">
-            <div className="m-member-header-name">{member.name} 회원님 👋</div>
-            <div className="m-member-header-meta">{member.lesson_purpose || '열심히 운동 중!'}</div>
-            <div className="m-session-stats">
-              <div className="m-stat-box"><div className="m-stat-num">{member.done_sessions}</div><div className="m-stat-label">완료</div></div>
-              <div className="m-stat-box"><div className="m-stat-num">{remain}</div><div className="m-stat-label">남은 세션</div></div>
-              <div className="m-stat-box"><div className="m-stat-num">{pct}%</div><div className="m-stat-label">진행률</div></div>
+
+          {/* 헤더 카드 — 세션 현황 */}
+          {(() => {
+            const ratedLogs = memberLogs.filter(l => l.session_rating)
+            const avgRating = ratedLogs.length
+              ? (ratedLogs.reduce((s, l) => s + l.session_rating, 0) / ratedLogs.length).toFixed(1)
+              : null
+            return (
+          <div style={{
+            background:'linear-gradient(135deg,#10B981 0%,#059669 100%)',
+            borderRadius:'18px', padding:'20px', marginBottom:'20px', color:'#fff',
+          }}>
+            <div style={{fontSize:'16px',fontWeight:800,marginBottom:'2px'}}>
+              {member.name} 회원님 👋
             </div>
-            <div className="m-session-bar-bg"><div className="m-session-bar-fill" style={{width:pct+'%'}}></div></div>
+            <div style={{fontSize:'12px',opacity:0.85,marginBottom:'16px'}}>
+              {member.lesson_purpose || '열심히 운동 중!'}
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:'8px',marginBottom:'14px'}}>
+              {[
+                {num: member.done_sessions,        label:'완료 세션'},
+                {num: remain,                       label:'잔여 세션'},
+                {num: pct+'%',                      label:'진행률'},
+                {num: avgRating ? '⭐ '+avgRating : '—', label:'평균 평점'},
+              ].map(({num, label}) => (
+                <div key={label} style={{
+                  background:'rgba(255,255,255,0.15)', borderRadius:'10px', padding:'10px 8px', textAlign:'center',
+                }}>
+                  <div style={{fontSize:'18px',fontWeight:800,lineHeight:1}}>{num}</div>
+                  <div style={{fontSize:'10px',opacity:0.85,marginTop:'3px'}}>{label}</div>
+                </div>
+              ))}
+            </div>
+            {/* 프로그레스 바 */}
+            <div style={{background:'rgba(255,255,255,0.25)',borderRadius:'4px',height:'6px',overflow:'hidden'}}>
+              <div style={{height:'100%',background:'#fff',borderRadius:'4px',width:pct+'%',transition:'width 0.6s ease'}}/>
+            </div>
           </div>
-          <div className="section-label">수업일지</div>
-          {!memberLogs.length && <div className="empty">아직 수업일지가 없어요.<br/>첫 수업 후에 확인해보세요!</div>}
+            )
+          })()}
+
+          {/* 일지 목록 */}
+          <div style={{fontSize:'11px',fontWeight:700,color:'#9CA3AF',letterSpacing:'0.08em',marginBottom:'12px'}}>
+            수업일지 · {memberLogs.length}건
+          </div>
+
+          {!memberLogs.length && (
+            <div style={{
+              textAlign:'center', padding:'48px 20px', color:'#9CA3AF',
+              background:'#F9FAFB', borderRadius:'16px', border:'1px dashed #E5E7EB',
+            }}>
+              <div style={{fontSize:'36px',marginBottom:'12px'}}>📋</div>
+              <div style={{fontSize:'14px',fontWeight:600,marginBottom:'4px',color:'#6B7280'}}>아직 수업일지가 없어요</div>
+              <div style={{fontSize:'12px'}}>첫 수업 후에 확인해보세요!</div>
+            </div>
+          )}
+
           {memberLogs.map((l,i) => {
-            const d = new Date(l.created_at); const isOpen = openLogIdx === i
+            const d = new Date(l.created_at)
+            const isOpen = openLogIdx === i
+            const isNew  = !l.read_at
+
             const markRead = async () => {
               if (!l.read_at) {
                 await supabase.from('logs').update({ read_at: new Date().toISOString() }).eq('id', l.id)
                 setMemberLogs(prev => prev.map((x,j) => j===i ? {...x, read_at: new Date().toISOString()} : x))
               }
             }
+
+            // ── media_urls 안전 파싱 ─────────────────────────────────────
+            let mediaArray = []
+            try {
+              const raw = l.media_urls
+              if (typeof raw === 'string' && raw.trim().startsWith('[')) {
+                mediaArray = JSON.parse(raw)
+              } else if (Array.isArray(raw)) {
+                mediaArray = raw
+              }
+              if (!Array.isArray(mediaArray)) mediaArray = []
+            } catch (e) {
+              console.error('[MemberPortal] media_urls 파싱 오류 (log id:', l.id, ')', e)
+              mediaArray = []
+            }
+            if (isOpen) {
+              console.log('[MemberPortal] log', l.id, '| media_urls raw:', l.media_urls, '| parsed:', mediaArray)
+            }
+
+            const hasVideos = mediaArray.some(m => m?.type === 'video')
+            const currentSpeed = videoSpeeds[l.id] || 1.0
+
             return (
-              <div key={l.id} className="m-log-item">
-                <div className="m-log-item-header" onClick={()=>{ setOpenLogIdx(isOpen?null:i); if(!isOpen) markRead() }}>
-                  <div><div style={{fontSize:'14px',fontWeight:500,marginBottom:'2px'}}>{d.toLocaleDateString('ko-KR',{month:'long',day:'numeric'})}</div><div className="m-log-item-date">{d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}</div></div>
-                  <div style={{display:'flex',alignItems:'center',gap:'8px'}}><span className="m-log-session">{l.session_number}회차</span><span className={`chevron${isOpen?' open':''}`}>▼</span></div>
+              <div key={l.id} style={{
+                background:'#fff',
+                borderRadius:'16px',
+                boxShadow: isOpen
+                  ? '0 4px 20px rgba(16,185,129,0.10), 0 1px 4px rgba(0,0,0,0.06)'
+                  : '0 1px 3px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04)',
+                marginBottom:'10px',
+                overflow:'hidden',
+                border: isOpen ? '1px solid rgba(16,185,129,0.18)' : '1px solid #F3F4F6',
+                transition:'box-shadow 0.2s, border-color 0.2s',
+              }}>
+
+                {/* ── 카드 헤더 (토글) ── */}
+                <div
+                  onClick={()=>{ setOpenLogIdx(isOpen?null:i); if(!isOpen) markRead() }}
+                  style={{
+                    padding:'15px 16px', cursor:'pointer',
+                    display:'flex', alignItems:'center', justifyContent:'space-between',
+                    userSelect:'none',
+                  }}
+                >
+                  <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
+                    {/* 날짜 컬럼 */}
+                    <div style={{
+                      width:'44px', height:'44px', borderRadius:'12px', flexShrink:0,
+                      background: isNew ? '#F0FDF4' : '#F9FAFB',
+                      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+                      border: isNew ? '1px solid #A7F3D0' : '1px solid #E5E7EB',
+                    }}>
+                      <div style={{fontSize:'16px',fontWeight:800,lineHeight:1,color: isNew ? '#10B981' : '#374151'}}>
+                        {d.getDate()}
+                      </div>
+                      <div style={{fontSize:'9px',fontWeight:500,color: isNew ? '#34D399' : '#9CA3AF',marginTop:'1px'}}>
+                        {d.toLocaleDateString('ko-KR',{month:'short'})}
+                      </div>
+                    </div>
+                    {/* 텍스트 */}
+                    <div>
+                      <div style={{display:'flex',alignItems:'center',gap:'6px',marginBottom:'3px'}}>
+                        <span style={{fontSize:'14px',fontWeight:700,color:'#111'}}>
+                          {d.toLocaleDateString('ko-KR',{weekday:'short'})} 수업
+                        </span>
+                        {isNew && (
+                          <span style={{
+                            fontSize:'9px', fontWeight:700, padding:'2px 6px',
+                            borderRadius:'20px', background:'#10B981', color:'#fff',
+                            letterSpacing:'0.04em',
+                          }}>NEW</span>
+                        )}
+                      </div>
+                      <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
+                        <span style={{
+                          fontSize:'11px', fontWeight:600, padding:'2px 7px',
+                          borderRadius:'6px', background:'#F0FDF4', color:'#10B981',
+                        }}>{l.session_number}회차</span>
+                        {l.session_rating && (
+                          <span style={{fontSize:'11px',fontWeight:600,padding:'2px 7px',borderRadius:'6px',background:'#FEF3C7',color:'#D97706'}}>
+                            ⭐ {l.session_rating}
+                          </span>
+                        )}
+                        <span style={{fontSize:'11px',color:'#9CA3AF'}}>
+                          {d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}
+                        </span>
+                        {mediaArray.length > 0 && (
+                          <span style={{fontSize:'11px',color:'#9CA3AF'}}>
+                            · 📎 {mediaArray.length}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  {/* 화살표 */}
+                  <div style={{
+                    width:'28px', height:'28px', borderRadius:'50%',
+                    background:'#F9FAFB', border:'1px solid #E5E7EB',
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                    fontSize:'11px', color:'#9CA3AF', flexShrink:0,
+                    transform: isOpen ? 'rotate(180deg)' : 'rotate(0)',
+                    transition:'transform 0.22s cubic-bezier(.4,0,.2,1)',
+                  }}>▼</div>
                 </div>
-                {isOpen && <div className="m-log-body">{l.content}</div>}
+
+                {/* ── 펼쳐진 내용 ── */}
                 {isOpen && (
-                  <div className="m-log-footer">
-                    <button className="btn btn-outline btn-sm" onClick={()=>downloadPDF(i)}>📄 PDF</button>
-                    <button className="btn btn-outline btn-sm" onClick={()=>copyLog(i)}>📋 복사</button>
+                  <div style={{borderTop:'1px solid #F3F4F6'}}>
+
+                    {/* AI 일지 텍스트 */}
+                    <div style={{
+                      padding:'16px',
+                      fontSize:'13.5px', lineHeight:'1.85', color:'#374151',
+                      whiteSpace:'pre-wrap', wordBreak:'break-word',
+                    }}>
+                      {l.content}
+                    </div>
+
+                    {/* 미디어 영역 */}
+                    {mediaArray.length > 0 && (
+                      <div style={{padding:'0 16px 16px'}}>
+
+                        {/* 배속 컨트롤 (영상이 있을 때만) */}
+                        {hasVideos && (
+                          <div style={{
+                            display:'flex', alignItems:'center', gap:'6px',
+                            marginBottom:'10px', flexWrap:'wrap',
+                          }}>
+                            <span style={{fontSize:'11px',fontWeight:600,color:'#6B7280',marginRight:'2px'}}>
+                              배속
+                            </span>
+                            {[0.5, 1.0, 1.5, 2.0].map(rate => (
+                              <button
+                                key={rate}
+                                onClick={() => changeVideoSpeed(l.id, rate)}
+                                style={{
+                                  padding:'4px 11px', borderRadius:'20px',
+                                  fontSize:'11px', fontWeight:600, cursor:'pointer',
+                                  fontFamily:'inherit', transition:'all 0.15s',
+                                  border: currentSpeed === rate ? 'none' : '1px solid #E5E7EB',
+                                  background: currentSpeed === rate ? '#10B981' : '#F9FAFB',
+                                  color: currentSpeed === rate ? '#fff' : '#6B7280',
+                                  boxShadow: currentSpeed === rate ? '0 1px 6px rgba(16,185,129,0.25)' : 'none',
+                                }}
+                              >{rate}x</button>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* 미디어 그리드 */}
+                        <div style={{
+                          display:'grid',
+                          gridTemplateColumns:'repeat(auto-fill, minmax(140px, 1fr))',
+                          gap:'8px',
+                        }}>
+                          {mediaArray.map((m, mi) => (
+                            m?.type === 'video' ? (
+                              <video
+                                key={mi}
+                                data-vid-key={`${l.id}_${mi}`}
+                                src={`${m?.url}#t=0.001`}
+                                crossOrigin="anonymous"
+                                controls
+                                playsInline
+                                preload="metadata"
+                                style={{
+                                  width:'100%', borderRadius:'10px',
+                                  maxHeight:'260px', objectFit:'contain',
+                                  background:'#000', display:'block',
+                                }}
+                              />
+                            ) : (
+                              <img
+                                key={mi}
+                                src={m?.url}
+                                alt={`첨부 사진 ${mi + 1}`}
+                                crossOrigin="anonymous"
+                                style={{
+                                  width:'100%', borderRadius:'10px',
+                                  objectFit:'cover', maxHeight:'260px', display:'block',
+                                }}
+                              />
+                            )
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 액션 버튼 */}
+                    <div style={{
+                      padding:'12px 16px',
+                      borderTop:'1px solid #F9FAFB',
+                      display:'flex', gap:'8px',
+                    }}>
+                      <button onClick={()=>downloadPDF(i)} style={{
+                        flex:1, padding:'9px 12px', borderRadius:'10px',
+                        border:'1px solid #E5E7EB', background:'#F9FAFB',
+                        fontSize:'12px', fontWeight:600, cursor:'pointer',
+                        fontFamily:'inherit', color:'#374151',
+                        display:'flex', alignItems:'center', justifyContent:'center', gap:'5px',
+                        transition:'background 0.15s',
+                      }}>
+                        <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2"
+                          viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                          <polyline points="14 2 14 8 20 8"/>
+                          <line x1="12" y1="18" x2="12" y2="12"/>
+                          <line x1="9" y1="15" x2="15" y2="15"/>
+                        </svg>
+                        PDF 저장
+                      </button>
+                      <button onClick={()=>copyLog(i)} style={{
+                        flex:1, padding:'9px 12px', borderRadius:'10px',
+                        border:'1px solid #E5E7EB', background:'#F9FAFB',
+                        fontSize:'12px', fontWeight:600, cursor:'pointer',
+                        fontFamily:'inherit', color:'#374151',
+                        display:'flex', alignItems:'center', justifyContent:'center', gap:'5px',
+                        transition:'background 0.15s',
+                      }}>
+                        <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2"
+                          viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                        </svg>
+                        텍스트 복사
+                      </button>
+                    </div>
+
+                    {/* ── 수업 평점 ── */}
+                    {(() => {
+                      const savedRating  = l.session_rating   // DB에 이미 저장된 값
+                      const pendingRating = logRatings[l.id]  // 현재 선택 중인 값
+                      const isSaving     = ratingSaving === l.id
+                      const displayRating = pendingRating || savedRating || 0
+                      return (
+                        <div style={{
+                          margin:'0 16px 16px',
+                          background:'#F0FDF4',
+                          border:'1px solid #A7F3D0',
+                          borderRadius:'12px',
+                          padding:'12px 14px',
+                        }}>
+                          <div style={{
+                            fontSize:'11px', fontWeight:700, color:'#065f46',
+                            marginBottom:'10px', display:'flex', alignItems:'center', gap:'6px',
+                          }}>
+                            ⭐ 이번 수업 평점
+                            {savedRating && !pendingRating && (
+                              <span style={{
+                                fontSize:'10px', fontWeight:600, padding:'1px 7px',
+                                borderRadius:'20px', background:'#10B981', color:'#fff',
+                              }}>저장됨 {savedRating}/5</span>
+                            )}
+                          </div>
+                          <div style={{display:'flex', gap:'6px', marginBottom:'10px'}}>
+                            {[1,2,3,4,5].map(n => (
+                              <button
+                                key={n}
+                                onClick={() => setLogRatings(prev => ({ ...prev, [l.id]: n }))}
+                                style={{
+                                  flex:1, padding:'8px 0', borderRadius:'8px',
+                                  fontSize:'14px', fontWeight:700, cursor:'pointer',
+                                  fontFamily:'inherit', transition:'all 0.15s',
+                                  border: displayRating === n
+                                    ? '1.5px solid #10B981'
+                                    : '1px solid #A7F3D0',
+                                  background: displayRating === n ? '#10B981' : '#fff',
+                                  color: displayRating === n ? '#fff' : '#6B7280',
+                                  boxShadow: displayRating === n ? '0 2px 8px rgba(16,185,129,0.25)' : 'none',
+                                  transform: displayRating === n ? 'scale(1.06)' : 'scale(1)',
+                                }}>
+                                {n}
+                              </button>
+                            ))}
+                          </div>
+                          <button
+                            onClick={() => saveLogRating(l.id, pendingRating)}
+                            disabled={!pendingRating || isSaving}
+                            style={{
+                              width:'100%', padding:'9px', borderRadius:'10px',
+                              border:'none', fontSize:'12px', fontWeight:700,
+                              cursor: pendingRating && !isSaving ? 'pointer' : 'not-allowed',
+                              fontFamily:'inherit', transition:'all 0.2s',
+                              background: pendingRating
+                                ? 'linear-gradient(135deg,#10B981 0%,#059669 100%)'
+                                : '#E5E7EB',
+                              color: pendingRating ? '#fff' : '#9CA3AF',
+                              opacity: pendingRating && !isSaving ? 1 : 0.6,
+                              boxShadow: pendingRating ? '0 2px 8px rgba(16,185,129,0.30)' : 'none',
+                            }}>
+                            {isSaving ? '저장 중...' : pendingRating ? `${pendingRating}점으로 저장` : '점수를 선택해주세요'}
+                          </button>
+                        </div>
+                      )
+                    })()}
+
                   </div>
                 )}
               </div>
             )
           })}
+
+          {/* 더보기 */}
+          {logsHasMore && (
+            <button
+              onClick={loadMoreLogs}
+              disabled={logsLoading}
+              style={{
+                width:'100%', marginTop:'4px', padding:'13px',
+                borderRadius:'12px', border:'1px solid #E5E7EB',
+                background:'#F9FAFB', fontSize:'13px', fontWeight:600,
+                color:'#374151', cursor:'pointer', fontFamily:'inherit',
+                display:'flex', alignItems:'center', justifyContent:'center', gap:'6px',
+              }}
+            >
+              {logsLoading
+                ? <><span style={{animation:'spin 1s linear infinite',display:'inline-block'}}>⟳</span> 불러오는 중...</>
+                : '↓ 이전 수업일지 더보기'}
+            </button>
+          )}
         </div>
       )}
 
-      {/* 체중관리 */}
+      {/* ── 체중관리 ── */}
       {tab === 'health' && (
         <div className="m-page">
-          {!member.target_weight && !member.start_weight && <div className="m-setup-banner">💡 아래 목표 설정에서 목표/시작 체중을 먼저 입력해주세요!</div>}
-          <div className="m-weight-stats">
-            <div className="m-weight-card dark"><div className="m-weight-card-label">🎯 목표 체중</div><div className="m-weight-card-num">{member.target_weight||'—'}<span className="m-weight-card-unit">kg</span></div></div>
-            <div className="m-weight-card"><div className="m-weight-card-label">📌 시작 체중</div><div className="m-weight-card-num">{member.start_weight||'—'}<span className="m-weight-card-unit">kg</span></div></div>
-            <div className="m-weight-card green"><div className="m-weight-card-label">⚖️ 현재 공복 체중</div><div className="m-weight-card-num">{currentW||'—'}<span className="m-weight-card-unit">kg</span></div></div>
-            <div className="m-weight-card green"><div className="m-weight-card-label">📉 총 감량</div><div className="m-weight-card-num">{lost||'—'}<span className="m-weight-card-unit">kg</span></div></div>
+          {!member.target_weight && !member.start_weight && (
+            <div style={{
+              background:'#F0FDF4',border:'1px solid #A7F3D0',borderRadius:'12px',
+              padding:'12px 14px',marginBottom:'16px',fontSize:'12px',color:'#065f46',fontWeight:500,
+            }}>💡 아래 목표 설정에서 목표/시작 체중을 먼저 입력해주세요!</div>
+          )}
+
+          {/* 통계 카드 그리드 */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'14px'}}>
+            {[
+              {icon:'🎯',label:'목표 체중',val:member.target_weight,unit:'kg',accent:false},
+              {icon:'📌',label:'시작 체중',val:member.start_weight,unit:'kg',accent:false},
+              {icon:'⚖️',label:'현재 공복',val:currentW,unit:'kg',accent:true},
+              {icon:'📉',label:'총 감량',val:lost,unit:'kg',accent:true},
+            ].map(({icon,label,val,unit,accent})=>(
+              <div key={label} style={{
+                background:'#fff',borderRadius:'16px',padding:'14px',
+                boxShadow:'0 1px 3px rgba(0,0,0,0.06),0 2px 8px rgba(0,0,0,0.04)',
+                border: accent ? '1px solid #A7F3D0' : '1px solid #F3F4F6',
+              }}>
+                <div style={{fontSize:'20px',marginBottom:'6px'}}>{icon}</div>
+                <div style={{
+                  fontSize:'22px',fontWeight:800,lineHeight:1,
+                  color: accent ? '#10B981' : '#111',
+                }}>{val||'—'}<span style={{fontSize:'12px',fontWeight:500,color:'#9CA3AF',marginLeft:'3px'}}>{unit}</span></div>
+                <div style={{fontSize:'10px',color:'#9CA3AF',marginTop:'4px'}}>{label}</div>
+              </div>
+            ))}
           </div>
-          <div className="card">
-            <div className="m-progress-wrap"><div className="m-progress-row"><span>감량률</span><span style={{fontFamily:"'DM Mono',monospace",fontWeight:600}}>{lostPct}%</span></div><div className="m-progress-bg"><div className="m-progress-fill" style={{width:Math.min(100,lostPct)+'%'}}></div></div></div>
-            <div className="m-progress-wrap" style={{marginBottom:0}}><div className="m-progress-row"><span>목표 달성률</span><span style={{fontFamily:"'DM Mono',monospace",fontWeight:600,color:goalPct>=100?'#16a34a':'var(--m-accent)'}}>{goalPct}%</span></div><div className="m-progress-bg"><div className="m-progress-fill" style={{width:goalPct+'%'}}></div></div></div>
+
+          {/* 진행률 카드 */}
+          <div style={{
+            background:'#fff',borderRadius:'16px',padding:'16px',marginBottom:'14px',
+            boxShadow:'0 1px 3px rgba(0,0,0,0.06),0 2px 8px rgba(0,0,0,0.04)',
+            border:'1px solid #F3F4F6',
+          }}>
+            {[
+              {label:'감량률',val:lostPct,color:'#10B981'},
+              {label:'목표 달성률',val:goalPct,color:goalPct>=100?'#10B981':'#10B981'},
+            ].map(({label,val,color})=>(
+              <div key={label} style={{marginBottom:'12px'}}>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:'6px'}}>
+                  <span style={{fontSize:'12px',fontWeight:600,color:'#374151'}}>{label}</span>
+                  <span style={{fontSize:'12px',fontWeight:700,color,fontFamily:"'DM Mono',monospace"}}>{val}%</span>
+                </div>
+                <div style={{height:'7px',background:'#F3F4F6',borderRadius:'4px',overflow:'hidden'}}>
+                  <div style={{height:'100%',width:Math.min(100,val)+'%',background:'linear-gradient(90deg,#10B981,#059669)',borderRadius:'4px',transition:'width 0.5s ease'}}/>
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="card">
+
+          {/* 체중 추이 차트 */}
+          <div style={{
+            background:'#fff',borderRadius:'16px',padding:'16px',marginBottom:'14px',
+            boxShadow:'0 1px 3px rgba(0,0,0,0.06),0 2px 8px rgba(0,0,0,0.04)',
+            border:'1px solid #F3F4F6',
+          }}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
-              <span style={{fontSize:'13px',fontWeight:600}}>체중 변화 추이</span>
-              <span style={{fontSize:'11px',color:'var(--m-text-dim)'}}>최근 14일 · 공복 체중</span>
+              <span style={{fontSize:'13px',fontWeight:700,color:'#111'}}>체중 변화 추이</span>
+              <span style={{fontSize:'11px',color:'#9CA3AF'}}>최근 14일 · 공복 체중</span>
             </div>
-            <div style={{position:'relative',height:'200px',marginBottom:'4px'}}><canvas ref={chartRef}></canvas></div>
+            <div style={{position:'relative',height:'200px'}}><canvas ref={chartRef}></canvas></div>
           </div>
-          <div className="section-label">오늘 체중 기록</div>
-          <div className="card">
+
+          {/* 오늘 기록 입력 */}
+          <div style={{
+            fontSize:'11px',fontWeight:700,color:'#9CA3AF',letterSpacing:'0.08em',marginBottom:'10px',
+          }}>오늘 체중 기록</div>
+          <div style={{
+            background:'#fff',borderRadius:'16px',padding:'16px',marginBottom:'14px',
+            boxShadow:'0 1px 3px rgba(0,0,0,0.06),0 2px 8px rgba(0,0,0,0.04)',
+            border:'1px solid #F3F4F6',
+          }}>
             <div className="two-col" style={{marginBottom:'12px'}}>
               <div className="form-group" style={{marginBottom:0}}><label>🌅 공복 체중 (아침, kg)</label><input type="number" value={hMorning} onChange={e=>setHMorning(e.target.value)} placeholder="68.5" step="0.1" /></div>
               <div className="form-group" style={{marginBottom:0}}><label>🌙 저녁 체중 (kg)</label><input type="number" value={hEvening} onChange={e=>setHEvening(e.target.value)} placeholder="69.2" step="0.1" /></div>
@@ -1117,27 +1788,66 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
                 ))}
               </div>
             </div>
-            <div className="form-group"><label>📅 날짜</label><input type="date" value={hDate} onChange={e=>setHDate(e.target.value)} /></div>
-            <button className="btn btn-primary" style={{width:'100%'}} onClick={saveHealthRecord}>체중 기록 저장</button>
+            <div className="form-group" style={{marginBottom:'14px'}}><label>📅 날짜</label><input type="date" value={hDate} onChange={e=>setHDate(e.target.value)} /></div>
+            <button onClick={saveHealthRecord} style={{
+              width:'100%',padding:'12px',borderRadius:'12px',border:'none',
+              background:'linear-gradient(135deg,#10B981,#059669)',color:'#fff',
+              fontSize:'14px',fontWeight:700,cursor:'pointer',fontFamily:'inherit',
+            }}>체중 기록 저장</button>
           </div>
-          <div className="section-label">일별 기록</div>
+
+          {/* 일별 기록 */}
+          <div style={{fontSize:'11px',fontWeight:700,color:'#9CA3AF',letterSpacing:'0.08em',marginBottom:'10px'}}>일별 기록</div>
           {healthRecords.filter(r=>r.morning_weight||r.evening_weight).slice(0,14).map(r => {
             const diff = (r.morning_weight&&r.evening_weight)?(r.evening_weight-r.morning_weight).toFixed(1):null
             return (
-              <div key={r.id} className="m-daily-item">
-                <div className="m-daily-date">{formatDate(r.record_date)}</div>
-                <div className="m-daily-weights">
-                  <div className="m-daily-w"><div className="m-daily-w-num">{r.morning_weight||'—'}</div><div className="m-daily-w-label">공복</div></div>
-                  <div className="m-daily-w"><div className="m-daily-w-num">{r.evening_weight||'—'}</div><div className="m-daily-w-label">저녁</div></div>
-                  {diff && <div className="m-daily-w"><div className="m-daily-w-num" style={{color:diff>0?'#e53935':'#16a34a'}}>{diff>0?'+':''}{diff}</div><div className="m-daily-w-label">일중증가</div></div>}
+              <div key={r.id} style={{
+                background:'#fff',borderRadius:'14px',padding:'13px 14px',marginBottom:'8px',
+                boxShadow:'0 1px 3px rgba(0,0,0,0.05)',border:'1px solid #F3F4F6',
+                display:'flex',alignItems:'center',justifyContent:'space-between',
+              }}>
+                <div style={{fontSize:'12px',fontWeight:600,color:'#374151',minWidth:'48px'}}>{formatDate(r.record_date)}</div>
+                <div style={{display:'flex',gap:'12px',flex:1,justifyContent:'center'}}>
+                  {[{v:r.morning_weight,l:'공복'},{v:r.evening_weight,l:'저녁'}].map(({v,l})=>(
+                    <div key={l} style={{textAlign:'center'}}>
+                      <div style={{fontSize:'14px',fontWeight:700,color:v?'#111':'#d1d5db'}}>{v||'—'}</div>
+                      <div style={{fontSize:'9px',color:'#9CA3AF'}}>{l}</div>
+                    </div>
+                  ))}
+                  {diff && (
+                    <div style={{textAlign:'center'}}>
+                      <div style={{fontSize:'13px',fontWeight:700,color:parseFloat(diff)>0?'#ef4444':'#10B981'}}>{parseFloat(diff)>0?'+':''}{diff}</div>
+                      <div style={{fontSize:'9px',color:'#9CA3AF'}}>증감</div>
+                    </div>
+                  )}
                 </div>
-                {r.sleep_level && <div className="m-sleep-pips">{Array.from({length:10},(_,i)=><div key={i} className={`m-sleep-pip${i<r.sleep_level?' on':''}`}></div>)}</div>}
+                {r.sleep_level && (
+                  <div style={{display:'flex',gap:'2px'}}>
+                    {Array.from({length:10},(_,i)=>(
+                      <div key={i} style={{
+                        width:'5px',height:'14px',borderRadius:'2px',
+                        background: i<r.sleep_level ? '#10B981' : '#E5E7EB',
+                      }}/>
+                    ))}
+                  </div>
+                )}
               </div>
             )
           })}
-          {!healthRecords.filter(r=>r.morning_weight||r.evening_weight).length && <div className="empty">체중 기록이 없어요.<br/>위에서 오늘 체중을 기록해보세요!</div>}
-          <div className="section-label">목표 설정</div>
-          <div className="card">
+          {!healthRecords.filter(r=>r.morning_weight||r.evening_weight).length && (
+            <div style={{textAlign:'center',padding:'32px 20px',color:'#9CA3AF',background:'#F9FAFB',borderRadius:'16px',border:'1px dashed #E5E7EB'}}>
+              <div style={{fontSize:'28px',marginBottom:'8px'}}>⚖️</div>
+              <div style={{fontSize:'13px'}}>체중 기록이 없어요. 위에서 기록해보세요!</div>
+            </div>
+          )}
+
+          {/* 목표 설정 */}
+          <div style={{fontSize:'11px',fontWeight:700,color:'#9CA3AF',letterSpacing:'0.08em',margin:'16px 0 10px'}}>목표 설정</div>
+          <div style={{
+            background:'#fff',borderRadius:'16px',padding:'16px',marginBottom:'14px',
+            boxShadow:'0 1px 3px rgba(0,0,0,0.06),0 2px 8px rgba(0,0,0,0.04)',
+            border:'1px solid #F3F4F6',
+          }}>
             <div className="two-col">
               <div className="form-group"><label>🎯 목표 체중 (kg)</label><input type="number" value={hTarget} onChange={e=>setHTarget(e.target.value)} placeholder="60" step="0.1" /></div>
               <div className="form-group"><label>📌 시작 체중 (kg)</label><input type="number" value={hStart} onChange={e=>setHStart(e.target.value)} placeholder="75" step="0.1" /></div>
@@ -1146,8 +1856,11 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
               <div className="form-group"><label>나이</label><input type="number" value={hAge} onChange={e=>setHAge(e.target.value)} placeholder="28" /></div>
               <div className="form-group"><label>키 (cm)</label><input type="number" value={hHeight} onChange={e=>setHHeight(e.target.value)} placeholder="165" step="0.1" /></div>
             </div>
-            <div className="form-group"><label>특이사항</label><input type="text" value={hSpecial} onChange={e=>setHSpecial(e.target.value)} placeholder="무릎 통증, 알레르기 등" /></div>
-            <button className="btn btn-outline" style={{width:'100%'}} onClick={saveProfile}>목표 저장</button>
+            <div className="form-group" style={{marginBottom:'14px'}}><label>특이사항</label><input type="text" value={hSpecial} onChange={e=>setHSpecial(e.target.value)} placeholder="무릎 통증, 알레르기 등" /></div>
+            <button onClick={saveProfile} style={{
+              width:'100%',padding:'12px',borderRadius:'12px',border:'1px solid #E5E7EB',
+              background:'#F9FAFB',fontSize:'14px',fontWeight:600,cursor:'pointer',fontFamily:'inherit',color:'#374151',
+            }}>목표 저장</button>
           </div>
         </div>
       )}
@@ -1180,16 +1893,16 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
         return (
           <div className="m-page">
             {/* 날짜 선택 */}
-            <div className="card" style={{padding:'12px 16px',marginBottom:'10px'}}>
+            <div style={{background:'#fff',borderRadius:'16px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)',padding:'14px 16px',marginBottom:'12px'}}>
               <div className="form-group" style={{marginBottom:0}}>
-                <label>📅 날짜</label>
-                <input type="date" value={dietDate} onChange={e => setDietDate(e.target.value)} />
+                <label style={{color:'#10B981',fontWeight:700,fontSize:'12px'}}>📅 날짜</label>
+                <input type="date" value={dietDate} onChange={e => setDietDate(e.target.value)} style={{borderColor:'#A7F3D0'}} />
               </div>
             </div>
 
             {/* 자주쓰는 식단 */}
-            <div className="card" style={{marginBottom:'10px',padding:'12px 16px'}}>
-              <div style={{fontSize:'12px',fontWeight:700,color:'var(--m-text-dim)',marginBottom:'10px',textTransform:'uppercase',letterSpacing:'0.05em'}}>⚡ 자주쓰는 식단</div>
+            <div style={{background:'#fff',borderRadius:'16px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)',marginBottom:'12px',padding:'14px 16px'}}>
+              <div style={{fontSize:'12px',fontWeight:700,color:'#10B981',marginBottom:'10px',textTransform:'uppercase',letterSpacing:'0.05em'}}>⚡ 자주쓰는 식단</div>
               {dietTemplates.length === 0 ? (
                 <div style={{fontSize:'12px',color:'var(--m-text-dim)',padding:'4px 0'}}>
                   아직 저장된 식단이 없어요. 식사 항목을 추가한 뒤 <strong>💾 저장</strong> 버튼으로 등록하세요.
@@ -1204,17 +1917,17 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
                         onClick={() => openApplyTemplateModal(tpl)}
                         style={{
                           display:'flex',alignItems:'center',gap:'6px',
-                          background:'#f8f8f6',border:'1.5px solid #e5e5e5',
+                          background:'#F0FDF4',border:'1.5px solid #A7F3D0',
                           borderRadius:'20px',padding:'6px 12px 6px 10px',
                           cursor:'pointer',userSelect:'none',
                         }}
                       >
-                        <span style={{fontSize:'12px',fontWeight:700,color:'#111'}}>{tpl.name}</span>
-                        {totalCal > 0 && <span style={{fontSize:'10px',color:'#f97316',fontWeight:600}}>{totalCal.toFixed(0)}kcal</span>}
-                        <span style={{fontSize:'10px',color:'#aaa',marginLeft:'2px'}}>{tpl.items.length}가지</span>
+                        <span style={{fontSize:'12px',fontWeight:700,color:'#065F46'}}>{tpl.name}</span>
+                        {totalCal > 0 && <span style={{fontSize:'10px',color:'#10B981',fontWeight:700}}>{totalCal.toFixed(0)}kcal</span>}
+                        <span style={{fontSize:'10px',color:'#6EE7B7',marginLeft:'2px'}}>{tpl.items.length}가지</span>
                         <button
                           onClick={e => deleteTemplate(tpl.id, e)}
-                          style={{background:'none',border:'none',color:'#ccc',fontSize:'13px',cursor:'pointer',padding:'0 0 0 4px',lineHeight:1}}
+                          style={{background:'none',border:'none',color:'#A7F3D0',fontSize:'13px',cursor:'pointer',padding:'0 0 0 4px',lineHeight:1}}
                         >×</button>
                       </div>
                     )
@@ -1225,19 +1938,19 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
 
             {/* 일일 영양소 요약 */}
             {hasMacros && (
-              <div className="card" style={{marginBottom:'14px',padding:'14px 16px'}}>
-                <div style={{fontSize:'12px',fontWeight:700,color:'var(--m-text-dim)',marginBottom:'10px',textTransform:'uppercase',letterSpacing:'0.05em'}}>오늘 총 섭취</div>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'8px',marginBottom:'12px'}}>
+              <div style={{background:'#fff',borderRadius:'16px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)',marginBottom:'14px',padding:'16px'}}>
+                <div style={{fontSize:'12px',fontWeight:700,color:'#10B981',marginBottom:'12px',textTransform:'uppercase',letterSpacing:'0.05em'}}>🔥 오늘 총 섭취</div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'8px',marginBottom:'14px'}}>
                   {[
-                    { label:'칼로리', val: totalCal.toFixed(0), unit:'kcal', color:'#f97316' },
-                    { label:'단백질', val: totalProt.toFixed(1), unit:'g', color:'#3b82f6' },
-                    { label:'탄수화물', val: totalCarb.toFixed(1), unit:'g', color:'#eab308' },
-                    { label:'지방',   val: totalFat.toFixed(1), unit:'g', color:'#ef4444' },
+                    { label:'칼로리', val: totalCal.toFixed(0), unit:'kcal', color:'#f97316', bg:'#fff7ed' },
+                    { label:'단백질', val: totalProt.toFixed(1), unit:'g', color:'#3b82f6', bg:'#eff6ff' },
+                    { label:'탄수화물', val: totalCarb.toFixed(1), unit:'g', color:'#eab308', bg:'#fefce8' },
+                    { label:'지방',   val: totalFat.toFixed(1), unit:'g', color:'#ef4444', bg:'#fef2f2' },
                   ].map(n => (
-                    <div key={n.label} style={{textAlign:'center',background:'#f8f8f6',borderRadius:'10px',padding:'8px 4px'}}>
+                    <div key={n.label} style={{textAlign:'center',background:n.bg,borderRadius:'12px',padding:'10px 4px',border:`1px solid ${n.color}22`}}>
                       <div style={{fontSize:'16px',fontWeight:800,color:n.color,lineHeight:1}}>{n.val}</div>
-                      <div style={{fontSize:'9px',color:'var(--m-text-dim)',marginTop:'2px'}}>{n.unit}</div>
-                      <div style={{fontSize:'10px',color:'var(--m-text-muted)',marginTop:'1px'}}>{n.label}</div>
+                      <div style={{fontSize:'9px',color:n.color,opacity:0.7,marginTop:'2px'}}>{n.unit}</div>
+                      <div style={{fontSize:'9px',color:'var(--m-text-muted)',marginTop:'2px'}}>{n.label}</div>
                     </div>
                   ))}
                 </div>
@@ -1250,15 +1963,15 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
                   const pFat  = 100 - pProt - pCarb
                   return (
                     <div>
-                      <div style={{display:'flex',borderRadius:'6px',overflow:'hidden',height:'8px',gap:'2px'}}>
-                        <div style={{flex:pProt,background:'#3b82f6',minWidth:pProt>0?'2px':0}} />
-                        <div style={{flex:pCarb,background:'#eab308',minWidth:pCarb>0?'2px':0}} />
-                        <div style={{flex:pFat, background:'#ef4444',minWidth:pFat>0?'2px':0}} />
+                      <div style={{display:'flex',borderRadius:'8px',overflow:'hidden',height:'9px',gap:'2px'}}>
+                        <div style={{flex:pProt,background:'#3b82f6',minWidth:pProt>0?'2px':0,borderRadius:'4px'}} />
+                        <div style={{flex:pCarb,background:'#eab308',minWidth:pCarb>0?'2px':0,borderRadius:'4px'}} />
+                        <div style={{flex:pFat, background:'#ef4444',minWidth:pFat>0?'2px':0,borderRadius:'4px'}} />
                       </div>
-                      <div style={{display:'flex',gap:'10px',marginTop:'5px',fontSize:'10px',color:'var(--m-text-dim)'}}>
-                        <span style={{color:'#3b82f6'}}>● 단백질 {pProt}%</span>
-                        <span style={{color:'#eab308'}}>● 탄수화물 {pCarb}%</span>
-                        <span style={{color:'#ef4444'}}>● 지방 {pFat}%</span>
+                      <div style={{display:'flex',gap:'10px',marginTop:'6px',fontSize:'10px',color:'var(--m-text-dim)'}}>
+                        <span style={{color:'#3b82f6',fontWeight:600}}>● 단백질 {pProt}%</span>
+                        <span style={{color:'#eab308',fontWeight:600}}>● 탄수 {pCarb}%</span>
+                        <span style={{color:'#ef4444',fontWeight:600}}>● 지방 {pFat}%</span>
                       </div>
                     </div>
                   )
@@ -1271,26 +1984,26 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
               const items = dietLogs.filter(i => i.meal_type === key)
               const cal   = mealCal(key)
               return (
-                <div key={key} className="card" style={{marginBottom:'10px',padding:'12px 16px'}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
-                    <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
-                      <span style={{fontSize:'14px',fontWeight:700}}>{label}</span>
-                      {cal > 0 && <span style={{fontSize:'11px',color:'#f97316',fontWeight:600}}>{cal.toFixed(0)} kcal</span>}
+                <div key={key} style={{background:'#fff',borderRadius:'16px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)',marginBottom:'12px',padding:'14px 16px'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                      <span style={{fontSize:'14px',fontWeight:700,color:'#111'}}>{label}</span>
+                      {cal > 0 && <span style={{fontSize:'11px',color:'#10B981',fontWeight:700,background:'#F0FDF4',padding:'2px 8px',borderRadius:'10px'}}>{cal.toFixed(0)} kcal</span>}
                     </div>
                     <div style={{display:'flex',gap:'6px'}}>
                       <button
                         onClick={() => openSaveTemplateModal(key)}
-                        style={{background:'none',color:'#888',border:'1.5px solid #ddd',borderRadius:'8px',padding:'5px 10px',fontSize:'12px',fontWeight:600,cursor:'pointer'}}
+                        style={{background:'none',color:'#10B981',border:'1.5px solid #A7F3D0',borderRadius:'8px',padding:'5px 10px',fontSize:'12px',fontWeight:600,cursor:'pointer'}}
                         title="이 식사를 자주쓰는 식단으로 저장"
                       >💾 저장</button>
                       <button
                         onClick={() => openFoodModal(key)}
-                        style={{background:'#111',color:'#c8f135',border:'none',borderRadius:'8px',padding:'5px 12px',fontSize:'12px',fontWeight:700,cursor:'pointer'}}
+                        style={{background:'linear-gradient(135deg,#10B981,#059669)',color:'#fff',border:'none',borderRadius:'8px',padding:'5px 14px',fontSize:'12px',fontWeight:700,cursor:'pointer'}}
                       >+ 추가</button>
                     </div>
                   </div>
                   {!items.length && (
-                    <div style={{fontSize:'12px',color:'var(--m-text-dim)',padding:'6px 0'}}>아직 기록이 없어요</div>
+                    <div style={{fontSize:'12px',color:'var(--m-text-dim)',padding:'10px 0',textAlign:'center'}}>아직 기록이 없어요 🍽️</div>
                   )}
                   {items.map(item => {
                     const cal   = item.calories_per_g != null ? (item.calories_per_g * item.amount_g).toFixed(0) : null
@@ -1298,22 +2011,22 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
                     const carb  = item.carbs_per_g    != null ? (item.carbs_per_g    * item.amount_g).toFixed(1) : null
                     const fat   = item.fat_per_g      != null ? (item.fat_per_g      * item.amount_g).toFixed(1) : null
                     return (
-                      <div key={item.id} style={{display:'flex',alignItems:'flex-start',gap:'10px',padding:'8px 0',borderTop:'1px solid #f0f0ee'}}>
+                      <div key={item.id} style={{display:'flex',alignItems:'flex-start',gap:'10px',padding:'10px 0',borderTop:'1px solid #F0FDF4'}}>
                         {item.photo_url && (
-                          <img src={item.photo_url} alt={item.food_name} style={{width:'48px',height:'48px',objectFit:'cover',borderRadius:'8px',flexShrink:0}} />
+                          <img src={item.photo_url} alt={item.food_name} crossOrigin="anonymous" style={{width:'48px',height:'48px',objectFit:'cover',borderRadius:'10px',flexShrink:0}} />
                         )}
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{display:'flex',alignItems:'center',gap:'4px',marginBottom:'3px'}}>
                             <span style={{fontSize:'13px',fontWeight:600,color:'#111'}}>{item.food_name}</span>
-                            {item.ai_recognized && <span style={{fontSize:'9px',background:'#e8f5e9',color:'#388e3c',borderRadius:'4px',padding:'1px 5px'}}>AI</span>}
+                            {item.ai_recognized && <span style={{fontSize:'9px',background:'#F0FDF4',color:'#059669',borderRadius:'4px',padding:'1px 5px',fontWeight:700}}>AI</span>}
                           </div>
                           <div style={{fontSize:'11px',color:'var(--m-text-dim)'}}>{item.amount_g}g</div>
                           {(cal || prot || carb || fat) && (
-                            <div style={{fontSize:'11px',color:'var(--m-text-muted)',marginTop:'2px',display:'flex',gap:'8px',flexWrap:'wrap'}}>
-                              {cal  && <span style={{color:'#f97316'}}>{cal} kcal</span>}
-                              {prot && <span>단백질 {prot}g</span>}
-                              {carb && <span>탄수 {carb}g</span>}
-                              {fat  && <span>지방 {fat}g</span>}
+                            <div style={{fontSize:'11px',color:'var(--m-text-muted)',marginTop:'3px',display:'flex',gap:'8px',flexWrap:'wrap'}}>
+                              {cal  && <span style={{color:'#f97316',fontWeight:600}}>{cal} kcal</span>}
+                              {prot && <span style={{color:'#3b82f6'}}>단백질 {prot}g</span>}
+                              {carb && <span style={{color:'#eab308'}}>탄수 {carb}g</span>}
+                              {fat  && <span style={{color:'#ef4444'}}>지방 {fat}g</span>}
                             </div>
                           )}
                         </div>
@@ -1363,7 +2076,7 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
 
                   <div style={{display:'flex',gap:'8px'}}>
                     <button className="btn btn-outline" style={{flex:1}} onClick={() => setShowSaveTemplateModal(false)}>취소</button>
-                    <button className="btn btn-primary" style={{flex:2}} onClick={saveCurrentMealAsTemplate}>저장</button>
+                    <button className="btn btn-primary" style={{flex:2,opacity:savingTemplate?0.55:1,cursor:savingTemplate?'not-allowed':'pointer'}} disabled={savingTemplate} onClick={saveCurrentMealAsTemplate}>{savingTemplate ? '저장 중…' : '저장'}</button>
                   </div>
                 </div>
               </Modal>
@@ -1419,8 +2132,8 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
 
                   <div style={{display:'flex',gap:'8px'}}>
                     <button className="btn btn-outline" style={{flex:1}} onClick={() => { setShowApplyTemplateModal(false); setSelectedTemplate(null) }}>취소</button>
-                    <button className="btn btn-primary" style={{flex:2}} onClick={applyTemplate}>
-                      {dietDate === today() ? '오늘 식단에 적용' : `${formatDate(dietDate)}에 적용`}
+                    <button className="btn btn-primary" style={{flex:2,opacity:applyingTemplate?0.55:1,cursor:applyingTemplate?'not-allowed':'pointer'}} disabled={applyingTemplate} onClick={applyTemplate}>
+                      {applyingTemplate ? '적용 중…' : (dietDate === today() ? '오늘 식단에 적용' : `${formatDate(dietDate)}에 적용`)}
                     </button>
                   </div>
                 </div>
@@ -1432,7 +2145,7 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
               <Modal open={true} onClose={() => setShowFoodModal(false)}>
                 <div style={{padding:'4px 0'}}>
                   <div style={{fontSize:'16px',fontWeight:800,marginBottom:'16px'}}>
-                    {{'breakfast':'🍳 아침','lunch':'🍱 점심','dinner':'🍽️ 저녁','snack':'🧃 간식'}[foodMealType]} 음식 추가
+                    {{'breakfast':'🍳 아침','lunch':'🍱 점심','dinner':'🍽️ 저녁','snack':'🧃 간식'}[foodForm.mealType]} 음식 추가
                   </div>
 
                   {/* 사진 업로드 + AI 인식 */}
@@ -1446,12 +2159,11 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
                       onChange={e => {
                         const f = e.target.files?.[0]
                         if (!f) return
-                        setFoodPhotoFile(f)
-                        setFoodPhotoPreview(URL.createObjectURL(f))
+                        setFoodForm(p => ({ ...p, photoFile: f, photoPreview: URL.createObjectURL(f) }))
                         recognizeFoodFromPhoto(f)
                       }}
                     />
-                    {!foodPhotoPreview ? (
+                    {!foodForm.photoPreview ? (
                       <button
                         onClick={() => foodPhotoInputRef.current?.click()}
                         style={{width:'100%',padding:'14px',border:'2px dashed #ddd',borderRadius:'12px',background:'none',cursor:'pointer',color:'var(--m-text-dim)',fontSize:'13px',display:'flex',alignItems:'center',justifyContent:'center',gap:'6px'}}
@@ -1460,19 +2172,19 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
                       </button>
                     ) : (
                       <div style={{position:'relative',marginBottom:'8px'}}>
-                        <img src={foodPhotoPreview} alt="food" style={{width:'100%',maxHeight:'160px',objectFit:'cover',borderRadius:'12px'}} />
-                        {foodAiLoading && (
+                        <img src={foodForm.photoPreview} alt="food" crossOrigin="anonymous" style={{width:'100%',maxHeight:'160px',objectFit:'cover',borderRadius:'12px'}} />
+                        {foodForm.aiLoading && (
                           <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.55)',borderRadius:'12px',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:'13px',gap:'8px'}}>
                             <span style={{fontSize:'20px',animation:'spin 1s linear infinite',display:'inline-block'}}>⟳</span> AI 분석 중...
                           </div>
                         )}
-                        {foodAiConfidence && !foodAiLoading && (
+                        {foodForm.aiConfidence && !foodForm.aiLoading && (
                           <div style={{position:'absolute',top:'8px',right:'8px',background:'rgba(56,142,60,0.9)',color:'#fff',borderRadius:'8px',padding:'2px 8px',fontSize:'11px'}}>
-                            {{'high':'정확도 높음','medium':'정확도 보통','low':'정확도 낮음'}[foodAiConfidence] || foodAiConfidence}
+                            {{'high':'정확도 높음','medium':'정확도 보통','low':'정확도 낮음'}[foodForm.aiConfidence] || foodForm.aiConfidence}
                           </div>
                         )}
                         <button
-                          onClick={() => { setFoodPhotoFile(null); setFoodPhotoPreview(''); setFoodAiConfidence('') }}
+                          onClick={() => setFoodForm(p => ({ ...p, photoFile: null, photoPreview: '', aiConfidence: '' }))}
                           style={{position:'absolute',top:'8px',left:'8px',background:'rgba(0,0,0,0.5)',border:'none',color:'#fff',borderRadius:'6px',width:'24px',height:'24px',cursor:'pointer',fontSize:'14px'}}
                         >×</button>
                       </div>
@@ -1485,7 +2197,7 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
                       <label>음식 이름</label>
                       <input
                         type="text"
-                        value={foodName}
+                        value={foodForm.name}
                         onChange={e => onFoodNameChange(e.target.value)}
                         onBlur={() => setTimeout(() => setShowFoodSuggestions(false), 150)}
                         onFocus={() => foodSuggestions.length && setShowFoodSuggestions(true)}
@@ -1526,7 +2238,7 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
                     </div>
                     <div className="form-group" style={{marginBottom:0}}>
                       <label>섭취량 (g)</label>
-                      <input type="number" value={foodAmountG} onChange={e=>setFoodAmountG(e.target.value)} placeholder="100" min="1" />
+                      <input type="number" value={foodForm.amountG} onChange={e=>setFoodForm(p=>({...p,amountG:e.target.value}))} placeholder="100" min="1" />
                     </div>
                   </div>
 
@@ -1537,69 +2249,69 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
                   <div className="two-col" style={{marginBottom:'6px'}}>
                     <div className="form-group" style={{marginBottom:0}}>
                       <label>칼로리 (kcal)</label>
-                      <input type="number" value={foodCalPerG !== '' ? (parseFloat(foodCalPerG)*100).toFixed(1) : ''}
-                        onChange={e=>setFoodCalPerG(e.target.value ? String(parseFloat(e.target.value)/100) : '')}
+                      <input type="number" value={foodForm.calPerG !== '' ? (parseFloat(foodForm.calPerG)*100).toFixed(1) : ''}
+                        onChange={e=>setFoodForm(p=>({...p,calPerG:e.target.value ? String(parseFloat(e.target.value)/100) : ''}))}
                         placeholder="150" step="0.1" min="0" />
                     </div>
                     <div className="form-group" style={{marginBottom:0}}>
                       <label>단백질 (g)</label>
-                      <input type="number" value={foodProteinPerG !== '' ? (parseFloat(foodProteinPerG)*100).toFixed(1) : ''}
-                        onChange={e=>setFoodProteinPerG(e.target.value ? String(parseFloat(e.target.value)/100) : '')}
+                      <input type="number" value={foodForm.proteinPerG !== '' ? (parseFloat(foodForm.proteinPerG)*100).toFixed(1) : ''}
+                        onChange={e=>setFoodForm(p=>({...p,proteinPerG:e.target.value ? String(parseFloat(e.target.value)/100) : ''}))}
                         placeholder="20" step="0.1" min="0" />
                     </div>
                   </div>
                   <div className="two-col" style={{marginBottom:'6px'}}>
                     <div className="form-group" style={{marginBottom:0}}>
                       <label>탄수화물 (g)</label>
-                      <input type="number" value={foodCarbsPerG !== '' ? (parseFloat(foodCarbsPerG)*100).toFixed(1) : ''}
-                        onChange={e=>setFoodCarbsPerG(e.target.value ? String(parseFloat(e.target.value)/100) : '')}
+                      <input type="number" value={foodForm.carbsPerG !== '' ? (parseFloat(foodForm.carbsPerG)*100).toFixed(1) : ''}
+                        onChange={e=>setFoodForm(p=>({...p,carbsPerG:e.target.value ? String(parseFloat(e.target.value)/100) : ''}))}
                         placeholder="10" step="0.1" min="0" />
                     </div>
                     <div className="form-group" style={{marginBottom:0}}>
                       <label>지방 (g)</label>
-                      <input type="number" value={foodFatPerG !== '' ? (parseFloat(foodFatPerG)*100).toFixed(1) : ''}
-                        onChange={e=>setFoodFatPerG(e.target.value ? String(parseFloat(e.target.value)/100) : '')}
+                      <input type="number" value={foodForm.fatPerG !== '' ? (parseFloat(foodForm.fatPerG)*100).toFixed(1) : ''}
+                        onChange={e=>setFoodForm(p=>({...p,fatPerG:e.target.value ? String(parseFloat(e.target.value)/100) : ''}))}
                         placeholder="5" step="0.1" min="0" />
                     </div>
                   </div>
                   <div className="two-col" style={{marginBottom:'6px'}}>
                     <div className="form-group" style={{marginBottom:0}}>
                       <label>식이섬유 (g)</label>
-                      <input type="number" value={foodFiberPerG !== '' ? (parseFloat(foodFiberPerG)*100).toFixed(1) : ''}
-                        onChange={e=>setFoodFiberPerG(e.target.value ? String(parseFloat(e.target.value)/100) : '')}
+                      <input type="number" value={foodForm.fiberPerG !== '' ? (parseFloat(foodForm.fiberPerG)*100).toFixed(1) : ''}
+                        onChange={e=>setFoodForm(p=>({...p,fiberPerG:e.target.value ? String(parseFloat(e.target.value)/100) : ''}))}
                         placeholder="2" step="0.1" min="0" />
                     </div>
                     <div className="form-group" style={{marginBottom:0}}>
                       <label>당류 (g)</label>
-                      <input type="number" value={foodSugarPerG !== '' ? (parseFloat(foodSugarPerG)*100).toFixed(1) : ''}
-                        onChange={e=>setFoodSugarPerG(e.target.value ? String(parseFloat(e.target.value)/100) : '')}
+                      <input type="number" value={foodForm.sugarPerG !== '' ? (parseFloat(foodForm.sugarPerG)*100).toFixed(1) : ''}
+                        onChange={e=>setFoodForm(p=>({...p,sugarPerG:e.target.value ? String(parseFloat(e.target.value)/100) : ''}))}
                         placeholder="3" step="0.1" min="0" />
                     </div>
                   </div>
                   <div className="form-group" style={{marginBottom:'14px'}}>
                     <label>나트륨 (mg)</label>
-                    <input type="number" value={foodSodiumPerG !== '' ? (parseFloat(foodSodiumPerG)*100).toFixed(0) : ''}
-                      onChange={e=>setFoodSodiumPerG(e.target.value ? String(parseFloat(e.target.value)/100) : '')}
+                    <input type="number" value={foodForm.sodiumPerG !== '' ? (parseFloat(foodForm.sodiumPerG)*100).toFixed(0) : ''}
+                      onChange={e=>setFoodForm(p=>({...p,sodiumPerG:e.target.value ? String(parseFloat(e.target.value)/100) : ''}))}
                       placeholder="300" step="1" min="0" />
                   </div>
 
                   {/* 실시간 계산 미리보기 */}
-                  {foodCalPerG && foodAmountG && (
+                  {foodForm.calPerG && foodForm.amountG && (
                     <div style={{background:'#f8f8f6',borderRadius:'10px',padding:'10px 12px',marginBottom:'14px',fontSize:'12px'}}>
-                      <div style={{fontWeight:700,marginBottom:'4px',color:'#111'}}>📊 {foodAmountG}g 기준 계산값</div>
+                      <div style={{fontWeight:700,marginBottom:'4px',color:'#111'}}>📊 {foodForm.amountG}g 기준 계산값</div>
                       <div style={{display:'flex',gap:'12px',flexWrap:'wrap',color:'var(--m-text-muted)'}}>
-                        {foodCalPerG && <span style={{color:'#f97316'}}>{(parseFloat(foodCalPerG)*parseFloat(foodAmountG)).toFixed(0)} kcal</span>}
-                        {foodProteinPerG && <span>단백질 {(parseFloat(foodProteinPerG)*parseFloat(foodAmountG)).toFixed(1)}g</span>}
-                        {foodCarbsPerG && <span>탄수 {(parseFloat(foodCarbsPerG)*parseFloat(foodAmountG)).toFixed(1)}g</span>}
-                        {foodFatPerG && <span>지방 {(parseFloat(foodFatPerG)*parseFloat(foodAmountG)).toFixed(1)}g</span>}
+                        {foodForm.calPerG     && <span style={{color:'#f97316'}}>{(parseFloat(foodForm.calPerG)*parseFloat(foodForm.amountG)).toFixed(0)} kcal</span>}
+                        {foodForm.proteinPerG && <span>단백질 {(parseFloat(foodForm.proteinPerG)*parseFloat(foodForm.amountG)).toFixed(1)}g</span>}
+                        {foodForm.carbsPerG   && <span>탄수 {(parseFloat(foodForm.carbsPerG)*parseFloat(foodForm.amountG)).toFixed(1)}g</span>}
+                        {foodForm.fatPerG     && <span>지방 {(parseFloat(foodForm.fatPerG)*parseFloat(foodForm.amountG)).toFixed(1)}g</span>}
                       </div>
                     </div>
                   )}
 
                   <div style={{display:'flex',gap:'8px'}}>
                     <button className="btn btn-outline" style={{flex:1}} onClick={() => setShowFoodModal(false)}>취소</button>
-                    <button className="btn btn-primary" style={{flex:2}} onClick={addFoodItem} disabled={foodAiLoading}>
-                      {foodAiLoading ? 'AI 분석 중...' : '추가'}
+                    <button className="btn btn-primary" style={{flex:2}} onClick={addFoodItem} disabled={foodForm.aiLoading}>
+                      {foodForm.aiLoading ? 'AI 분석 중...' : '추가'}
                     </button>
                   </div>
                 </div>
@@ -1618,24 +2330,24 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
         return (
           <div className="m-page">
             {/* 이번 달 요약 */}
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:'14px'}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'10px',marginBottom:'14px'}}>
               {[
-                ['이번 달 운동', monthSessions.length+'회', '#22c55e'],
-                ['총 볼륨', monthVolume>=1000?(monthVolume/1000).toFixed(1)+'t':Math.round(monthVolume)+'kg', '#22c55e'],
-                ['전체 기록', workoutSessions.length+'회', 'var(--m-text-dim)'],
-              ].map(([label,val,color])=>(
-                <div key={label} className="card" style={{marginBottom:0,padding:'10px 12px'}}>
-                  <div style={{fontSize:'10px',color:'var(--m-text-dim)',marginBottom:'3px'}}>{label}</div>
-                  <div style={{fontSize:'16px',fontWeight:700,fontFamily:"'DM Mono',monospace",color}}>{val}</div>
+                ['이번 달 운동', monthSessions.length+'회', '#10B981', '#F0FDF4', '#A7F3D0'],
+                ['총 볼륨', monthVolume>=1000?(monthVolume/1000).toFixed(1)+'t':Math.round(monthVolume)+'kg', '#10B981', '#F0FDF4', '#A7F3D0'],
+                ['전체 기록', workoutSessions.length+'회', '#6b7280', '#f9fafb', '#e5e7eb'],
+              ].map(([label,val,color,bg,border])=>(
+                <div key={label} style={{background:bg,borderRadius:'14px',padding:'12px',border:`1px solid ${border}`,boxShadow:'0 1px 6px rgba(0,0,0,0.04)'}}>
+                  <div style={{fontSize:'10px',color:'#6b7280',marginBottom:'5px',fontWeight:600}}>{label}</div>
+                  <div style={{fontSize:'17px',fontWeight:800,fontFamily:"'DM Mono',monospace",color}}>{val}</div>
                 </div>
               ))}
             </div>
             {/* 버튼 */}
-            <div style={{display:'flex',gap:'8px',marginBottom:'14px'}}>
+            <div style={{display:'flex',gap:'8px',marginBottom:'16px'}}>
               {workoutRoutines.length > 0 && (
-                <button className="btn btn-outline btn-sm" style={{flex:1,fontSize:'12px'}} onClick={()=>setWorkoutRoutineModal(true)}>📋 루틴 불러오기</button>
+                <button style={{flex:1,padding:'10px',border:'1.5px solid #A7F3D0',borderRadius:'12px',background:'#fff',color:'#10B981',fontSize:'12px',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}} onClick={()=>setWorkoutRoutineModal(true)}>📋 루틴 불러오기</button>
               )}
-              <button className="btn btn-primary btn-sm" style={{flex:1,fontSize:'12px'}} onClick={()=>openWorkoutModal()}>+ 운동 기록</button>
+              <button style={{flex:1,padding:'10px',border:'none',borderRadius:'12px',background:'linear-gradient(135deg,#10B981,#059669)',color:'#fff',fontSize:'12px',fontWeight:700,cursor:'pointer',fontFamily:'inherit',boxShadow:'0 2px 8px rgba(16,185,129,0.3)'}} onClick={()=>openWorkoutModal()}>+ 운동 기록</button>
             </div>
             {/* 세션 이력 */}
             {!workoutSessions.length && <div className="empty"><div style={{fontSize:'32px',marginBottom:'12px'}}>🏃</div><p>아직 개인 운동 기록이 없어요</p><p style={{fontSize:'12px',marginTop:'4px'}}>위 버튼으로 오늘 운동을 기록해보세요!</p></div>}
@@ -1654,53 +2366,53 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
               }).filter(m => !allPrimary.includes(m)))]
               const muscles = [...new Set(exList.map(e=>e.muscle_group).filter(Boolean))]
               return (
-                <div key={s.id} className="card" style={{marginBottom:'10px',cursor:'pointer'}} onClick={()=>setWorkoutDetailId(isOpen?null:s.id)}>
+                <div key={s.id} style={{background:'#fff',borderRadius:'16px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)',marginBottom:'12px',padding:'14px 16px',cursor:'pointer',border:'1px solid #f0f0f0'}} onClick={()=>setWorkoutDetailId(isOpen?null:s.id)}>
                   <div style={{display:'flex',alignItems:'flex-start',gap:'10px'}}>
                     <div style={{flex:1,minWidth:0}}>
-                      <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'4px',flexWrap:'wrap'}}>
-                        <span style={{fontSize:'14px',fontWeight:600}}>{s.title||'운동'}</span>
-                        <span style={{fontSize:'11px',color:'var(--m-text-dim)'}}>{dateStr}</span>
-                        {s.duration_min && <span style={{fontSize:'11px',color:'var(--m-text-dim)'}}>⏱ {s.duration_min}분</span>}
+                      <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'5px',flexWrap:'wrap'}}>
+                        <span style={{fontSize:'14px',fontWeight:700,color:'#111'}}>{s.title||'운동'}</span>
+                        <span style={{fontSize:'11px',color:'#6b7280',background:'#f3f4f6',padding:'1px 7px',borderRadius:'6px'}}>{dateStr}</span>
+                        {s.duration_min && <span style={{fontSize:'11px',color:'#6b7280',background:'#f3f4f6',padding:'1px 7px',borderRadius:'6px'}}>⏱ {s.duration_min}분</span>}
                       </div>
-                      <div style={{display:'flex',gap:'5px',flexWrap:'wrap',marginBottom:'4px'}}>
+                      <div style={{display:'flex',gap:'5px',flexWrap:'wrap',marginBottom:'5px'}}>
                         {muscles.map(mg=>(
-                          <span key={mg} style={{fontSize:'10px',padding:'1px 7px',borderRadius:'4px',background:(MUSCLE_COLOR[mg]||'#6b7280')+'22',color:MUSCLE_COLOR[mg]||'#6b7280',border:`1px solid ${(MUSCLE_COLOR[mg]||'#6b7280')}44`}}>{mg}</span>
+                          <span key={mg} style={{fontSize:'10px',padding:'2px 8px',borderRadius:'6px',background:(MUSCLE_COLOR[mg]||'#6b7280')+'22',color:MUSCLE_COLOR[mg]||'#6b7280',border:`1px solid ${(MUSCLE_COLOR[mg]||'#6b7280')}44`,fontWeight:600}}>{mg}</span>
                         ))}
                       </div>
-                      <div style={{fontSize:'12px',color:'var(--m-text-dim)'}}>운동 {exList.length}종목 · 총 볼륨 {vol>=1000?(vol/1000).toFixed(1)+'t':Math.round(vol)+'kg'}</div>
+                      <div style={{fontSize:'12px',color:'#10B981',fontWeight:600}}>운동 {exList.length}종목 · 총 볼륨 {vol>=1000?(vol/1000).toFixed(1)+'t':Math.round(vol)+'kg'}</div>
                     </div>
-                    <span style={{color:'var(--m-text-dim)',fontSize:'14px',flexShrink:0,marginTop:'2px'}}>{isOpen?'▲':'▼'}</span>
+                    <span style={{color:'#10B981',fontSize:'13px',flexShrink:0,marginTop:'2px',transition:'transform 0.2s',transform:isOpen?'rotate(180deg)':'rotate(0deg)'}}>▼</span>
                   </div>
                   {isOpen && (
-                    <div style={{marginTop:'12px',borderTop:'1px solid #eee',paddingTop:'12px'}} onClick={e=>e.stopPropagation()}>
+                    <div style={{marginTop:'14px',borderTop:'1px solid #F0FDF4',paddingTop:'14px'}} onClick={e=>e.stopPropagation()}>
                       <MuscleDiagram primary={allPrimary} secondary={allSecondary} />
                       {exList.map((ex,ei)=>{
                         const exVol = ex.sets.reduce((s,set)=>s+((parseFloat(set.weight)||0)*(parseInt(set.reps)||0)),0)
                         const dbEx = EXERCISE_DB.find(d => d.name === ex.name)
                         return (
-                          <div key={ei} style={{marginBottom:'10px'}}>
-                            <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'6px'}}>
-                              <span style={{fontSize:'13px',fontWeight:600}}>{ex.name}</span>
-                              {ex.muscle_group && <span style={{fontSize:'10px',padding:'1px 7px',borderRadius:'4px',background:(MUSCLE_COLOR[ex.muscle_group]||'#6b7280')+'22',color:MUSCLE_COLOR[ex.muscle_group]||'#6b7280',border:`1px solid ${(MUSCLE_COLOR[ex.muscle_group]||'#6b7280')}44`}}>{ex.muscle_group}</span>}
+                          <div key={ei} style={{marginBottom:'12px'}}>
+                            <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'}}>
+                              <span style={{fontSize:'13px',fontWeight:700,color:'#111'}}>{ex.name}</span>
+                              {ex.muscle_group && <span style={{fontSize:'10px',padding:'2px 8px',borderRadius:'6px',background:(MUSCLE_COLOR[ex.muscle_group]||'#6b7280')+'22',color:MUSCLE_COLOR[ex.muscle_group]||'#6b7280',border:`1px solid ${(MUSCLE_COLOR[ex.muscle_group]||'#6b7280')}44`,fontWeight:600}}>{ex.muscle_group}</span>}
                               {dbEx && <span style={{fontSize:'10px',color:'#aaa'}}>장비: {dbEx.eq}</span>}
-                              <span style={{fontSize:'11px',color:'var(--m-text-dim)',marginLeft:'auto'}}>볼륨 {Math.round(exVol)}kg</span>
+                              <span style={{fontSize:'11px',color:'#10B981',fontWeight:600,marginLeft:'auto'}}>볼륨 {Math.round(exVol)}kg</span>
                             </div>
-                            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(90px,1fr))',gap:'4px'}}>
+                            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(90px,1fr))',gap:'6px'}}>
                               {ex.sets.map((set,si)=>(
-                                <div key={si} style={{background:'#f5f5f5',borderRadius:'6px',padding:'6px 8px',fontSize:'12px',textAlign:'center'}}>
-                                  <div style={{color:'#aaa',fontSize:'10px',marginBottom:'2px'}}>{si+1}세트</div>
-                                  <div style={{fontWeight:600,fontFamily:"'DM Mono',monospace"}}>{set.weight||'—'}kg × {set.reps||'—'}회</div>
-                                  {set.rest_sec && <div style={{color:'#aaa',fontSize:'10px',marginTop:'2px'}}>휴식 {set.rest_sec}초</div>}
+                                <div key={si} style={{background:'#F0FDF4',borderRadius:'10px',padding:'8px',fontSize:'12px',textAlign:'center',border:'1px solid #A7F3D0'}}>
+                                  <div style={{color:'#10B981',fontSize:'10px',fontWeight:700,marginBottom:'3px'}}>{si+1}세트</div>
+                                  <div style={{fontWeight:700,fontFamily:"'DM Mono',monospace",color:'#111'}}>{set.weight||'—'}kg × {set.reps||'—'}회</div>
+                                  {set.rest_sec && <div style={{color:'#6b7280',fontSize:'10px',marginTop:'2px'}}>휴식 {set.rest_sec}초</div>}
                                 </div>
                               ))}
                             </div>
                           </div>
                         )
                       })}
-                      {s.memo && <div style={{marginTop:'8px',fontSize:'12px',color:'var(--m-text-muted)',padding:'8px',background:'#f5f5f5',borderRadius:'6px'}}>💬 {s.memo}</div>}
-                      <div style={{display:'flex',gap:'8px',marginTop:'12px'}}>
-                        <button className="btn btn-outline btn-sm" style={{flex:1,fontSize:'12px'}} onClick={()=>openWorkoutModal(s)}>✏️ 수정</button>
-                        <button className="btn btn-outline btn-sm" style={{flex:1,fontSize:'12px',color:'#ef4444'}} onClick={()=>deleteWorkoutSession(s.id)}>삭제</button>
+                      {s.memo && <div style={{marginTop:'10px',fontSize:'12px',color:'#555',padding:'10px 12px',background:'#F0FDF4',borderRadius:'10px',borderLeft:'3px solid #10B981'}}>💬 {s.memo}</div>}
+                      <div style={{display:'flex',gap:'8px',marginTop:'14px'}}>
+                        <button style={{flex:1,padding:'9px',border:'1.5px solid #A7F3D0',borderRadius:'10px',background:'#fff',color:'#10B981',fontSize:'12px',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}} onClick={()=>openWorkoutModal(s)}>✏️ 수정</button>
+                        <button style={{flex:1,padding:'9px',border:'1.5px solid #fecaca',borderRadius:'10px',background:'#fff',color:'#ef4444',fontSize:'12px',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}} onClick={()=>deleteWorkoutSession(s.id)}>삭제</button>
                       </div>
                     </div>
                   )}
@@ -1715,18 +2427,19 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
       {tab === 'community' && (
         <div className="m-page">
           {/* 헤더 */}
-          <div style={{marginBottom:'12px'}}>
-            <div style={{fontSize:'15px',fontWeight:700}}>🤝 커뮤니티</div>
+          <div style={{marginBottom:'14px'}}>
+            <div style={{fontSize:'18px',fontWeight:800,color:'#111'}}>🤝 커뮤니티</div>
+            <div style={{fontSize:'12px',color:'#6b7280',marginTop:'2px'}}>트레이너 공지 및 회원 자유 게시판</div>
           </div>
 
           {/* 서브 탭 */}
-          <div style={{display:'flex',gap:'0',marginBottom:'16px',background:'#f5f5f5',borderRadius:'10px',padding:'3px'}}>
+          <div style={{display:'flex',gap:'0',marginBottom:'16px',background:'#F0FDF4',borderRadius:'12px',padding:'4px',border:'1px solid #A7F3D0'}}>
             {[['notice','📢 공지사항'],['free','💬 자유게시판']].map(([key,label])=>(
               <button key={key} onClick={()=>setCommunityTab(key)}
-                style={{flex:1,padding:'8px 0',border:'none',borderRadius:'8px',cursor:'pointer',fontSize:'13px',fontWeight:600,fontFamily:'inherit',transition:'all 0.15s',
+                style={{flex:1,padding:'9px 0',border:'none',borderRadius:'9px',cursor:'pointer',fontSize:'13px',fontWeight:700,fontFamily:'inherit',transition:'all 0.15s',
                   background: communityTab===key ? '#fff' : 'transparent',
-                  color: communityTab===key ? '#333' : '#888',
-                  boxShadow: communityTab===key ? '0 1px 4px rgba(0,0,0,0.1)' : 'none'}}>
+                  color: communityTab===key ? '#10B981' : '#6b7280',
+                  boxShadow: communityTab===key ? '0 2px 8px rgba(16,185,129,0.15)' : 'none'}}>
                 {label}
               </button>
             ))}
@@ -1742,16 +2455,18 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
                 </div>
               )}
               {notices.map(notice => (
-                <div key={notice.id} className="card" style={{marginBottom:'10px',borderLeft: notice.is_pinned ? '3px solid #f97316' : '3px solid transparent'}}>
+                <div key={notice.id} style={{background:'#fff',borderRadius:'16px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)',marginBottom:'12px',padding:'16px',borderLeft: notice.is_pinned ? '4px solid #10B981' : '4px solid transparent'}}>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:'flex',alignItems:'center',gap:'6px',marginBottom:'4px'}}>
-                      {notice.is_pinned && <span style={{fontSize:'10px',padding:'1px 6px',background:'#fff3e0',color:'#f97316',borderRadius:'4px',fontWeight:700,flexShrink:0}}>📌 고정</span>}
+                    <div style={{display:'flex',alignItems:'center',gap:'6px',marginBottom:'6px'}}>
+                      {notice.is_pinned && <span style={{fontSize:'10px',padding:'2px 8px',background:'#F0FDF4',color:'#10B981',borderRadius:'6px',fontWeight:700,flexShrink:0,border:'1px solid #A7F3D0'}}>📌 고정</span>}
                       <div style={{fontSize:'14px',fontWeight:700,color:'#1a1a1a',wordBreak:'break-word'}}>{notice.title}</div>
                     </div>
-                    <p style={{fontSize:'13px',lineHeight:'1.65',margin:'0 0 8px',color:'#444',wordBreak:'break-word',whiteSpace:'pre-wrap'}}>{notice.content}</p>
-                    <div style={{fontSize:'11px',color:'var(--m-text-dim)'}}>
-                      {notice.author_name} · {formatRelative(notice.created_at)}
-                      {notice.updated_at !== notice.created_at && ' · 수정됨'}
+                    <p style={{fontSize:'13px',lineHeight:'1.7',margin:'0 0 10px',color:'#444',wordBreak:'break-word',whiteSpace:'pre-wrap'}}>{notice.content}</p>
+                    <div style={{fontSize:'11px',color:'#6b7280',display:'flex',alignItems:'center',gap:'4px'}}>
+                      <span>{notice.author_name}</span>
+                      <span>·</span>
+                      <span>{formatRelative(notice.created_at)}</span>
+                      {notice.updated_at !== notice.created_at && <span style={{color:'#10B981'}}>· 수정됨</span>}
                     </div>
                   </div>
                 </div>
@@ -1762,9 +2477,12 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
           {/* ── 자유게시판 탭 ── */}
           {communityTab === 'free' && (
             <div>
-              <div style={{display:'flex',justifyContent:'flex-end',marginBottom:'12px'}}>
+              <div style={{display:'flex',justifyContent:'flex-end',marginBottom:'14px'}}>
                 {member.trainer_id && (
-                  <button className="btn btn-primary btn-sm" onClick={()=>setPostModal(true)} style={{fontSize:'12px'}}>+ 글쓰기</button>
+                  <button
+                    onClick={()=>setPostModal(true)}
+                    style={{padding:'9px 18px',border:'none',borderRadius:'12px',background:'linear-gradient(135deg,#10B981,#059669)',color:'#fff',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'inherit',boxShadow:'0 2px 8px rgba(16,185,129,0.3)'}}
+                  >+ 글쓰기</button>
                 )}
               </div>
               {!member.trainer_id && (
@@ -1778,37 +2496,38 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
                 const mine = myReactions[post.id] || new Set()
                 const totalReactions = Object.values(counts).reduce((a,b)=>a+b,0)
                 return (
-                  <div key={post.id} className="card" style={{marginBottom:'12px'}}>
-                    <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'10px'}}>
-                      <div style={{width:'36px',height:'36px',borderRadius:'50%',background:'linear-gradient(135deg,#667eea,#764ba2)',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:'14px',fontWeight:700,flexShrink:0}}>
+                  <div key={post.id} style={{background:'#fff',borderRadius:'16px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)',marginBottom:'14px',padding:'16px',border:'1px solid #f0f0f0'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'12px'}}>
+                      <div style={{width:'38px',height:'38px',borderRadius:'50%',background:'linear-gradient(135deg,#10B981,#059669)',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:'15px',fontWeight:800,flexShrink:0,boxShadow:'0 2px 6px rgba(16,185,129,0.3)'}}>
                         {(post.member_name||'?')[0]}
                       </div>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:'13px',fontWeight:600}}>{post.member_name||'회원'}</div>
-                        <div style={{fontSize:'11px',color:'var(--m-text-dim)'}}>{formatRelative(post.created_at)}</div>
+                        <div style={{fontSize:'13px',fontWeight:700,color:'#111'}}>{post.member_name||'회원'}</div>
+                        <div style={{fontSize:'11px',color:'#6b7280'}}>{formatRelative(post.created_at)}</div>
                       </div>
                       {post.member_id === member.id && (
-                        <button onClick={()=>deletePost(post.id)} style={{background:'none',border:'none',color:'#ccc',cursor:'pointer',fontSize:'16px',padding:'2px 6px'}}>×</button>
+                        <button onClick={()=>deletePost(post.id)} style={{background:'none',border:'none',color:'#d1d5db',cursor:'pointer',fontSize:'18px',padding:'2px 6px',lineHeight:1}}>×</button>
                       )}
                     </div>
-                    {post.content && <p style={{fontSize:'14px',lineHeight:'1.65',margin:'0 0 10px',color:'#333',wordBreak:'break-word'}}>{post.content}</p>}
+                    {post.content && <p style={{fontSize:'14px',lineHeight:'1.7',margin:'0 0 12px',color:'#333',wordBreak:'break-word'}}>{post.content}</p>}
                     {post.photo_url && (
-                      <img src={post.photo_url} alt="첨부 사진" style={{width:'100%',borderRadius:'10px',objectFit:'cover',maxHeight:'340px',marginBottom:'10px',display:'block'}} />
+                      <img src={post.photo_url} alt="첨부 사진" crossOrigin="anonymous" style={{width:'100%',borderRadius:'12px',objectFit:'cover',maxHeight:'340px',marginBottom:'12px',display:'block'}} />
                     )}
                     {totalReactions > 0 && (
-                      <div style={{fontSize:'12px',color:'var(--m-text-dim)',marginBottom:'8px',display:'flex',flexWrap:'wrap',gap:'6px'}}>
+                      <div style={{fontSize:'12px',color:'#6b7280',marginBottom:'10px',display:'flex',flexWrap:'wrap',gap:'6px'}}>
                         {REACTIONS.filter(r=>counts[r]>0).map(r=>(
-                          <span key={r}>{r} {counts[r]}</span>
+                          <span key={r} style={{background:'#F0FDF4',padding:'2px 8px',borderRadius:'10px',color:'#059669',fontWeight:600}}>{r} {counts[r]}</span>
                         ))}
                       </div>
                     )}
-                    <div style={{display:'flex',flexWrap:'wrap',gap:'6px',borderTop:'1px solid #f0f0f0',paddingTop:'10px'}}>
+                    <div style={{display:'flex',flexWrap:'wrap',gap:'6px',borderTop:'1px solid #F0FDF4',paddingTop:'12px'}}>
                       {REACTIONS.map(r => (
                         <button key={r} onClick={()=>toggleReaction(post.id, r)}
-                          style={{padding:'5px 10px',borderRadius:'20px',border:'1px solid',fontSize:'13px',cursor:'pointer',fontFamily:'inherit',transition:'all 0.15s',
-                            background: mine.has(r) ? '#fff3e0' : '#fafafa',
-                            borderColor: mine.has(r) ? '#f97316' : '#e5e7eb',
-                            fontWeight: mine.has(r) ? 600 : 400}}>
+                          style={{padding:'6px 11px',borderRadius:'20px',border:'1.5px solid',fontSize:'13px',cursor:'pointer',fontFamily:'inherit',transition:'all 0.15s',
+                            background: mine.has(r) ? '#F0FDF4' : '#fafafa',
+                            borderColor: mine.has(r) ? '#10B981' : '#e5e7eb',
+                            fontWeight: mine.has(r) ? 700 : 400,
+                            transform: mine.has(r) ? 'scale(1.08)' : 'scale(1)'}}>
                           {r}
                         </button>
                       ))}
@@ -1907,7 +2626,7 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
           <input type="text" value={workoutSaveRoutineName} onChange={e=>setWorkoutSaveRoutineName(e.target.value)} placeholder="루틴 이름 입력 후 저장" style={{flex:1,fontSize:'12px'}} />
           <button className="btn btn-ghost btn-sm" style={{flexShrink:0,fontSize:'12px'}} onClick={saveAsRoutine}>루틴 저장</button>
         </div>
-        <button className="btn btn-primary" style={{width:'100%'}} onClick={saveWorkoutSession}>{workoutEditId?'수정 완료':'기록 완료'}</button>
+        <button className="btn btn-primary" style={{width:'100%',opacity:savingWorkout?0.55:1,cursor:savingWorkout?'not-allowed':'pointer'}} disabled={savingWorkout} onClick={saveWorkoutSession}>{savingWorkout ? '저장 중…' : (workoutEditId?'수정 완료':'기록 완료')}</button>
       </Modal>
 
       {/* ROUTINE MODAL */}
@@ -1948,7 +2667,7 @@ ${log.exercises_data ? `<div class="section"><div class="section-title">운동 �
             </div>
           )}
         </div>
-        <button className="btn btn-primary" style={{width:'100%'}} onClick={createPost}>게시하기</button>
+        <button className="btn btn-primary" style={{width:'100%',opacity:creatingPost?0.55:1,cursor:creatingPost?'not-allowed':'pointer'}} disabled={creatingPost} onClick={createPost}>{creatingPost ? '게시 중…' : '게시하기'}</button>
       </Modal>
     </div>
   )

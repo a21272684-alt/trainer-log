@@ -11,9 +11,9 @@ const NOTIF_TYPES = {
 
 export default function NotificationsTab({ gymId, members, trainers }) {
   const showToast = useToast()
-  const [riskMap,     setRiskMap]     = useState({})
-  const [attendMap,   setAttendMap]   = useState({})
-  const [activeType,  setActiveType]  = useState('expiring')
+  const [riskMap,       setRiskMap]       = useState({})
+  const [retentionMap,  setRetentionMap]  = useState({})
+  const [activeType,    setActiveType]    = useState('expiring')
   const [selected,    setSelected]    = useState(new Set())
   const [message,     setMessage]     = useState('')
   const [history,     setHistory]     = useState([])
@@ -23,35 +23,30 @@ export default function NotificationsTab({ gymId, members, trainers }) {
   useEffect(() => { loadData() }, [members])
 
   async function loadData() {
-    if (!members.length) return
+    if (!members.length || !gymId) return
     const mIds = members.map(m => m.id)
-    const [riskRes, attendRes] = await Promise.all([
-      supabase.from('member_risk_scores').select('member_id, risk_level, risk_score').in('member_id', mIds),
-      supabase.from('attendance').select('member_id, attended_date').in('member_id', mIds),
-    ])
-    const rm = {}; (riskRes.data||[]).forEach(r => { rm[r.member_id] = r })
+    // get_member_retention RPC 는 DB 미배포로 호출 차단 — 빈 맵으로 폴백.
+    // 추후 RPC 배포 시 retentionRes 라인을 복구한다.
+    const { data: riskData } = await supabase
+      .from('member_risk_scores')
+      .select('member_id, risk_level, risk_score')
+      .in('member_id', mIds)
+    const rm = {}; (riskData || []).forEach(r => { rm[r.member_id] = r })
     setRiskMap(rm)
-    // 최근 출석일 계산
-    const am = {}; (attendRes.data||[]).forEach(a => {
-      if (!am[a.member_id] || a.attended_date > am[a.member_id]) am[a.member_id] = a.attended_date
-    })
-    setAttendMap(am)
+    setRetentionMap({})
   }
 
   function getTargetMembers() {
-    const today = new Date()
     return members.filter(m => {
       const remain = Math.max(0, (m.total_sessions||0) - (m.done_sessions||0))
       const risk   = riskMap[m.id]
-      const lastAt = attendMap[m.id]
-      if (activeType === 'expiring') return remain <= 3 && remain > 0
+      const ret    = retentionMap[m.id]
+      // 'expiring': 기간권 만료 14일 이내 — DashboardTab과 동일 기준 (get_member_retention 플래그)
+      if (activeType === 'expiring') return ret?.expiry_warning === true
       if (activeType === 'expired')  return remain === 0
       if (activeType === 'risk')     return risk && (risk.risk_level === 'risk' || risk.risk_level === 'critical')
-      if (activeType === 'inactive') {
-        if (!lastAt) return true  // 출석 기록 없음
-        const daysDiff = Math.floor((today - new Date(lastAt)) / (1000*60*60*24))
-        return daysDiff >= 14
-      }
+      // 'inactive': 2주 이상 미출석 — get_member_retention absence_warning 플래그 사용
+      if (activeType === 'inactive') return ret?.absence_warning === true
       return false
     })
   }
@@ -87,19 +82,12 @@ export default function NotificationsTab({ gymId, members, trainers }) {
     if (!message.trim()) { showToast('메시지를 입력해주세요'); return }
     setSending(true)
     try {
-      const logs = Array.from(selected).map(memberId => ({
-        gym_id: gymId, member_id: memberId,
-        notification_type: activeType, message: message.trim(),
-        status: 'sent', sent_at: new Date().toISOString(),
-      }))
-      // notification_logs 테이블이 없을 수 있으므로 에러 무시하고 UI만 처리
-      const { error } = await supabase.from('notification_logs').insert(logs)
-      if (error && !error.message.includes('does not exist')) throw error
-      showToast(`✓ ${selected.size}명에게 알림 발송 완료 (기록 저장됨)`)
+      // notification_logs 테이블 미배포 — DB INSERT 차단. 발송 히스토리는 클라이언트 state 만 유지.
+      const count = selected.size
+      alert('해당 기능은 준비 중입니다.')
       setSelected(new Set())
-      // 발송 히스토리에 추가
       setHistory(prev => [{
-        id: Date.now(), type: activeType, count: logs.length,
+        id: Date.now(), type: activeType, count,
         message: message.trim(), sent_at: new Date().toISOString(),
       }, ...prev].slice(0, 20))
     } catch(e) {
@@ -138,11 +126,11 @@ export default function NotificationsTab({ gymId, members, trainers }) {
                 {members.filter(m => {
                   const remain = Math.max(0,(m.total_sessions||0)-(m.done_sessions||0))
                   const risk = riskMap[m.id]
-                  const lastAt = attendMap[m.id]
-                  if (key==='expiring') return remain<=3 && remain>0
+                  const ret  = retentionMap[m.id]
+                  if (key==='expiring') return ret?.expiry_warning === true
                   if (key==='expired')  return remain===0
                   if (key==='risk')     return risk && (risk.risk_level==='risk'||risk.risk_level==='critical')
-                  if (key==='inactive') { if(!lastAt) return true; return Math.floor((new Date()-new Date(lastAt))/(1000*60*60*24))>=14 }
+                  if (key==='inactive') return ret?.absence_warning === true
                   return false
                 }).length}명
               </span>
@@ -171,7 +159,8 @@ export default function NotificationsTab({ gymId, members, trainers }) {
               {targetMembers.map(m => {
                 const remain = Math.max(0,(m.total_sessions||0)-(m.done_sessions||0))
                 const risk   = riskMap[m.id]
-                const lastAt = attendMap[m.id]
+                const ret    = retentionMap[m.id]
+                const lastAt = ret?.last_attended_date
                 const isSelected = selected.has(m.id)
                 return (
                   <div key={m.id} onClick={() => toggleMember(m.id)}

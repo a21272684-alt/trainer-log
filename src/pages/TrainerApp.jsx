@@ -3,6 +3,7 @@ import { supabase, GEMINI_MODEL } from '../lib/supabase'
 import { subscribeToPush, scheduleNotification, deleteScheduledNotification } from '../lib/push'
 import { useToast } from '../components/common/Toast'
 import Modal from '../components/common/Modal'
+import TermsAgreementModal from '../components/common/TermsAgreementModal'
 import { Link } from 'react-router-dom'
 import '../styles/trainer.css'
 import { computeStats, buildInsightPrompt, callGeminiInsight } from '../lib/memberInsights'
@@ -70,18 +71,7 @@ function RevenuePaymentList({ trainerId, members, refreshKey }) {
 }
 
 // 회원별 결제 관리 카드 (확정 매출 = payments 합계)
-function MemberRevenueCard({ m, mWeekLogs, mMonthLogs, attendRate, cancelledBlocks, remain, pct, price, dayOfMonth, daysInMonth, trainerId, onOpenPayment }) {
-  const [confirmed, setConfirmed] = useState(null)
-  const [recentPays, setRecentPays] = useState([])
-  useEffect(() => {
-    if (!trainerId) return
-    supabase.from('payments').select('*').eq('member_id', m.id).order('paid_at',{ascending:false})
-      .then(({ data }) => {
-        const d = data||[]
-        setConfirmed(d.reduce((s,p)=>s+p.amount,0))
-        setRecentPays(d.slice(0,3))
-      })
-  }, [m.id, trainerId])
+function MemberRevenueCard({ m, mWeekLogs, mMonthLogs, attendRate, cancelledBlocks, remain, pct, price, dayOfMonth, daysInMonth, confirmed, recentPays, onOpenPayment }) {
   return (
     <div className="card" style={{marginBottom:'12px'}}>
       {/* 헤더 */}
@@ -1140,8 +1130,30 @@ function AiInsightPanel({ member, apiKey }) {
   const [insight, setInsight]   = useState('')
   const [errMsg, setErrMsg]     = useState('')
   const [showStats, setShowStats] = useState(false)
+  const showToast = useToast()
+
+  // 주 1회(7일) 하드 락 — localStorage 기반, DB 스키마 수정 0
+  const LOCK_KEY = `last_ai_insight_${member?.id || 'unknown'}`
+  const LOCK_MS  = 7 * 24 * 60 * 60 * 1000
+
+  function readLockTs() {
+    try {
+      const raw = localStorage.getItem(LOCK_KEY)
+      const n = raw ? parseInt(raw, 10) : 0
+      return Number.isFinite(n) ? n : 0
+    } catch { return 0 }
+  }
 
   async function generate() {
+    if (phase === 'loading') return
+    // 7일 경과 검사
+    const last = readLockTs()
+    const now = Date.now()
+    if (last > 0 && (now - last) < LOCK_MS) {
+      showToast('AI 분석은 회원당 주 1회만 생성 가능합니다.', 'warning')
+      return
+    }
+
     if (!apiKey) {
       setPhase('error'); setErrMsg('AI 서비스 준비 중이에요. 잠시 후 다시 시도해주세요'); return
     }
@@ -1175,6 +1187,9 @@ function AiInsightPanel({ member, apiKey }) {
       const text   = await callGeminiInsight(apiKey, GEMINI_MODEL, prompt)
       setInsight(text)
       setPhase('done')
+
+      // 성공 시 락 타임스탬프 갱신
+      try { localStorage.setItem(LOCK_KEY, String(Date.now())) } catch {}
     } catch (e) {
       setErrMsg(e.message || 'AI 요청 중 오류가 발생했어요')
       setPhase('error')
@@ -1328,11 +1343,15 @@ function AiInsightPanel({ member, apiKey }) {
         </div>
       ) : (
         <button onClick={generate}
+          disabled={phase === 'loading'}
           style={{width:'100%',padding:'11px',borderRadius:'8px',border:'none',
             background: phase === 'done' ? 'var(--surface2)' : 'var(--accent)',
             color: phase === 'done' ? 'var(--text-muted)' : '#0f0f0f',
-            fontWeight:700,fontSize:'13px',cursor:'pointer',fontFamily:'inherit'}}>
-          {phase === 'done' ? '🔄 다시 분석하기' : '🤖 AI 인사이트 생성'}
+            fontWeight:700,fontSize:'13px',
+            cursor: phase === 'loading' ? 'not-allowed' : 'pointer',
+            opacity: phase === 'loading' ? 0.55 : 1,
+            fontFamily:'inherit'}}>
+          {phase === 'done' ? '🔄 다시 분석하기' : '🤖 이번주 AI 인사이트 생성'}
         </button>
       )}
     </div>
@@ -1343,11 +1362,30 @@ function AiInsightPanel({ member, apiKey }) {
 function RiskPanel({ member }) {
   const [phase, setPhase]     = useState('idle')  // idle | loading | done | error
   const [result, setResult]   = useState(null)
-  const [rating, setRating]   = useState(0)       // 새 평점 입력
-  const [saving, setSaving]   = useState(false)
   const showToast = useToast()
 
+  // 주 1회(7일) 하드 락 — AiInsightPanel 과 동일 패턴
+  const LOCK_KEY = `last_ai_insight_${member?.id || 'unknown'}_risk`
+  const LOCK_MS  = 7 * 24 * 60 * 60 * 1000
+
+  function readLockTs() {
+    try {
+      const raw = localStorage.getItem(LOCK_KEY)
+      const n = raw ? parseInt(raw, 10) : 0
+      return Number.isFinite(n) ? n : 0
+    } catch { return 0 }
+  }
+
   async function analyze() {
+    if (phase === 'loading') return
+    // 7일 경과 검사
+    const last = readLockTs()
+    const now = Date.now()
+    if (last > 0 && (now - last) < LOCK_MS) {
+      showToast('AI 분석은 회원당 주 1회만 생성 가능합니다.', 'warning')
+      return
+    }
+
     setPhase('loading')
     try {
       const [logsRes, healthRes, attendRes] = await Promise.all([
@@ -1365,27 +1403,12 @@ function RiskPanel({ member }) {
       )
       setResult(r)
       setPhase('done')
+
+      // 성공 시 락 타임스탬프 갱신
+      try { localStorage.setItem(LOCK_KEY, String(Date.now())) } catch {}
     } catch (e) {
       setPhase('error')
     }
-  }
-
-  async function saveRating() {
-    if (!rating) return
-    setSaving(true)
-    // 가장 최근 로그에 평점 업데이트
-    const { data: latestLog } = await supabase
-      .from('logs').select('id').eq('member_id', member.id)
-      .order('created_at', { ascending: false }).limit(1).single()
-    if (latestLog) {
-      await supabase.from('logs').update({ session_rating: rating }).eq('id', latestLog.id)
-      showToast('✓ 수업 평점이 저장됐어요')
-      setRating(0)
-      if (phase === 'done') analyze() // 결과 갱신
-    } else {
-      showToast('최근 수업 기록이 없어요')
-    }
-    setSaving(false)
   }
 
   const mono = { fontFamily:"'DM Mono',monospace" }
@@ -1410,28 +1433,6 @@ function RiskPanel({ member }) {
 
   return (
     <div>
-      {/* ── 수업 평점 입력 ── */}
-      <div style={{background:'var(--surface2)',borderRadius:'10px',padding:'12px',marginBottom:'14px'}}>
-        <div style={{fontSize:'11px',color:'var(--text-dim)',marginBottom:'8px'}}>최근 수업 평점 입력 (1–5점)</div>
-        <div style={{display:'flex',gap:'6px',marginBottom:'8px'}}>
-          {[1,2,3,4,5].map(n => (
-            <button key={n} onClick={() => setRating(n)}
-              style={{flex:1,padding:'8px 0',borderRadius:'8px',border:'1px solid',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'inherit',transition:'all 0.15s',
-                background: rating === n ? 'var(--accent)' : 'transparent',
-                color: rating === n ? '#0f0f0f' : 'var(--text-muted)',
-                borderColor: rating === n ? 'var(--accent)' : 'var(--border)'}}>
-              {n}
-            </button>
-          ))}
-        </div>
-        <button onClick={saveRating} disabled={!rating || saving}
-          style={{width:'100%',padding:'8px',borderRadius:'8px',border:'none',fontSize:'12px',fontWeight:600,cursor: rating ? 'pointer' : 'not-allowed',fontFamily:'inherit',
-            background: rating ? 'var(--accent)' : 'var(--surface)',
-            color: rating ? '#0f0f0f' : 'var(--text-dim)',opacity: rating ? 1 : 0.5}}>
-          {saving ? '저장 중...' : '평점 저장'}
-        </button>
-      </div>
-
       {/* ── 분석 결과 ── */}
       {phase === 'done' && result && level && (
         <div>
@@ -1568,22 +1569,36 @@ export default function TrainerApp() {
   const [currentMemberId, setCurrentMemberId] = useState(null)
   const [exercises, setExercises] = useState([])
   const [rawInput, setRawInput] = useState('')
-  const [perspectiveInput, setPerspectiveInput] = useState('')  // AI 해석 관점
+  const [perspectiveChip,  setPerspectiveChip]  = useState('rehab') // AI 해석 관점 칩 ('rehab'|'motivation'|'performance'|'diet')
+  const [extraInstruction, setExtraInstruction] = useState('')       // 추가 지시사항 오버라이드
+  const [showRirGuide,     setShowRirGuide]     = useState(false)    // RIR 가이드 아코디언
   const [isListening, setIsListening] = useState(false)         // 음성 인식 활성 여부
   const [speechSupported, setSpeechSupported] = useState(        // Web Speech API 지원 여부
     typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
   )
+  // 음성 녹음(AI 수업일지) — openRecord/sendKakao 흐름에서 사용. 직전 정리 과정에서 누락되어 복구.
+  const [audioData, setAudioData] = useState(null)        // { blob, durationSec, transcript } | null
   // V3 — 미디어 첨부
   const [mediaFiles, setMediaFiles] = useState([])       // [{id, name, type, dataUrl, sizeKB}]
   const [mediaProcessing, setMediaProcessing] = useState(false)
   const [mediaProgress, setMediaProgress] = useState('')
+  const [videoTrimFile,    setVideoTrimFile]    = useState(null)   // 현재 트리밍할 원본 File
+  const [showVideoTrimmer, setShowVideoTrimmer] = useState(false)
+  const [trimStart,        setTrimStart]        = useState(0)
+  const [trimEnd,          setTrimEnd]          = useState(30)
+  const [trimDuration,     setTrimDuration]     = useState(0)
+  const [isTrimming,       setIsTrimming]       = useState(false)
+  const [trimBlobUrl,      setTrimBlobUrl]       = useState(null)  // ObjectURL for trimmer preview
   const [previewContent, setPreviewContent] = useState('')
   const [finalContent, setFinalContent] = useState('')
   const [generating, setGenerating] = useState(false)
   const [aiStatus, setAiStatus] = useState('')
   const [showPreview, setShowPreview] = useState(false)
   const [showSend, setShowSend] = useState(false)
+  const VALID_RTABS = ['write','attendance','health','holds','personal','insight']
   const [rtab, setRtab] = useState('write')
+  // rtab setter — 유효하지 않은 값은 'write'로 강제
+  const safeSetRtab = (t) => setRtab(VALID_RTABS.includes(t) ? t : 'write')
   const [healthData, setHealthData] = useState(null)
 
   // Member sort
@@ -1593,6 +1608,10 @@ export default function TrainerApp() {
   const [showReadModal, setShowReadModal] = useState(false)
   const [expandedLogId, setExpandedLogId] = useState(null)
   const [historyDateFilter, setHistoryDateFilter] = useState('')
+  const [historyOffset, setHistoryOffset] = useState(0)
+  const [historyHasMore, setHistoryHasMore] = useState(true)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyFiltered, setHistoryFiltered] = useState(null) // null = 페이징 목록 사용
 
   // Settings tab — leaderboard
   const [leaderboard, setLeaderboard] = useState(null)
@@ -1603,11 +1622,8 @@ export default function TrainerApp() {
   const [plansList, setPlansList] = useState(null)
 
   // 1:1 문의
-  const [inquiries,      setInquiries]      = useState([])
-  const [inqLoading,     setInqLoading]     = useState(false)
-  const [inqSubmitting,  setInqSubmitting]  = useState(false)
-  const [inqForm,        setInqForm]        = useState({ category:'general', title:'', content:'' })
-  const [inqSelected,    setInqSelected]    = useState(null)   // 상세 보기용
+  // (제거됨) inquiries / inqLoading / inqSubmitting / inqForm / inqSelected
+  //   — 1:1 문의 탭이 카카오 채널 외부 우회로 전환되어 내부 state 불필요
 
   // Revenue tab — tooltip
   const [revTooltip, setRevTooltip] = useState(null)
@@ -1618,8 +1634,9 @@ export default function TrainerApp() {
   const [profileUploading, setProfileUploading] = useState(false)
   const profileInputRef = useRef(null)
   const recognitionRef = useRef(null)  // Web Speech API 인스턴스
-  const ffmpegRef     = useRef(null)  // FFmpeg.wasm 인스턴스 (lazy load)
   const mediaInputRef = useRef(null)  // 미디어 파일 input
+  const trimVideoRef  = useRef(null)  // 트리머 모달 <video> 요소
+  const pendingTrimFilesRef = useRef([]) // 트리머 대기 파일 큐
 
   // Revenue tab — 월별 총 결제액
   const [payMonthStr, setPayMonthStr] = useState(() => {
@@ -1629,6 +1646,10 @@ export default function TrainerApp() {
   const [payMonthData, setPayMonthData] = useState(null)
   const [payMonthLoading, setPayMonthLoading] = useState(false)
   const [revenueRefreshKey, setRevenueRefreshKey] = useState(0)
+  // 회원별 누적/최근 결제 캐시 (N+1 방지를 위해 단일 배치 쿼리로 채움)
+  const [revenueByMember, setRevenueByMember] = useState({}) // { [memberId]: { confirmed:number, recentPays: row[] } }
+  // 상품 등록/취소 연타 방어용 가드
+  const [paymentBusy, setPaymentBusy] = useState(false)
 
   // Add member form
   const [addForm, setAddForm] = useState({name:'',kakao_phone:'',phone:'',birthdate:'',address:'',email:'',special_notes:'',purpose:'체형교정',visit_source:'',visit_source_memo:'',total:'',done:'0',price:'',memo:''})
@@ -1644,8 +1665,9 @@ export default function TrainerApp() {
   const [sessionInfoOpen, setSessionInfoOpen] = useState(false)
 
   // Attendance
-  const [attendanceDates, setAttendanceDates] = useState([]) // [{id, attended_date}]
-  const [attendanceMonth, setAttendanceMonth] = useState(() => { const n=new Date(); return {y:n.getFullYear(),m:n.getMonth()} })
+  const [attendanceDates,  setAttendanceDates]  = useState([]) // [{id, attended_date}]
+  const [attendanceMonth,  setAttendanceMonth]  = useState(() => { const n=new Date(); return {y:n.getFullYear(),m:n.getMonth()} })
+  const [todayAttendSet,   setTodayAttendSet]   = useState(new Set()) // 오늘 출석한 회원 ID Set
 
   // Products & Payments
   const [products, setProducts] = useState([])
@@ -1683,9 +1705,10 @@ export default function TrainerApp() {
   const [exName, setExName] = useState('')
   const [newSets, setNewSets] = useState([])
   const [editingExId, setEditingExId] = useState(null)
-  const [setReps, setSetReps] = useState('')
-  const [setRir, setSetRir] = useState('')
-  const [setFeel, setSetFeel] = useState('')
+  const [setWeight, setSetWeight] = useState('')
+  const [setReps,   setSetReps]   = useState('')
+  const [setRir,    setSetRir]    = useState('')
+  const [setFeel,   setSetFeel]   = useState('')
 
   // 센터 연동 (가입 요청)
   const [gymSearchQuery,   setGymSearchQuery]   = useState('')
@@ -1747,11 +1770,12 @@ export default function TrainerApp() {
   const [agreedAI,      setAgreedAI]      = useState(false) // 음성·AI 처리 동의
 
 
-  useEffect(() => { localStorage.setItem('tl_sch', JSON.stringify(blocks)) }, [blocks])
-
-  // 알림 설정 localStorage 동기화
-  useEffect(() => { localStorage.setItem('tl_notif_enabled', notifEnabled) }, [notifEnabled])
-  useEffect(() => { localStorage.setItem('tl_notif_minutes', notifMinutes) }, [notifMinutes])
+  // 스케줄 + 알림 설정 localStorage 동기화 — 3개 effect → 1개로 통합
+  useEffect(() => {
+    localStorage.setItem('tl_sch', JSON.stringify(blocks))
+    localStorage.setItem('tl_notif_enabled', notifEnabled)
+    localStorage.setItem('tl_notif_minutes', notifMinutes)
+  }, [blocks, notifEnabled, notifMinutes])
 
   // 알림 체크 인터벌 (30초마다)
   useEffect(() => {
@@ -1831,8 +1855,11 @@ export default function TrainerApp() {
 
     setProfileUploading(true)
     try {
+      // Storage RLS: 첫 폴더 = auth.uid()::text 강제 (trainer.auth_id == auth.uid())
+      const authUid = trainer?.auth_id || null
+      if (!authUid) throw new Error('프로필 사진 업로드는 로그인 후 가능해요')
       const ext = file.name.split('.').pop().toLowerCase() || 'jpg'
-      const path = `trainer_${trainer.id}_${Date.now()}.${ext}`
+      const path = `${authUid}/${Date.now()}.${ext}`
 
       // Storage 업로드
       const { error: upErr } = await supabase.storage
@@ -1883,8 +1910,9 @@ export default function TrainerApp() {
   async function loadAiUsage(tid) {
     try {
       const { data, error } = await supabase.rpc('get_ai_usage', { p_trainer_id: tid })
-      if (!error && data) setAiUsage(data)
-    } catch(_) {}
+      if (error) { console.warn('[loadAiUsage] AI 사용량 조회 실패:', error.message); return }
+      if (data) setAiUsage(data)
+    } catch(e) { console.warn('[loadAiUsage] 오류:', e.message) }
   }
 
   // 중앙 Gemini API 키 + 긴급문의 링크 로드 (앱 마운트 시 1회)
@@ -1938,29 +1966,33 @@ export default function TrainerApp() {
     try {
       // 구독 상태 확인
       const now = new Date().toISOString()
-      const { data: sub } = await supabase
+      const { data: sub, error: subErr } = await supabase
         .from('subscriptions')
         .select('id')
         .eq('trainer_id', trainerId)
         .gt('valid_until', now)
         .maybeSingle()
-      setIsPaid(!!sub)
+      if (subErr) { console.warn('[loadFeatureGates] 구독 조회 실패:', subErr.message) }
+      else setIsPaid(!!sub)
       // 관리자가 설정한 feature gates 불러오기
-      const { data: fg } = await supabase.from('app_settings').select('value').eq('key', 'feature_gates').maybeSingle()
-      if (fg?.value?.free && fg?.value?.paid) setFeatureGates(fg.value)
-    } catch(_) {}
+      const { data: fg, error: fgErr } = await supabase.from('app_settings').select('value').eq('key', 'feature_gates').maybeSingle()
+      if (fgErr) { console.warn('[loadFeatureGates] 게이트 설정 조회 실패:', fgErr.message) }
+      else if (fg?.value?.free && fg?.value?.paid) setFeatureGates(fg.value)
+    } catch(e) { console.warn('[loadFeatureGates] 오류:', e.message) }
   }
 
   async function _loginWithRecord(t) {
     setTrainer(t); setCredits(t.credits ?? 0); setScreen('app')
     showToast('✓ 환영해요, ' + t.name + ' 트레이너님!')
     try {
-      const { data: libData } = await supabase.from('workout_routines').select('*')
+      const { data: libData, error: libErr } = await supabase.from('workout_routines').select('*')
         .eq('trainer_id', t.id).is('member_id', null).order('created_at', { ascending: false })
-      setTrainerLibraryRoutines(libData || [])
-    } catch(_) {}
-    try { loadAiUsage(t.id) } catch(_) {}
-    try { await loadFeatureGates(t.id) } catch(_) {}
+      if (libErr) console.warn('[_loginWithRecord] 루틴 라이브러리 로드 실패:', libErr.message)
+      else setTrainerLibraryRoutines(libData || [])
+    } catch(e) { console.warn('[_loginWithRecord] 루틴 라이브러리 오류:', e.message) }
+    // loadAiUsage / loadFeatureGates 는 각 함수 내부에서 에러를 처리함 — 래퍼 불필요
+    loadAiUsage(t.id)
+    loadFeatureGates(t.id)
   }
 
   async function register() {
@@ -2020,17 +2052,25 @@ export default function TrainerApp() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  useEffect(() => { if (trainer) { loadMembers(); loadLogs(); loadProducts() } }, [trainer])
+  useEffect(() => {
+    if (trainer) {
+      loadMembers()    // 완료 후 내부에서 computeAllRiskScores 호출
+      loadLogs()
+      loadProducts()
+      loadTodayAttendance()  // 오늘 출석 — loadMembers와 독립적으로 병렬 실행
+    }
+  }, [trainer])
 
   async function loadMembers() {
     const { data } = await supabase.from('members').select('*').eq('trainer_id', trainer.id).order('created_at', { ascending: false })
     setMembers(data || [])
-    // 회원 목록 로드 후 백그라운드에서 리스크 점수 일괄 계산
-    computeAllRiskScores(data || [])
+    computeAllRiskScores(data || [])  // 리스크 점수는 회원 데이터 필요 → 직후 호출
+    // loadTodayAttendance 는 useEffect에서 명시적으로 독립 호출됨
   }
 
   async function computeAllRiskScores(memberList) {
-    const active = memberList.filter(m => !m.suspended)
+    // members.suspended 컬럼 부재 — 전체 회원 대상으로 계산
+    const active = (memberList || [])
     if (!active.length) return
     try {
       const [logsAll, healthAll, attendAll] = await Promise.all([
@@ -2052,8 +2092,52 @@ export default function TrainerApp() {
     } catch (_) { /* 백그라운드 계산 실패 시 무시 */ }
   }
   async function loadLogs() {
-    const { data } = await supabase.from('logs').select('*').eq('trainer_id', trainer.id).order('created_at', { ascending: false }).limit(50)
-    setLogs(data || [])
+    setHistoryLoading(true)
+    const { data } = await supabase
+      .from('logs')
+      .select('id, created_at, read_at, report_id, member_id, members(name)')
+      .eq('trainer_id', trainer.id)
+      .order('created_at', { ascending: false })
+      .range(0, 19)
+    const rows = data || []
+    setLogs(rows)
+    setHistoryOffset(rows.length)
+    setHistoryHasMore(rows.length === 20)
+    setHistoryFiltered(null)
+    setHistoryLoading(false)
+  }
+
+  async function loadMoreHistory() {
+    if (historyLoading || !historyHasMore) return
+    setHistoryLoading(true)
+    const from = historyOffset
+    const { data } = await supabase
+      .from('logs')
+      .select('id, created_at, read_at, report_id, member_id, members(name)')
+      .eq('trainer_id', trainer.id)
+      .order('created_at', { ascending: false })
+      .range(from, from + 19)
+    const rows = data || []
+    setLogs(prev => [...prev, ...rows])
+    setHistoryOffset(prev => prev + rows.length)
+    setHistoryHasMore(rows.length === 20)
+    setHistoryLoading(false)
+  }
+
+  async function loadHistoryFiltered(dateStr) {
+    if (!dateStr) { setHistoryFiltered(null); return }
+    setHistoryLoading(true)
+    const fromTs = dateStr + 'T00:00:00'
+    const toTs   = dateStr + 'T23:59:59.999'
+    const { data } = await supabase
+      .from('logs')
+      .select('id, created_at, read_at, report_id, member_id, members(name)')
+      .eq('trainer_id', trainer.id)
+      .gte('created_at', fromTs)
+      .lte('created_at', toTs)
+      .order('created_at', { ascending: false })
+    setHistoryFiltered(data || [])
+    setHistoryLoading(false)
   }
 
   async function loadProducts() {
@@ -2062,10 +2146,17 @@ export default function TrainerApp() {
     setProducts(data || [])
   }
 
-  // 주간 리더보드 로드
+  // 주간 리더보드 로드 (소속 센터 gym_id로 격리, 무제한 fetch 차단)
   async function loadLeaderboard() {
     setLbLoading(true)
     try {
+      // 자기 센터에 소속이 없으면 리더보드 자체를 노출하지 않음 (스코프 누수 방지)
+      const myGymId = trainer?.gym_id
+      if (!myGymId) {
+        setLeaderboard({ list: [], totalLogs: 0, totalRead: 0, overallRate: 0 })
+        return
+      }
+
       // 이번 주 월요일 0시
       const now = new Date()
       const daysFromMon = (now.getDay() + 6) % 7
@@ -2073,13 +2164,35 @@ export default function TrainerApp() {
       monday.setDate(now.getDate() - daysFromMon)
       monday.setHours(0, 0, 0, 0)
 
-      const [logsRes, trainersRes] = await Promise.all([
-        supabase.from('logs').select('trainer_id, read_at').gte('created_at', monday.toISOString()),
-        supabase.from('trainers').select('id, name'),
-      ])
-      const weekLogs = logsRes.data || []
+      // ① 우리 센터 트레이너 명단 (이름 매핑 + log 필터 화이트리스트)
+      const { data: gymTrainers, error: trainersErr } = await supabase
+        .from('trainers')
+        .select('id, name')
+        .eq('gym_id', myGymId)
+        .limit(500)
+      if (trainersErr) throw trainersErr
       const trainerMap = {}
-      ;(trainersRes.data || []).forEach(t => { trainerMap[t.id] = t.name })
+      const allowedIds = new Set()
+      ;(gymTrainers || []).forEach(t => {
+        trainerMap[t.id] = t.name
+        allowedIds.add(String(t.id))
+      })
+      if (allowedIds.size === 0) {
+        setLeaderboard({ list: [], totalLogs: 0, totalRead: 0, overallRate: 0 })
+        return
+      }
+
+      // ② 동일 센터 트레이너의 이번 주 로그만 조회 (gym_id 격리 + 상한)
+      const { data: logsData, error: logsErr } = await supabase
+        .from('logs')
+        .select('trainer_id, read_at')
+        .gte('created_at', monday.toISOString())
+        .in('trainer_id', Array.from(allowedIds))
+        .limit(5000)
+      if (logsErr) throw logsErr
+
+      // 방어적 후처리: 우리 센터 ID 화이트리스트로 한 번 더 필터
+      const weekLogs = (logsData || []).filter(l => allowedIds.has(String(l.trainer_id)))
 
       const grouped = {}
       weekLogs.forEach(l => {
@@ -2100,8 +2213,13 @@ export default function TrainerApp() {
       const totalRead = weekLogs.filter(l => l.read_at).length
       const overallRate = weekLogs.length > 0 ? Math.round(totalRead / weekLogs.length * 100) : 0
       setLeaderboard({ list, totalLogs: weekLogs.length, totalRead, overallRate })
-    } catch(_) { setLeaderboard(null) }
-    setLbLoading(false)
+    } catch(e) {
+      setLeaderboard(null)
+      showToast('리더보드 데이터를 불러오지 못했어요')
+      console.warn('[loadLeaderboard] 오류:', e?.message)
+    } finally {
+      setLbLoading(false)
+    }
   }
   useEffect(() => {
     if (tab === 'settings' && trainer) {
@@ -2112,14 +2230,36 @@ export default function TrainerApp() {
 
   async function loadPlanSettings() {
     try {
-      const { data } = await supabase.from('app_settings').select('key, value').in('key', ['plan_guide_visible', 'plans'])
+      const { data, error } = await supabase.from('app_settings').select('key, value').in('key', ['plan_guide_visible', 'plans'])
+      if (error) { console.warn('[loadPlanSettings] 플랜 설정 조회 실패:', error.message); return }
       if (data) {
         const vis  = data.find(r => r.key === 'plan_guide_visible')
         const plns = data.find(r => r.key === 'plans')
-        if (vis  != null) setPlanGuideVisible(vis.value)
-        if (plns != null) setPlansList(plns.value)
+
+        // ── String Boolean 함정 방어 ──
+        // DB 에 저장된 값이 jsonb 'false' 또는 stringified '"false"' 인 경우
+        // 그대로 setState 하면 'false' 문자열이 Truthy 로 평가되어 가드를 무력화한다.
+        // 정확히 true/'true' 일 때만 노출, 그 외(false/'false'/null/숫자 등)는 모두 숨김.
+        if (vis != null) {
+          let raw = vis.value
+          // jsonb 컬럼이 stringified JSON 으로 저장된 케이스(예: '"false"') 안전 디시리얼라이즈
+          if (typeof raw === 'string') {
+            try { raw = JSON.parse(raw) } catch { /* 원본 string 유지 */ }
+          }
+          const isVisible = (raw === true || raw === 'true')
+          setPlanGuideVisible(isVisible)
+        }
+
+        // plans 도 동일 패턴으로 jsonb/string 양형 호환 안전 파싱
+        if (plns != null) {
+          let plansRaw = plns.value
+          if (typeof plansRaw === 'string') {
+            try { plansRaw = JSON.parse(plansRaw) } catch { plansRaw = null }
+          }
+          if (Array.isArray(plansRaw)) setPlansList(plansRaw)
+        }
       }
-    } catch(_) {}
+    } catch(e) { console.warn('[loadPlanSettings] 오류:', e.message) }
   }
 
   // 월별 총 결제액 로드
@@ -2137,11 +2277,45 @@ export default function TrainerApp() {
         .lt('paid_at', end)
       const total = (data||[]).reduce((s,p) => s+(p.amount||0), 0)
       setPayMonthData({ total, count: (data||[]).length })
-    } catch(_) { setPayMonthData(null) }
-    setPayMonthLoading(false)
+    } catch(e) {
+      setPayMonthData(null)
+      showToast('결제 내역을 불러오지 못했어요')
+      console.warn('[loadMonthPayments] 오류:', e.message)
+    } finally {
+      setPayMonthLoading(false)
+    }
   }
   useEffect(() => { if (tab === 'revenue' && trainer) loadMonthPayments(payMonthStr) }, [tab, payMonthStr])
-  useEffect(() => { if (tab === 'support' && trainer) loadInquiries() }, [tab])
+
+  // 매출 탭에서 회원별 누적/최근 결제를 단일 배치 쿼리로 채워둠 (N+1 방지)
+  useEffect(() => {
+    if (tab !== 'revenue' || !trainer || !members.length) return
+    const memberIds = members.map(m => m.id)
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { data, error } = await supabase
+          .from('payments')
+          .select('id, member_id, amount, paid_at, product_name')
+          .in('member_id', memberIds)
+          .order('paid_at', { ascending: false })
+        if (error) throw error
+        if (cancelled) return
+        const grouped = {}
+        ;(data || []).forEach(p => {
+          if (!grouped[p.member_id]) grouped[p.member_id] = { confirmed: 0, recentPays: [] }
+          grouped[p.member_id].confirmed += (p.amount || 0)
+          if (grouped[p.member_id].recentPays.length < 3) grouped[p.member_id].recentPays.push(p)
+        })
+        memberIds.forEach(id => { if (!grouped[id]) grouped[id] = { confirmed: 0, recentPays: [] } })
+        setRevenueByMember(grouped)
+      } catch (e) {
+        console.warn('[revenueByMember] 배치 로드 실패:', e?.message)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [tab, trainer, members, revenueRefreshKey])
+  // (제거됨) 1:1 문의 탭은 카카오 채널 외부 우회 — 내부 DB(inquiries) 호출 없음
 
   // ── 승인된 센터명 조회 (gym_id → gyms.name) ─────────────────
   useEffect(() => {
@@ -2195,31 +2369,7 @@ export default function TrainerApp() {
     showToast('요청을 취소했어요')
   }
 
-  async function loadInquiries() {
-    if (!trainer?.id) return
-    setInqLoading(true)
-    const { data } = await supabase.from('inquiries')
-      .select('*').eq('trainer_id', trainer.id)
-      .order('created_at', { ascending: false })
-    setInquiries(data || [])
-    setInqLoading(false)
-  }
-  async function submitInquiry() {
-    if (!inqForm.title.trim())   return showToast('제목을 입력해주세요')
-    if (!inqForm.content.trim()) return showToast('내용을 입력해주세요')
-    setInqSubmitting(true)
-    const { error } = await supabase.from('inquiries').insert({
-      trainer_id: trainer.id,
-      category:   inqForm.category,
-      title:      inqForm.title.trim(),
-      content:    inqForm.content.trim(),
-    })
-    setInqSubmitting(false)
-    if (error) return showToast('문의 등록 중 오류가 발생했습니다')
-    showToast('✓ 문의가 접수됐습니다')
-    setInqForm({ category:'general', title:'', content:'' })
-    loadInquiries()
-  }
+  // (제거됨) loadInquiries / submitInquiry — 1:1 문의는 카카오 채널 외부 우회로 전환되어 내부 DB 저장 0건.
 
   async function loadPayments(memberId) {
     const { data } = await supabase.from('payments').select('*').eq('member_id', memberId).order('paid_at', { ascending: false })
@@ -2247,12 +2397,14 @@ export default function TrainerApp() {
     } catch(e) { showToast('오류: ' + e.message) }
   }
   async function addPayment() {
+    if (paymentBusy) return
     const f = paymentForm
     const prod = products.find(p => p.id === f.productId)
     if (!prod) { showToast('상품을 선택해주세요'); return }
     const amount = f.taxIncluded ? (prod.price_incl_tax||prod.price_excl_tax) : prod.price_excl_tax
+    setPaymentBusy(true)
     try {
-      await supabase.from('payments').insert({
+      const { error: insErr } = await supabase.from('payments').insert({
         trainer_id: trainer.id, member_id: currentMemberId,
         product_id: prod.id, product_name: prod.name,
         session_count: prod.session_count, amount,
@@ -2260,27 +2412,53 @@ export default function TrainerApp() {
         payment_method: f.paymentMethod || 'card',
         payment_method_memo: (['payments_app','local_currency'].includes(f.paymentMethod) && f.paymentMethodMemo) ? f.paymentMethodMemo : null
       })
+      if (insErr) throw insErr
       // 회원 total_sessions 업데이트
       const m = members.find(x => x.id === currentMemberId)
-      await supabase.from('members').update({ total_sessions: (m?.total_sessions||0) + prod.session_count }).eq('id', currentMemberId)
+      const { error: updErr } = await supabase.from('members')
+        .update({ total_sessions: (m?.total_sessions||0) + prod.session_count })
+        .eq('id', currentMemberId)
+      if (updErr) throw updErr
       await loadMembers(); await loadPayments(currentMemberId)
       setPaymentForm({productId:'',memo:'',taxIncluded:false,paymentMethod:'card',paymentMethodMemo:''})
       setRevenueRefreshKey(k => k + 1)
       loadMonthPayments(payMonthStr)
-      showToast('✓ 결제가 등록됐어요')
-    } catch(e) { showToast('오류: ' + e.message) }
+      showToast('✓ 상품 등록이 완료됐어요')
+    } catch(e) {
+      console.error('상품 등록 오류:', e)
+      showToast('오류: ' + (e?.message || '상품 등록 실패'))
+    } finally {
+      setPaymentBusy(false)
+    }
   }
+
   async function deletePayment(payment) {
+    if (paymentBusy) return
+    // 이중 안전장치: 모달 확인 후에도 window.confirm으로 한 번 더 검증
+    const guard = window.confirm(
+      '⚠️ 상품 등록 취소 시 해당 회원의 잔여 세션 수가 자동으로 역산(차감)됩니다.\n정말 취소하시겠습니까?'
+    )
+    if (!guard) return
+    setPaymentBusy(true)
     try {
-      await supabase.from('payments').delete().eq('id', payment.id)
+      const { error: delErr } = await supabase.from('payments').delete().eq('id', payment.id)
+      if (delErr) throw delErr
       // 회원 total_sessions 복원
       const m = members.find(x => x.id === currentMemberId)
-      await supabase.from('members').update({ total_sessions: Math.max(0,(m?.total_sessions||0) - payment.session_count) }).eq('id', currentMemberId)
+      const { error: updErr } = await supabase.from('members')
+        .update({ total_sessions: Math.max(0,(m?.total_sessions||0) - payment.session_count) })
+        .eq('id', currentMemberId)
+      if (updErr) throw updErr
       await loadMembers(); await loadPayments(currentMemberId)
       setRevenueRefreshKey(k => k + 1)
       loadMonthPayments(payMonthStr)
-      showToast('결제가 취소됐어요')
-    } catch(e) { showToast('오류: ' + e.message) }
+      showToast('상품 등록이 취소됐어요')
+    } catch(e) {
+      console.error('상품 등록 취소 오류:', e)
+      showToast('오류: ' + (e?.message || '취소 실패'))
+    } finally {
+      setPaymentBusy(false)
+    }
   }
 
   // Hold (정지/홀딩)
@@ -2296,12 +2474,18 @@ export default function TrainerApp() {
       const prod = products.find(p => p.id === f.productId)
       let photoUrl = null
       if (f.photoFile) {
-        const ext = f.photoFile.name.split('.').pop()
-        const path = `holds/${trainer.id}/${Date.now()}.${ext}`
-        const { error: upErr } = await supabase.storage.from('hold-photos').upload(path, f.photoFile)
-        if (!upErr) {
-          const { data: urlData } = supabase.storage.from('hold-photos').getPublicUrl(path)
-          photoUrl = urlData.publicUrl
+        // Storage RLS: 첫 폴더 = auth.uid()::text 강제 (trainer.auth_id == auth.uid())
+        const authUid = trainer?.auth_id || null
+        if (!authUid) {
+          showToast('정지 사진 업로드는 로그인 후 가능해요')
+        } else {
+          const ext = f.photoFile.name.split('.').pop()
+          const path = `${authUid}/${Date.now()}.${ext}`
+          const { error: upErr } = await supabase.storage.from('hold-photos').upload(path, f.photoFile)
+          if (!upErr) {
+            const { data: urlData } = supabase.storage.from('hold-photos').getPublicUrl(path)
+            photoUrl = urlData.publicUrl
+          }
         }
       }
       const { error: insertErr } = await supabase.from('member_holds').insert({
@@ -2311,10 +2495,8 @@ export default function TrainerApp() {
         reason: f.reason || null, photo_url: photoUrl
       })
       if (insertErr) throw insertErr
-      // 회원 상태 정지 처리
-      await supabase.from('members').update({ suspended: true }).eq('id', currentMemberId)
+      // members.suspended 컬럼 부재 — DB update 차단, member_holds 만으로 정지 상태 추적
       await loadMembers(); await loadHolds(currentMemberId)
-      setEditMemberForm(prev => prev.id === currentMemberId ? {...prev, suspended: true} : prev)
       setHoldModal(false)
       showToast('✓ 정지(홀딩)가 등록됐어요')
     } catch(e) { showToast('오류: ' + e.message) }
@@ -2324,13 +2506,8 @@ export default function TrainerApp() {
     try {
       const { error: delErr } = await supabase.from('member_holds').delete().eq('id', holdId)
       if (delErr) throw delErr
-      // 남은 홀딩 없으면 정지 해제
-      const { data: remaining } = await supabase.from('member_holds').select('id').eq('member_id', mId)
-      if (!remaining?.length) {
-        await supabase.from('members').update({ suspended: false }).eq('id', mId)
-        await loadMembers()
-        setEditMemberForm(prev => prev.id === mId ? {...prev, suspended: false} : prev)
-      }
+      // members.suspended 컬럼 부재 — 정지 해제 update 차단, member_holds 삭제만으로 처리
+      await loadMembers()
       await loadHolds(mId)
       showToast('정지가 해제됐어요')
     } catch(e) { showToast('오류: ' + e.message) }
@@ -2352,6 +2529,41 @@ export default function TrainerApp() {
       await supabase.from('attendance').insert({ trainer_id: trainer.id, member_id: currentMemberId, attended_date: dateStr })
     }
     await loadAttendance(currentMemberId)
+  }
+
+  // 오늘 출석한 회원 ID 목록 로드 (회원 리스트 퀵 액션용)
+  async function loadTodayAttendance() {
+    if (!trainer?.id) return
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const { data } = await supabase
+      .from('attendance')
+      .select('member_id')
+      .eq('trainer_id', trainer.id)
+      .eq('attended_date', todayStr)
+    setTodayAttendSet(new Set((data || []).map(a => a.member_id)))
+  }
+
+  // 회원 카드에서 오늘 출석 즉시 토글 (별도 페이지 이동 없음)
+  async function quickToggleToday(e, memberId) {
+    e.stopPropagation()
+    const todayStr = new Date().toISOString().slice(0, 10)
+    if (todayAttendSet.has(memberId)) {
+      // 취소
+      const { data: existing } = await supabase
+        .from('attendance').select('id')
+        .eq('member_id', memberId).eq('attended_date', todayStr).maybeSingle()
+      if (existing) await supabase.from('attendance').delete().eq('id', existing.id)
+      setTodayAttendSet(prev => { const next = new Set(prev); next.delete(memberId); return next })
+      showToast('출석 취소됐어요')
+    } else {
+      // 등록
+      const { error } = await supabase.from('attendance')
+        .insert({ trainer_id: trainer.id, member_id: memberId, attended_date: todayStr })
+      if (!error) {
+        setTodayAttendSet(prev => new Set([...prev, memberId]))
+        showToast('✓ 오늘 출석 완료!')
+      }
+    }
   }
   useEffect(() => { if (rtab === 'attendance' && currentMemberId) loadAttendance(currentMemberId) }, [rtab, attendanceMonth, currentMemberId])
 
@@ -2383,9 +2595,19 @@ export default function TrainerApp() {
     } catch(e) { showToast('오류: ' + e.message) }
   }
 
+  // openRecord — 회원 카드 onClick 에서 호출되는 음성 일지 기록 진입점.
+  // setAudioData 등 모든 setter 는 TrainerApp 컴포넌트(L1508~) 의 같은 closure 안에서 정의되어 있어
+  // ReferenceError 가 발생할 수 없는 구조. 안전망으로 setter 존재 여부를 한 번 더 검증한다.
   function openRecord(memberId) {
-    setCurrentMemberId(memberId); setExercises([]); setActivePage('page-record')
-    setAudioData(null); setShowPreview(false); setShowSend(false); setRawInput(''); setFinalContent(''); setRtab('write')
+    setCurrentMemberId(memberId)
+    setExercises([])
+    setActivePage('page-record')
+    if (typeof setAudioData === 'function') setAudioData(null)
+    if (typeof setShowPreview === 'function') setShowPreview(false)
+    if (typeof setShowSend === 'function') setShowSend(false)
+    if (typeof setRawInput === 'function') setRawInput('')
+    if (typeof setFinalContent === 'function') setFinalContent('')
+    safeSetRtab('write')
     loadHolds(memberId)
   }
 
@@ -2398,7 +2620,7 @@ export default function TrainerApp() {
       visit_source: m.visit_source||'', visit_source_memo: m.visit_source_memo||'',
       total: String(m.total_sessions||0), done: String(m.done_sessions||0),
       price: String(m.session_price||0), memo: m.memo||'',
-      suspended: m.suspended||false
+      // suspended 필드 제거 — members.suspended 컬럼 부재
     })
     loadHolds(m.id)
     setSessionAdvOpen(false)
@@ -2437,11 +2659,13 @@ export default function TrainerApp() {
   }
 
   // === EXERCISES ===
-  function openAddExercise() { setNewSets([]); setEditingExId(null); setExName(''); setSetReps(''); setSetRir(''); setSetFeel(''); setExModal(true) }
+  function openAddExercise() { setNewSets([]); setEditingExId(null); setExName(''); setSetWeight(''); setSetReps(''); setSetRir(''); setSetFeel(''); setExModal(true) }
   function addSet() {
     if (!setReps) { showToast('횟수를 입력해주세요'); return }
-    setNewSets([...newSets, { reps: setReps, rir: setRir, feel: setFeel }])
-    setSetReps(''); setSetRir(''); setSetFeel('')
+    const safeWeight = setWeight.trim() !== '' ? setWeight.trim() : ''
+    const safeReps   = setReps.trim()   !== '' ? setReps.trim()   : '0'
+    setNewSets([...newSets, { weight: safeWeight, reps: safeReps, rir: setRir, feel: setFeel }])
+    setSetWeight(''); setSetReps(''); setSetRir(''); setSetFeel('')
   }
   function confirmAddExercise() {
     if (!exName) { showToast('운동 종목명을 입력해주세요'); return }
@@ -2514,55 +2738,132 @@ export default function TrainerApp() {
     })
   }
 
-  /** FFmpeg.wasm으로 동영상 → GIF 변환 (10초·480px·8fps) */
-  async function convertVideoToGif(file) {
-    // FFmpeg lazy load (최초 1회만 CDN에서 다운로드)
-    if (!ffmpegRef.current) {
-      const { FFmpeg }     = await import('@ffmpeg/ffmpeg')
-      const { toBlobURL }  = await import('@ffmpeg/util')
-      const ff = new FFmpeg()
-      const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm'
-      ff.on('progress', ({ progress }) => {
-        setMediaProgress(`변환 중... ${Math.round(Math.min(progress, 1) * 100)}%`)
-      })
-      await ff.load({
-        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`,   'text/javascript'),
-        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-      })
-      ffmpegRef.current = ff
-    }
-    const ff = ffmpegRef.current
-    const { fetchFile } = await import('@ffmpeg/util')
-
-    const ext = file.name.split('.').pop().toLowerCase() || 'mp4'
-    const inName  = `input.${ext}`
-    const outName = 'output.gif'
-
-    setMediaProgress('파일 로딩 중...')
-    await ff.writeFile(inName, await fetchFile(file))
-
-    setMediaProgress('GIF 변환 시작...')
-    // 팔레트 최적화 2-pass GIF (고품질, 파일 크기 절충)
-    await ff.exec([
-      '-i', inName,
-      '-t', '10',
-      '-vf', 'fps=8,scale=480:-2:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=64[p];[s1][p]paletteuse=dither=bayer',
-      '-loop', '0',
-      outName,
-    ])
-
-    const data = await ff.readFile(outName)
-    await ff.deleteFile(inName)
-    await ff.deleteFile(outName)
-
-    const blob   = new Blob([data.buffer], { type: 'image/gif' })
-    const sizeKB = Math.round(blob.size / 1024)
-    const reader = new FileReader()
-    return new Promise((resolve, reject) => {
-      reader.onload  = e => resolve({ dataUrl: e.target.result, sizeKB })
-      reader.onerror = reject
-      reader.readAsDataURL(blob)
+  /** 영상 길이 조회 */
+  function getVideoDuration(file) {
+    return new Promise(resolve => {
+      const video = document.createElement('video')
+      video.preload = 'metadata'
+      video.onloadedmetadata = () => { resolve(video.duration); URL.revokeObjectURL(video.src) }
+      video.onerror = () => resolve(0)
+      video.src = URL.createObjectURL(file)
     })
+  }
+
+  /** 시간 포맷 (초 → mm:ss) */
+  function fmtTime(sec) {
+    const s = Math.floor(sec)
+    return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`
+  }
+
+  /** MediaRecorder로 영상 구간 추출 (데스크탑/Android Chrome 지원) */
+  function trimVideoSegment(file, startSec, endSec) {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video')
+      video.muted = false
+      video.playsInline = true
+      video.preload = 'auto'
+      video.addEventListener('loadedmetadata', () => {
+        try {
+          const stream = video.captureStream ? video.captureStream()
+                       : video.mozCaptureStream ? video.mozCaptureStream()
+                       : null
+          if (!stream) { reject(new Error('captureStream 미지원 (iOS)'));  return }
+
+          const types = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm']
+          const mime   = types.find(t => MediaRecorder.isTypeSupported(t)) || 'video/webm'
+          const recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 2_000_000 })
+          const chunks = []
+          recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data) }
+          recorder.onstop = () => {
+            stream.getTracks().forEach(t => t.stop())
+            URL.revokeObjectURL(video.src)
+            const blob = new Blob(chunks, { type: mime.split(';')[0] })
+            resolve(blob)
+          }
+          video.currentTime = startSec
+          video.addEventListener('seeked', () => {
+            recorder.start(200)
+            video.play()
+            const durationMs = (endSec - startSec) * 1000
+            setTimeout(() => { video.pause(); recorder.stop() }, durationMs + 300)
+          }, { once: true })
+        } catch(e) { reject(e) }
+      }, { once: true })
+      video.onerror = () => reject(new Error('영상 로드 실패'))
+      video.src = URL.createObjectURL(file)
+    })
+  }
+
+  /** 트리머 모달 열기 */
+  function openVideoTrimmer(file) {
+    const url = URL.createObjectURL(file)
+    setVideoTrimFile(file)
+    setTrimBlobUrl(url)
+    setTrimStart(0)
+    setTrimEnd(30)
+    setTrimDuration(0)
+    setShowVideoTrimmer(true)
+    setMediaProcessing(false)
+    setMediaProgress('')
+    getVideoDuration(file).then(d => {
+      setTrimDuration(d)
+      setTrimEnd(Math.min(30, d))
+    })
+  }
+
+  /** 트리머 적용 */
+  async function applyVideoTrim() {
+    if (!videoTrimFile) return
+    setIsTrimming(true)
+    setMediaProgress(`영상 편집 중... (${Math.round(trimEnd - trimStart)}초 구간)`)
+    try {
+      const blob    = await trimVideoSegment(videoTrimFile, trimStart, trimEnd)
+      const blobUrl = URL.createObjectURL(blob)
+      const sizeKB  = Math.round(blob.size / 1024)
+      setMediaFiles(prev => [...prev, {
+        id: Date.now() + Math.random(),
+        name: videoTrimFile.name,
+        type: blob.type || 'video/webm',
+        dataUrl: blobUrl,
+        sizeKB,
+        isVideo: true,
+        blob,
+      }])
+      closeVideoTrimmer()
+      showToast(`✓ ${Math.round(trimEnd - trimStart)}초 영상이 첨부됐어요`)
+    } catch(e) {
+      // iOS / 미지원 환경 폴백: 원본 그대로 첨부
+      console.warn('영상 트림 실패, 원본 첨부:', e.message)
+      const blobUrl = URL.createObjectURL(videoTrimFile)
+      setMediaFiles(prev => [...prev, {
+        id: Date.now() + Math.random(),
+        name: videoTrimFile.name,
+        type: videoTrimFile.type || 'video/mp4',
+        dataUrl: blobUrl,
+        sizeKB: Math.round(videoTrimFile.size / 1024),
+        isVideo: true,
+        blob: videoTrimFile,
+        trimStart,
+        trimEnd,
+      }])
+      closeVideoTrimmer()
+      showToast('영상을 원본 그대로 첨부했어요 (브라우저 편집 미지원)')
+    } finally {
+      setIsTrimming(false)
+      setMediaProgress('')
+    }
+    // 다음 대기 파일 처리
+    if (pendingTrimFilesRef.current.length > 0) {
+      const next = pendingTrimFilesRef.current.shift()
+      openVideoTrimmer(next)
+    }
+  }
+
+  /** 트리머 닫기 */
+  function closeVideoTrimmer() {
+    setShowVideoTrimmer(false)
+    setVideoTrimFile(null)
+    if (trimBlobUrl) { URL.revokeObjectURL(trimBlobUrl); setTrimBlobUrl(null) }
   }
 
   /** 파일 선택 핸들러 — 이미지/동영상 분기 처리 */
@@ -2574,48 +2875,53 @@ export default function TrainerApp() {
       if (mediaInputRef.current) mediaInputRef.current.value = ''
       return
     }
+    if (mediaInputRef.current) mediaInputRef.current.value = ''
 
     setMediaProcessing(true)
     setMediaProgress('미디어를 앱에 맞게 최적화하고 있습니다 ⏳')
 
-    const results = []
+    const results    = []
+    const videoQueue = []  // 30초 초과 영상 → 트리머 큐
+
     for (const file of files) {
-      try {
-        const isVideo = file.type.startsWith('video/')
-        let dataUrl, sizeKB, isFallback = false
-
-        if (isVideo) {
-          setMediaProgress(`동영상 처리 중: ${file.name}`)
-          try {
-            ;({ dataUrl, sizeKB } = await convertVideoToGif(file))
-          } catch (ffErr) {
-            console.warn('FFmpeg 변환 실패, 썸네일 폴백 사용:', ffErr.message)
-            ;({ dataUrl, sizeKB, isFallback } = await extractVideoThumbnail(file))
-            showToast('동영상은 첫 프레임 이미지로 저장됐어요 (움짤 변환 미지원 환경)')
-          }
+      const isVideo = file.type.startsWith('video/')
+      if (isVideo) {
+        const dur = await getVideoDuration(file)
+        if (dur > 30) {
+          videoQueue.push(file)   // 트리머 처리
         } else {
-          setMediaProgress(`이미지 압축 중: ${file.name}`)
-          ;({ dataUrl, sizeKB } = await compressImage(file))
+          // 30초 이하 영상 — 그대로 첨부
+          const blobUrl = URL.createObjectURL(file)
+          results.push({
+            id: Date.now() + Math.random(),
+            name: file.name,
+            type: file.type || 'video/mp4',
+            dataUrl: blobUrl,
+            sizeKB: Math.round(file.size / 1024),
+            isVideo: true,
+            blob: file,
+          })
         }
-
-        results.push({
-          id:       Date.now() + Math.random(),
-          name:     file.name,
-          type:     isVideo ? (isFallback ? 'image/webp' : 'image/gif') : 'image/webp',
-          dataUrl,
-          sizeKB,
-          isVideo,
-          isFallback,
-        })
-      } catch (err) {
-        showToast(`${file.name} 처리 실패: ${err.message}`)
+      } else {
+        setMediaProgress(`이미지 압축 중: ${file.name}`)
+        try {
+          const { dataUrl, sizeKB } = await compressImage(file)
+          results.push({ id: Date.now() + Math.random(), name: file.name, type: 'image/webp', dataUrl, sizeKB, isVideo: false })
+        } catch(err) {
+          showToast(`${file.name} 처리 실패: ${err.message}`)
+        }
       }
     }
 
-    setMediaFiles(prev => [...prev, ...results])
+    if (results.length > 0) setMediaFiles(prev => [...prev, ...results])
     setMediaProcessing(false)
     setMediaProgress('')
-    if (mediaInputRef.current) mediaInputRef.current.value = ''
+
+    // 트리머 큐 처리
+    if (videoQueue.length > 0) {
+      pendingTrimFilesRef.current = videoQueue.slice(1)
+      openVideoTrimmer(videoQueue[0])
+    }
   }
 
   function removeMedia(id) {
@@ -2703,33 +3009,39 @@ export default function TrainerApp() {
     setGenerating(true); setShowPreview(false); setShowSend(false)
     setAiStatus('AI가 회원님을 위한 맞춤형 리포트를 작성하고 있습니다...')
     try {
+      const combinedInput = extraInstruction?.trim()
+        ? (rawInput || '') + '\n\n[추가 지시사항]\n' + extraInstruction.trim()
+        : (rawInput || '')
       const prompt = buildSessionLogPrompt({
         trainer,
         member:      m,
         exercises,
-        rawInput,
+        rawInput:    combinedInput,
         hasAudio:    false,
-        perspective: perspectiveInput,
+        perspective: perspectiveChip || 'rehab',
       })
 
       const text = await callGemini(key, GEMINI_MODEL, prompt, { timeoutMs: 45000 })
 
       setShowPreview(true); setPreviewContent(text); setFinalContent(text); setShowSend(true)
-
-      // ── V3 미디어 페이로드 번들링 (Supabase 전송 준비) ──────
-      // mediaFiles 는 이미 state에 보관됨 (압축 완료된 { id, name, type, dataUrl, sizeKB }[])
-      // 실제 업로드 시 아래 payload 를 사용:
-      // const payload = { summary: text, media: mediaFiles }
-      // await supabase.storage.from('session-media').upload(...)
-      // ─────────────────────────────────────────────────────────
+      // mediaFiles 는 state에 보관됨. 미디어 Storage 업로드 + DB logs INSERT는
+      // sendKakao() 에서 수행됨 (생성 미리보기 → 확인 → 전송 흐름)
 
       showToast('✦ 수업일지 생성 완료!')
 
       // ── 크레딧 차감 ──────────────────────────────────────
       try {
-        const { data: result } = await supabase.rpc('use_ai_credit', { p_trainer_id: trainer.id })
-        if (result?.success) setCredits(result.credits)
-      } catch(_) {}
+        const { data: result, error: creditErr } = await supabase.rpc('use_ai_credit', { p_trainer_id: trainer.id })
+        if (creditErr) {
+          showToast('크레딧 차감에 실패했어요')
+          console.warn('[generateLog] use_ai_credit 오류:', creditErr.message)
+        } else if (result?.success) {
+          setCredits(result.credits)
+        }
+      } catch(e) {
+        showToast('크레딧 차감 중 오류가 발생했어요')
+        console.warn('[generateLog] use_ai_credit catch:', e.message)
+      }
       // ─────────────────────────────────────────────────────
     } catch(e) {
       showToast('오류: ' + e.message)
@@ -2742,20 +3054,127 @@ export default function TrainerApp() {
 
   // === SEND ===
   async function sendKakao() {
-    const m = currentMember; if (!finalContent) { showToast('먼저 수업일지를 생성해주세요'); return }
+    const m = currentMember
+    if (!finalContent) { showToast('먼저 수업일지를 생성해주세요'); return }
     const reportId = Date.now().toString(36) + Math.random().toString(36).substr(2,5)
     try {
-      const exData = exercises.map(ex => ({ name: ex.name, sets: ex.sets.map(s => ({reps:s.reps,rir:s.rir,feel:s.feel,weight:s.weight||''})) }))
-      const { error: logErr } = await supabase.from('logs').insert({ trainer_id:trainer.id, member_id:currentMemberId, content:finalContent, session_number:m.done_sessions+1, report_id:reportId, exercises_data:exData })
+      const exData = exercises.map(ex => ({
+        name: ex.name,
+        sets: ex.sets.map(s => ({
+          weight: s.weight != null && s.weight !== '' ? String(s.weight) : '',
+          reps:   s.reps   != null && s.reps   !== '' ? String(s.reps)   : '0',
+          rir:    s.rir    != null                    ? s.rir             : '',
+          feel:   s.feel   || '',
+        })),
+      }))
+
+      // ── 미디어 업로드 (session-media 버킷) ───────────────────────────────
+      // 업로드 실패 시 즉시 에러를 throw — 빈값이 DB에 저장되는 것을 차단한다
+      const mediaPayload = []
+      for (const mf of mediaFiles) {
+        let blob
+        try {
+          blob = mf.blob instanceof Blob ? mf.blob
+               : await fetch(mf.dataUrl).then(r => r.blob())
+        } catch (fetchErr) {
+          throw new Error(`미디어 읽기 실패 (${mf.id}): ${fetchErr.message}`)
+        }
+        const ext  = mf.type.includes('webm') ? 'webm' : mf.isVideo ? 'mp4' : 'webp'
+        const path = `${trainer.id}/${reportId}/${mf.id}.${ext}`
+        console.log('[sendKakao] 스토리지 업로드 시도:', path, '| size:', blob.size, 'bytes')
+        const { error: upErr } = await supabase.storage
+          .from('session-media')
+          .upload(path, blob, { contentType: mf.type, upsert: false })
+        if (upErr) {
+          throw new Error(`미디어 업로드 실패 (${path}): ${upErr.message}`)
+        }
+        const { data: { publicUrl } } = supabase.storage.from('session-media').getPublicUrl(path)
+        console.log('[sendKakao] 업로드 완료:', publicUrl)
+        mediaPayload.push({ url: publicUrl, type: mf.isVideo ? 'video' : 'image' })
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
+      // ─── SoT(단일 진실원) 통합 ──────────────────────────────────────────
+      // 운동 데이터(exData)는 workout_sessions(SoT) 1곳에만 JSONB로 저장하고,
+      // logs 테이블에는 session_id 참조만 남긴다. logs.exercises_data 는 더 이상 사용 안 함(Payload 경량화).
+      // 사전조건: supabase_cleanup_cron.sql 로 logs.session_id 컬럼이 추가돼 있어야 함.
+      let sotSessionId = null
+      try {
+        const exArr = Array.isArray(exData) ? exData : []
+        if (exArr.length > 0) {
+          const cleanExArr = exArr
+            .filter(e => e && (e.name || '').toString().trim())
+            .map(({ localId, ...rest }) => rest)
+          if (cleanExArr.length > 0) {
+            const totalVolume = (cleanExArr || []).reduce((tot, ex) => {
+              const sets = ex?.sets || []
+              return tot + sets.reduce((s, set) => s + ((parseFloat(set?.weight) || 0) * (parseInt(set?.reps) || 0)), 0)
+            }, 0)
+            const today = new Date().toISOString().split('T')[0]
+            const { data: sotRow, error: sotErr } = await supabase
+              .from('workout_sessions')
+              .insert({
+                member_id:    currentMemberId,
+                trainer_id:   trainer.id,
+                source:       'trainer',
+                title:        null,
+                workout_date: today,
+                duration_min: null,
+                memo:         null,
+                exercises:    cleanExArr,
+                total_volume: totalVolume,
+              })
+              .select('id')
+              .single()
+            if (sotErr) {
+              console.warn('[sendKakao] SoT workout_sessions insert 실패:', sotErr.message)
+            } else if (sotRow?.id) {
+              sotSessionId = sotRow.id
+            }
+          }
+        }
+      } catch (sotE) {
+        console.warn('[sendKakao] SoT 처리 중 예외:', sotE?.message)
+      }
+
+      // logs 인서트 — 무거운 JSONB 제거, session_id 참조만 보유 (Payload 경량화)
+      const insertData = {
+        trainer_id:     trainer.id,
+        member_id:      currentMemberId,
+        content:        finalContent,
+        session_number: m.done_sessions + 1,
+        report_id:      reportId,
+        session_id:     sotSessionId,   // ← SoT 참조 (workout_sessions.id)
+        media_urls:     mediaPayload,   // [] or [{url, type}, ...]
+      }
+      console.log('[sendKakao] DB Insert Payload:', JSON.stringify(insertData, null, 2))
+
+      const { error: logErr } = await supabase.from('logs').insert(insertData)
       if (logErr) throw new Error('일지 저장 실패: ' + logErr.message)
-      const { error: memErr } = await supabase.from('members').update({ done_sessions: m.done_sessions+1 }).eq('id', currentMemberId)
-      if (memErr) console.warn('세션 카운트 업데이트 실패:', memErr.message)
+
+      const { error: memErr } = await supabase.from('members')
+        .update({ done_sessions: m.done_sessions + 1 })
+        .eq('id', currentMemberId)
+      if (memErr) console.warn('[sendKakao] 세션 카운트 업데이트 실패:', memErr.message)
+
       await loadMembers(); await loadLogs()
-      const reportUrl = window.location.origin + '/report?id=' + reportId
-      const kakaoMsg = m.name + ' 회원님, 오늘 수업 리포트가 도착했어요! 👇\n' + reportUrl
-      navigator.clipboard.writeText(kakaoMsg).then(() => showToast('✓ 일지 저장 완료! 링크 복사됨 — 카카오톡에 붙여넣기 하세요')).catch(()=>{})
-      setTimeout(() => { setShowSend(false); setShowPreview(false); setAudioData(null); setRawInput(''); setPerspectiveInput(''); setFinalContent(''); setExercises([]) }, 1500)
-    } catch(e) { showToast('오류: ' + e.message) }
+      showToast('📱 회원 앱으로 일지가 전송되었습니다.')
+      setTimeout(() => {
+        // 모든 setter 는 TrainerApp closure 내부 정의 — 안전망으로 존재 여부 검증 후 호출
+        if (typeof setShowSend === 'function') setShowSend(false)
+        if (typeof setShowPreview === 'function') setShowPreview(false)
+        if (typeof setAudioData === 'function') setAudioData(null)
+        if (typeof setRawInput === 'function') setRawInput('')
+        if (typeof setPerspectiveChip === 'function') setPerspectiveChip('rehab')
+        if (typeof setExtraInstruction === 'function') setExtraInstruction('')
+        if (typeof setFinalContent === 'function') setFinalContent('')
+        if (typeof setExercises === 'function') setExercises([])
+        if (typeof setMediaFiles === 'function') setMediaFiles([])
+      }, 1500)
+    } catch(e) {
+      console.error('[sendKakao] 오류:', e)
+      showToast('오류: ' + e.message)
+    }
   }
 
   async function saveSettings() {
@@ -2945,7 +3364,7 @@ export default function TrainerApp() {
     const totalSlots = (EH-SH)*60/SMIN; const totalPx = totalSlots*SPX
     return (
       <div className="sg-wrap">
-        <div className="sg" style={{display:'grid',gridTemplateColumns:'40px repeat(7,1fr)',minWidth:'480px'}}>
+        <div className="sg" style={{display:'grid',gridTemplateColumns:'48px repeat(7, minmax(88px, 1fr))',minWidth:'664px'}}>
           <div className="sg-th-e" style={{height:'36px'}}></div>
           {dates.map((d,i) => {
             const isToday = dStr(d)===todayStr
@@ -2995,6 +3414,58 @@ export default function TrainerApp() {
   // === 매출관리 ===
   function renderRevenue() {
     if (!members.length) return <div style={{textAlign:'center',padding:'40px',color:'var(--text-dim)'}}>회원을 먼저 추가해주세요</div>
+
+    // ── 페이월 (무료 플랜) ──────────────────────────────────────
+    if (!canUse('revenue_tab')) {
+      const FAKE_PAYS = [
+        { name:'김지수', product:'PT 30회', method:'💳 카드',  amount:900000, date:'5월 2일' },
+        { name:'이민호', product:'PT 20회', method:'💵 현금',  amount:600000, date:'4월 28일' },
+        { name:'박수빈', product:'그룹 10회',method:'📱 페이', amount:200000, date:'4월 25일' },
+      ]
+      return (
+        <div style={{ position:'relative', borderRadius:'16px', overflow:'hidden', minHeight:'480px' }}>
+          {/* ── 흐릿한 가짜 배경 ── */}
+          <div style={{ filter:'blur(5px)', opacity:0.3, pointerEvents:'none', userSelect:'none' }}>
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'14px', padding:'20px 18px', marginBottom:'10px' }}>
+              <div style={{ fontSize:'11px', color:'var(--text-dim)', marginBottom:'4px' }}>이번 달 총 결제액</div>
+              <div style={{ fontSize:'38px', fontWeight:800, color:'#60a5fa' }}>1,700,000원</div>
+              <div style={{ fontSize:'11px', color:'var(--text-muted)' }}>12건 결제</div>
+            </div>
+            {FAKE_PAYS.map((p,i) => (
+              <div key={i} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'11px 13px', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'10px', marginBottom:'7px' }}>
+                <div style={{ width:'30px', height:'30px', borderRadius:'50%', background:'var(--accent)', color:'#0f0f0f', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:'13px', flexShrink:0 }}>{p.name[0]}</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:'13px', fontWeight:600 }}>{p.name} · {p.product}</div>
+                  <div style={{ fontSize:'11px', color:'var(--text-muted)' }}>{p.method} · {p.date}</div>
+                </div>
+                <div style={{ fontSize:'13px', fontWeight:700, color:'var(--accent)' }}>{p.amount.toLocaleString()}원</div>
+              </div>
+            ))}
+          </div>
+          {/* ── 중앙 오버레이 ── */}
+          <div style={{
+            position:'absolute', inset:0,
+            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+            background:'rgba(10,10,10,0.65)', backdropFilter:'blur(2px)',
+            padding:'32px 28px', textAlign:'center',
+            borderRadius:'16px',
+          }}>
+            <div style={{ fontSize:'44px', marginBottom:'16px' }}>🔒</div>
+            <div style={{ fontSize:'17px', fontWeight:800, color:'#f9fafb', marginBottom:'10px', letterSpacing:'-0.3px' }}>
+              프리미엄 전용 기능입니다
+            </div>
+            <div style={{ fontSize:'13px', color:'#9ca3af', lineHeight:1.75, marginBottom:'24px' }}>
+              월별 매출 추이와 자동 정산 기능을<br/>사용해보세요!
+            </div>
+            <div style={{ fontSize:'11px', color:'#6b7280', background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'10px', padding:'10px 16px', lineHeight:1.6 }}>
+              💡 설정 → 플랜에서 업그레이드 후 이용할 수 있어요
+            </div>
+          </div>
+        </div>
+      )
+    }
+    // ───────────────────────────────────────────────────────────
+
     const now = new Date()
     const weekStart = new Date(now); weekStart.setDate(now.getDate()-(now.getDay()||7)+1); weekStart.setHours(0,0,0,0)
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -3016,7 +3487,53 @@ export default function TrainerApp() {
     }
     return (
       <div>
-        {/* 새로고침 버튼 */}
+
+        {/* ── Hero: 이번 달 총 결제액 ── */}
+        {(() => {
+          const [py, pm] = payMonthStr.split('-').map(Number)
+          const isCurrentMonth = py === new Date().getFullYear() && pm === new Date().getMonth()+1
+          return (
+            <div className="card" style={{marginBottom:'14px',padding:'20px 18px'}}>
+              <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'8px' }}>
+                <div>
+                  <div style={{ fontSize:'11px', fontWeight:600, color:'var(--text-dim)', marginBottom:'6px', letterSpacing:'0.04em', textTransform:'uppercase' }}>
+                    {isCurrentMonth ? '이번 달' : `${py}년 ${pm}월`} 총 결제액
+                  </div>
+                  <div style={{ fontSize:'36px', fontWeight:800, color:'var(--accent-text)', lineHeight:1, fontFamily:"'DM Mono',monospace" }}>
+                    {payMonthLoading ? '—' : (payMonthData?.total ?? 0).toLocaleString()}
+                    <span style={{ fontSize:'16px', fontWeight:400, color:'var(--text-muted)', marginLeft:'4px' }}>원</span>
+                  </div>
+                  <div style={{ fontSize:'12px', color:'var(--text-muted)', marginTop:'6px' }}>
+                    {payMonthLoading ? '조회 중...' : `${payMonthData?.count ?? 0}건 결제`}
+                  </div>
+                </div>
+                {/* 월 선택 버튼 */}
+                <div style={{ position:'relative', flexShrink:0 }}>
+                  <button title="월 선택" style={{
+                    width:'34px', height:'34px', borderRadius:'9px',
+                    border:'1px solid var(--border)', background:'var(--surface2)',
+                    color:'var(--text-muted)', fontSize:'16px', cursor:'pointer',
+                    display:'flex', alignItems:'center', justifyContent:'center', padding:0,
+                  }}>📅
+                    <input type="month" value={payMonthStr}
+                      max={new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0')}
+                      onChange={e=>{ if(e.target.value) setPayMonthStr(e.target.value) }}
+                      style={{ position:'absolute', inset:0, opacity:0, cursor:'pointer', width:'100%', height:'100%' }}
+                    />
+                  </button>
+                </div>
+              </div>
+              {/* 진행 바 */}
+              <div style={{ marginTop:'14px', height:'3px', background:'var(--border)', borderRadius:'2px', overflow:'hidden' }}>
+                <div style={{ height:'100%', background:'var(--accent)',
+                  width: (payMonthData?.total ?? 0) > 0 ? '100%' : '0%',
+                  transition:'width 0.6s ease', borderRadius:'2px' }} />
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* 새로고침 버튼 (원래 헤더 — 텍스트만 유지) */}
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'14px'}}>
           <div className="section-label" style={{margin:0}}>전체 매출 현황</div>
           <button
@@ -3074,59 +3591,6 @@ export default function TrainerApp() {
                     <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'3px'}}>{sub}</div>
                   </div>
                 ))}
-              </div>
-            )
-          })()}
-          {/* ── 월별 총 결제액 카드 ── */}
-          {(() => {
-            const [py, pm] = payMonthStr.split('-').map(Number)
-            const label = `${py}년 ${pm}월 총 결제액`
-            return (
-              <div className="card" style={{marginBottom:0,padding:'16px',position:'relative'}}>
-                <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'10px'}}>
-                  <span style={{fontSize:'12px',fontWeight:700,color:'var(--text)',flex:1}}>{label}</span>
-                  {/* 달력 버튼 */}
-                  <div style={{position:'relative'}}>
-                    <button
-                      title="월 선택"
-                      style={{
-                        width:'30px',height:'30px',borderRadius:'8px',
-                        border:'1px solid var(--border)',background:'var(--surface2)',
-                        color:'var(--text-muted)',fontSize:'15px',cursor:'pointer',
-                        display:'flex',alignItems:'center',justifyContent:'center',padding:0,
-                      }}
-                    >
-                      📅
-                      <input
-                        type="month"
-                        value={payMonthStr}
-                        max={new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0')}
-                        onChange={e=>{ if(e.target.value) setPayMonthStr(e.target.value) }}
-                        style={{
-                          position:'absolute',inset:0,opacity:0,cursor:'pointer',
-                          width:'100%',height:'100%',
-                        }}
-                      />
-                    </button>
-                  </div>
-                </div>
-                <div style={{display:'flex',alignItems:'flex-end',gap:'10px'}}>
-                  <div style={{fontSize:'28px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'#34d399',lineHeight:1}}>
-                    {payMonthLoading ? '—' : (payMonthData?.total??0).toLocaleString()}
-                    <span style={{fontSize:'14px',fontWeight:400,color:'var(--text-muted)',marginLeft:'3px'}}>원</span>
-                  </div>
-                  <div style={{fontSize:'11px',color:'var(--text-muted)',paddingBottom:'3px'}}>
-                    {payMonthLoading ? '조회 중...' : `${payMonthData?.count??0}건 결제`}
-                  </div>
-                </div>
-                <div style={{marginTop:'10px',height:'2px',background:'var(--border)',borderRadius:'1px',overflow:'hidden'}}>
-                  <div style={{height:'100%',background:'#34d399',borderRadius:'1px',
-                    width: payMonthData?.total > 0 ? '100%' : '0%',
-                    transition:'width 0.6s ease'}} />
-                </div>
-                <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'5px'}}>
-                  payments 테이블에 등록된 실제 결제 금액 기준이에요.
-                </div>
               </div>
             )
           })()}
@@ -3246,12 +3710,14 @@ export default function TrainerApp() {
               const cancelledBlocks = blocks.filter(b => b.memberId===m.id && b.cancelled)
               const remain = m.total_sessions - m.done_sessions
               const pct = m.total_sessions>0 ? Math.round((m.done_sessions/m.total_sessions)*100) : 0
+              const cached = revenueByMember[m.id]
               return (
                 <MemberRevenueCard key={m.id} m={m} mWeekLogs={mWeekLogs} mMonthLogs={mMonthLogs}
                   attendRate={attendRate} cancelledBlocks={cancelledBlocks}
                   remain={remain} pct={pct} price={price}
                   dayOfMonth={dayOfMonth} daysInMonth={daysInMonth}
-                  trainerId={trainer?.id}
+                  confirmed={cached ? cached.confirmed : null}
+                  recentPays={cached ? cached.recentPays : []}
                   onOpenPayment={()=>{
                     setCurrentMemberId(m.id)
                     setPaymentTab('pay')
@@ -3572,24 +4038,117 @@ export default function TrainerApp() {
   }
 
   // === MAIN APP ===
+  // 하단 탭이 있는 메인 페이지 목록 (서브페이지에서는 탭 숨김)
+  const MAIN_PAGES = ['page-members','page-history','page-schedule','page-revenue','page-settings','page-support']
+  const TAB_LABELS = {members:'회원',history:'발송기록',schedule:'시간표',revenue:'매출관리',settings:'설정',support:'문의'}
+  const TAB_ICONS = {
+    members: (active) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+        stroke={active?'#10B981':'#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+      </svg>
+    ),
+    history: (active) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+        stroke={active?'#10B981':'#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/>
+        <line x1="16" y1="17" x2="8" y2="17"/>
+        <line x1="10" y1="9" x2="8" y2="9"/>
+      </svg>
+    ),
+    schedule: (active) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+        stroke={active?'#10B981':'#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/>
+        <line x1="8" y1="2" x2="8" y2="6"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+    ),
+    revenue: (active) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+        stroke={active?'#10B981':'#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="12" y1="1" x2="12" y2="23"/>
+        <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+      </svg>
+    ),
+    settings: (active) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+        stroke={active?'#10B981':'#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+      </svg>
+    ),
+    support: (active) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+        stroke={active?'#10B981':'#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+      </svg>
+    ),
+  }
   return (
-    <div>
+    <div style={{paddingBottom: MAIN_PAGES.includes(activePage) ? '72px' : '0'}}>
+      {/* 최초 로그인 1회 약관 동의 모달 (user_metadata.terms_agreed 미설정 시 강제 노출) */}
+      <TermsAgreementModal />
       <div className="topbar-t">
         <div className="topbar-left"><Link to="/" style={{background:'none',border:'none',color:'var(--text-muted)',fontSize:'18px',textDecoration:'none'}}>⌂</Link><div className="topbar-title">오<span>운</span></div></div>
         <button className="settings-btn" onClick={()=>setSettingsModal(true)}>⚙ AI 설정</button>
       </div>
-      <div className="tabs-t">
-        {['members','history','schedule','revenue','settings','support'].map(t => {
-          const TAB_GATE = { history:'history_tab', schedule:'schedule_tab', revenue:'revenue_tab' }
-          const locked = TAB_GATE[t] && !canUse(TAB_GATE[t])
-          return (
-            <div key={t} className={`tab-t${tab===t?' active':''}${locked?' tab-locked':''}`} onClick={()=>showTabFn(t)} style={locked?{opacity:0.55}:{}}>
-              {{members:'회원',history:'발송기록',schedule:'시간표',revenue:'매출관리',settings:'설정',support:'문의'}[t]}
-              {locked && <span style={{fontSize:'9px',marginLeft:'3px'}}>🔒</span>}
-            </div>
-          )
-        })}
-      </div>
+
+      {/* ── 하단 고정 네비게이션 ── */}
+      {MAIN_PAGES.includes(activePage) && (
+        <div style={{
+          position:'fixed', bottom:0, left:0, right:0, zIndex:200,
+          background:'#fff',
+          borderTop:'1px solid #E5E7EB',
+          display:'flex',
+          boxShadow:'0 -2px 16px rgba(0,0,0,0.07)',
+          paddingBottom:'env(safe-area-inset-bottom)',
+        }}>
+          {['members','history','schedule','revenue','settings','support'].map(t => {
+            const TAB_GATE = { history:'history_tab', schedule:'schedule_tab', revenue:'revenue_tab' }
+            const locked = TAB_GATE[t] && !canUse(TAB_GATE[t])
+            const active = tab === t
+            return (
+              <button
+                key={t}
+                onClick={() => showTabFn(t)}
+                style={{
+                  flex:1, display:'flex', flexDirection:'column',
+                  alignItems:'center', justifyContent:'center',
+                  gap:'3px', padding:'9px 2px 7px',
+                  border:'none', background:'none',
+                  cursor: locked ? 'not-allowed' : 'pointer',
+                  fontFamily:'inherit',
+                  transition:'color 0.15s', minHeight:'54px',
+                  position:'relative',
+                  opacity: locked ? 0.5 : 1,
+                }}
+              >
+                {active && (
+                  <span style={{
+                    position:'absolute', top:0, left:'50%', transform:'translateX(-50%)',
+                    width:'28px', height:'2.5px', borderRadius:'0 0 3px 3px',
+                    background:'#10B981',
+                  }}/>
+                )}
+                {TAB_ICONS[t](active)}
+                <span style={{
+                  fontSize:'9.5px', fontWeight: active ? 700 : 400, lineHeight:1,
+                  color: active ? '#10B981' : '#9CA3AF',
+                }}>
+                  {TAB_LABELS[t]}
+                  {locked && <span style={{marginLeft:'2px'}}>🔒</span>}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {/* MEMBERS LIST */}
       {activePage === 'page-members' && (
@@ -3627,14 +4186,14 @@ export default function TrainerApp() {
           {members.length > 0 && (() => {
             // 상태 계산
             function getStatus(m) {
-              if (m.suspended) return 'suspended'
+              // members.suspended 컬럼 부재 — 잔여 세션 기반으로만 분기
               const r = m.total_sessions - m.done_sessions
               if (r <= 0) return 'expired'
               if (r <= 3) return 'expiring'
               return 'active'
             }
-            const STATUS_LABEL = { active:'활성', expiring:'만료예정', expired:'만료', suspended:'정지' }
-            const STATUS_COLOR = { active:'#4ade80', expiring:'#f97316', expired:'#ef4444', suspended:'#9ca3af' }
+            const STATUS_LABEL = { active:'활성', expiring:'만료예정', expired:'만료' }
+            const STATUS_COLOR = { active:'#4ade80', expiring:'#f97316', expired:'#ef4444' }
             // 필터 + 정렬
             const searchQ = memberSearch.trim().toLowerCase()
             const filtered = [...members].filter(m => {
@@ -3645,16 +4204,20 @@ export default function TrainerApp() {
               if (memberFilter === '전체') return true
               if (memberFilter === '활성') return s === 'active' || s === 'expiring'
               if (memberFilter === '만료') return s === 'expired'
-              if (memberFilter === '정지') return s === 'suspended'
               if (memberFilter === '이탈위험') {
                 const rs = riskMap[m.id]
                 return rs && (rs.riskLevel === 'risk' || rs.riskLevel === 'critical')
               }
               return true
             }).sort((a,b) => {
-              if (memberSort === 'name') return a.name.localeCompare(b.name, 'ko')
+              if (memberSort === 'name')   return a.name.localeCompare(b.name, 'ko')
               if (memberSort === 'expire') return (a.total_sessions-a.done_sessions) - (b.total_sessions-b.done_sessions)
-              if (memberSort === 'risk') return (riskMap[b.id]?.riskScore ?? 0) - (riskMap[a.id]?.riskScore ?? 0)
+              if (memberSort === 'risk')   return (riskMap[b.id]?.riskScore ?? 0) - (riskMap[a.id]?.riskScore ?? 0)
+              // 기본(created) 정렬: 이탈 위험도 critical/risk를 최상단 고정 후 등록일 내림차순
+              const RISK_ORDER = { critical:0, risk:1, watch:2, safe:3 }
+              const aOrd = RISK_ORDER[riskMap[a.id]?.riskLevel ?? 'safe'] ?? 3
+              const bOrd = RISK_ORDER[riskMap[b.id]?.riskLevel ?? 'safe'] ?? 3
+              if (aOrd !== bOrd) return aOrd - bOrd
               return new Date(b.created_at) - new Date(a.created_at)
             })
             return (
@@ -3829,34 +4392,112 @@ export default function TrainerApp() {
                   </div>
                 )}
                 {filtered.map(m => {
-                  const status = getStatus(m)
-                  const pct = m.total_sessions>0?Math.round((m.done_sessions/m.total_sessions)*100):0
-                  const remain = m.total_sessions-m.done_sessions; const low = remain<=3
+                  const status     = getStatus(m)
+                  const remain     = m.total_sessions - m.done_sessions
+                  const pct        = m.total_sessions > 0 ? Math.round((m.done_sessions / m.total_sessions) * 100) : 0
+                  const low        = remain <= 3
                   const riskResult = riskMap[m.id]
-                  const riskLv = riskResult ? getRiskLevel(riskResult.riskScore) : null
+                  const riskLv     = riskResult ? getRiskLevel(riskResult.riskScore) : null
+                  // 좌측 컬러바 색상: critical→빨강, risk→주황, watch→노랑, safe/없음→투명
+                  const barColor   = riskLv && riskResult.riskLevel !== 'safe' ? riskLv.color : 'transparent'
+                  const isAttendedToday = todayAttendSet.has(m.id)
                   return (
-                    <div key={m.id} className="member-card" onClick={()=>openRecord(m.id)}>
-                      <div className="member-avatar" style={riskLv && riskResult.riskLevel !== 'safe' ? {boxShadow:`0 0 0 2px ${riskLv.color}66`} : {}}>
-                        {m.name[0]}
-                      </div>
-                      <div className="member-info">
-                        <div className="member-name" style={{display:'flex',alignItems:'center',gap:'6px',flexWrap:'wrap'}}>
-                          <span style={{fontSize:'10px',fontWeight:600,padding:'1px 6px',borderRadius:'4px',background: STATUS_COLOR[status]+'22',color: STATUS_COLOR[status],border:`1px solid ${STATUS_COLOR[status]}44`,flexShrink:0}}>
-                            {STATUS_LABEL[status]}
-                          </span>
-                          {riskLv && riskResult.riskLevel !== 'safe' && (
-                            <span style={{fontSize:'10px',fontWeight:700,padding:'1px 5px',borderRadius:'4px',background: riskLv.bg,color: riskLv.color,border:`1px solid ${riskLv.color}44`,flexShrink:0}}>
-                              {riskLv.emoji} {riskResult.riskScore}
-                            </span>
-                          )}
-                          {m.name}
+                    <div
+                      key={m.id}
+                      onClick={() => openRecord(m.id)}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderLeft: `3.5px solid ${barColor}`,
+                        borderRadius: '12px',
+                        padding: '13px 14px 10px',
+                        marginBottom: '8px',
+                        cursor: 'pointer',
+                        transition: 'border-color 0.15s, box-shadow 0.15s',
+                        boxShadow: riskResult?.riskLevel === 'critical' ? `0 0 0 1px ${riskLv.color}28` : 'none',
+                      }}
+                    >
+                      {/* 상단: 아바타 + 이름 + 뱃지 | 잔여 세션 */}
+                      <div style={{display:'flex',alignItems:'center',gap:'11px'}}>
+                        {/* 아바타 */}
+                        <div style={{
+                          width:'40px',height:'40px',borderRadius:'50%',flexShrink:0,
+                          background:'var(--accent)',color:'#0f0f0f',
+                          display:'flex',alignItems:'center',justifyContent:'center',
+                          fontWeight:800,fontSize:'15px',
+                        }}>
+                          {m.name[0]}
                         </div>
-                        <div className="member-meta">📱 {m.phone}{m.lesson_purpose?' · '+m.lesson_purpose:''}</div>
-                        <div className="session-bar-bg"><div className={`session-bar-fill${low?' low':''}`} style={{width:pct+'%'}}></div></div>
+                        {/* 이름 + 뱃지 */}
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:'15px',fontWeight:700,color:'var(--text)',lineHeight:1.2,marginBottom:'4px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                            {m.name}
+                          </div>
+                          <div style={{display:'flex',alignItems:'center',gap:'4px',flexWrap:'wrap'}}>
+                            <span style={{fontSize:'10px',fontWeight:600,padding:'1px 7px',borderRadius:'4px',background:STATUS_COLOR[status]+'22',color:STATUS_COLOR[status],border:`1px solid ${STATUS_COLOR[status]}44`,flexShrink:0}}>
+                              {STATUS_LABEL[status]}
+                            </span>
+                            {riskLv && riskResult.riskLevel !== 'safe' && (
+                              <span style={{fontSize:'10px',fontWeight:700,padding:'1px 6px',borderRadius:'4px',background:riskLv.bg,color:riskLv.color,border:`1px solid ${riskLv.color}44`,flexShrink:0}}>
+                                {riskLv.emoji} {riskLv.label}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {/* 잔여 세션 수 */}
+                        <div style={{textAlign:'right',flexShrink:0}}>
+                          <div style={{fontSize:'22px',fontWeight:800,lineHeight:1,color: low ? '#ef4444' : 'var(--text)'}}>
+                            {remain}
+                          </div>
+                          <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'2px'}}>
+                            / {m.total_sessions}회
+                          </div>
+                        </div>
                       </div>
-                      <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
-                        <span className={`session-badge${low?' low':''}`}>{m.done_sessions}/{m.total_sessions}</span>
-                        <button className="btn btn-ghost btn-sm" style={{padding:'4px 8px',fontSize:'13px'}} onClick={e=>{e.stopPropagation();openEditMember(m)}}>✏️</button>
+
+                      {/* 세션 프로그레스 바 */}
+                      <div className="session-bar-bg" style={{marginTop:'10px',marginBottom:'0'}}>
+                        <div className={`session-bar-fill${low?' low':''}`} style={{width:pct+'%'}} />
+                      </div>
+
+                      {/* 하단: 퀵 액션 */}
+                      <div style={{display:'flex',justifyContent:'flex-end',alignItems:'center',gap:'6px',marginTop:'10px'}}>
+                        <button
+                          onClick={e => quickToggleToday(e, m.id)}
+                          style={{
+                            display:'flex',alignItems:'center',gap:'4px',
+                            padding:'5px 10px',borderRadius:'8px',border:'1px solid',
+                            fontSize:'11px',fontWeight:600,cursor:'pointer',fontFamily:'inherit',
+                            background: isAttendedToday ? 'rgba(74,222,128,0.12)' : 'var(--surface2)',
+                            color:      isAttendedToday ? '#4ade80'               : 'var(--text-muted)',
+                            borderColor:isAttendedToday ? 'rgba(74,222,128,0.4)'  : 'var(--border)',
+                            transition:'all 0.15s',
+                          }}
+                        >
+                          📅 {isAttendedToday ? '출석완료' : '출석'}
+                        </button>
+                        <button
+                          onClick={e => { e.stopPropagation(); openRecord(m.id) }}
+                          style={{
+                            display:'flex',alignItems:'center',gap:'4px',
+                            padding:'5px 10px',borderRadius:'8px',
+                            border:'1px solid rgba(59,130,246,0.35)',
+                            background:'rgba(59,130,246,0.10)',
+                            color:'#60a5fa',
+                            fontSize:'11px',fontWeight:600,cursor:'pointer',fontFamily:'inherit',
+                          }}
+                        >
+                          📝 일지
+                        </button>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          style={{padding:'5px 8px',fontSize:'13px'}}
+                          onClick={e => { e.stopPropagation(); openEditMember(m) }}
+                        >
+                          ✏️
+                        </button>
                       </div>
                     </div>
                   )
@@ -3872,13 +4513,17 @@ export default function TrainerApp() {
       {activePage === 'page-history' && (
         <div className="page-t">
           {/* 날짜 필터 바 */}
-          <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'12px'}}>
+          <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'14px'}}>
             <div style={{flex:1,position:'relative'}}>
               <span style={{position:'absolute',left:'11px',top:'50%',transform:'translateY(-50%)',fontSize:'15px',pointerEvents:'none'}}>📅</span>
               <input
                 type="date"
                 value={historyDateFilter}
-                onChange={e=>{ setHistoryDateFilter(e.target.value); setExpandedLogId(null) }}
+                onChange={e=>{
+                  const v = e.target.value
+                  setHistoryDateFilter(v)
+                  loadHistoryFiltered(v)
+                }}
                 style={{width:'100%',padding:'9px 36px 9px 36px',borderRadius:'10px',
                   border:'1px solid '+(historyDateFilter?'var(--accent)':'var(--border)'),
                   background: historyDateFilter?'rgba(200,241,53,0.06)':'var(--surface)',
@@ -3886,97 +4531,184 @@ export default function TrainerApp() {
                   fontSize:'13px',fontFamily:'inherit',boxSizing:'border-box',cursor:'pointer'}}
               />
               {historyDateFilter && (
-                <button onClick={()=>{setHistoryDateFilter('');setExpandedLogId(null)}}
+                <button
+                  onClick={()=>{ setHistoryDateFilter(''); setHistoryFiltered(null) }}
                   style={{position:'absolute',right:'10px',top:'50%',transform:'translateY(-50%)',
                     background:'none',border:'none',color:'var(--text-dim)',cursor:'pointer',fontSize:'17px',lineHeight:1,padding:0}}>
                   ×
                 </button>
               )}
             </div>
-            {historyDateFilter && (
+            {historyDateFilter && historyFiltered !== null && (
               <div style={{fontSize:'11px',color:'var(--accent)',whiteSpace:'nowrap',fontWeight:600}}>
-                {logs.filter(l=>new Date(l.created_at).toISOString().slice(0,10)===historyDateFilter).length}건
+                {historyFiltered.length}건
               </div>
             )}
           </div>
 
-          {/* 일지 목록 */}
+          {/* 타임라인 피드 */}
           {(() => {
-            const filtered = historyDateFilter
-              ? logs.filter(l => new Date(l.created_at).toISOString().slice(0,10) === historyDateFilter)
-              : logs
-            if (!logs.length) return <div className="empty"><div style={{fontSize:'36px',marginBottom:'12px'}}>📋</div><p>발송한 수업일지가 없어요.</p></div>
-            if (historyDateFilter && !filtered.length) return (
-              <div className="empty">
-                <div style={{fontSize:'32px',marginBottom:'10px'}}>🗓</div>
-                <p style={{color:'var(--text-muted)'}}>
-                  {new Date(historyDateFilter+'T00:00:00').toLocaleDateString('ko-KR',{month:'long',day:'numeric'})}에 발송된 일지가 없어요
-                </p>
-              </div>
-            )
-            return filtered.map(l => {
-            const d = new Date(l.created_at)
-            const dateStr = d.toLocaleDateString('ko-KR',{month:'short',day:'numeric'})
-            const timeStr = d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})
-            const mem = members.find(x=>x.id===l.member_id)
-            const isOpen = expandedLogId === l.id
-            return (
-              <div key={l.id}
-                onClick={()=>setExpandedLogId(isOpen ? null : l.id)}
-                style={{
-                  background:'var(--surface)',border:'1px solid var(--border)',
-                  borderRadius:'12px',marginBottom:'8px',overflow:'hidden',
-                  cursor:'pointer',transition:'border-color 0.15s',
-                  borderColor: isOpen ? 'var(--accent)' : 'var(--border)',
-                }}>
-                {/* 항상 보이는 요약 행 */}
-                <div style={{display:'flex',alignItems:'center',gap:'12px',padding:'12px 14px'}}>
-                  {/* 회원 아바타 */}
-                  <div style={{width:'34px',height:'34px',borderRadius:'50%',background:'var(--accent)',
-                    color:'#0f0f0f',display:'flex',alignItems:'center',justifyContent:'center',
-                    fontWeight:700,fontSize:'13px',flexShrink:0}}>
-                    {mem?.name?.[0] || '?'}
-                  </div>
-                  {/* 이름 + 회차 */}
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:'13px',fontWeight:600,color:'var(--text)'}}>
-                      {mem?.name || '회원'} <span style={{color:'var(--text-muted)',fontWeight:400}}>· {l.session_number}회차</span>
-                    </div>
-                    <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'1px'}}>{dateStr} {timeStr}</div>
-                  </div>
-                  {/* 열람 상태 + 화살표 */}
-                  <div style={{display:'flex',alignItems:'center',gap:'8px',flexShrink:0}}>
-                    {l.read_at
-                      ? <span style={{fontSize:'10px',color:'#4ade80',fontWeight:600,background:'rgba(74,222,128,0.1)',padding:'2px 7px',borderRadius:'6px'}}>✅ 확인</span>
-                      : <span style={{fontSize:'10px',color:'#9ca3af',background:'var(--surface2)',padding:'2px 7px',borderRadius:'6px'}}>⏳ 미확인</span>
-                    }
-                    <span style={{fontSize:'12px',color:'var(--text-dim)',transition:'transform 0.2s',
-                      display:'inline-block',transform:isOpen?'rotate(180deg)':'rotate(0deg)'}}>▼</span>
-                  </div>
+            const displayList = historyFiltered !== null ? historyFiltered : logs
+
+            // 빈 상태
+            if (!historyLoading && !displayList.length) {
+              if (historyDateFilter) return (
+                <div className="empty">
+                  <div style={{fontSize:'32px',marginBottom:'10px'}}>🗓</div>
+                  <p style={{color:'var(--text-muted)'}}>
+                    {new Date(historyDateFilter+'T00:00:00').toLocaleDateString('ko-KR',{month:'long',day:'numeric'})}에 발송된 일지가 없어요
+                  </p>
                 </div>
-                {/* 펼쳐진 전체 내용 */}
-                {isOpen && (
-                  <div style={{padding:'0 14px 14px',borderTop:'1px solid var(--border)'}}>
-                    <div style={{paddingTop:'12px',fontSize:'13px',color:'var(--text)',lineHeight:'1.8',whiteSpace:'pre-wrap',wordBreak:'break-word'}}>
-                      {l.content || '내용 없음'}
-                    </div>
-                    {l.read_at && (
-                      <div style={{marginTop:'10px',fontSize:'11px',color:'var(--text-dim)'}}>
-                        열람일: {new Date(l.read_at).toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric'})}
+              )
+              return <div className="empty"><div style={{fontSize:'36px',marginBottom:'12px'}}>📋</div><p>발송한 수업일지가 없어요.</p></div>
+            }
+
+            return (
+              <div style={{
+                background:'var(--surface)',border:'1px solid var(--border)',
+                borderRadius:'14px',overflow:'hidden',boxShadow:'var(--shadow-sm)',
+              }}>
+                {displayList.map((l, idx) => {
+                  const d   = new Date(l.created_at)
+                  const pad = n => String(n).padStart(2,'0')
+                  const dateTimeStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+                  const memberName = l.members?.name || members.find(x=>x.id===l.member_id)?.name || '(알 수 없음)'
+                  const initial    = memberName[0] || '?'
+
+                  // 읽음 배지 텍스트
+                  let readBadge
+                  if (l.read_at) {
+                    const rd  = new Date(l.read_at)
+                    const rStr = `${pad(rd.getMonth()+1)}/${pad(rd.getDate())} ${pad(rd.getHours())}:${pad(rd.getMinutes())}`
+                    readBadge = (
+                      <span style={{
+                        fontSize:'10px',fontWeight:600,whiteSpace:'nowrap',
+                        color:'#22c55e',background:'rgba(34,197,94,0.1)',
+                        border:'1px solid rgba(34,197,94,0.25)',
+                        padding:'2px 7px',borderRadius:'6px',
+                      }}>✔ 읽음 {rStr}</span>
+                    )
+                  } else {
+                    readBadge = (
+                      <span style={{
+                        fontSize:'10px',fontWeight:500,whiteSpace:'nowrap',
+                        color:'#9ca3af',background:'var(--surface2)',
+                        border:'1px solid var(--border)',
+                        padding:'2px 7px',borderRadius:'6px',
+                      }}>안 읽음</span>
+                    )
+                  }
+
+                  return (
+                    <div key={l.id} style={{
+                      display:'flex',alignItems:'center',gap:'12px',
+                      padding:'13px 14px',
+                      borderBottom: idx < displayList.length-1 ? '1px solid var(--border)' : 'none',
+                    }}>
+                      {/* 아바타 */}
+                      <div style={{
+                        width:'36px',height:'36px',borderRadius:'50%',
+                        background:'var(--accent)',color:'#111',
+                        display:'flex',alignItems:'center',justifyContent:'center',
+                        fontWeight:800,fontSize:'14px',flexShrink:0,
+                      }}>{initial}</div>
+
+                      {/* 본문 */}
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:'flex',alignItems:'center',gap:'6px',flexWrap:'wrap',marginBottom:'3px'}}>
+                          <span style={{fontSize:'13px',fontWeight:700,color:'var(--text)'}}>{memberName}</span>
+                          {readBadge}
+                        </div>
+                        <div style={{fontSize:'11px',color:'var(--text-dim)',fontFamily:"'DM Mono',monospace"}}>
+                          {dateTimeStr}
+                        </div>
                       </div>
-                    )}
-                  </div>
+
+                      {/* 링크 복사 버튼 */}
+                      <button
+                        onClick={async e => {
+                          e.stopPropagation()
+                          const url = window.location.origin + '/report?id=' + (l.report_id || l.id)
+                          try {
+                            await navigator.clipboard.writeText(url)
+                            showToast('🔗 링크가 복사되었습니다')
+                          } catch {
+                            showToast('복사에 실패했어요. 브라우저 설정을 확인해 주세요.')
+                          }
+                        }}
+                        style={{
+                          flexShrink:0,background:'none',
+                          border:'1.5px solid var(--border)',
+                          borderRadius:'8px',padding:'5px 10px',
+                          fontSize:'11px',color:'var(--text-muted)',
+                          cursor:'pointer',fontFamily:'inherit',
+                          transition:'all 0.15s',whiteSpace:'nowrap',
+                        }}
+                        onMouseEnter={e=>{ e.currentTarget.style.borderColor='#60a5fa'; e.currentTarget.style.color='#60a5fa' }}
+                        onMouseLeave={e=>{ e.currentTarget.style.borderColor='var(--border)'; e.currentTarget.style.color='var(--text-muted)' }}
+                      >🔗 링크 복사</button>
+                    </div>
+                  )
+                })}
+
+                {/* 더보기 버튼 (날짜 필터 없을 때만) */}
+                {!historyDateFilter && (
+                  historyHasMore ? (
+                    <div style={{padding:'12px 14px',borderTop:'1px solid var(--border)',textAlign:'center'}}>
+                      <button
+                        onClick={loadMoreHistory}
+                        disabled={historyLoading}
+                        style={{
+                          background:'none',border:'1.5px solid var(--border)',
+                          borderRadius:'9px',padding:'8px 20px',
+                          fontSize:'12px',color:historyLoading?'var(--text-dim)':'var(--text-muted)',
+                          cursor:historyLoading?'default':'pointer',fontFamily:'inherit',
+                          transition:'all 0.15s',
+                        }}>
+                        {historyLoading ? '불러오는 중…' : '⬇ 더보기'}
+                      </button>
+                    </div>
+                  ) : displayList.length > 0 ? (
+                    <div style={{padding:'10px',textAlign:'center',fontSize:'11px',color:'var(--text-dim)',borderTop:'1px solid var(--border)'}}>
+                      모든 발송 기록을 불러왔어요
+                    </div>
+                  ) : null
                 )}
               </div>
             )
-          })
           })()}
+
+          {/* 초기 로딩 스켈레톤 */}
+          {historyLoading && !logs.length && !historyFiltered && (
+            <div style={{display:'flex',flexDirection:'column',gap:'8px',marginTop:'4px'}}>
+              {[1,2,3].map(i=>(
+                <div key={i} style={{
+                  height:'62px',borderRadius:'14px',
+                  background:'var(--surface2)',border:'1px solid var(--border)',
+                  animation:'pulse 1.4s ease-in-out infinite',opacity:0.6,
+                }}/>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* SCHEDULE */}
       {activePage === 'page-schedule' && (
         <div className="page-t">
+          {typeof Notification !== 'undefined' && Notification.permission !== 'granted' && (
+            <div style={{
+              display:'flex', alignItems:'flex-start', gap:'10px',
+              background:'rgba(251,191,36,0.12)', border:'1px solid rgba(251,191,36,0.4)',
+              borderRadius:'10px', padding:'12px 14px', marginBottom:'12px',
+            }}>
+              <span style={{fontSize:'18px',flexShrink:0}}>⚠️</span>
+              <div style={{fontSize:'12px',color:'#fbbf24',lineHeight:1.65}}>
+                브라우저 알림 권한이 {Notification.permission === 'denied' ? '차단' : '미허용'}되어 있어 일정 푸시 알림을 받을 수 없습니다.
+                기기 설정에서 알림 권한을 허용해 주세요.
+              </div>
+            </div>
+          )}
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}}>
             <div className="week-nav">
               <button className="week-nav-btn" onClick={()=>setWeekOff(weekOff-1)}>‹</button>
@@ -4084,9 +4816,21 @@ export default function TrainerApp() {
               </div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:'15px',fontWeight:700}}>{trainer?.name} 트레이너</div>
-                <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'2px'}}>오운 이용 중</div>
+                <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'2px'}}>{trainer?.email || '오운 이용 중'}</div>
               </div>
-              <div style={{fontSize:'11px',padding:'4px 10px',borderRadius:'20px',background:'rgba(200,241,53,0.12)',color:'var(--accent)',border:'1px solid rgba(200,241,53,0.3)',fontWeight:600,flexShrink:0}}>FREE</div>
+              {isPaid ? (
+                <div style={{fontSize:'11px',padding:'4px 10px',borderRadius:'20px',
+                  background:'linear-gradient(135deg,rgba(167,139,250,0.2),rgba(251,191,36,0.18))',
+                  color:'#fbbf24',border:'1px solid rgba(251,191,36,0.4)',fontWeight:700,flexShrink:0}}>
+                  👑 Premium
+                </div>
+              ) : (
+                <div style={{fontSize:'11px',padding:'4px 10px',borderRadius:'20px',
+                  background:'var(--surface2)',color:'var(--text-muted)',
+                  border:'1px solid var(--border)',fontWeight:600,flexShrink:0}}>
+                  Free
+                </div>
+              )}
             </div>
 
             {/* 프로필 사진 버튼 행 */}
@@ -4108,60 +4852,82 @@ export default function TrainerApp() {
             </div>
           </div>
 
-          {/* ── 유료 플랜 ── */}
-          {planGuideVisible && plansList && (
-            <>
-              <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',letterSpacing:'0.08em',marginBottom:'10px'}}>💎 플랜 안내</div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:'24px'}}>
-                {plansList.map(plan => {
-                  const isOn = plan.enabled !== false
-                  return (
-                    <div key={plan.id || plan.name} style={{
-                      background: plan.highlight ? 'rgba(200,241,53,0.06)' : 'var(--surface)',
-                      border:`1px solid ${plan.highlight ? 'rgba(200,241,53,0.35)' : plan.current ? 'var(--border)' : 'rgba(96,165,250,0.3)'}`,
-                      borderRadius:'12px', position:'relative', textAlign:'center', marginTop:'10px',
-                    }}>
-                      {/* 뱃지 — 블러 영향 없이 항상 노출 */}
-                      {plan.badge && !plan.current && (
-                        <div style={{position:'absolute',top:'-9px',left:'50%',transform:'translateX(-50%)',
-                          background: plan.highlight ? 'var(--accent)' : '#60a5fa',
-                          color:'#0f0f0f',fontSize:'8px',fontWeight:700,padding:'2px 7px',borderRadius:'8px',whiteSpace:'nowrap',zIndex:2}}>
-                          {plan.badge}
-                        </div>
-                      )}
-                      {plan.current && (
-                        <div style={{position:'absolute',top:'-9px',left:'50%',transform:'translateX(-50%)',
-                          background:'#9ca3af',color:'#0f0f0f',fontSize:'8px',fontWeight:700,padding:'2px 7px',borderRadius:'8px',zIndex:2}}>
-                          현재 플랜
-                        </div>
-                      )}
-                      {/* 실제 컨텐츠 — OFF면 블러 */}
-                      <div style={{padding:'12px 10px', filter: isOn ? 'none' : 'blur(5px)', userSelect: isOn ? 'auto' : 'none', pointerEvents: isOn ? 'auto' : 'none'}}>
-                        <div style={{fontSize:'13px',fontWeight:700,color:plan.color,marginBottom:'4px',marginTop:'4px'}}>{plan.name}</div>
-                        <div style={{fontSize:'11px',fontWeight:700,color:'var(--text)',marginBottom:'8px'}}>{plan.price}</div>
-                        {(plan.features || []).map(f => (
-                          <div key={f} style={{fontSize:'10px',color:'var(--text-muted)',lineHeight:'1.9'}}>· {f}</div>
-                        ))}
-                        {!plan.current && (
-                          <button disabled style={{marginTop:'10px',width:'100%',padding:'6px',borderRadius:'8px',border:'none',
-                            background: plan.highlight ? 'var(--accent)' : '#60a5fa',
-                            color:'#0f0f0f',fontSize:'10px',fontWeight:700,cursor:'not-allowed',opacity:0.6,fontFamily:'inherit'}}>
-                            곧 출시
-                          </button>
+          {/* ── 3열 상세 플랜 카드 (관리자 포털과 동기화된 Free / Pro / Premium) ── */}
+          {planGuideVisible === true && (() => {
+            const fallbackPlans = [
+              { id: 'free',    name: 'Free',    price: '무료',         color: '#9ca3af', highlight: false, current: !isPaid, badge: null,        enabled: true, features: ['회원 5명', 'AI 일지 월 20회', '식단 기록', '기본 통계'] },
+              { id: 'pro',     name: 'Pro',     price: '₩9,900/월',   color: '#60a5fa', highlight: false, current: false,  badge: '출시 예정',   enabled: true, features: ['회원 무제한', 'AI 일지 무제한', '주간 리포트 AI', '매출 분석'] },
+              { id: 'premium', name: 'Premium', price: '₩19,900/월',  color: '#c8f135', highlight: true,  current: isPaid, badge: '출시 예정',   enabled: true, features: ['Pro 전체 포함', '루틴 마켓 무제한', '카카오 자동 발송', '우선 지원'] },
+            ]
+            const sourcePlans = (Array.isArray(plansList) && plansList.length > 0) ? plansList : fallbackPlans
+            const visiblePlans = sourcePlans.filter(p => p.enabled !== false)
+            return (
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em', marginBottom: '10px' }}>
+                  💎 플랜 안내
+                </div>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                  gap: '10px',
+                }}>
+                  {visiblePlans.map(plan => {
+                    const accent = plan.color || '#9ca3af'
+                    return (
+                      <div key={plan.id} style={{
+                        position: 'relative',
+                        border: `1px solid ${plan.highlight ? 'rgba(200,241,53,0.45)' : 'var(--border)'}`,
+                        background: plan.highlight ? 'rgba(200,241,53,0.05)' : 'var(--surface)',
+                        borderRadius: '14px',
+                        padding: '18px 14px 14px',
+                        boxSizing: 'border-box',
+                      }}>
+                        {plan.current && (
+                          <span style={{
+                            position: 'absolute', top: '-10px', left: '12px',
+                            background: '#9ca3af', color: '#0f0f0f',
+                            fontSize: '10px', fontWeight: 700, padding: '3px 8px', borderRadius: '8px',
+                          }}>현재 플랜</span>
                         )}
-                      </div>
-                      {/* OFF 오버레이 */}
-                      {!isOn && (
-                        <div style={{position:'absolute',inset:0,background:'rgba(10,10,10,0.45)',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'12px'}}>
-                          <span style={{fontSize:'10px',fontWeight:700,color:'rgba(255,255,255,0.4)',letterSpacing:'0.05em'}}>준비 중</span>
+                        {plan.badge && !plan.current && (
+                          <span style={{
+                            position: 'absolute', top: '-10px', left: '12px',
+                            background: plan.highlight ? 'var(--accent)' : '#60a5fa', color: '#0f0f0f',
+                            fontSize: '10px', fontWeight: 700, padding: '3px 8px', borderRadius: '8px',
+                          }}>{plan.badge}</span>
+                        )}
+                        <div style={{ fontWeight: 800, color: accent, fontSize: '15px', marginBottom: '4px' }}>{plan.name}</div>
+                        <div style={{ fontWeight: 800, fontSize: '13px', marginBottom: '10px', color: 'var(--text)' }}>{plan.price}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {(plan.features || []).map((f, i) => (
+                            <div key={i} style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.6 }}>· {f}</div>
+                          ))}
                         </div>
-                      )}
-                    </div>
-                  )
-                })}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* 프리미엄 플랜 이용문의 — 내부 문의 탭으로 이동 */}
+                <button
+                  type="button"
+                  onClick={() => { setTab('support'); setActivePage('page-support') }}
+                  style={{
+                    width: '100%', marginTop: '12px',
+                    padding: '12px',
+                    borderRadius: '10px', border: 'none',
+                    background: 'linear-gradient(135deg,#a78bfa 0%,#818cf8 100%)',
+                    color: '#fff', fontSize: '13px', fontWeight: 700,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                    letterSpacing: '-0.2px',
+                    boxShadow: '0 2px 12px rgba(167,139,250,0.35)',
+                  }}
+                >
+                  ✨ 프리미엄 플랜 이용문의
+                </button>
               </div>
-            </>
-          )}
+            )
+          })()}
 
           {/* ════════════════════════════════════
                🏆 이번 주 일지 발송 리더보드
@@ -4335,148 +5101,103 @@ export default function TrainerApp() {
             </div>
           )}
 
-          {/* ── 로그아웃 ── */}
-          <div style={{marginTop:'32px'}}>
-            <button
-              onClick={async () => {
-                if (window.confirm('로그아웃 하시겠습니까?')) {
+          {/* ── Danger Zone ── */}
+          <div style={{marginTop:'40px'}}>
+            {/* 구분선 */}
+            <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'14px'}}>
+              <div style={{flex:1,height:'1px',background:'rgba(239,68,68,0.2)'}} />
+              <span style={{fontSize:'10px',fontWeight:700,color:'#f87171',letterSpacing:'0.10em',whiteSpace:'nowrap'}}>
+                DANGER ZONE
+              </span>
+              <div style={{flex:1,height:'1px',background:'rgba(239,68,68,0.2)'}} />
+            </div>
+            <div style={{background:'rgba(239,68,68,0.04)',border:'1px solid rgba(239,68,68,0.18)',borderRadius:'14px',padding:'14px 16px'}}>
+              <div style={{fontSize:'11px',color:'var(--text-dim)',marginBottom:'12px',lineHeight:1.6}}>
+                아래 버튼은 계정에 영향을 줍니다. 신중하게 진행해 주세요.
+              </div>
+              <button
+                onClick={async () => {
+                  if (!window.confirm('정말 로그아웃 하시겠습니까?')) return
                   await supabase.auth.signOut()
                   setAuthUser(null); setTrainer(null)
                   setMembers([]); setLogs([])
                   setScreen('landing')
-                }
-              }}
-              style={{
-                width:'100%',padding:'13px',borderRadius:'12px',
-                border:'1px solid rgba(239,68,68,0.3)',
-                background:'rgba(239,68,68,0.06)',
-                color:'#ef4444',fontSize:'14px',fontWeight:700,
-                cursor:'pointer',fontFamily:'inherit',
-              }}
-            >
-              로그아웃
-            </button>
+                }}
+                style={{
+                  width:'100%',padding:'13px',borderRadius:'10px',
+                  border:'1px solid rgba(239,68,68,0.35)',
+                  background:'rgba(239,68,68,0.07)',
+                  color:'#ef4444',fontSize:'14px',fontWeight:700,
+                  cursor:'pointer',fontFamily:'inherit',
+                  transition:'background 0.15s',
+                }}
+                onMouseEnter={e=>e.currentTarget.style.background='rgba(239,68,68,0.13)'}
+                onMouseLeave={e=>e.currentTarget.style.background='rgba(239,68,68,0.07)'}
+              >
+                로그아웃
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* ══════════════════ 1:1 문의 탭 ══════════════════ */}
+      {/* ══════════════════ 1:1 문의 탭 — 카카오 채널 외부 우회 ══════════════════ */}
       {activePage === 'page-support' && (
         <div className="page-t" style={{paddingBottom:'40px'}}>
-
-          {/* 새 문의 작성 */}
-          <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'14px',padding:'16px',marginBottom:'20px'}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'14px'}}>
-              <div style={{fontSize:'13px',fontWeight:700}}>✉️ 새 문의 작성</div>
-              {urgentInquiryUrl && (
-                <a
-                  href={urgentInquiryUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{display:'inline-flex',alignItems:'center',gap:'5px',
-                    background:'#FEE500',color:'#3C1E1E',
-                    fontSize:'12px',fontWeight:700,
-                    padding:'6px 12px',borderRadius:'8px',
-                    textDecoration:'none',letterSpacing:'-0.2px',
-                    boxShadow:'0 1px 4px rgba(0,0,0,0.12)'}}
-                >
-                  💬 긴급문의
-                </a>
-              )}
+          <div style={{
+            display:'flex', flexDirection:'column', alignItems:'center',
+            justifyContent:'center', minHeight:'420px',
+            padding:'40px 20px', textAlign:'center',
+          }}>
+            <div style={{ fontSize:'44px', marginBottom:'14px', lineHeight:1 }}>💬</div>
+            <div style={{ fontSize:'18px', fontWeight:800, color:'var(--text)', letterSpacing:'-0.4px', marginBottom:'8px' }}>
+              1:1 문의는 카카오 채널로 안내드려요
             </div>
-
-            <div className="form-group">
-              <label>문의 유형</label>
-              <select value={inqForm.category} onChange={e=>setInqForm({...inqForm,category:e.target.value})}>
-                <option value="general">일반 문의</option>
-                <option value="billing">결제 / 구독</option>
-                <option value="bug">오류 신고</option>
-                <option value="feature">기능 제안</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>제목 <span style={{color:'var(--danger)'}}>*</span></label>
-              <input type="text" placeholder="문의 제목을 입력해주세요" maxLength={80}
-                value={inqForm.title} onChange={e=>setInqForm({...inqForm,title:e.target.value})} />
-            </div>
-
-            <div className="form-group">
-              <label>내용 <span style={{color:'var(--danger)'}}>*</span></label>
-              <textarea rows={5} placeholder="문의 내용을 자세히 적어주세요" maxLength={1000}
-                value={inqForm.content} onChange={e=>setInqForm({...inqForm,content:e.target.value})}
-                style={{resize:'vertical'}} />
-              <div style={{fontSize:'11px',color:'var(--text-dim)',textAlign:'right',marginTop:'2px'}}>{inqForm.content.length}/1000</div>
+            <div style={{ fontSize:'13px', color:'var(--text-dim)', lineHeight:1.7, marginBottom:'24px', maxWidth:'360px' }}>
+              빠르고 간편한 응대를 위해 외부 메신저 채널로 연결해 드립니다.
+              <br/>채널 이용 시 카카오 자체의 개인정보 처리방침이 적용됩니다.
             </div>
 
             <button
-              onClick={submitInquiry} disabled={inqSubmitting}
-              style={{width:'100%',padding:'12px',borderRadius:'10px',border:'none',
-                background:'var(--accent)',color:'#0f0f0f',fontSize:'13px',fontWeight:700,
-                cursor:'pointer',fontFamily:'inherit',opacity:inqSubmitting?0.6:1}}>
-              {inqSubmitting ? '접수 중...' : '문의 접수하기'}
+              type="button"
+              onClick={() => {
+                const url = (urgentInquiryUrl && urgentInquiryUrl.trim()) || 'https://open.kakao.com/'
+                try { window.open(url, '_blank', 'noopener,noreferrer') }
+                catch { showToast('1:1 문의 채널을 여는 데 실패했어요') }
+              }}
+              style={{
+                display:'inline-flex', alignItems:'center', justifyContent:'center', gap:'10px',
+                width:'100%', maxWidth:'340px',
+                padding:'14px 20px', borderRadius:'12px',
+                border:'1px solid #FEE500', background:'#FEE500', color:'#191919',
+                fontSize:'14px', fontWeight:800, cursor:'pointer', fontFamily:'inherit',
+                boxShadow:'0 4px 14px rgba(254,229,0,0.45)',
+              }}
+            >
+              💛 1:1 문의하기 (카카오 채널)
             </button>
-          </div>
 
-          {/* 문의 내역 */}
-          <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',marginBottom:'10px',letterSpacing:'0.06em'}}>📋 문의 내역</div>
-          {inqLoading && <div style={{textAlign:'center',padding:'20px',color:'var(--text-dim)',fontSize:'12px'}}>불러오는 중...</div>}
-          {!inqLoading && !inquiries.length && (
-            <div style={{textAlign:'center',padding:'28px',color:'var(--text-dim)',fontSize:'13px'}}>아직 문의 내역이 없어요</div>
-          )}
-          {!inqLoading && inquiries.map(inq => {
-            const isSelected = inqSelected?.id === inq.id
-            const isAnswered = inq.status === 'answered'
-            const catLabel = {general:'일반 문의',billing:'결제/구독',bug:'오류 신고',feature:'기능 제안'}[inq.category] || inq.category
-            return (
-              <div key={inq.id}
-                onClick={() => setInqSelected(isSelected ? null : inq)}
-                style={{background:'var(--surface)',border:`1px solid ${isAnswered?'rgba(200,241,53,0.25)':'var(--border)'}`,
-                  borderRadius:'12px',padding:'14px',marginBottom:'8px',cursor:'pointer',
-                  transition:'border-color 0.15s'}}>
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'6px'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
-                    <span style={{fontSize:'10px',padding:'2px 8px',borderRadius:'100px',fontWeight:700,
-                      background:'rgba(136,136,136,0.1)',color:'var(--text-dim)'}}>
-                      {catLabel}
-                    </span>
-                    <span style={{fontSize:'10px',padding:'2px 8px',borderRadius:'100px',fontWeight:700,
-                      background: isAnswered?'rgba(200,241,53,0.12)':'rgba(245,166,35,0.1)',
-                      color: isAnswered?'var(--accent)':'#f5a623'}}>
-                      {isAnswered ? '답변 완료' : '답변 대기'}
-                    </span>
-                  </div>
-                  <span style={{fontSize:'11px',color:'var(--text-dim)',fontFamily:"'DM Mono',monospace"}}>
-                    {new Date(inq.created_at).toLocaleDateString('ko-KR',{month:'short',day:'numeric'})}
-                  </span>
-                </div>
-                <div style={{fontSize:'13px',fontWeight:600,color:'var(--text)',marginBottom: isSelected?'12px':'0'}}>
-                  {inq.title}
-                </div>
-
-                {/* 펼쳐진 상태 */}
-                {isSelected && (
-                  <div onClick={e=>e.stopPropagation()}>
-                    <div style={{fontSize:'13px',color:'var(--text-muted)',lineHeight:1.7,
-                      padding:'10px 0',borderTop:'1px solid var(--border)',whiteSpace:'pre-wrap'}}>
-                      {inq.content}
-                    </div>
-                    {isAnswered && inq.answer && (
-                      <div style={{marginTop:'10px',padding:'12px',borderRadius:'10px',
-                        background:'rgba(200,241,53,0.06)',border:'1px solid rgba(200,241,53,0.2)'}}>
-                        <div style={{fontSize:'10px',fontWeight:700,color:'var(--accent)',marginBottom:'6px',letterSpacing:'0.05em'}}>
-                          💬 관리자 답변 · {new Date(inq.answered_at).toLocaleDateString('ko-KR',{month:'short',day:'numeric'})}
-                        </div>
-                        <div style={{fontSize:'13px',color:'var(--text)',lineHeight:1.7,whiteSpace:'pre-wrap'}}>
-                          {inq.answer}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+            {/* 안내 텍스트 */}
+            <div style={{
+              marginTop:'28px',
+              width:'100%', maxWidth:'420px',
+              background:'var(--surface)',
+              border:'1px solid var(--border)',
+              borderRadius:'12px',
+              padding:'16px 18px',
+              textAlign:'left',
+            }}>
+              <div style={{ fontSize:'12px', fontWeight:800, color:'var(--text)', marginBottom:'10px' }}>
+                💡 다음과 같은 사항들을 문의하실 수 있습니다:
               </div>
-            )
-          })}
+              <ul style={{ margin:0, paddingLeft:'18px', fontSize:'12px', color:'var(--text-muted)', lineHeight:1.9 }}>
+                <li>일반 문의 및 서비스 이용 방법</li>
+                <li>결제, 구독 변경 및 해지</li>
+                <li>오류 신고 및 버그 제보</li>
+                <li>신규 기능 제안 및 피드백</li>
+              </ul>
+            </div>
+          </div>
         </div>
       )}
 
@@ -4544,9 +5265,10 @@ export default function TrainerApp() {
 <div className="record-header"><button className="back-btn" onClick={()=>{setActivePage('page-members');setTab('members')}}>←</button>
             <div style={{flex:1}}><div style={{fontSize:'15px',fontWeight:700}}>{currentMember.name}</div><div style={{fontSize:'12px',color:'var(--text-muted)'}}>📱 {currentMember.phone}{currentMember.lesson_purpose?' · '+currentMember.lesson_purpose:''}</div></div>
             <div style={{display:'flex',gap:'6px',flexShrink:0}}>
-              <button className="btn btn-sm" style={{fontSize:'12px',whiteSpace:'nowrap',background:'var(--surface2)',border:'1px solid var(--border)',color:currentMember.suspended?'#f97316':'var(--text-muted)'}}
+              {/* members.suspended 컬럼 부재 — 정지 상태 표시 라벨 제거, 정지 등록 진입점만 유지 */}
+              <button className="btn btn-sm" style={{fontSize:'12px',whiteSpace:'nowrap',background:'var(--surface2)',border:'1px solid var(--border)',color:'var(--text-muted)'}}
                 onClick={()=>{setHoldForm({startDate:'',endDate:'',productId:'',reason:'',photoFile:null,photoPreview:''});loadHolds(currentMemberId);setHoldModal(true)}}>
-                {currentMember.suspended?'⏸ 정지중':'⏸ 정지'}
+                ⏸ 정지
               </button>
             </div>
           </div>
@@ -4558,12 +5280,25 @@ export default function TrainerApp() {
             <div className="session-bar-bg"><div className={`session-bar-fill${(currentMember.total_sessions-currentMember.done_sessions)<=3?' low':''}`} style={{width:(currentMember.total_sessions>0?Math.round((currentMember.done_sessions/currentMember.total_sessions)*100):0)+'%'}}></div></div>
           </div>
           <div className="rtab-row">
-            <button className={`btn ${rtab==='write'?'btn-primary':'btn-ghost'} btn-sm`} onClick={()=>setRtab('write')} style={{fontSize:'12px'}}>📝 수업일지</button>
-            <button className={`btn ${rtab==='attendance'?'btn-primary':'btn-ghost'} btn-sm`} onClick={()=>setRtab('attendance')} style={{fontSize:'12px'}}>📅 출석부</button>
-            <button className={`btn ${rtab==='health'?'btn-primary':'btn-ghost'} btn-sm`} onClick={()=>setRtab('health')} style={{fontSize:'12px'}}>⚖️ 건강기록</button>
-            <button className={`btn ${rtab==='holds'?'btn-primary':'btn-ghost'} btn-sm`} onClick={()=>{setRtab('holds');loadHolds(currentMemberId)}} style={{fontSize:'12px'}}>⏸ 정지기록</button>
-            <button className={`btn ${rtab==='personal'?'btn-primary':'btn-ghost'} btn-sm`} onClick={()=>setRtab('personal')} style={{fontSize:'12px'}}>🏃 개인운동</button>
-            <button className={`btn ${rtab==='insight'?'btn-primary':'btn-ghost'} btn-sm`} onClick={()=>setRtab('insight')} style={{fontSize:'12px'}}>🤖 AI 분석</button>
+            {[
+              { key:'write',      label:'📝 수업일지' },
+              { key:'attendance', label:'📅 출석부'   },
+              { key:'health',     label:'⚖️ 건강기록' },
+              { key:'holds',      label:'⏸ 정지기록' },
+              { key:'personal',   label:'🏃 개인운동' },
+              { key:'insight',    label:'🤖 AI 분석'  },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                className={`rtab-btn${(rtab||'write') === key ? ' active' : ''}`}
+                onClick={() => {
+                  safeSetRtab(key)
+                  if (key === 'holds') loadHolds(currentMemberId)
+                }}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
           {rtab === 'attendance' && (() => {
@@ -4801,7 +5536,8 @@ export default function TrainerApp() {
             )
           })()}
 
-          {rtab === 'write' && (
+          {/* write 탭 — rtab가 null/undefined/알 수 없는 값이면 여기가 fallback */}
+          {(rtab === 'write' || !['write','attendance','health','holds','personal','insight'].includes(rtab ?? '')) && (
             <div>
               <div className="section-label">1단계 — 수업 브리핑 입력</div>
               <div className="card">
@@ -4813,17 +5549,17 @@ export default function TrainerApp() {
                     style={{
                       width: '100%',
                       marginBottom: '14px',
-                      padding: '14px 16px',
+                      padding: '15px 16px',
                       borderRadius: '12px',
                       border: isListening
-                        ? '1.5px solid rgba(239,68,68,0.5)'
-                        : '1.5px solid var(--border)',
+                        ? '1.5px solid rgba(239,68,68,0.55)'
+                        : '1.5px solid rgba(59,130,246,0.45)',
                       background: isListening
-                        ? 'rgba(239,68,68,0.08)'
-                        : 'var(--surface2)',
-                      color: isListening ? '#f87171' : 'var(--text-muted)',
+                        ? 'rgba(239,68,68,0.10)'
+                        : 'rgba(59,130,246,0.12)',
+                      color: isListening ? '#f87171' : '#60a5fa',
                       fontSize: '14px',
-                      fontWeight: 600,
+                      fontWeight: 700,
                       fontFamily: 'inherit',
                       cursor: 'pointer',
                       display: 'flex',
@@ -4831,6 +5567,7 @@ export default function TrainerApp() {
                       justifyContent: 'center',
                       gap: '10px',
                       transition: 'all 0.2s',
+                      minHeight: '52px',
                     }}
                   >
                     <span style={{
@@ -4977,17 +5714,29 @@ export default function TrainerApp() {
                   }}>
                     {mediaFiles.map(f => (
                       <div key={f.id} style={{position:'relative',flexShrink:0}}>
-                        <img
-                          src={f.dataUrl}
-                          alt={f.name}
-                          style={{
-                            width:'96px',height:'96px',
-                            objectFit:'cover',
-                            borderRadius:'10px',
-                            border:'1px solid var(--border)',
-                            display:'block',
-                          }}
-                        />
+                        {f.isVideo ? (
+                          <video
+                            src={f.dataUrl}
+                            muted playsInline loop
+                            style={{
+                              width:'96px',height:'96px',
+                              objectFit:'cover',borderRadius:'10px',
+                              border:'1px solid var(--border)',display:'block',
+                            }}
+                          />
+                        ) : (
+                          <img
+                            src={f.dataUrl}
+                            alt={f.name}
+                            style={{
+                              width:'96px',height:'96px',
+                              objectFit:'cover',
+                              borderRadius:'10px',
+                              border:'1px solid var(--border)',
+                              display:'block',
+                            }}
+                          />
+                        )}
                         {/* 파일 크기 뱃지 */}
                         <div style={{
                           position:'absolute',bottom:'5px',left:'5px',
@@ -4996,7 +5745,7 @@ export default function TrainerApp() {
                           padding:'2px 5px',borderRadius:'4px',
                           backdropFilter:'blur(4px)',
                         }}>
-                          {f.isVideo && !f.isFallback ? 'GIF ' : ''}{f.sizeKB}KB
+                          {f.isVideo ? '🎬 ' : ''}{f.sizeKB}KB
                         </div>
                         {/* 삭제 버튼 */}
                         <button
@@ -5017,112 +5766,60 @@ export default function TrainerApp() {
                   </div>
                 )}
 
-                {/* ── AI 해석 관점 입력 ── */}
-                <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'14px',marginTop:'6px'}}>
+                {/* ── AI 해석 관점 — 칩 버튼 ── */}
+                <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'12px',marginTop:'6px'}}>
                   <div style={{flex:1,height:'1px',background:'var(--border)'}}></div>
-                  <span style={{fontSize:'11px',color:'var(--text-dim)'}}>AI 해석 관점 (선택)</span>
+                  <span style={{fontSize:'11px',color:'var(--text-dim)'}}>AI 해석 관점</span>
                   <div style={{flex:1,height:'1px',background:'var(--border)'}}></div>
                 </div>
-                <div className="form-group" style={{marginBottom:'8px'}}>
-                  <textarea
-                    value={perspectiveInput}
-                    onChange={e => setPerspectiveInput(e.target.value)}
-                    placeholder="예: 재활 중심으로 작성해줘 / 동기부여에 초점을 맞춰줘"
-                    rows={2}
-                    style={{resize:'none'}}
-                  />
-                </div>
-                {/* 관점 예시 가이드 */}
-                <div style={{
-                  background:'rgba(255,255,255,0.03)',
-                  border:'1px solid var(--border)',
-                  borderRadius:'10px',
-                  padding:'12px 14px',
-                  marginBottom:'16px',
-                }}>
-                  <div style={{fontSize:'11px',fontWeight:700,color:'var(--text-muted)',marginBottom:'10px',letterSpacing:'0.5px',textTransform:'uppercase'}}>
-                    ✦ 관점 예시
-                  </div>
+                {/* 칩 버튼 4개 */}
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'10px'}}>
                   {[
-                    {
-                      tag: '재활·부상 케어',
-                      color: '#f9a8d4',
-                      bg: 'rgba(249,168,212,0.08)',
-                      border: 'rgba(249,168,212,0.25)',
-                      examples: [
-                        '무릎 재활 중인 회원이니 부하 조절과 통증 반응을 중심으로 써줘',
-                        '어깨 부상 후 복귀 단계라 가동범위 회복 위주로 기록해줘',
-                      ],
-                    },
-                    {
-                      tag: '동기부여·심리',
-                      color: '#86efac',
-                      bg: 'rgba(134,239,172,0.08)',
-                      border: 'rgba(134,239,172,0.25)',
-                      examples: [
-                        '요즘 의욕이 떨어진 회원이니 잘한 점을 크게 칭찬하는 톤으로 써줘',
-                        '첫 달이라 적응 기간임을 강조하고 격려 위주로 작성해줘',
-                      ],
-                    },
-                    {
-                      tag: '퍼포먼스·기술',
-                      color: '#fcd34d',
-                      bg: 'rgba(252,211,77,0.08)',
-                      border: 'rgba(252,211,77,0.25)',
-                      examples: [
-                        '대회 준비 중이니 볼륨·강도 수치를 구체적으로 분석해줘',
-                        '폼 교정이 목표라 자세 개선 포인트를 항목별로 정리해줘',
-                      ],
-                    },
-                    {
-                      tag: '다이어트·체성분',
-                      color: '#c4b5fd',
-                      bg: 'rgba(196,181,253,0.08)',
-                      border: 'rgba(196,181,253,0.25)',
-                      examples: [
-                        '체지방 감량이 목표라 칼로리 소모와 운동 강도 연결해서 써줘',
-                        '식단도 병행 중이니 일지에 에너지 섭취와 운동 균형을 언급해줘',
-                      ],
-                    },
-                  ].map(({ tag, color, bg, border, examples }) => (
-                    <div key={tag} style={{marginBottom:'10px'}}>
-                      <div style={{
-                        display:'inline-block',
-                        background: bg,
-                        border: `1px solid ${border}`,
-                        borderRadius:'20px',
-                        padding:'2px 10px',
-                        fontSize:'10px',
-                        fontWeight:700,
-                        color,
-                        marginBottom:'6px',
-                      }}>{tag}</div>
-                      {examples.map((ex, i) => (
-                        <div
-                          key={i}
-                          onClick={() => setPerspectiveInput(ex)}
-                          style={{
-                            display:'flex',
-                            alignItems:'flex-start',
-                            gap:'6px',
-                            padding:'6px 8px',
-                            borderRadius:'7px',
-                            cursor:'pointer',
-                            marginBottom:'4px',
-                            transition:'background 0.15s',
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.06)'}
-                          onMouseLeave={e => e.currentTarget.style.background='transparent'}
-                        >
-                          <span style={{color:'var(--text-dim)',fontSize:'11px',flexShrink:0,marginTop:'1px'}}>→</span>
-                          <span style={{fontSize:'12px',color:'var(--text-muted)',lineHeight:1.5}}>{ex}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                  <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'4px',paddingTop:'8px',borderTop:'1px solid var(--border)'}}>
-                    💡 예시를 탭하면 자동으로 입력돼요. 직접 자유롭게 작성해도 됩니다.
-                  </div>
+                    { value:'rehab',       label:'🩹 재활·부상 케어',  activeColor:'#f9a8d4', activeBg:'rgba(249,168,212,0.15)', activeBorder:'rgba(249,168,212,0.5)', paid:false },
+                    { value:'motivation',  label:'💪 동기부여·심리',   activeColor:'#86efac', activeBg:'rgba(134,239,172,0.15)', activeBorder:'rgba(134,239,172,0.5)', paid:false },
+                    { value:'performance', label:'🏆 퍼포먼스·기술',   activeColor:'#fcd34d', activeBg:'rgba(252,211,77,0.15)',  activeBorder:'rgba(252,211,77,0.5)',  paid:true  },
+                    { value:'diet',        label:'🥗 다이어트·체성분', activeColor:'#c4b5fd', activeBg:'rgba(196,181,253,0.15)', activeBorder:'rgba(196,181,253,0.5)', paid:true  },
+                  ].map(chip => {
+                    const isActive = (perspectiveChip || 'rehab') === chip.value
+                    const showCrown = chip.paid && !isPaid
+                    return (
+                      <button
+                        key={chip.value}
+                        onClick={() => setPerspectiveChip(chip.value)}
+                        style={{
+                          display:'flex',
+                          alignItems:'center',
+                          justifyContent:'center',
+                          gap:'4px',
+                          padding:'10px 8px',
+                          borderRadius:'10px',
+                          border: isActive ? `1.5px solid ${chip.activeBorder}` : '1.5px solid var(--border)',
+                          background: isActive ? chip.activeBg : 'transparent',
+                          color: isActive ? chip.activeColor : 'var(--text-muted)',
+                          fontSize:'12px',
+                          fontWeight: isActive ? 700 : 400,
+                          cursor:'pointer',
+                          transition:'all 0.15s',
+                          lineHeight:1.3,
+                          textAlign:'center',
+                          minHeight:'44px',
+                        }}
+                      >
+                        <span>{chip.label}</span>
+                        {showCrown && <span style={{fontSize:'11px',marginLeft:'2px'}}>👑</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+                {/* 추가 지시사항 오버라이드 */}
+                <div style={{marginBottom:'16px'}}>
+                  <textarea
+                    value={extraInstruction || ''}
+                    onChange={e => setExtraInstruction(e.target.value)}
+                    placeholder="추가 지시사항 (선택) — 예: 왼쪽 무릎 통증 언급해줘"
+                    rows={2}
+                    style={{resize:'none',fontSize:'12px',color:'var(--text-muted)'}}
+                  />
                 </div>
 
                 <div className="section-label" style={{marginTop:'4px'}}>운동 종목 기록 (선택)</div>
@@ -5139,20 +5836,40 @@ export default function TrainerApp() {
                       {ex.sets.map((s,i) => (
                         <div key={i} className="ex-set-item">
                           <span className="ex-set-num">{i+1}세트</span>
-                          <span className="ex-set-info">{s.reps}회{s.feel?' · '+s.feel:''}</span>
-                          {s.rir!=='' && <span className="ex-set-rir">RIR {s.rir}</span>}
+                          <span className="ex-set-info">{s.weight ? s.weight+'kg · ' : ''}{s.reps}회{s.feel?' · '+s.feel:''}</span>
+                          {s.rir!=='' && s.rir!==undefined && <span className="ex-set-rir">RIR {s.rir}</span>}
                         </div>
                       ))}
                     </div>
                   </div>
                 ))}
                 <button className="btn btn-ghost" style={{width:'100%',padding:'10px',marginBottom:'8px'}} onClick={openAddExercise}>+ 운동 종목 추가</button>
-                <div className="section-label" style={{marginTop:'12px'}}>RIR 가이드</div>
-                <div className="rir-guide">
-                  <div className="rir-item rir-2"><div className="rir-badge">2 RIR 추천</div><div className="rir-label">부상위험↑ · 협응성 복합운동</div><div className="rir-moves">벤치프레스 · 스쿼트 · 데드리프트</div></div>
-                  <div className="rir-item rir-1"><div className="rir-badge">1 RIR 추천</div><div className="rir-label">큰 근육 · 부상위험 낮은 복합운동</div><div className="rir-moves">렛풀다운 · 시티드로우 · 덤벨체스트프레스 · 런지</div></div>
-                  <div className="rir-item rir-0"><div className="rir-badge">0 RIR 추천</div><div className="rir-label">자극 위주 · 단일관절 고립운동</div><div className="rir-moves">사이드레터럴레이즈 · 덤벨컬 · 케이블푸쉬다운 · 레그익스텐션</div></div>
-                </div>
+                {/* RIR 가이드 — 아코디언 */}
+                <button
+                  onClick={() => setShowRirGuide(v => !v)}
+                  style={{
+                    display:'flex',
+                    alignItems:'center',
+                    gap:'6px',
+                    background:'none',
+                    border:'none',
+                    padding:'6px 0',
+                    cursor:'pointer',
+                    color:'var(--text-dim)',
+                    fontSize:'11px',
+                    marginBottom: showRirGuide ? '8px' : '0',
+                  }}
+                >
+                  <span>ℹ️ RIR 입력 가이드 보기</span>
+                  <span style={{fontSize:'10px',transition:'transform 0.2s',display:'inline-block',transform: showRirGuide ? 'rotate(180deg)' : 'rotate(0deg)'}}>▼</span>
+                </button>
+                {showRirGuide && (
+                  <div className="rir-guide">
+                    <div className="rir-item rir-2"><div className="rir-badge">2 RIR 추천</div><div className="rir-label">부상위험↑ · 협응성 복합운동</div><div className="rir-moves">벤치프레스 · 스쿼트 · 데드리프트</div></div>
+                    <div className="rir-item rir-1"><div className="rir-badge">1 RIR 추천</div><div className="rir-label">큰 근육 · 부상위험 낮은 복합운동</div><div className="rir-moves">렛풀다운 · 시티드로우 · 덤벨체스트프레스 · 런지</div></div>
+                    <div className="rir-item rir-0"><div className="rir-badge">0 RIR 추천</div><div className="rir-label">자극 위주 · 단일관절 고립운동</div><div className="rir-moves">사이드레터럴레이즈 · 덤벨컬 · 케이블푸쉬다운 · 레그익스텐션</div></div>
+                  </div>
+                )}
               </div>
               <div className="section-label">2단계 — AI 수업일지 생성</div>
               {generating && (
@@ -5240,11 +5957,12 @@ export default function TrainerApp() {
                   <div className="section-label">3단계 — 발송</div>
                   <button className="btn btn-primary" style={{width:'100%',marginBottom:'8px'}} onClick={sendKakao}>
                     <span style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px'}}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="#0f0f0f"><path d="M12 3C6.477 3 2 6.582 2 11c0 2.83 1.634 5.33 4.127 6.89l-1.07 3.97a.5.5 0 0 0 .733.556L10.13 19.7A11.6 11.6 0 0 0 12 19.8c5.523 0 10-3.582 10-8S17.523 3 12 3z"/></svg>
-                      회원님께 리포트 링크 공유하기
+                      📱 회원 앱으로 전송하기
                     </span>
                   </button>
-                  <div style={{fontSize:'12px',color:'var(--text-dim)',textAlign:'center',marginBottom:'10px'}}>회원이 링크를 클릭하면 예쁜 리포트 페이지가 열려요</div>
+                  <div style={{fontSize:'12px',color:'var(--text-dim)',textAlign:'center',marginBottom:'10px'}}>
+                    회원님의 오운 앱으로 수업 리포트가 전달돼요
+                  </div>
                 </div>
               )}
             </div>
@@ -5295,7 +6013,7 @@ export default function TrainerApp() {
         </div>
         <div style={{display:'flex',gap:'8px'}}>
           <button className="btn btn-ghost" style={{flex:1}} onClick={()=>setCancelPaymentTarget(null)}>아니오</button>
-          <button className="btn btn-primary" style={{flex:1,background:'var(--danger)',color:'#fff'}} onClick={()=>{deletePayment(cancelPaymentTarget);setCancelPaymentTarget(null)}}>네</button>
+          <button className="btn btn-primary" style={{flex:1,background:'var(--danger)',color:'#fff',opacity:paymentBusy?0.55:1,cursor:paymentBusy?'not-allowed':'pointer'}} disabled={paymentBusy} onClick={()=>{deletePayment(cancelPaymentTarget);setCancelPaymentTarget(null)}}>{paymentBusy ? '처리 중…' : '네'}</button>
         </div>
       </Modal>
 
@@ -5413,7 +6131,7 @@ export default function TrainerApp() {
               <label>메모 (선택)</label>
               <input type="text" value={paymentForm.memo} onChange={e=>setPaymentForm({...paymentForm,memo:e.target.value})} placeholder="특이사항, 할인 내용 등" />
             </div>
-            <button className="btn btn-primary" style={{width:'100%'}} onClick={addPayment}>결제 등록</button>
+            <button className="btn btn-primary" style={{width:'100%',opacity:paymentBusy?0.55:1,cursor:paymentBusy?'not-allowed':'pointer'}} disabled={paymentBusy} onClick={addPayment}>{paymentBusy ? '처리 중…' : '상품 등록'}</button>
             {!products.length && <div style={{marginTop:'10px',fontSize:'12px',color:'var(--text-muted)',textAlign:'center'}}>상품을 먼저 등록해주세요 → 상품 관리 탭</div>}
           </div>
         )}
@@ -5442,7 +6160,7 @@ export default function TrainerApp() {
                     </div>
                     <div style={{textAlign:'right',flexShrink:0}}>
                       <div style={{fontSize:'14px',fontWeight:700,color:'var(--accent)',fontFamily:"'DM Mono',monospace"}}>{p.amount.toLocaleString()}원</div>
-                      <button style={{fontSize:'10px',color:'var(--danger)',background:'none',border:'none',cursor:'pointer',padding:0}} onClick={()=>setCancelPaymentTarget(p)}>취소</button>
+                      <button style={{fontSize:'10px',color:'var(--danger)',background:'none',border:'none',cursor:'pointer',padding:0}} onClick={e=>{e.stopPropagation();setCancelPaymentTarget(p)}}>취소</button>
                     </div>
                   </div>
                 )
@@ -5802,21 +6520,24 @@ export default function TrainerApp() {
 
         {/* 세션 직접 수정 — 고급 설정 (접기/펼치기) */}
         <div style={{marginBottom:'16px'}}>
-          {/* 헤더 */}
-          <button
-            type="button"
+          {/* 헤더 — Nested Button(<button> in <button>) HTML 표준 위반 회피를 위해 div + role=button 으로 전환 */}
+          <div
+            role="button"
+            tabIndex={0}
             onClick={()=>setSessionAdvOpen(o=>!o)}
+            onKeyDown={e=>{ if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSessionAdvOpen(o=>!o) } }}
             style={{
               width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',
               background: sessionAdvOpen ? 'var(--surface2)' : 'var(--surface2)',
               border:'1px solid var(--border)',borderRadius: sessionAdvOpen ? '10px 10px 0 0' : '10px',
               padding:'10px 14px',cursor:'pointer',fontFamily:'inherit',transition:'border-radius 0.15s',
+              boxSizing:'border-box',userSelect:'none',
             }}
           >
             <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
               <span style={{fontSize:'12px',fontWeight:700,color:'var(--text)'}}>⚙️ 세션 직접 수정</span>
               <span style={{fontSize:'10px',color:'var(--text-dim)',fontWeight:400}}>앱 이전·오류 수정·증정 세션 전용</span>
-              {/* ? 버튼 */}
+              {/* ? 버튼 — 내부 button 그대로 유지 (이제 외부가 div 라 중첩 위반 해소) */}
               <button
                 type="button"
                 onClick={e=>{e.stopPropagation();setSessionInfoOpen(o=>!o)}}
@@ -5830,7 +6551,7 @@ export default function TrainerApp() {
             <span style={{fontSize:'13px',color:'var(--text-muted)',lineHeight:1}}>
               {sessionAdvOpen ? '▲' : '▼'}
             </span>
-          </button>
+          </div>
 
           {/* ? 설명 툴팁 */}
           {sessionInfoOpen && (
@@ -6144,207 +6865,140 @@ export default function TrainerApp() {
         </div>
       </Modal>
 
-      {/* ── API KEY 발급 가이드 모달 (비활성화) ── */}
-      <Modal open={false} onClose={()=>{}} title="Gemini API 키 발급 방법">
-        <div style={{fontSize:'13px',lineHeight:1.6}}>
 
-          {/* 비용 안심 배너 */}
-          <div style={{background:'rgba(74,222,128,0.1)',border:'1px solid rgba(74,222,128,0.3)',
-            borderRadius:'12px',padding:'14px',marginBottom:'20px'}}>
-            <div style={{fontWeight:700,color:'#4ade80',fontSize:'14px',marginBottom:'8px'}}>
-              🛡️ 비용 걱정 없이 무료로 사용하세요
+      {/* ── 영상 구간 편집(Trimmer) 모달 ── */}
+      {showVideoTrimmer && trimBlobUrl && (
+        <div style={{
+          position:'fixed',inset:0,
+          background:'rgba(0,0,0,0.88)',
+          zIndex:9000,
+          display:'flex',alignItems:'center',justifyContent:'center',
+          padding:'16px',
+        }}>
+          <div style={{
+            background:'var(--surface)',borderRadius:'18px',
+            width:'100%',maxWidth:'480px',
+            maxHeight:'92vh',overflowY:'auto',padding:'20px',
+          }}>
+            {/* 헤더 */}
+            <div style={{fontWeight:800,fontSize:'15px',color:'var(--text)',marginBottom:'14px',textAlign:'center'}}>
+              ✂️ 영상 구간 편집
             </div>
-            {[
-              ['💳', '신용카드 등록 없이', '구글 계정만 있으면 바로 발급 가능'],
-              ['🔒', '자동 차단 보호', '무료 한도 초과 시 자동으로 멈춰요 (추가 청구 없음)'],
-              ['🎁', '개인 사용 충분한 무료 한도', '일반적인 PT 수업량 기준으로 무료 한도 안에서 사용 가능'],
-              ['🚫', '유료 전환 불가', '직접 카드 등록하지 않는 한 절대 청구되지 않아요'],
-            ].map(([icon, title, desc]) => (
-              <div key={title} style={{display:'flex',gap:'10px',marginBottom:'8px',alignItems:'flex-start'}}>
-                <span style={{fontSize:'16px',flexShrink:0}}>{icon}</span>
-                <div>
-                  <div style={{fontWeight:700,color:'var(--text)',fontSize:'12px'}}>{title}</div>
-                  <div style={{fontSize:'11px',color:'var(--text-muted)'}}>{desc}</div>
+
+            {/* 💡 Tip 알림창 */}
+            <div style={{
+              background:'rgba(59,130,246,0.08)',
+              border:'1px solid rgba(59,130,246,0.25)',
+              borderRadius:'10px',padding:'12px 14px',marginBottom:'14px',
+            }}>
+              <div style={{fontSize:'12px',color:'#93c5fd',lineHeight:1.7}}>
+                💡 Tip. 핵심만 쏙쏙, 하이라이트 편집! 긴 영상은 회원님이 끝까지 보기 힘들어요. 가장 중요한 자세 교정 구간(최대 30초)만 잘라서 100% 몰입형 피드백을 전달해 보세요!
+              </div>
+            </div>
+
+            {/* 영상 미리보기 */}
+            <video
+              ref={trimVideoRef}
+              src={trimBlobUrl}
+              controls
+              playsInline
+              style={{
+                width:'100%',borderRadius:'10px',
+                marginBottom:'16px',maxHeight:'220px',
+                objectFit:'contain',background:'#000',
+              }}
+            />
+
+            {/* 구간 슬라이더 */}
+            {trimDuration > 0 && (
+              <>
+                <div style={{marginBottom:'12px'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:'5px'}}>
+                    <span style={{fontSize:'11px',color:'var(--text-dim)'}}>시작 지점</span>
+                    <span style={{fontSize:'12px',fontWeight:700,color:'var(--text)',fontFamily:"'DM Mono',monospace"}}>{fmtTime(trimStart)}</span>
+                  </div>
+                  <input
+                    type="range" min="0"
+                    max={Math.max(0, trimDuration - 1)}
+                    step="0.5" value={trimStart}
+                    onChange={e => {
+                      const v = parseFloat(e.target.value)
+                      setTrimStart(v)
+                      if (trimEnd - v < 2) setTrimEnd(Math.min(trimDuration, v + 2))
+                      if (trimVideoRef.current) trimVideoRef.current.currentTime = v
+                    }}
+                    style={{width:'100%',accentColor:'#60a5fa'}}
+                  />
                 </div>
-              </div>
-            ))}
-          </div>
-
-          {/* 발급 단계 */}
-          <div style={{fontWeight:700,color:'var(--text)',marginBottom:'14px',fontSize:'14px'}}>
-            📋 발급 순서 (3분이면 끝나요)
-          </div>
-
-          {/* STEP 1 */}
-          <div style={{marginBottom:'16px'}}>
-            <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'}}>
-              <div style={{width:'24px',height:'24px',borderRadius:'50%',background:'var(--accent)',
-                color:'#0f0f0f',fontWeight:800,fontSize:'12px',display:'flex',alignItems:'center',
-                justifyContent:'center',flexShrink:0}}>1</div>
-              <div style={{fontWeight:700,color:'var(--text)'}}>Google AI Studio 접속</div>
-            </div>
-            {/* 화면 mock */}
-            <div style={{background:'#1a1a2e',borderRadius:'10px',padding:'12px',marginLeft:'32px',
-              border:'1px solid rgba(255,255,255,0.1)'}}>
-              <div style={{display:'flex',gap:'6px',marginBottom:'8px'}}>
-                <div style={{width:'8px',height:'8px',borderRadius:'50%',background:'#f87171'}}/>
-                <div style={{width:'8px',height:'8px',borderRadius:'50%',background:'#facc15'}}/>
-                <div style={{width:'8px',height:'8px',borderRadius:'50%',background:'#4ade80'}}/>
-              </div>
-              <div style={{background:'rgba(255,255,255,0.08)',borderRadius:'6px',padding:'6px 10px',
-                fontSize:'11px',color:'#60a5fa',fontFamily:'monospace'}}>
-                🔗 aistudio.google.com/app/apikey
-              </div>
-            </div>
-            <div style={{marginLeft:'32px',marginTop:'6px',fontSize:'11px',color:'var(--text-dim)'}}>
-              위 주소로 접속하거나 아래 버튼을 클릭하세요.
-            </div>
-            <div style={{marginLeft:'32px',marginTop:'8px'}}>
-              <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer"
-                style={{display:'inline-block',background:'var(--accent)',color:'#0f0f0f',
-                  borderRadius:'8px',padding:'8px 16px',fontSize:'12px',fontWeight:700,
-                  textDecoration:'none'}}>
-                Google AI Studio 열기 →
-              </a>
-            </div>
-          </div>
-
-          {/* STEP 2 */}
-          <div style={{marginBottom:'16px'}}>
-            <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'}}>
-              <div style={{width:'24px',height:'24px',borderRadius:'50%',background:'var(--accent)',
-                color:'#0f0f0f',fontWeight:800,fontSize:'12px',display:'flex',alignItems:'center',
-                justifyContent:'center',flexShrink:0}}>2</div>
-              <div style={{fontWeight:700,color:'var(--text)'}}>구글 계정으로 로그인</div>
-            </div>
-            <div style={{background:'var(--surface2)',borderRadius:'10px',padding:'12px',marginLeft:'32px',
-              border:'1px solid var(--border)'}}>
-              <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
-                <div style={{width:'36px',height:'36px',borderRadius:'50%',
-                  background:'linear-gradient(135deg,#4285f4,#34a853,#fbbc04,#ea4335)',
-                  display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                  <span style={{color:'#fff',fontWeight:800,fontSize:'14px'}}>G</span>
+                <div style={{marginBottom:'16px'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:'5px'}}>
+                    <span style={{fontSize:'11px',color:'var(--text-dim)'}}>종료 지점 (최대 30초)</span>
+                    <span style={{fontSize:'12px',fontWeight:700,color:'var(--text)',fontFamily:"'DM Mono',monospace"}}>{fmtTime(trimEnd)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={trimStart + 1}
+                    max={Math.min(trimDuration, trimStart + 30)}
+                    step="0.5" value={trimEnd}
+                    onChange={e => setTrimEnd(parseFloat(e.target.value))}
+                    style={{width:'100%',accentColor:'#60a5fa'}}
+                  />
                 </div>
-                <div>
-                  <div style={{fontSize:'12px',fontWeight:600,color:'var(--text)'}}>Google 계정으로 계속하기</div>
-                  <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'2px'}}>평소 쓰는 구글 계정으로 로그인</div>
+                <div style={{
+                  textAlign:'center',fontSize:'13px',fontWeight:700,
+                  color:'#60a5fa',marginBottom:'16px',
+                  background:'rgba(96,165,250,0.08)',borderRadius:'8px',padding:'8px',
+                }}>
+                  선택 구간: {fmtTime(trimStart)} ~ {fmtTime(trimEnd)}
+                  &nbsp;·&nbsp;{Math.round(trimEnd - trimStart)}초
                 </div>
-              </div>
-            </div>
-          </div>
+              </>
+            )}
 
-          {/* STEP 3 */}
-          <div style={{marginBottom:'16px'}}>
-            <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'}}>
-              <div style={{width:'24px',height:'24px',borderRadius:'50%',background:'var(--accent)',
-                color:'#0f0f0f',fontWeight:800,fontSize:'12px',display:'flex',alignItems:'center',
-                justifyContent:'center',flexShrink:0}}>3</div>
-              <div style={{fontWeight:700,color:'var(--text)'}}>"Create API Key" 클릭</div>
-            </div>
-            <div style={{background:'var(--surface2)',borderRadius:'10px',padding:'12px',marginLeft:'32px',
-              border:'1px solid var(--border)'}}>
-              <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'8px'}}>페이지 상단 또는 중앙에 있는 버튼:</div>
-              <div style={{display:'inline-block',background:'#1967d2',borderRadius:'6px',
-                padding:'7px 14px',fontSize:'12px',fontWeight:700,color:'#fff'}}>
-                + Create API key
+            {/* 편집 진행 표시 */}
+            {isTrimming && (
+              <div style={{
+                textAlign:'center',fontSize:'12px',color:'var(--text-dim)',
+                marginBottom:'12px',padding:'10px',
+                background:'var(--surface2)',borderRadius:'8px',
+              }}>
+                <div style={{
+                  display:'inline-block',width:'14px',height:'14px',
+                  border:'2px solid var(--border)',borderTopColor:'#60a5fa',
+                  borderRadius:'50%',animation:'spin 0.8s linear infinite',
+                  marginRight:'8px',verticalAlign:'middle',
+                }} />
+                {mediaProgress || '영상을 편집하고 있어요...'}
               </div>
-              <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'8px'}}>
-                → "Create API key in new project" 선택
-              </div>
-            </div>
-          </div>
+            )}
 
-          {/* STEP 4 */}
-          <div style={{marginBottom:'16px'}}>
-            <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'}}>
-              <div style={{width:'24px',height:'24px',borderRadius:'50%',background:'var(--accent)',
-                color:'#0f0f0f',fontWeight:800,fontSize:'12px',display:'flex',alignItems:'center',
-                justifyContent:'center',flexShrink:0}}>4</div>
-              <div style={{fontWeight:700,color:'var(--text)'}}>키 복사</div>
+            {/* 버튼 행 */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}}>
+              <button
+                onClick={closeVideoTrimmer}
+                disabled={isTrimming}
+                style={{
+                  padding:'12px',borderRadius:'10px',
+                  border:'1px solid var(--border)',
+                  background:'var(--surface2)',color:'var(--text-muted)',
+                  fontSize:'13px',fontWeight:600,cursor:'pointer',
+                  fontFamily:'inherit',opacity:isTrimming?0.5:1,
+                }}
+              >취소</button>
+              <button
+                onClick={applyVideoTrim}
+                disabled={isTrimming}
+                style={{
+                  padding:'12px',borderRadius:'10px',border:'none',
+                  background:'#60a5fa',color:'#fff',
+                  fontSize:'13px',fontWeight:700,cursor:'pointer',
+                  fontFamily:'inherit',opacity:isTrimming?0.6:1,
+                }}
+              >{isTrimming ? '편집 중...' : '✂️ 구간 저장'}</button>
             </div>
-            <div style={{background:'var(--surface2)',borderRadius:'10px',padding:'12px',marginLeft:'32px',
-              border:'1px solid var(--border)'}}>
-              <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'6px'}}>생성된 키가 이런 형태로 나타나요:</div>
-              <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
-                <div style={{flex:1,background:'var(--surface)',borderRadius:'6px',padding:'7px 10px',
-                  fontFamily:'monospace',fontSize:'11px',color:'#a78bfa',letterSpacing:'0.5px',
-                  overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                  AIzaSyD••••••••••••••••••••••••••••••
-                </div>
-                <div style={{background:'var(--accent)',borderRadius:'6px',padding:'6px 10px',
-                  fontSize:'11px',fontWeight:700,color:'#0f0f0f',flexShrink:0}}>
-                  복사
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* STEP 5 */}
-          <div style={{marginBottom:'20px'}}>
-            <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'}}>
-              <div style={{width:'24px',height:'24px',borderRadius:'50%',background:'var(--accent)',
-                color:'#0f0f0f',fontWeight:800,fontSize:'12px',display:'flex',alignItems:'center',
-                justifyContent:'center',flexShrink:0}}>5</div>
-              <div style={{fontWeight:700,color:'var(--text)'}}>오운 설정에 붙여넣기</div>
-            </div>
-            <div style={{background:'var(--surface2)',borderRadius:'10px',padding:'12px',marginLeft:'32px',
-              border:'1px solid var(--border)'}}>
-              <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'6px'}}>설정 → API 키 입력란에 붙여넣기</div>
-              <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
-                <div style={{flex:1,background:'var(--surface)',borderRadius:'6px',padding:'7px 10px',
-                  border:'1px solid var(--accent)',fontFamily:'monospace',fontSize:'11px',
-                  color:'var(--text-dim)'}}>
-                  AIzaSyD... 붙여넣기
-                </div>
-                <div style={{background:'var(--accent)',borderRadius:'6px',padding:'6px 10px',
-                  fontSize:'11px',fontWeight:700,color:'#0f0f0f',flexShrink:0}}>
-                  저장
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* FAQ */}
-          <div style={{background:'rgba(250,204,21,0.08)',border:'1px solid rgba(250,204,21,0.2)',
-            borderRadius:'12px',padding:'14px',marginBottom:'16px'}}>
-            <div style={{fontWeight:700,color:'#facc15',marginBottom:'10px',fontSize:'13px'}}>
-              ❓ 자주 묻는 질문
-            </div>
-            {[
-              ['갑자기 돈이 빠져나가지 않나요?',
-               '아니요. 무료 플랜은 결제 수단 등록 없이 사용합니다.\n유료 전환은 직접 Google Cloud 콘솔에서 카드를 등록해야만 가능해요.'],
-              ['수업일지를 매일 만들어도 괜찮나요?',
-               '네. 일반적인 PT 트레이너 기준 하루 수업량으로는 무료 한도가 충분해요.\n혹시 한도를 초과하더라도 자동으로 멈출 뿐, 추가 요금은 발생하지 않아요.'],
-              ['한 번 발급받으면 계속 쓸 수 있나요?',
-               '네. API 키는 영구적으로 유효합니다.\n분실 시 동일한 방법으로 새로 발급하면 돼요.'],
-              ['키를 다른 사람과 공유해도 되나요?',
-               '공유하지 않는 게 좋아요. 내 무료 한도가 소모될 수 있어요.'],
-            ].map(([q, a]) => (
-              <div key={q} style={{marginBottom:'10px',paddingBottom:'10px',
-                borderBottom:'1px solid rgba(250,204,21,0.1)'}}>
-                <div style={{fontWeight:600,color:'var(--text)',fontSize:'12px',marginBottom:'3px'}}>Q. {q}</div>
-                <div style={{fontSize:'11px',color:'var(--text-muted)',whiteSpace:'pre-line'}}>A. {a}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* 발급 바로가기 + 설정으로 돌아가기 */}
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}}>
-            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer"
-              style={{display:'block',textAlign:'center',background:'var(--accent)',color:'#0f0f0f',
-                borderRadius:'10px',padding:'12px',fontSize:'13px',fontWeight:700,
-                textDecoration:'none'}}>
-              🔑 API 키 발급하기
-            </a>
-            <button onClick={()=>{ setShowApiGuide(false); setSettingsModal(true) }}
-              style={{background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:'10px',
-                padding:'12px',fontSize:'13px',fontWeight:700,color:'var(--text)',
-                cursor:'pointer',fontFamily:'inherit'}}>
-              ← 설정으로 돌아가기
-            </button>
           </div>
         </div>
-      </Modal>
+      )}
 
       {/* 이메일 필수 안내 모달 */}
       <Modal open={showEmailGuide} onClose={()=>setShowEmailGuide(false)} title="이메일을 입력하는 이유">
@@ -6378,15 +7032,36 @@ export default function TrainerApp() {
         {newSets.map((s,i)=>(
           <div key={i} className="ex-set-item">
             <span className="ex-set-num">{i+1}세트</span>
-            <span className="ex-set-info">{s.reps}회{s.feel?' · '+s.feel.substring(0,20):''}</span>
-            {s.rir!=='' && <span className="ex-set-rir">RIR {s.rir}</span>}
+            <span className="ex-set-info">{s.weight ? s.weight+'kg · ' : ''}{s.reps}회{s.feel?' · '+s.feel.substring(0,20):''}</span>
+            {s.rir!=='' && s.rir!==undefined && <span className="ex-set-rir">RIR {s.rir}</span>}
             <button className="ex-set-remove" onClick={()=>setNewSets(newSets.filter((_,j)=>j!==i))}>×</button>
           </div>
         ))}
         <div className="add-set-form">
-          <div className="set-form-row">
-            <div><label style={{fontSize:'11px'}}>횟수</label><input type="number" value={setReps} onChange={e=>setSetReps(e.target.value)} placeholder="10" min="1" /></div>
-            <div><label style={{fontSize:'11px'}}>RIR</label><input type="number" value={setRir} onChange={e=>setSetRir(e.target.value)} placeholder="2" min="0" max="10" /></div>
+          {/* 무게 + 횟수 — 모바일 숫자 키패드 유도 */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'8px'}}>
+            <div>
+              <label style={{fontSize:'11px'}}>무게 (kg)</label>
+              <input
+                type="number" inputMode="decimal" pattern="[0-9]*"
+                value={setWeight} onChange={e=>setSetWeight(e.target.value)}
+                placeholder="60" min="0"
+                style={{minHeight:'44px'}}
+              />
+            </div>
+            <div>
+              <label style={{fontSize:'11px'}}>횟수</label>
+              <input
+                type="number" inputMode="decimal" pattern="[0-9]*"
+                value={setReps} onChange={e=>setSetReps(e.target.value)}
+                placeholder="10" min="0"
+                style={{minHeight:'44px'}}
+              />
+            </div>
+          </div>
+          <div style={{marginBottom:'8px'}}>
+            <label style={{fontSize:'11px'}}>RIR</label>
+            <input type="number" inputMode="decimal" pattern="[0-9]*" value={setRir} onChange={e=>setSetRir(e.target.value)} placeholder="2" min="0" max="10" style={{minHeight:'44px'}} />
           </div>
           <div className="form-group" style={{marginBottom:'8px'}}><label style={{fontSize:'11px'}}>이번 세트 감각 / 느낀점</label><textarea value={setFeel} onChange={e=>setSetFeel(e.target.value)} placeholder="예) 3세트 때 팔꿈치 당김" rows={2} style={{minHeight:'60px'}}></textarea></div>
           <button className="btn btn-ghost btn-sm" onClick={addSet} style={{width:'100%',padding:'8px'}}>+ 세트 추가</button>

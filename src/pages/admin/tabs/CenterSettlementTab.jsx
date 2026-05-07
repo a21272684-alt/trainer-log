@@ -80,55 +80,61 @@ function RentalSection({ gymId, rentalTrainers, year, month }) {
   async function loadRental() {
     if (!rentalTrainers.length) { setLoading(false); return }
     setLoading(true)
-    const tIds = rentalTrainers.map(t => t.id)
+    try {
+      const tIds = rentalTrainers.map(t => t.id)
 
-    // 1. 이번 달 납부 내역
-    const { data: fees } = await supabase
-      .from('rental_fees').select('*')
-      .in('trainer_id', tIds).eq('target_month', monthStr)
-      .order('paid_at', { ascending: false })
+      // 1. 이번 달 납부 내역
+      const { data: fees } = await supabase
+        .from('rental_fees').select('*')
+        .in('trainer_id', tIds).eq('target_month', monthStr)
+        .order('paid_at', { ascending: false })
 
-    // 2. 대관 트레이너 담당 회원 ID 목록 (per_session 계산용)
-    const { data: mems } = await supabase
-      .from('members').select('id, trainer_id')
-      .in('trainer_id', tIds)
+      // 2. 대관 트레이너 담당 회원 ID 목록 (per_session 계산용)
+      const { data: mems } = await supabase
+        .from('members').select('id, trainer_id')
+        .in('trainer_id', tIds)
 
-    // 3. 이번 달 출석 횟수 (per_session 청구액 계산 기준)
-    const memIds = (mems || []).map(m => m.id)
-    const { data: attends } = memIds.length
-      ? await supabase.from('attendance').select('member_id')
-          .in('member_id', memIds)
-          .gte('attended_date', start).lt('attended_date', end)
-      : { data: [] }
+      // 3. 이번 달 출석 횟수 (per_session 청구액 계산 기준)
+      const memIds = (mems || []).map(m => m.id)
+      const { data: attends } = memIds.length
+        ? await supabase.from('attendance').select('member_id')
+            .in('member_id', memIds)
+            .gte('attended_date', start).lt('attended_date', end)
+        : { data: [] }
 
-    // 납부 내역 → trainer별 그룹핑
-    const feesMap = {}
-    for (const f of fees || []) {
-      if (!feesMap[f.trainer_id]) feesMap[f.trainer_id] = []
-      feesMap[f.trainer_id].push(f)
+      // 납부 내역 → trainer별 그룹핑
+      const feesMap = {}
+      for (const f of fees || []) {
+        if (!feesMap[f.trainer_id]) feesMap[f.trainer_id] = []
+        feesMap[f.trainer_id].push(f)
+      }
+      setRentalFees(feesMap)
+
+      // 출석 → member → trainer 매핑하여 카운트
+      const memTrainerMap = Object.fromEntries((mems || []).map(m => [m.id, m.trainer_id]))
+      const cntMap = {}
+      for (const a of attends || []) {
+        const tid = memTrainerMap[a.member_id]
+        if (tid) cntMap[tid] = (cntMap[tid] || 0) + 1
+      }
+      setAttendCounts(cntMap)
+    } catch (e) {
+      console.error('[RentalSection] loadRental error:', e)
+    } finally {
+      setLoading(false)
     }
-    setRentalFees(feesMap)
-
-    // 출석 → member → trainer 매핑하여 카운트
-    const memTrainerMap = Object.fromEntries((mems || []).map(m => [m.id, m.trainer_id]))
-    const cntMap = {}
-    for (const a of attends || []) {
-      const tid = memTrainerMap[a.member_id]
-      if (tid) cntMap[tid] = (cntMap[tid] || 0) + 1
-    }
-    setAttendCounts(cntMap)
-    setLoading(false)
   }
 
   // 청구액 계산: fixed → 고정액 / per_session → 완료 수업 수 × 단가
   function calcBilled(t) {
-    const cfg = cfgOverrides[t.id] ?? t.settlement_config ?? {}
+    const raw = cfgOverrides[t.id] ?? t.settlement_config
+    const cfg = (raw && typeof raw === 'object') ? raw : {}
     if (cfg.rental_fee_type === 'fixed')       return Number(cfg.rental_fee_amount) || 0
     if (cfg.rental_fee_type === 'per_session') return (attendCounts[t.id] || 0) * (Number(cfg.rental_fee_amount) || 0)
     return 0
   }
   function calcPaid(t) {
-    return (rentalFees[t.id] || []).reduce((s, f) => s + Number(f.amount), 0)
+    return (rentalFees[t.id] || []).reduce((s, f) => s + (Number(f.amount) || 0), 0)
   }
 
   // 납부 등록
@@ -165,7 +171,8 @@ function RentalSection({ gymId, rentalTrainers, year, month }) {
   }
 
   function openCfgModal(t) {
-    const cfg = cfgOverrides[t.id] ?? t.settlement_config ?? {}
+    const raw = cfgOverrides[t.id] ?? t.settlement_config
+    const cfg = (raw && typeof raw === 'object') ? raw : {}
     setCfgForm({
       payment_managed_by: cfg.payment_managed_by || 'self',
       rental_fee_type:    cfg.rental_fee_type    || 'fixed',
@@ -226,7 +233,8 @@ function RentalSection({ gymId, rentalTrainers, year, month }) {
                 </thead>
                 <tbody>
                   {rentalTrainers.map(t => {
-                    const cfg    = cfgOverrides[t.id] ?? t.settlement_config ?? {}
+                    const raw    = cfgOverrides[t.id] ?? t.settlement_config
+                    const cfg    = (raw && typeof raw === 'object') ? raw : {}
                     const billed = calcBilled(t)
                     const paid   = calcPaid(t)
                     const unpaid = billed - paid
@@ -241,8 +249,8 @@ function RentalSection({ gymId, rentalTrainers, year, month }) {
                               background: 'rgba(250,204,21,0.12)', border: '1px solid rgba(250,204,21,0.25)',
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
                               fontSize: '11px', fontWeight: 700, color: 'var(--yellow)',
-                            }}>{t.name[0]}</div>
-                            <span style={{ fontWeight: 600, fontSize: '13px' }}>{t.name}</span>
+                            }}>{(t.name || '?')[0]}</div>
+                            <span style={{ fontWeight: 600, fontSize: '13px' }}>{t.name || '—'}</span>
                           </div>
                         </td>
                         <td style={{ textAlign: 'center' }}>
@@ -418,24 +426,30 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
 
   async function load() {
     setLoading(true)
-    const start  = `${year}-${String(month).padStart(2, '0')}-01`
-    const endD   = new Date(year, month, 1)
-    const end    = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-01`
-    const tIds   = trainers.map(t => t.id)
+    try {
+      const start  = `${year}-${String(month).padStart(2, '0')}-01`
+      const endD   = new Date(year, month, 1)
+      const end    = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-01`
+      const tIds   = trainers.map(t => t.id)
 
-    const [payRes, rankRes] = await Promise.all([
-      tIds.length
-        ? supabase.from('payments').select('*')
-            .in('trainer_id', tIds)
-            .gte('paid_at', start).lt('paid_at', end)
-            .order('paid_at', { ascending: false })
-        : { data: [] },
-      supabase.from('gym_ranks').select('*').eq('gym_id', gymId),
-    ])
+      const [payRes, rankRes] = await Promise.all([
+        tIds.length
+          ? supabase.from('payments').select('*')
+              .in('trainer_id', tIds)
+              .gte('paid_at', start).lt('paid_at', end)
+              .neq('status', 'refunded')
+              .order('paid_at', { ascending: false })
+          : { data: [] },
+        supabase.from('gym_ranks').select('*').eq('gym_id', gymId),
+      ])
 
-    setPayments(payRes.data || [])
-    setGymRanks(rankRes.data || [])
-    setLoading(false)
+      setPayments(payRes.data || [])
+      setGymRanks(rankRes.data || [])
+    } catch (e) {
+      console.error('[CenterSettlementTab] load error:', e)
+    } finally {
+      setLoading(false)
+    }
   }
 
   // ── 데이터 계산 ───────────────────────────────────────────────
@@ -526,7 +540,7 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
       const s2 = [
         ['이름', '직급', '매출액', '인센티브율', '인센티브액', '센터귀속액', '기본급', '총 지급예정', '결제건수'],
         ...trainerStats.map(t => [
-          t.name, t.rankLabel,
+          t.name || '', t.rankLabel || '',
           t.totalSales,
           `${Math.round(t.iRate * 100)}%`,
           t.iAmt, t.cPortion, t.baseSalary, t.totalPayout, t.payCount,
@@ -636,9 +650,9 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'rgba(200,241,53,0.12)', border: '1px solid rgba(200,241,53,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: 'var(--accent)', flexShrink: 0 }}>
-                              {t.name[0]}
+                              {(t.name || '?')[0]}
                             </div>
-                            <span style={{ fontWeight: 600, fontSize: '13px' }}>{t.name}</span>
+                            <span style={{ fontWeight: 600, fontSize: '13px' }}>{t.name || '—'}</span>
                           </div>
                         </td>
                         <td>

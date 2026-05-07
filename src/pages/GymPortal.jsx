@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import GymOwnerPortal from './admin/GymOwnerPortal'
@@ -294,6 +294,10 @@ export default function GymPortal() {
   const [authUser, setAuthUser] = useState(null)
   const [gymInfo,  setGymInfo]  = useState(null)      // { trainer, gym }
 
+  // window focus 시 Supabase가 SIGNED_IN 을 재발화하는 문제 방어:
+  // 이미 dashboard를 렌더 중이면 handleAuthUser 를 다시 실행하지 않는다.
+  const isAuthenticatedRef = useRef(false)
+
   // CRM 랜딩 콘텐츠 (Supabase에서 로드)
   const [crmHero,       setCrmHero]       = useState(DEFAULT_CRM_HERO)
   const [crmFeatures,   setCrmFeatures]   = useState(CRM_FEATURES)
@@ -336,6 +340,10 @@ export default function GymPortal() {
   }
   // OAuth 로그인 성공 후 trainers → gyms 순서로 조회
   async function handleAuthUser(au) {
+    // 이미 인증 완료 상태면 토큰 갱신 이벤트 재진입을 무시
+    if (isAuthenticatedRef.current) return
+    isAuthenticatedRef.current = true
+
     setAuthUser(au)
     setScreen('loading')
 
@@ -374,7 +382,10 @@ export default function GymPortal() {
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session) handleAuthUser(session.user)
-      if (event === 'SIGNED_OUT') { setAuthUser(null); setGymInfo(null); setScreen('landing') }
+      if (event === 'SIGNED_OUT') {
+        isAuthenticatedRef.current = false  // 재로그인 허용
+        setAuthUser(null); setGymInfo(null); setScreen('landing')
+      }
     })
     return () => subscription.unsubscribe()
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -670,6 +681,7 @@ export default function GymPortal() {
         trainer={gymInfo.trainer}
         gym={gymInfo.gym}
         onLogout={async () => {
+          isAuthenticatedRef.current = false  // 재로그인 허용
           await supabase.auth.signOut()
           setAuthUser(null)
           setGymInfo(null)

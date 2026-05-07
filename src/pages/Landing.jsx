@@ -326,9 +326,41 @@ export default function Landing() {
   })
 
   useEffect(() => {
+    // ── 안전 파싱 헬퍼 ───────────────────────────────────────────
+    // app_settings.value 는 jsonb/string 양형 호환. 문자열이면 JSON.parse 시도, 실패 시 원본 반환.
+    const parseValue = (raw) => {
+      if (raw == null) return null
+      if (typeof raw !== 'string') return raw
+      try { return JSON.parse(raw) } catch { return raw }
+    }
+
+    // ── String Boolean 함정 차단 ─────────────────────────────────
+    // boolean true 또는 문자열 'true' / 'TRUE' / 1 만 true 로 정규화.
+    // 그 외(false, 'false', null, undefined, 0, 객체 등)는 모두 false.
+    const toStrictBool = (v) => {
+      if (v === true) return true
+      if (typeof v === 'string') return v.trim().toLowerCase() === 'true'
+      if (typeof v === 'number') return v === 1
+      return false
+    }
+
+    // 포털 버튼 객체를 항상 4개 키 모두 boolean 으로 정규화.
+    const normalizePortals = (raw) => {
+      const safe = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {}
+      return {
+        trainer:   toStrictBool(safe.trainer),
+        member:    toStrictBool(safe.member),
+        community: toStrictBool(safe.community),
+        crm:       toStrictBool(safe.crm),
+      }
+    }
+
     supabase.from('app_settings')
       .select('key, value')
       .in('key', [
+        // 신규 통합 키 — AdminPortal 의 landing_v1 SoT
+        'landing_v1',
+        // 레거시 파편 키 — landing_v1 미존재 시점의 과거 데이터 호환 폴백
         'landing_hero', 'landing_stats', 'landing_problems', 'landing_solutions',
         'landing_ai_highlight',
         'landing_reviews', 'landing_kakao', 'landing_targets', 'landing_member_features',
@@ -337,20 +369,57 @@ export default function Landing() {
       ])
       .then(({ data }) => {
         if (!data) return
+
+        // 1) landing_v1 통합 객체 — 최우선 적용
+        const v1Row = data.find(r => r.key === 'landing_v1')
+        const v1 = parseValue(v1Row?.value)
+        let portalsApplied = false
+
+        if (v1 && typeof v1 === 'object' && !Array.isArray(v1)) {
+          if (v1.hero            && typeof v1.hero === 'object')          setHero(v1.hero)
+          if (Array.isArray(v1.stats))                                    setStats(v1.stats)
+          if (Array.isArray(v1.problems))                                 setProblems(v1.problems)
+          if (Array.isArray(v1.solutions))                                setSolutions(v1.solutions)
+          if (Array.isArray(v1.reviews))                                  setReviews(v1.reviews)
+          if (Array.isArray(v1.kakao))                                    setKakao(v1.kakao)
+          if (Array.isArray(v1.targets))                                  setTargets(v1.targets)
+          if (Array.isArray(v1.member_features))                          setMemberFeatures(v1.member_features)
+          if (Array.isArray(v1.plans_landing))                            setLandingPlans(v1.plans_landing)
+          if (Array.isArray(v1.faqs))                                     setFaqs(v1.faqs)
+          if (Array.isArray(v1.comparison))                               setComparison(v1.comparison)
+          if (v1.ai_highlight    && typeof v1.ai_highlight === 'object')  setAiHighlight(v1.ai_highlight)
+
+          // ── 포털 ON/OFF — landing_v1 의 portals / portal_buttons 양형 호환 ──
+          // AdminPortal SoT 키는 portal_buttons 이지만, 신규 표기(portals)도 동시 지원.
+          const portalsRaw = (v1.portals && typeof v1.portals === 'object')
+            ? v1.portals
+            : (v1.portal_buttons && typeof v1.portal_buttons === 'object' ? v1.portal_buttons : null)
+          if (portalsRaw) {
+            setPortalButtons(normalizePortals(portalsRaw))
+            portalsApplied = true
+          }
+        }
+
+        // 2) 레거시 파편 키 폴백 — v1 미존재 또는 누락된 섹션만 보강
         data.forEach(row => {
-          if (row.key === 'landing_hero'             && row.value)                    setHero(row.value)
-          if (row.key === 'landing_stats'            && Array.isArray(row.value))    setStats(row.value)
-          if (row.key === 'landing_problems'         && Array.isArray(row.value))    setProblems(row.value)
-          if (row.key === 'landing_solutions'        && Array.isArray(row.value))    setSolutions(row.value)
-          if (row.key === 'landing_reviews'          && Array.isArray(row.value))    setReviews(row.value)
-          if (row.key === 'landing_kakao'            && Array.isArray(row.value))    setKakao(row.value)
-          if (row.key === 'landing_targets'          && Array.isArray(row.value))    setTargets(row.value)
-          if (row.key === 'landing_member_features'  && Array.isArray(row.value))    setMemberFeatures(row.value)
-          if (row.key === 'landing_plans_landing'    && Array.isArray(row.value))    setLandingPlans(row.value)
-          if (row.key === 'landing_faqs'             && Array.isArray(row.value))    setFaqs(row.value)
-          if (row.key === 'landing_comparison'       && Array.isArray(row.value))    setComparison(row.value)
-          if (row.key === 'landing_ai_highlight'     && row.value && typeof row.value === 'object') setAiHighlight(row.value)
-          if (row.key === 'landing_portal_buttons'   && row.value && typeof row.value === 'object') setPortalButtons(prev => ({ ...prev, ...row.value }))
+          const v = parseValue(row.value)
+          if (row.key === 'landing_hero'             && v && typeof v === 'object' && !Array.isArray(v)) setHero(v)
+          if (row.key === 'landing_stats'            && Array.isArray(v))    setStats(v)
+          if (row.key === 'landing_problems'         && Array.isArray(v))    setProblems(v)
+          if (row.key === 'landing_solutions'        && Array.isArray(v))    setSolutions(v)
+          if (row.key === 'landing_reviews'          && Array.isArray(v))    setReviews(v)
+          if (row.key === 'landing_kakao'            && Array.isArray(v))    setKakao(v)
+          if (row.key === 'landing_targets'          && Array.isArray(v))    setTargets(v)
+          if (row.key === 'landing_member_features'  && Array.isArray(v))    setMemberFeatures(v)
+          if (row.key === 'landing_plans_landing'    && Array.isArray(v))    setLandingPlans(v)
+          if (row.key === 'landing_faqs'             && Array.isArray(v))    setFaqs(v)
+          if (row.key === 'landing_comparison'       && Array.isArray(v))    setComparison(v)
+          if (row.key === 'landing_ai_highlight'     && v && typeof v === 'object' && !Array.isArray(v)) setAiHighlight(v)
+          // 레거시 portal_buttons 키 — landing_v1.portals 가 적용되지 않았을 때만 폴백 사용
+          if (!portalsApplied && row.key === 'landing_portal_buttons'
+              && v && typeof v === 'object' && !Array.isArray(v)) {
+            setPortalButtons(normalizePortals(v))
+          }
         })
       })
   }, [])
@@ -879,7 +948,7 @@ export default function Landing() {
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'14px',marginBottom:'14px'}}>
             {/* 트레이너 앱 */}
             <SlideCard delay={0}>
-              {portalButtons.trainer !== false ? (
+              {portalButtons.trainer === true ? (
                 <Link to="/trainer" style={{
                   background:'linear-gradient(145deg,#1e293b,#162004)',
                   border:'1px solid rgba(200,241,53,0.3)',borderRadius:'20px',padding:'32px 24px',
@@ -919,7 +988,7 @@ export default function Landing() {
 
             {/* 회원 포털 */}
             <SlideCard delay={150}>
-              {portalButtons.member !== false ? (
+              {portalButtons.member === true ? (
                 <Link to="/member" style={{
                   background:'linear-gradient(145deg,#1e293b,#041020)',
                   border:'1px solid rgba(79,195,247,0.3)',borderRadius:'20px',padding:'32px 24px',
@@ -960,7 +1029,7 @@ export default function Landing() {
 
           {/* 커뮤니티 */}
           <SlideCard delay={300}>
-            {portalButtons.community !== false ? (
+            {portalButtons.community === true ? (
               <Link to="/community" style={{
                 background:'linear-gradient(145deg,#1e293b,#1a0d04)',
                 border:'1px solid rgba(255,152,0,0.3)',borderRadius:'20px',padding:'26px 30px',
@@ -1004,7 +1073,7 @@ export default function Landing() {
 
           {/* 헬스장 CRM */}
           <SlideCard delay={450}>
-            {portalButtons.crm !== false ? (
+            {portalButtons.crm === true ? (
               <Link to="/gym" style={{
                 background:'linear-gradient(145deg,#1e293b,#1a0520)',
                 border:'1px solid rgba(224,64,251,0.3)',borderRadius:'20px',padding:'26px 30px',
