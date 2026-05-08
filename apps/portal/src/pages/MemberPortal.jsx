@@ -292,7 +292,8 @@ export default function MemberPortal() {
     if (chartInstance.current) { chartInstance.current.destroy(); chartInstance.current = null }
   }
 
-  // OAuth 인증 상태 감지
+  // OAuth 인증 상태 감지 (Bug 4 가드용 ref — Trainer 측과 동일 패턴)
+  const isAuthenticatedRef = useRef(false)
   useEffect(() => {
     // 중앙 Gemini API 키 로드 (앱 마운트 시 1회)
     supabase.from('app_settings')
@@ -308,12 +309,25 @@ export default function MemberPortal() {
       })
       .catch(e => console.warn('[app_settings] Gemini 키 로드 실패:', e.message))
 
+    // Bug 4 (Member) — Supabase v2 의 SIGNED_IN 은 token refresh / 탭 활성화 시점에도
+    // 다시 발화됨. ref 가드 없으면 다른 인터넷 창에서 돌아올 때마다 환영 toast 가
+    // 반복적으로 노출됨. (Trainer 측은 이미 PR 1 에서 동일 fix 적용됨)
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) handleAuthUser(session.user)
+      if (session && !isAuthenticatedRef.current) {
+        isAuthenticatedRef.current = true
+        handleAuthUser(session.user)
+      }
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) handleAuthUser(session.user)
-      if (event === 'SIGNED_OUT') { setAuthUser(null); setMember(null); setLoggedIn(false) }
+      if (event === 'SIGNED_IN' && session) {
+        if (isAuthenticatedRef.current) return  // token refresh 재진입 무시
+        isAuthenticatedRef.current = true
+        handleAuthUser(session.user)
+      }
+      if (event === 'SIGNED_OUT') {
+        isAuthenticatedRef.current = false
+        setAuthUser(null); setMember(null); setLoggedIn(false)
+      }
     })
     return () => subscription.unsubscribe()
   // eslint-disable-next-line react-hooks/exhaustive-deps
