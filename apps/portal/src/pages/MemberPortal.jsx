@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom'
 import { Chart, registerables } from 'chart.js'
 import { callGeminiMultipart, buildFoodVisionParts, parseFoodVisionResult } from '@trainer-log/shared/lib/ai_templates'
 import { compressImage } from '@trainer-log/shared/lib/imageCompress'
+import { removeStorageOnError } from '@trainer-log/shared/lib/storageCleanup'
 import '../styles/member.css'
 
 Chart.register(...registerables)
@@ -588,6 +589,7 @@ export default function MemberPortal() {
   async function addFoodItem() {
     if (!foodForm.name.trim()) { showToast('음식 이름을 입력해주세요'); return }
     const amtG = parseFloat(foodForm.amountG) || 100
+    let uploadedDietPath = null  // C-002: insert 실패 시 storage 롤백 대상
     try {
       let photo_url = null
       if (foodForm.photoFile) {
@@ -606,6 +608,7 @@ export default function MemberPortal() {
             } else if (upData) {
               const { data: { publicUrl } } = supabase.storage.from('diet-photos').getPublicUrl(path)
               photo_url = publicUrl
+              uploadedDietPath = path  // C-002: insert 실패 시 롤백 대상
             }
           } catch (uploadErr) {
             console.warn('사진 업로드/압축 오류:', uploadErr)
@@ -633,7 +636,11 @@ export default function MemberPortal() {
       setShowFoodModal(false)
       await loadDietLogs(dietDate)
       showToast('✓ 음식이 추가됐어요!')
-    } catch (e) { showToast('오류: ' + e.message) }
+    } catch (e) {
+      // C-002: insert/이후 흐름이 실패하면 업로드된 사진은 orphan → 롤백
+      if (uploadedDietPath) await removeStorageOnError(supabase, 'diet-photos', uploadedDietPath)
+      showToast('오류: ' + e.message)
+    }
   }
 
   async function removeFoodItem(id) {
@@ -993,6 +1000,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
     if (creatingPost) return
     if (!postContent.trim() && !postPhotoFile) { showToast('내용이나 사진을 추가해주세요'); return }
     setCreatingPost(true)
+    let uploadedPostPath = null  // C-002: insert 실패 시 storage 롤백 대상
     try {
       let photo_url = null
       if (postPhotoFile) {
@@ -1005,6 +1013,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
         if (upErr) throw upErr
         const { data: { publicUrl } } = supabase.storage.from('community-photos').getPublicUrl(path)
         photo_url = publicUrl
+        uploadedPostPath = path
       }
       const { error } = await supabase.from('member_posts').insert({
         member_id: member.id, member_name: member.name,
@@ -1015,6 +1024,8 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
       await loadPosts()
       showToast('✓ 게시됐어요!')
     } catch(e) {
+      // C-002: insert/이후 흐름이 실패하면 업로드된 사진은 orphan → 롤백
+      if (uploadedPostPath) await removeStorageOnError(supabase, 'community-photos', uploadedPostPath)
       console.error('게시글 작성 오류:', e)
       showToast('오류: ' + (e?.message || '게시 실패'))
     } finally {

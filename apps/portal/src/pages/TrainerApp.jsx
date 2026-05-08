@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import ScheduleModal from '../components/ScheduleModal'
 import { compressImage as sharedCompressImage } from '@trainer-log/shared/lib/imageCompress'
+import { cleanupMemberStorage, removeStorageOnError } from '@trainer-log/shared/lib/storageCleanup'
 import { supabase, GEMINI_MODEL } from '@trainer-log/shared/lib/supabase'
 import { subscribeToPush, scheduleNotification, deleteScheduledNotification } from '../lib/push'
 import { useToast } from '@trainer-log/shared/components/common/Toast'
@@ -1882,6 +1883,8 @@ export default function TrainerApp() {
         .eq('id', trainer.id)
 
       if (dbErr) {
+        // C-002: update 실패 시 storage 롤백 — orphan 차단
+        await removeStorageOnError(supabase, 'trainer-photos', path)
         if (dbErr.message?.includes('column') && dbErr.message?.includes('profile_photo_url')) {
           throw new Error('DB 컬럼이 없어요.\n\nSupabase SQL Editor에서 033_trainer_profile.sql을 실행해주세요.')
         }
@@ -2498,6 +2501,7 @@ export default function TrainerApp() {
     try {
       const prod = products.find(p => p.id === f.productId)
       let photoUrl = null
+      let uploadedHoldPath = null  // C-002: insert 실패 시 롤백 대상
       if (f.photoFile) {
         // Storage RLS: 첫 폴더 = auth.uid()::text 강제 (trainer.auth_id == auth.uid())
         const authUid = trainer?.auth_id || null
@@ -2510,6 +2514,7 @@ export default function TrainerApp() {
             const path = `${authUid}/${Date.now()}.webp`
             const { error: upErr } = await supabase.storage.from('hold-photos').upload(path, blob, { contentType: 'image/webp' })
             if (!upErr) {
+              uploadedHoldPath = path
               const { data: urlData } = supabase.storage.from('hold-photos').getPublicUrl(path)
               photoUrl = urlData.publicUrl
             }
@@ -2524,7 +2529,11 @@ export default function TrainerApp() {
         start_date: f.startDate, end_date: f.endDate,
         reason: f.reason || null, photo_url: photoUrl
       })
-      if (insertErr) throw insertErr
+      if (insertErr) {
+        // C-002: insert 실패 시 storage 롤백 — orphan 차단
+        if (uploadedHoldPath) await removeStorageOnError(supabase, 'hold-photos', uploadedHoldPath)
+        throw insertErr
+      }
       // members.suspended 컬럼 부재 — DB update 차단, member_holds 만으로 정지 상태 추적
       await loadMembers(); await loadHolds(currentMemberId)
       setHoldModal(false)
@@ -2680,6 +2689,13 @@ export default function TrainerApp() {
 
   async function deleteMember() {
     try {
+      // C-002: DB cascade 로 logs/member_holds 등이 삭제되기 *전* 에 storage 정리.
+      // (cascade 후엔 photo_url 못 읽으므로 orphan 발생)
+      const memberRow = members.find(m => m.id === editMemberForm.id)
+      if (memberRow) {
+        const { ok, errors } = await cleanupMemberStorage(supabase, memberRow, trainer)
+        if (!ok) console.warn('[deleteMember] storage cleanup 일부 실패:', errors)
+      }
       await supabase.from('members').delete().eq('id', editMemberForm.id)
       await loadMembers()
       setDeleteConfirmModal(false)
