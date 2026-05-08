@@ -310,16 +310,40 @@ export default function GymPortal() {
   ])
 
   // 랜딩 콘텐츠 로드
+  // AdminPortal SoT 는 단일 키 landing_v1 (.crm_hero / .crm_features / .crm_painpoints / .crm_roadmap).
+  // 레거시 파편 키 (landing_crm_*) 는 v1 미존재 또는 누락된 섹션만 폴백.
+  // 이전 버그: landing_v1 을 안 읽어서 admin 의 CRM 랜딩 수정이 영원히 stale.
   useEffect(() => {
+    // app_settings.value 는 jsonb/string 양형 호환. 문자열이면 JSON.parse 시도, 실패 시 원본 반환.
+    const parseValue = (raw) => {
+      if (raw == null) return null
+      if (typeof raw !== 'string') return raw
+      try { return JSON.parse(raw) } catch { return raw }
+    }
+
     supabase.from('app_settings').select('key, value').in('key', [
+      'landing_v1',
       'landing_crm_hero', 'landing_crm_features', 'landing_crm_painpoints', 'landing_crm_roadmap',
     ]).then(({ data }) => {
       if (!data) return
+
+      // 1) landing_v1 통합 객체 우선 적용
+      const v1Row = data.find(r => r.key === 'landing_v1')
+      const v1 = parseValue(v1Row?.value)
+      const v1Applied = new Set()
+      if (v1 && typeof v1 === 'object' && !Array.isArray(v1)) {
+        if (v1.crm_hero       && typeof v1.crm_hero === 'object') { setCrmHero(v1.crm_hero);             v1Applied.add('crm_hero') }
+        if (Array.isArray(v1.crm_features))                        { setCrmFeatures(v1.crm_features);     v1Applied.add('crm_features') }
+        if (Array.isArray(v1.crm_painpoints))                      { setCrmPainpoints(v1.crm_painpoints); v1Applied.add('crm_painpoints') }
+        if (Array.isArray(v1.crm_roadmap))                         { setCrmRoadmap(v1.crm_roadmap);       v1Applied.add('crm_roadmap') }
+      }
+
+      // 2) 레거시 폴백 — v1 에서 적용 안 된 섹션만
       const find = (k) => data.find(r => r.key === k)
-      if (find('landing_crm_hero')?.value)              setCrmHero(find('landing_crm_hero').value)
-      if (Array.isArray(find('landing_crm_features')?.value))   setCrmFeatures(find('landing_crm_features').value)
-      if (Array.isArray(find('landing_crm_painpoints')?.value)) setCrmPainpoints(find('landing_crm_painpoints').value)
-      if (Array.isArray(find('landing_crm_roadmap')?.value))    setCrmRoadmap(find('landing_crm_roadmap').value)
+      if (!v1Applied.has('crm_hero')       && find('landing_crm_hero')?.value)                        setCrmHero(parseValue(find('landing_crm_hero').value))
+      if (!v1Applied.has('crm_features')   && Array.isArray(parseValue(find('landing_crm_features')?.value)))   setCrmFeatures(parseValue(find('landing_crm_features').value))
+      if (!v1Applied.has('crm_painpoints') && Array.isArray(parseValue(find('landing_crm_painpoints')?.value))) setCrmPainpoints(parseValue(find('landing_crm_painpoints').value))
+      if (!v1Applied.has('crm_roadmap')    && Array.isArray(parseValue(find('landing_crm_roadmap')?.value)))    setCrmRoadmap(parseValue(find('landing_crm_roadmap').value))
     })
   }, [])
 
