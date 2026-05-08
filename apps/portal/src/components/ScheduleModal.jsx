@@ -39,6 +39,8 @@ function ScheduleModal({
   const [showCancelForm, setShowCancelForm] = useState(false)
   const [cancelType,     setCancelType]     = useState('')
   const [cancelDetail,   setCancelDetail]   = useState('')
+  // U-011: 저장 중 중복 클릭 방지
+  const [saving, setSaving] = useState(false)
 
   // initialBlock 변경(=모달 새로 열기 / 다른 block 편집 진입) 시 form 리셋
   useEffect(() => {
@@ -56,20 +58,26 @@ function ScheduleModal({
     setCancelDetail('')
   }, [initialBlock, members])
 
-  function handleSave() {
+  async function handleSave() {
+    if (saving) return  // U-011: 중복 클릭 방지
     if (!blockDate || !blockStart || !blockEnd) { onSave(null, '날짜와 시간을 입력해주세요'); return }
     if (blockStart >= blockEnd) { onSave(null, '종료 시간이 시작보다 늦어야 해요'); return }
-    onSave({
-      id:       initialBlock?.id,
-      date:     blockDate,
-      start:    blockStart,
-      end:      blockEnd,
-      type:     selType,
-      color:    selColor,
-      memo:     blockMemo.trim(),
-      memberId: selType === 'lesson'   ? blockMemberId       : null,
-      title:    selType === 'personal' ? blockTitle.trim()   : null,
-    })
+    setSaving(true)
+    try {
+      await onSave({
+        id:       initialBlock?.id,
+        date:     blockDate,
+        start:    blockStart,
+        end:      blockEnd,
+        type:     selType,
+        color:    selColor,
+        memo:     blockMemo.trim(),
+        memberId: selType === 'lesson'   ? blockMemberId       : null,
+        title:    selType === 'personal' ? blockTitle.trim()   : null,
+      })
+    } finally {
+      setSaving(false)
+    }
   }
 
   function handleToggleCancel() {
@@ -140,7 +148,9 @@ function ScheduleModal({
         </div>
       )}
       <div style={{display:'flex',gap:'8px'}}>
-        <button className="btn btn-primary" style={{flex:1}} onClick={handleSave}>저장</button>
+        <button className="btn btn-primary" style={{flex:1, opacity: saving ? 0.55 : 1, cursor: saving ? 'not-allowed' : 'pointer'}} disabled={saving} onClick={handleSave}>
+          {saving ? '저장 중…' : '저장'}
+        </button>
         {isEdit && (
           <button className="btn btn-ghost btn-sm" onClick={handleToggleCancel}
                   style={{color:'var(--danger)',borderColor:'rgba(255,92,92,0.3)',

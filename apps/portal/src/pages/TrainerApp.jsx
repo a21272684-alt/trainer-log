@@ -51,7 +51,7 @@ function RevenuePaymentList({ trainerId, members, refreshKey }) {
         const methodDetail = p.payment_method_memo ? ` (${p.payment_method_memo})` : ''
         return (
           <div key={p.id} style={{display:'flex',alignItems:'center',gap:'10px',padding:'10px 12px',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'8px',marginBottom:'6px'}}>
-            <div style={{width:'28px',height:'28px',borderRadius:'50%',background:'var(--accent)',color:'#0f0f0f',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:'12px',flexShrink:0}}>{mem?.name[0]||'?'}</div>
+            <div style={{width:'28px',height:'28px',borderRadius:'50%',background:'var(--accent)',color:'#0f0f0f',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:'12px',flexShrink:0}}>{mem?.name?.[0]||'?'}</div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:'13px',fontWeight:500}}>{mem?.name||'회원'} · {p.product_name}</div>
               <div style={{display:'flex',flexWrap:'wrap',alignItems:'center',gap:'4px',marginTop:'2px'}}>
@@ -1917,14 +1917,19 @@ export default function TrainerApp() {
   // 중앙 Gemini API 키 + 긴급문의 링크 로드 (앱 마운트 시 1회)
   useEffect(() => {
     supabase.from('app_settings').select('key, value').in('key', ['gemini_api_key', 'urgent_inquiry_url'])
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        // B-006 fix: silent fail 방지 — 에러 시 console 에 명시
+        if (error) {
+          console.warn('[app_settings] 로드 실패:', error.message)
+          return
+        }
         if (!data) return
         const apiKeyRow = data.find(r => r.key === 'gemini_api_key')
         if (apiKeyRow?.value) setCentralApiKey(String(apiKeyRow.value).replace(/^"|"$/g, ''))
         const urgentRow = data.find(r => r.key === 'urgent_inquiry_url')
         if (urgentRow?.value) setUrgentInquiryUrl(String(urgentRow.value).replace(/^"|"$/g, ''))
       })
-      .catch(() => {})
+      .catch(e => console.warn('[app_settings] catch:', e.message))
   }, [])
 
   /* ── OAuth 로그인 ────────────────────────────────────────── */
@@ -2074,9 +2079,15 @@ export default function TrainerApp() {
 
   async function loadMembers() {
     // is_personal=true 만 조회: CRM 에서 등록된 센터 회원(false)은 트레이너 포털에 노출 X
-    const { data } = await supabase.from('members').select('*')
+    // U-005 fix: error 무시하던 부분 — silent fail 방지
+    const { data, error } = await supabase.from('members').select('*')
       .eq('trainer_id', trainer.id).eq('is_personal', true)
       .order('created_at', { ascending: false })
+    if (error) {
+      console.warn('[loadMembers]', error.message)
+      showToast('회원 목록을 불러오지 못했어요')
+      return
+    }
     setMembers(data || [])
     computeAllRiskScores(data || [])  // 리스크 점수는 회원 데이터 필요 → 직후 호출
     // loadTodayAttendance 는 useEffect에서 명시적으로 독립 호출됨
