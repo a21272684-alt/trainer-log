@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import ScheduleModal from '../components/ScheduleModal'
+import { compressImage as sharedCompressImage } from '@trainer-log/shared/lib/imageCompress'
 import { supabase, GEMINI_MODEL } from '@trainer-log/shared/lib/supabase'
 import { subscribeToPush, scheduleNotification, deleteScheduledNotification } from '../lib/push'
 import { useToast } from '@trainer-log/shared/components/common/Toast'
@@ -2492,12 +2493,17 @@ export default function TrainerApp() {
         if (!authUid) {
           showToast('정지 사진 업로드는 로그인 후 가능해요')
         } else {
-          const ext = f.photoFile.name.split('.').pop()
-          const path = `${authUid}/${Date.now()}.${ext}`
-          const { error: upErr } = await supabase.storage.from('hold-photos').upload(path, f.photoFile)
-          if (!upErr) {
-            const { data: urlData } = supabase.storage.from('hold-photos').getPublicUrl(path)
-            photoUrl = urlData.publicUrl
+          try {
+            // C-102: 클라이언트 압축 (1200px / WebP 0.80)
+            const { blob } = await sharedCompressImage(f.photoFile, { maxSize: 1200 })
+            const path = `${authUid}/${Date.now()}.webp`
+            const { error: upErr } = await supabase.storage.from('hold-photos').upload(path, blob, { contentType: 'image/webp' })
+            if (!upErr) {
+              const { data: urlData } = supabase.storage.from('hold-photos').getPublicUrl(path)
+              photoUrl = urlData.publicUrl
+            }
+          } catch (compErr) {
+            console.warn('hold-photo 압축/업로드 실패:', compErr.message)
           }
         }
       }
@@ -2769,8 +2775,17 @@ export default function TrainerApp() {
   }
 
   /** MediaRecorder로 영상 구간 추출 (데스크탑/Android Chrome 지원) */
+  // C-001: 영상 길이 30분 (1800초) 제한 + 비트레이트 1Mbps 로 감소.
+  // Storage 비용 폭발 방지 (이전: 무제한 길이 + 2Mbps → 트레이너 1명 abuse 시 +$168/월).
+  // 720p 화질에 1Mbps 면 충분 (수업 영상 용도).
   function trimVideoSegment(file, startSec, endSec) {
     return new Promise((resolve, reject) => {
+      // C-001: 영상 길이 상한 검증
+      const MAX_DURATION_SEC = 30 * 60 // 30 분
+      if (endSec - startSec > MAX_DURATION_SEC) {
+        reject(new Error(`영상 길이는 최대 ${MAX_DURATION_SEC / 60}분까지 가능합니다`))
+        return
+      }
       const video = document.createElement('video')
       video.muted = false
       video.playsInline = true
@@ -2784,7 +2799,7 @@ export default function TrainerApp() {
 
           const types = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm']
           const mime   = types.find(t => MediaRecorder.isTypeSupported(t)) || 'video/webm'
-          const recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 2_000_000 })
+          const recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 1_000_000 })
           const chunks = []
           recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data) }
           recorder.onstop = () => {

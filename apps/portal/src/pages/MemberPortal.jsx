@@ -7,6 +7,7 @@ import { EXERCISE_DB } from '../lib/exercises'
 import { Link } from 'react-router-dom'
 import { Chart, registerables } from 'chart.js'
 import { callGeminiMultipart, buildFoodVisionParts, parseFoodVisionResult } from '@trainer-log/shared/lib/ai_templates'
+import { compressImage } from '@trainer-log/shared/lib/imageCompress'
 import '../styles/member.css'
 
 Chart.register(...registerables)
@@ -456,6 +457,19 @@ export default function MemberPortal() {
 
   async function recognizeFoodFromPhoto(file) {
     if (!trainerApiKey) { showToast('AI 기능을 사용할 수 없어요. 잠시 후 다시 시도해주세요'); return }
+    if (!member?.trainer_id) { showToast('트레이너 정보가 없어 AI 인식을 사용할 수 없어요'); return }
+
+    // C-101: AI Vision 호출 전 트레이너의 월 한도 확인 (abuse 차단)
+    try {
+      const { data: usage } = await supabase.rpc('get_ai_usage', { p_trainer_id: member.trainer_id })
+      if (usage?.blocked) {
+        showToast('AI 인식 월 한도를 모두 사용했어요. 다음달에 다시 시도해주세요')
+        return
+      }
+    } catch (e) {
+      console.warn('[recognizeFood] get_ai_usage 실패 — 한도 체크 skip:', e.message)
+    }
+
     setFoodForm(p => ({ ...p, aiLoading: true }))
     try {
       const reader = new FileReader()
@@ -468,6 +482,14 @@ export default function MemberPortal() {
           const GEMINI_MODEL = 'gemini-2.5-flash-lite'
           const text = await callGeminiMultipart(trainerApiKey, GEMINI_MODEL, parts, { timeoutMs: 45000 })
           const result = parseFoodVisionResult(text)
+
+          // C-101: 호출 성공 시 ai_usage 차감 (트레이너 quota)
+          try {
+            await supabase.rpc('use_ai_credit', { p_trainer_id: member.trainer_id })
+          } catch (creditErr) {
+            console.warn('[recognizeFood] use_ai_credit 실패:', creditErr.message)
+          }
+
           setFoodForm(p => ({
             ...p,
             name:       result.food_name,
@@ -487,6 +509,11 @@ export default function MemberPortal() {
           showToast('인식 실패: ' + err.message)
           setFoodForm(p => ({ ...p, aiLoading: false }))
         }
+      }
+      // B-101 fix: FileReader 자체 실패 (파일 권한 거부 등) 핸들러 추가
+      reader.onerror = () => {
+        showToast('파일을 읽을 수 없어요')
+        setFoodForm(p => ({ ...p, aiLoading: false }))
       }
       reader.readAsDataURL(file)
     } catch (err) {
@@ -538,9 +565,10 @@ export default function MemberPortal() {
           console.warn('사진 업로드 차단: 익명 상태(auth_id 없음)')
         } else {
           try {
-            const ext = (foodForm.photoFile.name.split('.').pop() || 'jpg').toLowerCase()
-            const path = `${authUid}/${Date.now()}.${ext}`
-            const { data: upData, error: upErr } = await supabase.storage.from('diet-photos').upload(path, foodForm.photoFile)
+            // C-102: 클라이언트 압축 (1200px / WebP 0.80) — 원본 5~8MB → 100~300KB
+            const { blob } = await compressImage(foodForm.photoFile, { maxSize: 1024 })
+            const path = `${authUid}/${Date.now()}.webp`
+            const { data: upData, error: upErr } = await supabase.storage.from('diet-photos').upload(path, blob, { contentType: 'image/webp' })
             if (upErr) {
               console.warn('사진 업로드 실패 (영양소 정보는 저장됩니다):', upErr.message)
             } else if (upData) {
@@ -548,7 +576,7 @@ export default function MemberPortal() {
               photo_url = publicUrl
             }
           } catch (uploadErr) {
-            console.warn('사진 업로드 오류:', uploadErr)
+            console.warn('사진 업로드/압축 오류:', uploadErr)
           }
         }
       }
