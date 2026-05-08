@@ -25,6 +25,12 @@ export async function subscribeToPush(trainerId) {
 }
 
 export async function scheduleNotification(trainerId, block, memberName, notifMinutes) {
+  // B-001: block / block.start / block.date 가 undefined 면 .split / new Date 가
+  // TypeError 던져 앱 크래시 가능 → 앞단 가드 추가.
+  if (!block?.start || !block?.date) {
+    console.warn('[scheduleNotification] block 정보 누락 — skip', block)
+    return
+  }
   const [h, m] = block.start.split(':').map(Number)
   const scheduledAt = new Date(block.date)
   scheduledAt.setHours(h, m - notifMinutes, 0, 0)
