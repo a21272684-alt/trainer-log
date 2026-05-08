@@ -3119,6 +3119,11 @@ export default function TrainerApp() {
     const m = currentMember
     if (!finalContent) { showToast('먼저 수업일지를 생성해주세요'); return }
     const reportId = Date.now().toString(36) + Math.random().toString(36).substr(2,5)
+    // C-002: 업로드 도중/이후 어디서 실패해도 storage·DB orphan 차단
+    //   - uploadedMediaPaths : session-media 에 올라간 path 들 — catch 에서 일괄 remove
+    //   - sotSessionId        : logs insert 실패 시 함께 만들어진 workout_sessions row 도 삭제
+    const uploadedMediaPaths = []
+    let sotSessionId = null
     try {
       const exData = exercises.map(ex => ({
         name: ex.name,
@@ -3132,6 +3137,7 @@ export default function TrainerApp() {
 
       // ── 미디어 업로드 (session-media 버킷) ───────────────────────────────
       // 업로드 실패 시 즉시 에러를 throw — 빈값이 DB에 저장되는 것을 차단한다
+      // 부분 업로드된 파일은 catch 의 일괄 remove 로 정리 (uploadedMediaPaths)
       const mediaPayload = []
       for (const mf of mediaFiles) {
         let blob
@@ -3150,6 +3156,7 @@ export default function TrainerApp() {
         if (upErr) {
           throw new Error(`미디어 업로드 실패 (${path}): ${upErr.message}`)
         }
+        uploadedMediaPaths.push(path)  // C-002: 후속 단계 실패 시 롤백 대상
         const { data: { publicUrl } } = supabase.storage.from('session-media').getPublicUrl(path)
         console.log('[sendKakao] 업로드 완료:', publicUrl)
         mediaPayload.push({ url: publicUrl, type: mf.isVideo ? 'video' : 'image' })
@@ -3160,7 +3167,7 @@ export default function TrainerApp() {
       // 운동 데이터(exData)는 workout_sessions(SoT) 1곳에만 JSONB로 저장하고,
       // logs 테이블에는 session_id 참조만 남긴다. logs.exercises_data 는 더 이상 사용 안 함(Payload 경량화).
       // 사전조건: supabase_cleanup_cron.sql 로 logs.session_id 컬럼이 추가돼 있어야 함.
-      let sotSessionId = null
+      // sotSessionId 는 함수 본체에 선언됨 (catch 에서 logs 실패 시 이 row 삭제).
       try {
         const exArr = Array.isArray(exData) ? exData : []
         if (exArr.length > 0) {
@@ -3235,6 +3242,24 @@ export default function TrainerApp() {
       }, 1500)
     } catch(e) {
       console.error('[sendKakao] 오류:', e)
+      // C-002: 부분 진행분 정리 — storage(session-media) + DB(workout_sessions)
+      //        cleanup 실패는 silent (본 흐름 회복은 사용자 retry 에 맡김).
+      try {
+        if (uploadedMediaPaths.length > 0) {
+          await supabase.storage.from('session-media').remove(uploadedMediaPaths)
+          console.log('[sendKakao] 롤백: session-media', uploadedMediaPaths.length, '개 정리')
+        }
+      } catch (rollErr) {
+        console.warn('[sendKakao] session-media 롤백 실패:', rollErr.message)
+      }
+      try {
+        if (sotSessionId) {
+          await supabase.from('workout_sessions').delete().eq('id', sotSessionId)
+          console.log('[sendKakao] 롤백: workout_sessions', sotSessionId, '삭제')
+        }
+      } catch (rollErr) {
+        console.warn('[sendKakao] workout_sessions 롤백 실패:', rollErr.message)
+      }
       showToast('오류: ' + e.message)
     }
   }
