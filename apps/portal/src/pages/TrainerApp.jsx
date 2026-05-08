@@ -1587,7 +1587,7 @@ export default function TrainerApp() {
   const [videoTrimFile,    setVideoTrimFile]    = useState(null)   // 현재 트리밍할 원본 File
   const [showVideoTrimmer, setShowVideoTrimmer] = useState(false)
   const [trimStart,        setTrimStart]        = useState(0)
-  const [trimEnd,          setTrimEnd]          = useState(30)
+  const [trimEnd,          setTrimEnd]          = useState(60)
   const [trimDuration,     setTrimDuration]     = useState(0)
   const [isTrimming,       setIsTrimming]       = useState(false)
   const [trimBlobUrl,      setTrimBlobUrl]       = useState(null)  // ObjectURL for trimmer preview
@@ -2827,14 +2827,14 @@ export default function TrainerApp() {
     setVideoTrimFile(file)
     setTrimBlobUrl(url)
     setTrimStart(0)
-    setTrimEnd(30)
+    setTrimEnd(60)
     setTrimDuration(0)
     setShowVideoTrimmer(true)
     setMediaProcessing(false)
     setMediaProgress('')
     getVideoDuration(file).then(d => {
       setTrimDuration(d)
-      setTrimEnd(Math.min(30, d))
+      setTrimEnd(Math.min(60, d))
     })
   }
 
@@ -6936,7 +6936,7 @@ export default function TrainerApp() {
               borderRadius:'10px',padding:'12px 14px',marginBottom:'14px',
             }}>
               <div style={{fontSize:'12px',color:'#93c5fd',lineHeight:1.7}}>
-                💡 Tip. 핵심만 쏙쏙, 하이라이트 편집! 긴 영상은 회원님이 끝까지 보기 힘들어요. 가장 중요한 자세 교정 구간(최대 30초)만 잘라서 100% 몰입형 피드백을 전달해 보세요!
+                💡 Tip. 핵심만 쏙쏙, 하이라이트 편집! 긴 영상은 회원님이 끝까지 보기 힘들어요. 가장 중요한 자세 교정 구간(최대 60초)만 잘라서 100% 몰입형 피드백을 전달해 보세요!
               </div>
             </div>
 
@@ -6976,13 +6976,13 @@ export default function TrainerApp() {
                 </div>
                 <div style={{marginBottom:'16px'}}>
                   <div style={{display:'flex',justifyContent:'space-between',marginBottom:'5px'}}>
-                    <span style={{fontSize:'11px',color:'var(--text-dim)'}}>종료 지점 (최대 30초)</span>
+                    <span style={{fontSize:'11px',color:'var(--text-dim)'}}>종료 지점 (최대 60초)</span>
                     <span style={{fontSize:'12px',fontWeight:700,color:'var(--text)',fontFamily:"'DM Mono',monospace"}}>{fmtTime(trimEnd)}</span>
                   </div>
                   <input
                     type="range"
                     min={trimStart + 1}
-                    max={Math.min(trimDuration, trimStart + 30)}
+                    max={Math.min(trimDuration, trimStart + 60)}
                     step="0.5" value={trimEnd}
                     onChange={e => setTrimEnd(parseFloat(e.target.value))}
                     style={{width:'100%',accentColor:'#60a5fa'}}
