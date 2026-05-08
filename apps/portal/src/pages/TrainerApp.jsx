@@ -2775,15 +2775,14 @@ export default function TrainerApp() {
   }
 
   /** MediaRecorder로 영상 구간 추출 (데스크탑/Android Chrome 지원) */
-  // C-001: 영상 길이 30분 (1800초) 제한 + 비트레이트 1Mbps 로 감소.
-  // Storage 비용 폭발 방지 (이전: 무제한 길이 + 2Mbps → 트레이너 1명 abuse 시 +$168/월).
-  // 720p 화질에 1Mbps 면 충분 (수업 영상 용도).
+  // C-001: 영상 길이 60초 제한 + 비트레이트 1Mbps 로 감소.
+  // 정상 사용 시 트리머가 30초 구간을 잘라내는 게 표준 패턴이므로 60초 cap 은
+  // 안전 마진이 충분한 abuse 방지 한계. (이전: 무제한 → +$168/월 abuse 가능)
   function trimVideoSegment(file, startSec, endSec) {
     return new Promise((resolve, reject) => {
-      // C-001: 영상 길이 상한 검증
-      const MAX_DURATION_SEC = 30 * 60 // 30 분
+      const MAX_DURATION_SEC = 60 // 60 초
       if (endSec - startSec > MAX_DURATION_SEC) {
-        reject(new Error(`영상 길이는 최대 ${MAX_DURATION_SEC / 60}분까지 가능합니다`))
+        reject(new Error(`영상 길이는 최대 ${MAX_DURATION_SEC}초까지 가능합니다`))
         return
       }
       const video = document.createElement('video')
@@ -2911,6 +2910,9 @@ export default function TrainerApp() {
     const results    = []
     const videoQueue = []  // 30초 초과 영상 → 트리머 큐
 
+    // C-001: 30초 이하 영상도 파일 크기 50MB 초과 시 차단 (4K 등 거대 원본 방어)
+    const MAX_VIDEO_SIZE_MB = 50
+
     for (const file of files) {
       const isVideo = file.type.startsWith('video/')
       if (isVideo) {
@@ -2918,7 +2920,12 @@ export default function TrainerApp() {
         if (dur > 30) {
           videoQueue.push(file)   // 트리머 처리
         } else {
-          // 30초 이하 영상 — 그대로 첨부
+          // 30초 이하 영상 — size 검증 후 그대로 첨부
+          const sizeMB = file.size / (1024 * 1024)
+          if (sizeMB > MAX_VIDEO_SIZE_MB) {
+            showToast(`영상 파일이 너무 커요 (현재 ${sizeMB.toFixed(1)}MB / 최대 ${MAX_VIDEO_SIZE_MB}MB). 화질을 낮춰 찍거나 30초 이상으로 찍어 트리머에서 잘라주세요`)
+            continue
+          }
           const blobUrl = URL.createObjectURL(file)
           results.push({
             id: Date.now() + Math.random(),

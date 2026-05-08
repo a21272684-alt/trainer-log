@@ -14,13 +14,19 @@ export default defineConfig({
     open: true,
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
+      // 'require-corp' 는 외부 도메인 이미지(Supabase storage)를 CORP 헤더 없이는
+      // 차단해 hold-photos / diet-photos 표시가 깨졌음. 'credentialless' 는 cookie
+      // 없이 로드하면 허용 + SharedArrayBuffer (FFmpeg.wasm) 도 동작.
+      'Cross-Origin-Embedder-Policy': 'credentialless',
     },
   },
   preview: {
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
+      // 'require-corp' 는 외부 도메인 이미지(Supabase storage)를 CORP 헤더 없이는
+      // 차단해 hold-photos / diet-photos 표시가 깨졌음. 'credentialless' 는 cookie
+      // 없이 로드하면 허용 + SharedArrayBuffer (FFmpeg.wasm) 도 동작.
+      'Cross-Origin-Embedder-Policy': 'credentialless',
     },
   },
 })
