@@ -424,11 +424,21 @@ export default function MemberPortal() {
         .eq('member_id', member.id)
         .order('created_at', { ascending: false })
         .limit(20)
-        .then(({ data }) => {
+        .then(({ data, error }) => {
+          // B-004 fix: error 처리 누락 → silent fail 방지
+          if (error) {
+            console.warn('[loadLogs]', error.message)
+            showToast('수업일지를 불러오지 못했어요. 새로고침해주세요')
+            return
+          }
           const rows = data || []
           setMemberLogs(rows)
           setLogsOffset(rows.length)
           setLogsHasMore(rows.length === 20)
+        })
+        .catch(e => {
+          console.warn('[loadLogs] catch:', e.message)
+          showToast('수업일지 로드 중 오류: ' + e.message)
         })
     }
   }, [tab, member])
@@ -458,9 +468,17 @@ export default function MemberPortal() {
         .eq('member_id', member.id)
         .eq('record_date', date)
         .order('created_at', { ascending: true })
-      if (error) { console.warn('[loadDietLogs] 로드 실패:', error.message); return }
+      if (error) {
+        // U-008 fix: silent fail 방지 — toast 추가
+        console.warn('[loadDietLogs] 로드 실패:', error.message)
+        showToast('식단 기록을 불러오지 못했어요. 새로고침해주세요')
+        return
+      }
       setDietLogs(data || [])
-    } catch(e) { console.warn('[loadDietLogs] 오류:', e.message) }
+    } catch(e) {
+      console.warn('[loadDietLogs] 오류:', e.message)
+      showToast('식단 로드 중 오류: ' + e.message)
+    }
   }
 
   function openFoodModal(mealType) {
