@@ -115,3 +115,68 @@ export async function cleanupMemberStorage(supabase, member, trainer) {
 
   return { ok: errors.length === 0, errors }
 }
+
+/**
+ * 트레이너의 90일(=days) 이상 된 수업일지 영상/사진을 일괄 정리.
+ * 클라이언트(트레이너 앱) 마운트 시 1회 호출되는 lazy cleanup.
+ *
+ * 동작:
+ *   1. logs 중 created_at < cutoff 이면서 media_urls 가 비어있지 않은 row SELECT
+ *   2. 각 media_urls 의 url → session-media path 추출
+ *   3. supabase.storage.remove(paths) 일괄 삭제
+ *   4. 동일 row 들의 media_urls 를 [] 로 업데이트 (다음 호출 시 재조회 안 되게)
+ *
+ * - RLS 가 logs 의 trainer_id = 본인만 허용하므로 anon key + 트레이너 세션이면 충분.
+ *   service_role key 노출 위험 없음.
+ * - 호출자는 24시간 gate 등으로 빈도 제어 (TrainerApp useEffect 참고).
+ * - 실패해도 silent — 다음 마운트에서 재시도.
+ *
+ * @returns { cleaned: <삭제된 파일 수> }
+ */
+export async function cleanupOldSessionMedia(supabase, trainerId, days = 90) {
+  if (!supabase || !trainerId) return { cleaned: 0 }
+  const cutoff = new Date(Date.now() - days * 86400 * 1000).toISOString()
+
+  const { data: oldLogs, error: selErr } = await supabase
+    .from('logs')
+    .select('id, media_urls')
+    .eq('trainer_id', trainerId)
+    .lt('created_at', cutoff)
+    .not('media_urls', 'is', null)
+  if (selErr) {
+    console.warn('[cleanupOldSessionMedia] logs SELECT 실패:', selErr.message)
+    return { cleaned: 0 }
+  }
+  if (!oldLogs?.length) return { cleaned: 0 }
+
+  const paths = []
+  const idsWithMedia = []
+  for (const row of oldLogs) {
+    const urls = row.media_urls || []
+    if (!Array.isArray(urls) || urls.length === 0) continue
+    let added = false
+    for (const m of urls) {
+      const p = extractStoragePath(m?.url, 'session-media')
+      if (p) { paths.push(p); added = true }
+    }
+    if (added) idsWithMedia.push(row.id)
+  }
+  if (paths.length === 0) return { cleaned: 0 }
+
+  const { error: rmErr } = await supabase.storage.from('session-media').remove(paths)
+  if (rmErr) {
+    console.warn('[cleanupOldSessionMedia] storage remove 실패:', rmErr.message)
+    return { cleaned: 0 }
+  }
+
+  // media_urls 비우기 — 다음 호출 시 같은 row 가 재조회되어도 paths.length==0 으로 빠짐
+  if (idsWithMedia.length > 0) {
+    const { error: upErr } = await supabase
+      .from('logs')
+      .update({ media_urls: [] })
+      .in('id', idsWithMedia)
+    if (upErr) console.warn('[cleanupOldSessionMedia] media_urls 비우기 실패:', upErr.message)
+  }
+
+  return { cleaned: paths.length }
+}
