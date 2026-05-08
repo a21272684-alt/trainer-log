@@ -370,24 +370,26 @@ export default function Landing() {
       .then(({ data }) => {
         if (!data) return
 
-        // 1) landing_v1 통합 객체 — 최우선 적용
+        // 1) landing_v1 통합 객체 — 최우선 적용 (admin SoT)
+        // 적용된 섹션은 v1Applied 에 기록 → 2)의 레거시 폴백이 덮어쓰지 못하게 한다.
+        // 이전 버그: 모든 레거시 키가 무조건 setX 를 호출해 v1 의 신규 값이 즉시 stale 데이터로 덮였음.
         const v1Row = data.find(r => r.key === 'landing_v1')
         const v1 = parseValue(v1Row?.value)
-        let portalsApplied = false
+        const v1Applied = new Set()
 
         if (v1 && typeof v1 === 'object' && !Array.isArray(v1)) {
-          if (v1.hero            && typeof v1.hero === 'object')          setHero(v1.hero)
-          if (Array.isArray(v1.stats))                                    setStats(v1.stats)
-          if (Array.isArray(v1.problems))                                 setProblems(v1.problems)
-          if (Array.isArray(v1.solutions))                                setSolutions(v1.solutions)
-          if (Array.isArray(v1.reviews))                                  setReviews(v1.reviews)
-          if (Array.isArray(v1.kakao))                                    setKakao(v1.kakao)
-          if (Array.isArray(v1.targets))                                  setTargets(v1.targets)
-          if (Array.isArray(v1.member_features))                          setMemberFeatures(v1.member_features)
-          if (Array.isArray(v1.plans_landing))                            setLandingPlans(v1.plans_landing)
-          if (Array.isArray(v1.faqs))                                     setFaqs(v1.faqs)
-          if (Array.isArray(v1.comparison))                               setComparison(v1.comparison)
-          if (v1.ai_highlight    && typeof v1.ai_highlight === 'object')  setAiHighlight(v1.ai_highlight)
+          if (v1.hero            && typeof v1.hero === 'object')         { setHero(v1.hero);                       v1Applied.add('hero') }
+          if (Array.isArray(v1.stats))                                   { setStats(v1.stats);                     v1Applied.add('stats') }
+          if (Array.isArray(v1.problems))                                { setProblems(v1.problems);               v1Applied.add('problems') }
+          if (Array.isArray(v1.solutions))                               { setSolutions(v1.solutions);             v1Applied.add('solutions') }
+          if (Array.isArray(v1.reviews))                                 { setReviews(v1.reviews);                 v1Applied.add('reviews') }
+          if (Array.isArray(v1.kakao))                                   { setKakao(v1.kakao);                     v1Applied.add('kakao') }
+          if (Array.isArray(v1.targets))                                 { setTargets(v1.targets);                 v1Applied.add('targets') }
+          if (Array.isArray(v1.member_features))                         { setMemberFeatures(v1.member_features);  v1Applied.add('member_features') }
+          if (Array.isArray(v1.plans_landing))                           { setLandingPlans(v1.plans_landing);      v1Applied.add('plans_landing') }
+          if (Array.isArray(v1.faqs))                                    { setFaqs(v1.faqs);                       v1Applied.add('faqs') }
+          if (Array.isArray(v1.comparison))                              { setComparison(v1.comparison);           v1Applied.add('comparison') }
+          if (v1.ai_highlight    && typeof v1.ai_highlight === 'object') { setAiHighlight(v1.ai_highlight);        v1Applied.add('ai_highlight') }
 
           // ── 포털 ON/OFF — landing_v1 의 portals / portal_buttons 양형 호환 ──
           // AdminPortal SoT 키는 portal_buttons 이지만, 신규 표기(portals)도 동시 지원.
@@ -396,30 +398,26 @@ export default function Landing() {
             : (v1.portal_buttons && typeof v1.portal_buttons === 'object' ? v1.portal_buttons : null)
           if (portalsRaw) {
             setPortalButtons(normalizePortals(portalsRaw))
-            portalsApplied = true
+            v1Applied.add('portal_buttons')
           }
         }
 
-        // 2) 레거시 파편 키 폴백 — v1 미존재 또는 누락된 섹션만 보강
+        // 2) 레거시 파편 키 폴백 — v1 에서 적용 안 된 섹션만 보강
         data.forEach(row => {
           const v = parseValue(row.value)
-          if (row.key === 'landing_hero'             && v && typeof v === 'object' && !Array.isArray(v)) setHero(v)
-          if (row.key === 'landing_stats'            && Array.isArray(v))    setStats(v)
-          if (row.key === 'landing_problems'         && Array.isArray(v))    setProblems(v)
-          if (row.key === 'landing_solutions'        && Array.isArray(v))    setSolutions(v)
-          if (row.key === 'landing_reviews'          && Array.isArray(v))    setReviews(v)
-          if (row.key === 'landing_kakao'            && Array.isArray(v))    setKakao(v)
-          if (row.key === 'landing_targets'          && Array.isArray(v))    setTargets(v)
-          if (row.key === 'landing_member_features'  && Array.isArray(v))    setMemberFeatures(v)
-          if (row.key === 'landing_plans_landing'    && Array.isArray(v))    setLandingPlans(v)
-          if (row.key === 'landing_faqs'             && Array.isArray(v))    setFaqs(v)
-          if (row.key === 'landing_comparison'       && Array.isArray(v))    setComparison(v)
-          if (row.key === 'landing_ai_highlight'     && v && typeof v === 'object' && !Array.isArray(v)) setAiHighlight(v)
-          // 레거시 portal_buttons 키 — landing_v1.portals 가 적용되지 않았을 때만 폴백 사용
-          if (!portalsApplied && row.key === 'landing_portal_buttons'
-              && v && typeof v === 'object' && !Array.isArray(v)) {
-            setPortalButtons(normalizePortals(v))
-          }
+          if (!v1Applied.has('hero')             && row.key === 'landing_hero'             && v && typeof v === 'object' && !Array.isArray(v)) setHero(v)
+          if (!v1Applied.has('stats')            && row.key === 'landing_stats'            && Array.isArray(v)) setStats(v)
+          if (!v1Applied.has('problems')         && row.key === 'landing_problems'         && Array.isArray(v)) setProblems(v)
+          if (!v1Applied.has('solutions')        && row.key === 'landing_solutions'        && Array.isArray(v)) setSolutions(v)
+          if (!v1Applied.has('reviews')          && row.key === 'landing_reviews'          && Array.isArray(v)) setReviews(v)
+          if (!v1Applied.has('kakao')            && row.key === 'landing_kakao'            && Array.isArray(v)) setKakao(v)
+          if (!v1Applied.has('targets')          && row.key === 'landing_targets'          && Array.isArray(v)) setTargets(v)
+          if (!v1Applied.has('member_features')  && row.key === 'landing_member_features'  && Array.isArray(v)) setMemberFeatures(v)
+          if (!v1Applied.has('plans_landing')    && row.key === 'landing_plans_landing'    && Array.isArray(v)) setLandingPlans(v)
+          if (!v1Applied.has('faqs')             && row.key === 'landing_faqs'             && Array.isArray(v)) setFaqs(v)
+          if (!v1Applied.has('comparison')       && row.key === 'landing_comparison'       && Array.isArray(v)) setComparison(v)
+          if (!v1Applied.has('ai_highlight')     && row.key === 'landing_ai_highlight'     && v && typeof v === 'object' && !Array.isArray(v)) setAiHighlight(v)
+          if (!v1Applied.has('portal_buttons')   && row.key === 'landing_portal_buttons'   && v && typeof v === 'object' && !Array.isArray(v)) setPortalButtons(normalizePortals(v))
         })
       })
   }, [])
