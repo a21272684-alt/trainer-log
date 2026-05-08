@@ -2910,6 +2910,9 @@ export default function TrainerApp() {
     const results    = []
     const videoQueue = []  // 30초 초과 영상 → 트리머 큐
 
+    // C-001: 30초 이하 영상도 파일 크기 50MB 초과 시 차단 (4K 등 거대 원본 방어)
+    const MAX_VIDEO_SIZE_MB = 50
+
     for (const file of files) {
       const isVideo = file.type.startsWith('video/')
       if (isVideo) {
@@ -2917,7 +2920,12 @@ export default function TrainerApp() {
         if (dur > 30) {
           videoQueue.push(file)   // 트리머 처리
         } else {
-          // 30초 이하 영상 — 그대로 첨부
+          // 30초 이하 영상 — size 검증 후 그대로 첨부
+          const sizeMB = file.size / (1024 * 1024)
+          if (sizeMB > MAX_VIDEO_SIZE_MB) {
+            showToast(`영상 파일이 너무 커요 (현재 ${sizeMB.toFixed(1)}MB / 최대 ${MAX_VIDEO_SIZE_MB}MB). 화질을 낮춰 찍거나 30초 이상으로 찍어 트리머에서 잘라주세요`)
+            continue
+          }
           const blobUrl = URL.createObjectURL(file)
           results.push({
             id: Date.now() + Math.random(),
