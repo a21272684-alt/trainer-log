@@ -13,8 +13,11 @@ const FALLBACK_ADMIN_PW = '__unset_admin_pw_' + Math.random().toString(36).slice
 const ADMIN_ID = import.meta.env.VITE_ADMIN_ID || FALLBACK_ADMIN_ID
 const ADMIN_PW = import.meta.env.VITE_ADMIN_PASSWORD || FALLBACK_ADMIN_PW
 
-// app_settings 보호용 RPC 토큰 (DB 함수의 하드코딩 토큰과 일치해야 함)
-const ADMIN_DB_TOKEN = import.meta.env.VITE_ADMIN_DB_TOKEN || ''
+// 모든 admin RPC (app_settings_admin_*, admin_list_*, admin_register_trainer,
+// admin_update_trainer_crm_permissions, admin_add_credits, admin_set_trainer_plan)
+// 의 SECURITY DEFINER 가드 통과용 단일 토큰. 마이그레이션 052 의 _admin_assert
+// 함수 본문 토큰과 정확히 일치해야 함. 토큰 회전 시 053 마이그레이션 + 본 변수 동시 갱신.
+const ADMIN_TOKEN = import.meta.env.VITE_ADMIN_DB_TOKEN || ''
 
 // 무제한 fetch 방어용 페이지 상한
 const ADMIN_LOAD_LIMIT = 100
@@ -22,11 +25,6 @@ const ADMIN_LOAD_LIMIT = 100
 // app_settings 쓰기는 모두 SECURITY DEFINER RPC 경유 (RLS 정책상 anon 직접 upsert 차단됨)
 // 객체/배열을 RPC value 로 그대로 전달하면 jsonb 직렬화 단계에서 P0001 unauthorized 로
 // 폭발하는 케이스가 보고됨 → 헬퍼에서 강제 JSON.stringify 통일.
-//
-// RPC 시그니처(SoT 합의): app_settings_admin_upsert(p_key text, p_value text, p_secret text)
-// 토큰: 'own-admin-123' 하드코딩. 운영 단계에서 토큰 회전 시 본 상수와 SQL 함수 양쪽을 동시에 갱신할 것.
-const ADMIN_RPC_SECRET = 'own-admin-123'
-
 async function adminUpsertSetting(key, value) {
   const safeValue = (value !== null && typeof value === 'object')
     ? JSON.stringify(value)
@@ -34,7 +32,7 @@ async function adminUpsertSetting(key, value) {
   const { data, error } = await supabase.rpc('app_settings_admin_upsert', {
     p_key: key,
     p_value: safeValue,
-    p_secret: ADMIN_RPC_SECRET,
+    p_admin_token: ADMIN_TOKEN,
   })
   if (error) throw error
   return data
@@ -43,7 +41,7 @@ async function adminUpsertSetting(key, value) {
 async function adminDeleteSetting(key) {
   const { data, error } = await supabase.rpc('app_settings_admin_delete', {
     p_key: key,
-    p_admin_token: ADMIN_DB_TOKEN,
+    p_admin_token: ADMIN_TOKEN,
   })
   if (error) throw error
   return data
@@ -406,10 +404,12 @@ export default function AdminPortal() {
   async function loadAll() {
     try {
       // inquiries / member_posts 조회 제거 — 1:1 문의·자유게시판 관리 기능 폐기
+      // RLS strict (050/051) 적용 후 trainers/members/logs 직접 SELECT 가 anon key 로
+      // 0행 반환 → SECURITY DEFINER admin RPC (052) 경유. 정렬·페이징은 함수 내부 처리.
       const [t, m, l, s, cu, cp, cc, settings, ntc] = await Promise.all([
-        supabase.from('trainers').select('*').order('created_at', { ascending: false }).limit(ADMIN_LOAD_LIMIT),
-        supabase.from('members').select('*').order('created_at', { ascending: false }).limit(ADMIN_LOAD_LIMIT),
-        supabase.from('logs').select('*').order('created_at', { ascending: false }).limit(ADMIN_LOAD_LIMIT),
+        supabase.rpc('admin_list_trainers', { p_admin_token: ADMIN_TOKEN }),
+        supabase.rpc('admin_list_members', { p_admin_token: ADMIN_TOKEN }),
+        supabase.rpc('admin_list_logs', { p_admin_token: ADMIN_TOKEN, p_limit: ADMIN_LOAD_LIMIT }),
         supabase.from('subscriptions').select('*').order('paid_at', { ascending: false }).limit(ADMIN_LOAD_LIMIT),
         supabase.from('community_users').select('*').order('created_at', { ascending: false }).limit(ADMIN_LOAD_LIMIT),
         supabase.from('community_posts').select('*, author:community_users(name,role)').order('created_at', { ascending: false }).limit(ADMIN_LOAD_LIMIT),
@@ -531,7 +531,11 @@ export default function AdminPortal() {
   // 크레딧 충전
   async function addTrainerCredits(trainerId, amount) {
     try {
-      const { data, error } = await supabase.rpc('admin_add_credits', { p_trainer_id: trainerId, p_amount: amount })
+      const { data, error } = await supabase.rpc('admin_add_credits', {
+        p_trainer_id: trainerId,
+        p_amount: amount,
+        p_admin_token: ADMIN_TOKEN,
+      })
       if (error) throw error
       setTrainers(prev => prev.map(t => t.id === trainerId ? { ...t, credits: data } : t))
       showToast(`✓ ${amount}크레딧 충전 완료 (잔액: ${data}개)`)
@@ -746,11 +750,16 @@ export default function AdminPortal() {
   // (제거됨) 1:1 문의 답변(submitAnswer) — 카카오 채널 외부 우회로 폐기.
 
   // ===== CRM =====
+  // 050 RLS strict 후 trainers UPDATE 정책 부여 안 됨 → admin RPC (052) 경유.
   async function updateCrmEnabled(trainerId, enabled) {
     const trainer = trainers.find(t => t.id === trainerId)
     const current = trainer?.crm_permissions || {}
     const updated = { ...current, enabled }
-    const { error } = await supabase.from('trainers').update({ crm_permissions: updated }).eq('id', trainerId)
+    const { error } = await supabase.rpc('admin_update_trainer_crm_permissions', {
+      p_admin_token: ADMIN_TOKEN,
+      p_trainer_id: trainerId,
+      p_permissions: updated,
+    })
     if (error) { showToast('오류: ' + error.message); return }
     setTrainers(prev => prev.map(t => t.id === trainerId ? { ...t, crm_permissions: updated } : t))
     showToast(enabled ? 'CRM이 활성화됐어요' : 'CRM이 비활성화됐어요')
@@ -759,7 +768,11 @@ export default function AdminPortal() {
     const trainer = trainers.find(t => t.id === trainerId)
     const current = trainer?.crm_permissions || {}
     const updated = { ...current, [featureKey]: value }
-    const { error } = await supabase.from('trainers').update({ crm_permissions: updated }).eq('id', trainerId)
+    const { error } = await supabase.rpc('admin_update_trainer_crm_permissions', {
+      p_admin_token: ADMIN_TOKEN,
+      p_trainer_id: trainerId,
+      p_permissions: updated,
+    })
     if (error) { showToast('오류: ' + error.message); return }
     setTrainers(prev => prev.map(t => t.id === trainerId ? { ...t, crm_permissions: updated } : t))
   }
@@ -817,7 +830,13 @@ export default function AdminPortal() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { alert('올바른 이메일 형식이 아니에요'); return }
     setTrainerRegLoading(true)
     try {
-      const { error } = await supabase.from('trainers').insert([{ name, email }])
+      // 050 RLS strict 후 trainers INSERT 정책 부여 안 됨 → admin RPC (052) 경유.
+      // unique_violation 은 RPC 가 errcode 23505 로 raise → 클라이언트 에러 코드 동일.
+      const { error } = await supabase.rpc('admin_register_trainer', {
+        p_admin_token: ADMIN_TOKEN,
+        p_name: name,
+        p_email: email,
+      })
       if (error) {
         if (error.code === '23505') alert('이미 등록된 이메일이에요')
         else alert('오류: ' + error.message)
