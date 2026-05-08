@@ -3388,6 +3388,8 @@ export default function TrainerApp() {
   }, [notifEnabled, notifMinutes, trainer?.id, members])
 
   const handleDeleteBlock = useCallback(async (id) => {
+    // U-014: 실수 클릭 방지 — confirm 추가
+    if (!window.confirm('정말 삭제할까요? 일정과 알림 예약 모두 사라지며 복구할 수 없습니다.')) return
     setBlocks(prev => prev.filter(b => b.id !== id))
     setEditingBlock(null)
     showToast('삭제됐어요')
