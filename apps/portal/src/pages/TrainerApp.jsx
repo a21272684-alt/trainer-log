@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import ScheduleModal from '../components/ScheduleModal'
 import { compressImage as sharedCompressImage } from '@trainer-log/shared/lib/imageCompress'
-import { cleanupMemberStorage, removeStorageOnError } from '@trainer-log/shared/lib/storageCleanup'
+import { cleanupMemberStorage, removeStorageOnError, cleanupOldSessionMedia } from '@trainer-log/shared/lib/storageCleanup'
 import { supabase, GEMINI_MODEL } from '@trainer-log/shared/lib/supabase'
 import { subscribeToPush, scheduleNotification, deleteScheduledNotification } from '../lib/push'
 import { useToast } from '@trainer-log/shared/components/common/Toast'
@@ -2079,6 +2079,25 @@ export default function TrainerApp() {
       loadTodayAttendance()  // 오늘 출석 — loadMembers와 독립적으로 병렬 실행
     }
   }, [trainer])
+
+  // C-002: 90일 이상 된 수업일지 영상/사진 lazy cleanup.
+  //   - service_role key 노출 없이 본인 데이터만 정리 (RLS 가 trainer_id 만 허용)
+  //   - 24시간 gate: 같은 트레이너가 자주 재마운트해도 하루 1번만 실행
+  //   - 실패해도 silent — 다음 마운트에서 재시도 (본 흐름 막지 않음)
+  useEffect(() => {
+    if (!trainer?.id) return
+    const KEY = `lastSessionMediaCleanup_${trainer.id}`
+    const last = Number(localStorage.getItem(KEY) || 0)
+    if (Date.now() - last < 86400_000) return  // 24h 내 실행했으면 skip
+    cleanupOldSessionMedia(supabase, trainer.id, 90)
+      .then(r => {
+        if (r?.cleaned > 0) console.log('[cleanup] 90일 이상 영상/사진', r.cleaned, '개 정리')
+      })
+      .catch(e => console.warn('[cleanup] 실패:', e.message))
+      .finally(() => {
+        try { localStorage.setItem(KEY, String(Date.now())) } catch {}
+      })
+  }, [trainer?.id])
 
   async function loadMembers() {
     // is_personal=true 만 조회: CRM 에서 등록된 센터 회원(false)은 트레이너 포털에 노출 X
