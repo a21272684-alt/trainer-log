@@ -6020,8 +6020,8 @@ export default function TrainerApp() {
         </div>
       )}
 
-      {/* PAYMENT CANCEL CONFIRM MODAL */}
-      <Modal open={!!cancelPaymentTarget} onClose={()=>setCancelPaymentTarget(null)} title="결제 취소 확인" maxWidth="320px">
+      {/* PAYMENT CANCEL CONFIRM MODAL — 결제 관리 모달 위에 떠야 하므로 zIndex 강제 */}
+      <Modal open={!!cancelPaymentTarget} onClose={()=>setCancelPaymentTarget(null)} title="결제 취소 확인" maxWidth="320px" zIndex={2000}>
         <div style={{textAlign:'center',padding:'8px 0 20px'}}>
           <div style={{fontSize:'32px',marginBottom:'12px'}}>⚠️</div>
           <div style={{fontSize:'14px',fontWeight:600,marginBottom:'8px'}}>정말로 결제를 취소하시겠습니까?</div>
