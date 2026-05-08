@@ -1944,18 +1944,22 @@ export default function TrainerApp() {
 
   async function handleAuthUser(au) {
     setAuthUser(au)
-    // auth_id로 조회
-    const { data: byId } = await supabase.from('trainers').select('*').eq('auth_id', au.id).maybeSingle()
-    if (byId) { await _loginWithRecord(byId); return }
-    // email로 조회 (기존 트레이너 연동)
-    if (au.email) {
-      const { data: byEmail } = await supabase.from('trainers').select('*').eq('email', au.email).maybeSingle()
-      if (byEmail) {
-        await supabase.from('trainers').update({ auth_id: au.id }).eq('id', byEmail.id)
-        await _loginWithRecord({ ...byEmail, auth_id: au.id }); return
-      }
+    // Phase B-1.1 — RLS 강화 후 trainers 직접 select 가 차단되므로,
+    // auth_id 매칭 + email fallback 을 SECURITY DEFINER RPC 한 번으로 처리.
+    // (마이그레이션 050 적용 필요)
+    const { data: row, error } = await supabase.rpc('trainer_resolve_or_create', {
+      p_email: au.email ?? null,
+    })
+    if (error) {
+      console.error('[handleAuthUser] rpc 실패:', error)
+      showToast('로그인 처리 오류: ' + error.message)
+      return
     }
-    // 신규 트레이너 → 등록 화면
+    if (row) {
+      await _loginWithRecord(row)
+      return
+    }
+    // 매핑 없음 → 신규 트레이너 등록 화면
     setRegName(au.user_metadata?.full_name || au.user_metadata?.name || au.email?.split('@')[0] || '')
     setScreen('reg')
   }
@@ -1999,28 +2003,22 @@ export default function TrainerApp() {
     if (!agreedAI) { showToast('AI 수업일지 기능 이용을 위한 음성 데이터 처리에 동의해주세요'); return }
     if (!authUser) { showToast('먼저 소셜 로그인을 해주세요'); setScreen('login'); return }
     try {
-      // ① insert
-      const { data: inserted, error: insertErr } = await supabase
-        .from('trainers')
-        .insert({ name: regName, phone: '', auth_id: authUser.id, email: authUser.email })
-        .select().single()
-
+      // Phase B-1.1 — RLS 강화 후 trainers 직접 INSERT 차단됨.
+      // 매핑 RPC 가 신규 INSERT 도 같이 처리 (p_name 제공 시).
+      const { data: inserted, error: insertErr } = await supabase.rpc('trainer_resolve_or_create', {
+        p_email: authUser.email ?? null,
+        p_name:  regName,
+        p_phone: '',
+      })
       if (insertErr) {
-        console.error('[register] insert error:', insertErr)
-        // auth_id 컬럼 미생성(037 마이그레이션 미실행) 방어
-        if (insertErr.message?.includes('auth_id') || insertErr.code === '42703') {
-          const { data: ins2, error: e2 } = await supabase
-            .from('trainers')
-            .insert({ name: regName, phone: '' })
-            .select().single()
-          if (e2) throw new Error('등록 실패: ' + (e2.message || e2.code))
-          await _loginWithRecord(ins2)
-          return
-        }
+        console.error('[register] rpc error:', insertErr)
         throw new Error(insertErr.message || insertErr.code || JSON.stringify(insertErr))
       }
+      if (!inserted) {
+        throw new Error('등록 실패: 매핑 RPC 가 빈 결과를 반환했습니다')
+      }
 
-      // ② 로그인
+      // 로그인 진행
       try {
         await _loginWithRecord(inserted)
       } catch(loginErr) {

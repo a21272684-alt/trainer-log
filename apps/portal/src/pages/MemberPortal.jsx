@@ -258,18 +258,18 @@ export default function MemberPortal() {
   async function handleAuthUser(au) {
     setAuthUser(au)
     try {
-      // auth_id로 조회
-      const { data: byId } = await supabase.from('members').select('*').eq('auth_id', au.id).maybeSingle()
-      if (byId) { await _loginWithRecord(byId); return }
-      // email로 조회 (기존 회원 연동)
-      if (au.email) {
-        const { data: byEmail } = await supabase.from('members').select('*').eq('email', au.email).maybeSingle()
-        if (byEmail) {
-          await supabase.from('members').update({ auth_id: au.id }).eq('id', byEmail.id)
-          await _loginWithRecord({ ...byEmail, auth_id: au.id }); return
-        }
+      // Phase B-1.1 — RLS 강화 후 members 직접 select 차단.
+      // SECURITY DEFINER RPC 가 auth_id 매칭 + email fallback 처리.
+      // (마이그레이션 050 적용 필요)
+      const { data: row, error } = await supabase.rpc('member_resolve_self', {
+        p_email: au.email ?? null,
+      })
+      if (error) throw error
+      if (row) {
+        await _loginWithRecord(row)
+        return
       }
-      // 미등록 회원
+      // 매핑 없음 — 트레이너가 아직 회원 등록 안 함
       showToast('등록된 회원 정보가 없어요. 트레이너에게 이메일 등록을 요청하세요')
       await supabase.auth.signOut()
       setAuthUser(null)
