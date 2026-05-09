@@ -183,6 +183,11 @@ function FallbackPrivacy() {
               <td style={S.td}>접속 IP·로그</td>
             </tr>
             <tr>
+              <td style={S.td}>Functional Software, Inc. (Sentry)</td>
+              <td style={S.td}>서비스 오류·예외 자동 수집 및 알림 (에러 트래킹)</td>
+              <td style={S.td}>오류 발생 시점의 페이지 URL·브라우저 종류·스택 트레이스. PII (이름·이메일·IP) 는 sendDefaultPii=false 설정으로 수집 차단</td>
+            </tr>
+            <tr>
               <td style={S.td}>브라우저 푸시 사업자(Apple/Google/Mozilla)</td>
               <td style={S.td}>Web Push 알림 발송</td>
               <td style={S.td}>푸시 엔드포인트 토큰</td>
