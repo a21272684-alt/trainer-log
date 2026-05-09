@@ -188,6 +188,11 @@ function FallbackPrivacy() {
               <td style={S.td}>오류 발생 시점의 페이지 URL·브라우저 종류·스택 트레이스. PII (이름·이메일·IP) 는 sendDefaultPii=false 설정으로 수집 차단</td>
             </tr>
             <tr>
+              <td style={S.td}>Google LLC (Google Analytics 4)</td>
+              <td style={S.td}>익명 사용자 분석 (페이지뷰·기능 사용 패턴)</td>
+              <td style={S.td}>접속 일시·페이지 경로·디바이스 종류·대략적 위치(국가/도시). 광고/오디언스 시그널 OFF (allow_google_signals=false). 회원 식별 PII (이름·이메일) 는 전송 안 함</td>
+            </tr>
+            <tr>
               <td style={S.td}>브라우저 푸시 사업자(Apple/Google/Mozilla)</td>
               <td style={S.td}>Web Push 알림 발송</td>
               <td style={S.td}>푸시 엔드포인트 토큰</td>
