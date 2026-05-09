@@ -32,7 +32,17 @@ function RevenuePaymentList({ trainerId, members, refreshKey }) {
     if (!trainerId) return
     setLoading(true)
     supabase.from('payments').select('*').eq('trainer_id', trainerId).order('paid_at', { ascending: false }).limit(100)
-      .then(({ data }) => { setList(data || []); setLoading(false) })
+      .then(({ data, error }) => {
+        if (error) console.warn('[RevenuePaymentList] payments 조회 실패:', error.message)
+        setList(data || [])
+        setLoading(false)
+      })
+      // P0 fix: 그 동안 .catch() 누락으로 네트워크 에러 시 setLoading(false) 안 되어 UI 영구 "불러오는 중..." 고착
+      .catch(e => {
+        console.warn('[RevenuePaymentList] payments fetch catch:', e?.message)
+        setList([])
+        setLoading(false)
+      })
   }
   useEffect(() => { fetchList() }, [trainerId, refreshKey])
   if (!list) return <div style={{padding:'12px',color:'var(--text-dim)',fontSize:'13px'}}>불러오는 중...</div>
@@ -413,6 +423,8 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
   const [memberPayments, setMemberPayments] = useState({})
 
   const [savingCfg, setSavingCfg] = useState(false)
+  // P1 fix: 정산 계산 더블클릭 방지 (calculate_settlement RPC 다중 호출 차단)
+  const [calculating, setCalculating] = useState(false)
   const mono = { fontFamily:"'DM Mono',monospace" }
 
   // ── 로드 ──────────────────────────────────────────────────
@@ -420,47 +432,54 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
 
   async function load() {
     setLoading(true)
-    const pad = n => String(n).padStart(2,'0')
-    const start = `${year}-${pad(month)}-01`
-    const end   = month === 12 ? `${year+1}-01-01` : `${year}-${pad(month+1)}-01`
+    try {
+      const pad = n => String(n).padStart(2,'0')
+      const start = `${year}-${pad(month)}-01`
+      const end   = month === 12 ? `${year+1}-01-01` : `${year}-${pad(month+1)}-01`
 
-    const [snapRes, settleRes, trainerRes, paymentsRes] = await Promise.all([
-      supabase.rpc('get_snapshot_preview', { p_trainer_id: trainerId, p_year: year, p_month: month }),
-      supabase.from('settlements').select('*')
-        .eq('trainer_id', trainerId).eq('period_year', year).eq('period_month', month)
-        .maybeSingle(),
-      supabase.from('trainers').select('*, trainer_ranks(*)').eq('id', trainerId).maybeSingle(),
-      supabase.from('payments').select('member_id, amount')
-        .eq('trainer_id', trainerId).gte('paid_at', start).lt('paid_at', end),
-    ])
+      const [snapRes, settleRes, trainerRes, paymentsRes] = await Promise.all([
+        supabase.rpc('get_snapshot_preview', { p_trainer_id: trainerId, p_year: year, p_month: month }),
+        supabase.from('settlements').select('*')
+          .eq('trainer_id', trainerId).eq('period_year', year).eq('period_month', month)
+          .maybeSingle(),
+        supabase.from('trainers').select('*, trainer_ranks(*)').eq('id', trainerId).maybeSingle(),
+        supabase.from('payments').select('member_id, amount')
+          .eq('trainer_id', trainerId).gte('paid_at', start).lt('paid_at', end),
+      ])
 
-    setSnap(snapRes.data || [])
-    setSettle(settleRes.data || null)
-    const tr = trainerRes.data
-    setTrainerRow(tr)
+      setSnap(snapRes.data || [])
+      setSettle(settleRes.data || null)
+      const tr = trainerRes.data
+      setTrainerRow(tr)
 
-    // 회원별 결제 합산
-    const pmap = {}
-    for (const p of paymentsRes.data || []) {
-      if (p.member_id) pmap[p.member_id] = (pmap[p.member_id] || 0) + p.amount
+      // 회원별 결제 합산
+      const pmap = {}
+      for (const p of paymentsRes.data || []) {
+        if (p.member_id) pmap[p.member_id] = (pmap[p.member_id] || 0) + p.amount
+      }
+      setMemberPayments(pmap)
+
+      // 설정 복원
+      if (tr) {
+        const cfg = tr.settlement_config || {}
+        setEmpType(tr.employment_type || cfg.employment_type || 'employee')
+        if (cfg.rental_fee        !== undefined) setRentalFee(cfg.rental_fee)
+        if (cfg.other_expenses    !== undefined) setOtherExpenses(cfg.other_expenses)
+        if (cfg.commission_rate   !== undefined) setCommissionRate(cfg.commission_rate)
+        if (cfg.member_commissions)              setMemberCommissions(cfg.member_commissions)
+        if (cfg.assigned_members)               setAssignedMembers(cfg.assigned_members)
+        if (cfg.rental_member_rates)            setRentalMemberRates(cfg.rental_member_rates)
+        if (cfg.custom_grade)                    setCustomGrade(cfg.custom_grade)
+        if (cfg.custom_base_salary !== undefined) setCustomBaseSalary(cfg.custom_base_salary)
+        if (cfg.custom_incentive_rate !== undefined) setCustomIncentiveRate(cfg.custom_incentive_rate)
+      }
+    } catch (e) {
+      // P0 fix: Promise.all 실패 시 (RLS 거부 / 네트워크 오류) UI 무한 로딩 방지
+      console.warn('[settlement load] 정산 데이터 로드 실패:', e?.message)
+      showToast('정산 데이터 로드 실패: ' + (e?.message || '알 수 없는 오류'))
+    } finally {
+      setLoading(false)
     }
-    setMemberPayments(pmap)
-
-    // 설정 복원
-    if (tr) {
-      const cfg = tr.settlement_config || {}
-      setEmpType(tr.employment_type || cfg.employment_type || 'employee')
-      if (cfg.rental_fee        !== undefined) setRentalFee(cfg.rental_fee)
-      if (cfg.other_expenses    !== undefined) setOtherExpenses(cfg.other_expenses)
-      if (cfg.commission_rate   !== undefined) setCommissionRate(cfg.commission_rate)
-      if (cfg.member_commissions)              setMemberCommissions(cfg.member_commissions)
-      if (cfg.assigned_members)               setAssignedMembers(cfg.assigned_members)
-      if (cfg.rental_member_rates)            setRentalMemberRates(cfg.rental_member_rates)
-      if (cfg.custom_grade)                    setCustomGrade(cfg.custom_grade)
-      if (cfg.custom_base_salary !== undefined) setCustomBaseSalary(cfg.custom_base_salary)
-      if (cfg.custom_incentive_rate !== undefined) setCustomIncentiveRate(cfg.custom_incentive_rate)
-    }
-    setLoading(false)
   }
 
   async function saveConfig(overrides = {}) {
@@ -1097,14 +1116,23 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
               )}
               {hasGym && (status==='none'||status==='draft') && (
                 <button onClick={async()=>{
-                    const{data,error}=await supabase.rpc('calculate_settlement',{p_trainer_id:trainerId,p_year:year,p_month:month})
-                    if(error){showToast('오류: '+error.message);return}
-                    setSettle(data);showToast('✓ 정산이 계산됐어요')
+                    if (calculating) return // P1 fix: 더블클릭 방지
+                    setCalculating(true)
+                    try {
+                      const{data,error}=await supabase.rpc('calculate_settlement',{p_trainer_id:trainerId,p_year:year,p_month:month})
+                      if(error){showToast('오류: '+error.message);return}
+                      setSettle(data);showToast('✓ 정산이 계산됐어요')
+                    } catch (e) {
+                      showToast('정산 계산 중 오류가 발생했어요: ' + (e?.message || ''))
+                    } finally {
+                      setCalculating(false)
+                    }
                   }}
+                  disabled={calculating}
                   style={{width:'100%',padding:'11px',borderRadius:'8px',border:'none',
-                    background:'var(--accent)',color:'#0f0f0f',fontWeight:700,fontSize:'13px',
-                    cursor:'pointer',fontFamily:'inherit',transition:'all 0.2s'}}>
-                  {status==='draft'?'🔄 재계산':'📊 정산 계산하기'}
+                    background:calculating?'var(--surface2)':'var(--accent)',color:calculating?'var(--text-dim)':'#0f0f0f',fontWeight:700,fontSize:'13px',
+                    cursor:calculating?'default':'pointer',fontFamily:'inherit',transition:'all 0.2s'}}>
+                  {calculating?'계산 중...':(status==='draft'?'🔄 재계산':'📊 정산 계산하기')}
                 </button>
               )}
               {hasGym && status==='confirmed' && (
@@ -1184,12 +1212,38 @@ function AiInsightPanel({ member, apiKey }) {
       )
       setStats(computed)
 
+      // P0 fix (비용 폭탄 방지): Gemini 호출 전 트레이너 월 한도 확인.
+      // 그동안 인사이트는 한도 체크/크레딧 차감이 모두 누락되어 무제한 호출 가능했음.
+      try {
+        const trainerId = member?.trainer_id
+        if (trainerId) {
+          const { data: usage } = await supabase.rpc('get_ai_usage', { p_trainer_id: trainerId })
+          if (usage?.blocked) {
+            setErrMsg('AI 인사이트 월 한도를 모두 사용했어요. 다음달에 다시 시도해주세요.')
+            setPhase('error')
+            return
+          }
+        }
+      } catch (e) {
+        console.warn('[AI insight] get_ai_usage 실패 — 한도 체크 skip:', e?.message)
+      }
+
       // ── Gemini 호출 ──────────────────────────────────────────
       setStatus('AI가 인사이트를 생성하는 중...')
       const prompt = buildInsightPrompt(member, computed)
       const text   = await callGeminiInsight(apiKey, GEMINI_MODEL, prompt)
       setInsight(text)
       setPhase('done')
+
+      // P0 fix (비용 폭탄 방지): 호출 성공 후 크레딧 차감 (식단 사진 인식과 동일 패턴).
+      try {
+        const trainerId = member?.trainer_id
+        if (trainerId) {
+          await supabase.rpc('use_ai_credit', { p_trainer_id: trainerId })
+        }
+      } catch (creditErr) {
+        console.warn('[AI insight] use_ai_credit 실패:', creditErr?.message)
+      }
 
       // 성공 시 락 타임스탬프 갱신
       try { localStorage.setItem(LOCK_KEY, String(Date.now())) } catch {}
@@ -2120,13 +2174,21 @@ export default function TrainerApp() {
     const active = (memberList || [])
     if (!active.length) return
     try {
+      // P1 fix (비용 폭탄 방지): 회원 100명+ 트레이너 진입 시 health_records / attendance
+      // 가 limit 없어 row read 수천~만 건 폭증 위험. 위험 점수는 최근 60일 데이터로 충분
+      // 하므로 record_date 필터 + limit 1000 하드 캡 추가.
+      const sixtyDaysAgo = new Date(); sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
+      const cutoffDate = sixtyDaysAgo.toISOString().split('T')[0]
+      const memberIds = active.map(m => m.id)
       const [logsAll, healthAll, attendAll] = await Promise.all([
         supabase.from('logs').select('id,member_id,created_at,session_rating,exercises_data')
           .eq('trainer_id', trainer.id).order('created_at', { ascending: false }).limit(500),
         supabase.from('health_records').select('id,member_id,record_date,morning_weight,sleep_level')
-          .in('member_id', active.map(m => m.id)),
+          .in('member_id', memberIds).gte('record_date', cutoffDate)
+          .order('record_date', { ascending: false }).limit(1000),
         supabase.from('attendance').select('member_id,attended_date')
-          .in('member_id', active.map(m => m.id)),
+          .in('member_id', memberIds).gte('attended_date', cutoffDate)
+          .order('attended_date', { ascending: false }).limit(1000),
       ])
       const map = {}
       active.forEach(m => {
@@ -3090,6 +3152,22 @@ export default function TrainerApp() {
     setGenerating(true); setShowPreview(false); setShowSend(false)
     setAiStatus('AI가 회원님을 위한 맞춤형 리포트를 작성하고 있습니다...')
     try {
+      // P0 fix (비용 폭탄 방지): Gemini 호출 전 트레이너 월 한도 확인.
+      // 그동안 AI 일지는 use_ai_credit (post-call) 만 있고 사전 한도 체크가 없어
+      // ai_monthly_limit 도달 후에도 호출 가능했음.
+      try {
+        if (trainer?.id) {
+          const { data: usage } = await supabase.rpc('get_ai_usage', { p_trainer_id: trainer.id })
+          if (usage?.blocked) {
+            showToast('AI 월 한도를 모두 사용했어요. 다음달에 다시 시도해주세요.')
+            setGenerating(false); setAiStatus('')
+            return
+          }
+        }
+      } catch (e) {
+        console.warn('[generateLog] get_ai_usage 실패 — 한도 체크 skip:', e?.message)
+      }
+
       const combinedInput = extraInstruction?.trim()
         ? (rawInput || '') + '\n\n[추가 지시사항]\n' + extraInstruction.trim()
         : (rawInput || '')
