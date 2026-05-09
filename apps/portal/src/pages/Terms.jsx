@@ -34,7 +34,20 @@ function FallbackTerms() {
     <>
       <div style={S.section}>
         <h2 style={S.h2}>제1조 (목적)</h2>
-        <p style={S.p}>본 약관은 오운(이하 "회사")이 제공하는 피트니스 관리·커뮤니티·센터 운영(CRM) 플랫폼(이하 "서비스")의 이용 조건 및 절차, 회사와 이용자 간의 권리·의무·책임 사항을 규정함을 목적으로 합니다.</p>
+        <p style={S.p}>본 약관은 <strong>이루스케일즈</strong>(대표 윤준현, 이하 "회사")가 제공하는 <strong>오운</strong> 피트니스 관리·커뮤니티·센터 운영(CRM) 플랫폼(이하 "서비스")의 이용 조건 및 절차, 회사와 이용자 간의 권리·의무·책임 사항을 규정함을 목적으로 합니다.</p>
+      </div>
+
+      <div style={S.section}>
+        <h2 style={S.h2}>제1조의2 (회사 및 사업자 정보)</h2>
+        <ul style={S.ul}>
+          <li style={S.li}><strong>상호</strong>: 이루스케일즈</li>
+          <li style={S.li}><strong>서비스명</strong>: 오운</li>
+          <li style={S.li}><strong>대표자</strong>: 윤준현</li>
+          <li style={S.li}><strong>업태/종목</strong>: 정보통신업 / 소프트웨어 개발 및 공급업</li>
+          <li style={S.li}><strong>사업자등록번호</strong>: 정식 출시 전 본 항목에 기재 예정 (1:1 문의 시 안내)</li>
+          <li style={S.li}><strong>사업장 주소</strong>: 정확한 주소는 1:1 문의 시 안내</li>
+          <li style={S.li}><strong>고객지원</strong>: 카카오톡 채널을 통한 1:1 문의 (서비스 내 "1:1 문의" 버튼 또는 푸터 링크)</li>
+        </ul>
       </div>
 
       <div style={S.section}>
@@ -75,13 +88,18 @@ function FallbackTerms() {
       </div>
 
       <div style={S.section}>
-        <h2 style={S.h2}>제6조 (유료 플랜 및 크레딧 운영 현황)</h2>
+        <h2 style={S.h2}>제6조 (유료 플랜·크레딧 운영 및 환불)</h2>
         <div style={S.info}>
           <strong>📌 현재 운영 방식</strong><br/>
           본 서비스는 PG(전자결제대행) 자동 결제 모듈을 도입하지 않은 단계로, 이용자에게 카드·계좌 등을 통한 직접적인 결제 행위가 발생하지 않습니다. 유료 플랜 활성화 및 AI 크레딧 부여는 회사 관리자가 트레이너 계정에 직접 부여하는 방식으로 운영됩니다.
         </div>
         <p style={S.p}>① 향후 PG 모듈을 통한 유료 결제 또는 크레딧 유료 교환 방식이 도입될 경우, 회사는 가격·결제 수단·청약철회 및 환불 정책을 사전 공지합니다.</p>
         <p style={S.p}>② 새로운 유료 정책 시행 전 발생한 이용 분에 대해서는 본 약관과 별도 환불 정책을 따릅니다.</p>
+        <p style={S.p}>③ 환불의 구체적 기준·절차는 별도 <a href="/refund" style={{ color: '#2563eb', fontWeight: 600 }}>환불정책</a> 페이지에 따르며, 다음 핵심 사항이 적용됩니다.</p>
+        <div style={S.highlight}>
+          ⚠️ <strong>핵심 환불 제한 — 결제 시 별도 동의 후 효력 발생</strong><br/>
+          유료 결제 도입 후 회사는 결제일로부터 7일 이내라도 <strong>AI 호출이 발생하는 핵심 기능(AI 수업일지 자동 생성, AI 식단 사진 인식, AI 인사이트 등)을 1회 이상 사용한 경우 환불을 제한</strong>할 수 있습니다. 본 제한은 「전자상거래 등에서의 소비자보호에 관한 법률」 제17조 제2항에 따라 결제 화면에서 이용자가 별도 동의한 경우에만 효력이 발생하며, 결제 화면에 무료 체험(Free 플랜) 또는 사전 미리보기 수단이 함께 제공됩니다.
+        </div>
       </div>
 
       <div style={S.section}>
@@ -187,7 +205,7 @@ export default function Terms() {
         <div style={S.header}>
           <div style={S.badge}>LEGAL</div>
           <h1 style={S.title}>이용약관</h1>
-          <p style={S.meta}>시행일: 2026년 5월 6일 · 버전: 2.0</p>
+          <p style={S.meta}>시행일: 2026년 5월 8일 · 버전: 3.0</p>
         </div>
 
         {loading ? (
@@ -199,7 +217,7 @@ export default function Terms() {
         )}
 
         <div style={S.footer}>
-          <p>오운(주) · 대한민국</p>
+          <p>이루스케일즈 (서비스명: 오운) · 대표 윤준현 · 대한민국</p>
           <p style={{ marginTop: '8px' }}>
             <a href="/privacy" style={{ color: '#64748b' }}>개인정보 처리방침</a>
             <span style={{ margin: '0 8px' }}>·</span>
