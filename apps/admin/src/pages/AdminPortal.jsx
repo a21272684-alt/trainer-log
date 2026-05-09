@@ -508,14 +508,20 @@ export default function AdminPortal() {
   }
 
   // 기능 게이트 저장 (RPC 경유 — RLS 정책상 직접 upsert 차단됨)
+  // P0 fix: 그동안 setFeatureGates 를 optimistic 으로 먼저 호출 → save 실패 시
+  // state 롤백 안 됨 → UI 는 "토글 됨" 으로 보이지만 새로고침 시 DB 원본값으로
+  // 회귀. 사용자가 "ON/OFF 토글이 안 먹는다" 고 인지하던 원인.
+  // 수정: prev 캡처 후 optimistic setX → save 실패 시 prev 로 롤백.
   async function saveFeatureGates(next) {
+    const prev = featureGates
     setFeatureGates(next)
     try {
       await adminUpsertSetting('feature_gates', next)
       showToast('✓ 기능 설정 저장됨')
     } catch (e) {
+      setFeatureGates(prev) // P0 fix: 저장 실패 시 UI 롤백
       console.error('기능 설정 저장 오류:', e)
-      showToast('오류: ' + (e?.message || '저장 실패'))
+      showToast('저장 실패: ' + (e?.message || '오류') + ' — 변경이 취소됐어요')
     }
   }
   function toggleGate(plan, key) {
@@ -526,6 +532,9 @@ export default function AdminPortal() {
     const n = Math.max(0, parseInt(val) || 0)
     setFeatureGates(prev => ({ ...prev, [plan]: { ...prev[plan], member_limit: n } }))
   }
+  // ⚠️ saveMemberLimit edge case: setMemberLimit 가 입력 시점마다 featureGates 를 갱신
+  // 하므로 저장 실패 시 입력값 그대로 남음. 새로고침 시 DB 값으로 복원됨. 베타 OK.
+  // 후속 개선: lastSavedFeatureGates 별도 추적 → 저장 실패 시 그쪽으로 정확히 롤백.
   function saveMemberLimit() { saveFeatureGates(featureGates) }
 
   // 크레딧 충전
@@ -989,46 +998,47 @@ export default function AdminPortal() {
       await adminUpsertSetting(key, value)
     }
   }
-  async function saveLandingStats(next) {
-    setLandingStats(next)
-    await saveLandingKey('landing_stats', next)
-    showToast('✓ 통계 수치 저장됨')
+
+  // P1 fix: optimistic setX 후 save 실패 시 rollback 안 되어 silent fail.
+  // 헬퍼로 prev 캡처 + 실패 시 setter(prev) 롤백 + 사용자 알림 통일.
+  async function saveLandingField(setter, prev, key, next, label) {
+    setter(next)
+    try {
+      await saveLandingKey(key, next)
+      showToast(`✓ ${label} 저장됨`)
+    } catch (e) {
+      setter(prev) // 롤백
+      console.error(`[${key}] 저장 실패:`, e)
+      showToast(`${label} 저장 실패: ${e?.message || '오류'} — 변경 취소됨`)
+    }
   }
-  async function saveLandingReviews(next) {
-    setLandingReviews(next)
-    await saveLandingKey('landing_reviews', next)
-    showToast('✓ 후기 저장됨')
-  }
-  async function saveLandingKakao(next) {
-    setLandingKakao(next)
-    await saveLandingKey('landing_kakao', next)
-    showToast('✓ 메시지 저장됨')
-  }
-  async function saveLandingFaqs(next) {
-    setLandingFaqs(next)
-    await saveLandingKey('landing_faqs', next)
-    showToast('✓ FAQ 저장됨')
-  }
-  async function saveLandingAiHighlight(next) { setLandingAiHighlight(next); await saveLandingKey('landing_ai_highlight', next); showToast('✓ AI 하이라이트 저장됨') }
-  async function saveLandingHero(next) { setLandingHero(next); await saveLandingKey('landing_hero', next); showToast('✓ 히어로 저장됨') }
-  async function saveLandingProblems(next) { setLandingProblems(next); await saveLandingKey('landing_problems', next); showToast('✓ 문제 인식 저장됨') }
-  async function saveLandingSolutions(next) { setLandingSolutions(next); await saveLandingKey('landing_solutions', next); showToast('✓ 솔루션 저장됨') }
-  async function saveLandingTargets(next) { setLandingTargets(next); await saveLandingKey('landing_targets', next); showToast('✓ 타겟 분기 저장됨') }
-  async function saveLandingMemberFeatures(next) { setLandingMemberFeatures(next); await saveLandingKey('landing_member_features', next); showToast('✓ 회원 포털 기능 저장됨') }
-  async function saveLandingPlansLanding(next) { setLandingPlansLanding(next); await saveLandingKey('landing_plans_landing', next); showToast('✓ 요금제 저장됨') }
-  async function saveLandingComparison(next) { setLandingComparison(next); await saveLandingKey('landing_comparison', next); showToast('✓ 기능 비교 저장됨') }
-  async function saveLandingPortalButtons(next) { setLandingPortalButtons(next); await saveLandingKey('landing_portal_buttons', next); showToast('✓ 포털 버튼 설정 저장됨') }
-  async function saveLandingCommHero(next) { setLandingCommHero(next); await saveLandingKey('landing_community_hero', next); showToast('✓ 커뮤니티 히어로 저장됨') }
-  async function saveLandingCrmHero(next) { setLandingCrmHero(next); await saveLandingKey('landing_crm_hero', next); showToast('✓ CRM 히어로 저장됨') }
-  async function saveLandingCrmFeatures(next) { setLandingCrmFeatures(next); await saveLandingKey('landing_crm_features', next); showToast('✓ CRM 기능 저장됨') }
-  async function saveLandingCrmPainpoints(next) { setLandingCrmPainpoints(next); await saveLandingKey('landing_crm_painpoints', next); showToast('✓ 페인포인트 저장됨') }
-  async function saveLandingCrmRoadmap(next) { setLandingCrmRoadmap(next); await saveLandingKey('landing_crm_roadmap', next); showToast('✓ 로드맵 저장됨') }
+
+  async function saveLandingStats(next)           { return saveLandingField(setLandingStats,           landingStats,           'landing_stats',           next, '통계 수치') }
+  async function saveLandingReviews(next)         { return saveLandingField(setLandingReviews,         landingReviews,         'landing_reviews',         next, '후기') }
+  async function saveLandingKakao(next)           { return saveLandingField(setLandingKakao,           landingKakao,           'landing_kakao',           next, '메시지') }
+  async function saveLandingFaqs(next)            { return saveLandingField(setLandingFaqs,            landingFaqs,            'landing_faqs',            next, 'FAQ') }
+  async function saveLandingAiHighlight(next)     { return saveLandingField(setLandingAiHighlight,     landingAiHighlight,     'landing_ai_highlight',    next, 'AI 하이라이트') }
+  async function saveLandingHero(next)            { return saveLandingField(setLandingHero,            landingHero,            'landing_hero',            next, '히어로') }
+  async function saveLandingProblems(next)        { return saveLandingField(setLandingProblems,        landingProblems,        'landing_problems',        next, '문제 인식') }
+  async function saveLandingSolutions(next)       { return saveLandingField(setLandingSolutions,       landingSolutions,       'landing_solutions',       next, '솔루션') }
+  async function saveLandingTargets(next)         { return saveLandingField(setLandingTargets,         landingTargets,         'landing_targets',         next, '타겟 분기') }
+  async function saveLandingMemberFeatures(next)  { return saveLandingField(setLandingMemberFeatures,  landingMemberFeatures,  'landing_member_features', next, '회원 포털 기능') }
+  async function saveLandingPlansLanding(next)    { return saveLandingField(setLandingPlansLanding,    landingPlansLanding,    'landing_plans_landing',   next, '요금제') }
+  async function saveLandingComparison(next)      { return saveLandingField(setLandingComparison,      landingComparison,      'landing_comparison',      next, '기능 비교') }
+  async function saveLandingPortalButtons(next)   { return saveLandingField(setLandingPortalButtons,   landingPortalButtons,   'landing_portal_buttons',  next, '포털 버튼 설정') }
+  async function saveLandingCommHero(next)        { return saveLandingField(setLandingCommHero,        landingCommHero,        'landing_community_hero',  next, '커뮤니티 히어로') }
+  async function saveLandingCrmHero(next)         { return saveLandingField(setLandingCrmHero,         landingCrmHero,         'landing_crm_hero',        next, 'CRM 히어로') }
+  async function saveLandingCrmFeatures(next)     { return saveLandingField(setLandingCrmFeatures,     landingCrmFeatures,     'landing_crm_features',    next, 'CRM 기능') }
+  async function saveLandingCrmPainpoints(next)   { return saveLandingField(setLandingCrmPainpoints,   landingCrmPainpoints,   'landing_crm_painpoints',  next, '페인포인트') }
+  async function saveLandingCrmRoadmap(next)      { return saveLandingField(setLandingCrmRoadmap,      landingCrmRoadmap,      'landing_crm_roadmap',     next, '로드맵') }
 
   function openLandingEdit(type, index, data) {
     setLandingEditModal({ type, index, data: { ...data } })
   }
   function closeLandingEdit() { setLandingEditModal(null) }
   async function saveLandingEdit() {
+    // saveLanding* 들은 헬퍼 (saveLandingField) 가 try-catch 로 자체 처리하므로
+    // 여기서 추가 try-catch 불필요. 단 closeLandingEdit 은 save 실패 여부 무관 항상 실행.
     const { type, index, data } = landingEditModal
     if (type === 'stats') {
       const next = landingStats.map((s, i) => i === index ? data : s)
