@@ -9,8 +9,9 @@
     "preview": "vite preview --port 3010"
   },
   "dependencies": {
-    "@trainer-log/shared": "*",
+    "@sentry/react": "^9.47.1",
     "@supabase/supabase-js": "^2.49.0",
+    "@trainer-log/shared": "*",
     "date-fns": "^4.1.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
