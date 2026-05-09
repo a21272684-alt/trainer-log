@@ -38,8 +38,11 @@ function FallbackPrivacy() {
     <>
       <div style={S.section}>
         <h2 style={S.h2}>제1조 (총칙)</h2>
-        <p style={S.p}>오운(이하 "회사")은 이용자의 개인정보를 중요시하며, 「개인정보 보호법」, 「정보통신망 이용촉진 및 정보보호 등에 관한 법률」 등 관련 법령을 준수하기 위하여 본 처리방침을 수립·공개합니다.</p>
+        <p style={S.p}><strong>이루스케일즈</strong>(대표 윤준현, 서비스명 "오운", 이하 "회사")는 이용자의 개인정보를 중요시하며, 「개인정보 보호법」, 「정보통신망 이용촉진 및 정보보호 등에 관한 법률」 등 관련 법령을 준수하기 위하여 본 처리방침을 수립·공개합니다.</p>
         <p style={S.p}>본 방침은 회사가 운영하는 트레이너 포털, 회원 포털, 커뮤니티 포털, 헬스장 운영자(CRM) 포털 등 모든 서비스에 적용됩니다.</p>
+        <div style={S.highlight}>
+          ⚠️ <strong>민감정보 처리 사전 고지</strong> — 본 서비스는 「개인정보 보호법」 제23조에서 정한 <strong>민감정보(건강에 관한 정보)</strong> 인 회원의 체중·운동 기록·식단·체형 사진·수면 메모 등을 처리합니다. 회사는 회원이 자발적으로 입력·업로드한 데이터에 한하여 본 정보를 수집하며, 본 처리방침의 동의는 동 민감정보 처리에 대한 별도 동의로 간주됩니다(제5조의2 참조).
+        </div>
       </div>
 
       <div style={S.section}>
@@ -62,7 +65,7 @@ function FallbackPrivacy() {
           <tbody>
             <tr><td style={S.td}>트레이너</td><td style={S.td}>소속 센터, 직급, 연락처(자가 입력), 프로필 사진</td></tr>
             <tr><td style={S.td}>회원 PII</td><td style={S.td}>이름, 연락처, 생년월일(선택), 운동 목적 — 트레이너가 입력</td></tr>
-            <tr><td style={S.td}>건강·운동 데이터</td><td style={S.td}>체중, 수면 메모, 운동 세션, 운동 루틴, 식단 기록, 출석 기록</td></tr>
+            <tr><td style={S.td}>건강·운동 데이터 <span style={{ color: '#dc2626', fontWeight: 700 }}>(민감정보)</span></td><td style={S.td}>체중, 수면 메모, 운동 세션, 운동 루틴, 식단 기록·식단 사진, 체형·운동 사진, 출석 기록 — 「개인정보 보호법」 제23조 민감정보(건강에 관한 정보)에 해당</td></tr>
             <tr><td style={S.td}>커뮤니티</td><td style={S.td}>게시글, 사진, 댓글, 좋아요·연락 요청 내역</td></tr>
             <tr><td style={S.td}>운영 정보</td><td style={S.td}>유료 플랜 활성 상태, AI 크레딧 잔액(관리자 수동 부여 시)</td></tr>
           </tbody>
@@ -122,6 +125,29 @@ function FallbackPrivacy() {
         <p style={S.p}>① AI 처리에는 분석에 필요한 최소한의 데이터만 전송되며, 식별성이 높은 회원 PII(이름·연락처)는 원칙적으로 함께 전송되지 않습니다.</p>
         <p style={S.p}>② AI 처리 결과는 참고 자료이며, 의료적 진단·처방을 대체하지 않습니다.</p>
         <p style={S.p}>③ AI 제공자는 자체 정책에 따라 입력 데이터를 일정 기간 보관하거나 학습에 사용하지 않을 수 있으나, 정확한 처리 방식은 해당 제공자(Google)의 정책에 따릅니다.</p>
+      </div>
+
+      <div style={S.section}>
+        <h2 style={S.h2}>제5조의2 (민감정보의 별도 처리)</h2>
+        <div style={S.highlight}>
+          ⚠️ 본 조에서 명시된 민감정보는 「개인정보 보호법」 제23조에 따라 별도의 보호 조치 대상이며, 회원이 자발적으로 입력하지 않으면 회사가 임의로 수집하지 않습니다.
+        </div>
+        <h3 style={S.h3}>① 민감정보 항목</h3>
+        <ul style={S.ul}>
+          <li style={S.li}><strong>건강에 관한 정보</strong>: 체중·체지방·수면 메모·운동 세션·식단 기록·식단 사진·체형 사진·운동 사진</li>
+          <li style={S.li}>주의: 본 서비스는 의료기록(병명·진단·처방·검진 결과 등)을 수집·저장하지 않습니다.</li>
+        </ul>
+        <h3 style={S.h3}>② 처리 목적</h3>
+        <ul style={S.ul}>
+          <li style={S.li}>회원의 자기관리 목적의 기록 보관 및 트레이너의 개인 맞춤형 코칭 지원</li>
+          <li style={S.li}>AI 분석을 통한 자동 일지·식단 분석·이탈위험도 인사이트 등 향상된 서비스 제공</li>
+        </ul>
+        <h3 style={S.h3}>③ 보유 및 이용 기간</h3>
+        <p style={S.p}>회원 탈퇴 또는 트레이너의 회원 삭제 요청 시 즉시 파기합니다. 단, 90일 이상 경과한 수업일지 영상·사진은 비용 관리 목적으로 자동 삭제될 수 있으며, 회원은 사전에 본인 디바이스에 백업할 수 있습니다.</p>
+        <h3 style={S.h3}>④ 동의의 철회</h3>
+        <p style={S.p}>회원은 카카오톡 채널을 통해 민감정보 처리 동의를 언제든지 철회할 수 있으며, 철회 즉시 해당 정보는 파기됩니다. 다만 동의 철회 시 자동 일지·AI 분석·이탈위험도 등 핵심 기능 이용이 제한됩니다.</p>
+        <h3 style={S.h3}>⑤ 제3자 제공·국외 이전</h3>
+        <p style={S.p}>회사는 민감정보를 제3자에게 제공·판매·제휴 마케팅 목적으로 공유하지 않습니다. AI 분석 시 처리위탁(Google LLC, 미국)이 발생하며, 이는 본 방침 제6조의 위탁 범위 내에서 수행됩니다.</p>
       </div>
 
       <div style={S.section}>
@@ -203,11 +229,20 @@ function FallbackPrivacy() {
       </div>
 
       <div style={S.section}>
-        <h2 style={S.h2}>제11조 (개인정보 보호책임자)</h2>
+        <h2 style={S.h2}>제11조 (개인정보 보호책임자 및 권리구제)</h2>
         <p style={S.p}>회사는 개인정보 보호와 관련된 이용자의 의견 청취 및 불만 처리를 위해 다음과 같이 보호책임자를 지정합니다.</p>
         <ul style={S.ul}>
-          <li style={S.li}><strong>개인정보 보호책임자</strong>: 오운 운영팀</li>
-          <li style={S.li}><strong>문의 채널</strong>: 카카오톡 채널을 통해 접수 (서비스 내 1:1 문의 버튼 참조)</li>
+          <li style={S.li}><strong>상호</strong>: 이루스케일즈</li>
+          <li style={S.li}><strong>개인정보 보호책임자</strong>: 윤준현 (대표)</li>
+          <li style={S.li}><strong>문의 채널</strong>: 카카오톡 채널을 통해 접수 (서비스 내 "1:1 문의" 버튼 또는 푸터 링크)</li>
+          <li style={S.li}><strong>응답 시한</strong>: 영업일 기준 3일 이내 1차 회신, 처리 완료까지 최대 30일</li>
+        </ul>
+        <p style={S.p}>이용자는 개인정보 침해로 인한 구제를 받기 위해 다음의 외부 기관에도 직접 신청할 수 있습니다.</p>
+        <ul style={S.ul}>
+          <li style={S.li}>개인정보침해신고센터 (privacy.kisa.or.kr · 국번없이 118)</li>
+          <li style={S.li}>개인정보분쟁조정위원회 (kopico.go.kr · 1833-6972)</li>
+          <li style={S.li}>대검찰청 사이버범죄수사단 (spo.go.kr · 02-3480-3573)</li>
+          <li style={S.li}>경찰청 사이버안전국 (cyberbureau.police.go.kr · 국번없이 182)</li>
         </ul>
       </div>
 
@@ -262,7 +297,7 @@ export default function Privacy() {
         <div style={S.header}>
           <div style={S.badge}>PRIVACY</div>
           <h1 style={S.title}>개인정보 처리방침</h1>
-          <p style={S.meta}>시행일: 2026년 5월 6일 · 버전: 2.0</p>
+          <p style={S.meta}>시행일: 2026년 5월 8일 · 버전: 3.0</p>
         </div>
 
         {loading ? (
@@ -274,7 +309,7 @@ export default function Privacy() {
         )}
 
         <div style={S.footer}>
-          <p>오운(주) · 대한민국</p>
+          <p>이루스케일즈 (서비스명: 오운) · 대표 윤준현 · 대한민국</p>
           <p style={{ marginTop: '8px' }}>
             <a href="/terms" style={{ color: '#64748b' }}>이용약관</a>
             <span style={{ margin: '0 8px' }}>·</span>
