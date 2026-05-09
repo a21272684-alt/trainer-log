@@ -292,7 +292,22 @@ export default function AdminPortal() {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
   }, [])
 
-  const [loggedIn, setLoggedIn] = useState(false)
+  // 세션 지속 — sessionStorage 사용 (탭 닫으면 자동 만료, 새로고침 시 유지)
+  // 그동안 loggedIn 이 React state 만이라 새로고침 시 매번 로그인 화면으로 회귀하던 UX 결함.
+  // 8시간 만료 + ID 일치 검증으로 stale 세션 / 환경변수 변경 시 자동 무효화.
+  const SESSION_KEY = 'admin_session_v1'
+  const SESSION_TTL_MS = 8 * 60 * 60 * 1000 // 8시간
+  const readSession = () => {
+    try {
+      const raw = sessionStorage.getItem(SESSION_KEY)
+      if (!raw) return false
+      const { id, ts } = JSON.parse(raw)
+      if (id !== ADMIN_ID) return false // 환경변수 ID 변경 시 무효화
+      if (typeof ts !== 'number' || Date.now() - ts > SESSION_TTL_MS) return false
+      return true
+    } catch { return false }
+  }
+  const [loggedIn, setLoggedIn] = useState(readSession)
   const [adminId, setAdminId] = useState('')
   const [pw, setPw] = useState('')
   const [busyMap, setBusyMap] = useState({}) // 모더레이션 중복 클릭 방어용
@@ -395,9 +410,20 @@ export default function AdminPortal() {
     const inputId = adminId.trim()
     if (!inputId || !pw) { showToast('아이디와 비밀번호를 모두 입력해 주세요'); return }
     if (inputId !== ADMIN_ID || pw !== ADMIN_PW) { showToast('아이디 또는 비밀번호가 틀렸어요'); return }
+    // 세션 영속화 — 새로고침 시 로그인 유지 (탭 닫으면 자동 만료)
+    try {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ id: inputId, ts: Date.now() }))
+    } catch (e) {
+      console.warn('[admin login] sessionStorage 쓰기 실패:', e?.message)
+    }
     setLoggedIn(true)
   }
-  const logout = () => { setLoggedIn(false); setAdminId(''); setPw('') }
+  const logout = () => {
+    try { sessionStorage.removeItem(SESSION_KEY) } catch {}
+    setLoggedIn(false)
+    setAdminId('')
+    setPw('')
+  }
 
   useEffect(() => { if (loggedIn) loadAll() }, [loggedIn])
 
