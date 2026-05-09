@@ -5278,7 +5278,8 @@ export default function TrainerApp() {
             <button
               type="button"
               onClick={() => {
-                const url = (urgentInquiryUrl && urgentInquiryUrl.trim()) || 'https://open.kakao.com/'
+                // 폴백: 오운 카카오톡 채널 (@ownapp). admin 의 urgent_inquiry_url 설정이 우선.
+                const url = (urgentInquiryUrl && urgentInquiryUrl.trim()) || 'https://pf.kakao.com/_ownapp'
                 try { window.open(url, '_blank', 'noopener,noreferrer') }
                 catch { showToast('1:1 문의 채널을 여는 데 실패했어요') }
               }}

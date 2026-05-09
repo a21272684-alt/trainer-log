@@ -204,9 +204,10 @@ export default function MemberPortal() {
   const [savingWorkout, setSavingWorkout] = useState(false)
   const [creatingPost, setCreatingPost] = useState(false)
 
-  // 1:1 문의 → 카카오 오픈채팅 우회 (inquiries 테이블 사용 중단, 운영 비용 절감)
+  // 1:1 문의 → 카카오톡 채널 우회 (inquiries 테이블 사용 중단, 운영 비용 절감)
   // app_settings.urgent_inquiry_url 가 있으면 그 URL을, 없으면 폴백 URL을 새창으로 연다.
-  const FALLBACK_INQUIRY_URL = 'https://open.kakao.com/'
+  // 폴백: 오운 카카오톡 채널 (@ownapp). 배포 환경별 URL 차이 시 admin 에서 동적 입력 권장.
+  const FALLBACK_INQUIRY_URL = 'https://pf.kakao.com/_ownapp'
   const [inquiryUrl, setInquiryUrl] = useState(FALLBACK_INQUIRY_URL)
   useEffect(() => {
     let cancelled = false

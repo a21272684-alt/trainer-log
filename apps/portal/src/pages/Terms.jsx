@@ -46,7 +46,7 @@ function FallbackTerms() {
           <li style={S.li}><strong>업태/종목</strong>: 정보통신업 / 소프트웨어 개발 및 공급업</li>
           <li style={S.li}><strong>사업자등록번호</strong>: 정식 출시 전 본 항목에 기재 예정 (1:1 문의 시 안내)</li>
           <li style={S.li}><strong>사업장 주소</strong>: 정확한 주소는 1:1 문의 시 안내</li>
-          <li style={S.li}><strong>고객지원</strong>: 카카오톡 채널을 통한 1:1 문의 (서비스 내 "1:1 문의" 버튼 또는 푸터 링크)</li>
+          <li style={S.li}><strong>고객지원</strong>: 카카오톡 채널 <strong>@ownapp</strong> (<a href="https://pf.kakao.com/_ownapp" target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', fontWeight: 600 }}>https://pf.kakao.com/_ownapp</a>) — 카카오톡 앱에서 "@ownapp" 검색 또는 서비스 내 "1:1 문의" 버튼 클릭</li>
         </ul>
       </div>
 

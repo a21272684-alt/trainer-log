@@ -84,7 +84,7 @@ function FallbackRefund() {
 
         <h3 style={S.h3}>④ 환불 절차 및 처리 기한</h3>
         <ul style={S.ul}>
-          <li style={S.li}>이용자는 카카오톡 채널을 통해 환불을 신청합니다 (서비스 내 "1:1 문의" 버튼 또는 푸터 링크).</li>
+          <li style={S.li}>이용자는 카카오톡 채널 <strong>@ownapp</strong> (<a href="https://pf.kakao.com/_ownapp" target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', fontWeight: 600 }}>https://pf.kakao.com/_ownapp</a>) 을 통해 환불을 신청합니다 (서비스 내 "1:1 문의" 버튼 또는 푸터 링크).</li>
           <li style={S.li}>회사는 환불 신청 접수 후 영업일 기준 3일 이내 1차 회신, 처리 완료까지 최대 영업일 기준 7일이 소요될 수 있습니다.</li>
           <li style={S.li}>환불 금액은 이용자가 결제 시 사용한 결제 수단으로 환급됨을 원칙으로 하며, 결제 수단 환급이 불가능한 경우 별도 협의에 따라 처리됩니다.</li>
         </ul>
@@ -107,7 +107,7 @@ function FallbackRefund() {
 
       <div style={S.section}>
         <h2 style={S.h2}>제5조 (환불·문의 신청 채널)</h2>
-        <p style={S.p}>본 정책에 따른 환불 및 관련 문의는 외부 플랫폼(카카오톡 채널)을 통해 접수합니다. 서비스 내 "1:1 문의" 버튼 또는 푸터 링크를 이용하시면 카카오톡 채널로 연결됩니다.</p>
+        <p style={S.p}>본 정책에 따른 환불 및 관련 문의는 외부 플랫폼인 <strong>카카오톡 채널 @ownapp</strong> (<a href="https://pf.kakao.com/_ownapp" target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', fontWeight: 600 }}>https://pf.kakao.com/_ownapp</a>) 을 통해 접수합니다. 서비스 내 "1:1 문의" 버튼 또는 푸터 링크를 이용하시면 카카오톡 채널로 연결됩니다.</p>
         <div style={S.highlight}>
           ⚠️ 카카오톡 등 외부 메신저 이용 시에는 해당 플랫폼 자체의 이용약관 및 개인정보 처리방침이 적용됩니다. 이용자가 외부 플랫폼에서 직접 입력한 정보의 처리에 대해서는 회사가 직접 책임지지 않으며, 해당 플랫폼 사업자의 정책을 따릅니다.
         </div>
