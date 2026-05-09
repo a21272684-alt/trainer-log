@@ -270,11 +270,15 @@ const CAT_COLOR = {
   trainer_seeks_gym: { bg: 'rgba(255,92,92,0.12)', color: '#ff5c5c' },
 }
 
+// CRM 의 실제 PERM_DEFS (apps/crm/src/pages/crm/tabs/SettingsTab.jsx:1137-1142) 와
+// TAB_PERMISSIONS (apps/crm/src/pages/crm/GymOwnerPortal.jsx:39-49) 를 1:1 매핑.
+// 그동안 admin 에는 lead_management/client_notes/follow_up/data_export 4개 키를
+// 토글했으나 CRM 어디에서도 읽히지 않아 모든 토글이 silent fail 이었음.
+// crm_access 가 master 토글 (포털 접근 자체) 역할 — CRM 활성화 컬럼이 이 키를 토글.
 const CRM_FEATURES = [
-  { key: 'lead_management', label: '리드 관리' },
-  { key: 'client_notes', label: '고객 노트' },
-  { key: 'follow_up', label: '팔로업' },
-  { key: 'data_export', label: '데이터 내보내기' },
+  { key: 'view_all_members', label: '전체 회원 열람', desc: '소속 모든 트레이너의 회원 조회' },
+  { key: 'manage_products',  label: '상품 관리',     desc: '센터 상품 등록·수정·삭제' },
+  { key: 'view_settlement',  label: '정산 열람',     desc: '직원 정산 내역 조회' },
 ]
 
 export default function AdminPortal() {
@@ -786,10 +790,13 @@ export default function AdminPortal() {
 
   // ===== CRM =====
   // 050 RLS strict 후 trainers UPDATE 정책 부여 안 됨 → admin RPC (052) 경유.
-  async function updateCrmEnabled(trainerId, enabled) {
+  // P0 fix: 그동안 'enabled' 키를 토글했으나 CRM 코드 어디에서도 'enabled' 를
+  // 읽지 않아 silent fail. CRM 의 실제 게이트 키 'crm_access' 를 토글하도록 변경
+  // (legacy 'enabled' 도 동시 set 하여 backward compat 유지 — 이전 데이터 호환).
+  async function updateCrmEnabled(trainerId, on) {
     const trainer = trainers.find(t => t.id === trainerId)
     const current = trainer?.crm_permissions || {}
-    const updated = { ...current, enabled }
+    const updated = { ...current, crm_access: on, enabled: on }
     const { error } = await supabase.rpc('admin_update_trainer_crm_permissions', {
       p_admin_token: ADMIN_TOKEN,
       p_trainer_id: trainerId,
@@ -797,7 +804,7 @@ export default function AdminPortal() {
     })
     if (error) { showToast('오류: ' + error.message); return }
     setTrainers(prev => prev.map(t => t.id === trainerId ? { ...t, crm_permissions: updated } : t))
-    showToast(enabled ? 'CRM이 활성화됐어요' : 'CRM이 비활성화됐어요')
+    showToast(on ? 'CRM 포털 접근이 활성화됐어요' : 'CRM 포털 접근이 비활성화됐어요')
   }
   async function updateCrmFeature(trainerId, featureKey, value) {
     const trainer = trainers.find(t => t.id === trainerId)
@@ -1252,8 +1259,8 @@ export default function AdminPortal() {
               </div>
               <div className="section-label">CRM 현황</div>
               <div className="stat-grid">
-                <div className="stat-card"><div className="stat-num" style={{ color: '#a78bfa' }}>{trainers.filter(t => t.crm_permissions?.enabled).length}</div><div className="stat-label">CRM 활성 트레이너</div></div>
-                <div className="stat-card"><div className="stat-num" style={{ color: '#a78bfa' }}>{trainers.length - trainers.filter(t => t.crm_permissions?.enabled).length}</div><div className="stat-label">CRM 미사용</div></div>
+                <div className="stat-card"><div className="stat-num" style={{ color: '#a78bfa' }}>{trainers.filter(t => (t.crm_permissions?.crm_access || t.crm_permissions?.enabled)).length}</div><div className="stat-label">CRM 활성 트레이너</div></div>
+                <div className="stat-card"><div className="stat-num" style={{ color: '#a78bfa' }}>{trainers.length - trainers.filter(t => (t.crm_permissions?.crm_access || t.crm_permissions?.enabled)).length}</div><div className="stat-label">CRM 미사용</div></div>
               </div>
               <div className="section-label">오늘의 활동</div>
               <div className="card">
@@ -1650,8 +1657,8 @@ export default function AdminPortal() {
             <div>
               <div className="section-title">CRM 권한 관리</div>
               <div className="stat-grid" style={{ marginBottom: '20px' }}>
-                <div className="stat-card"><div className="stat-num" style={{ color: '#a78bfa' }}>{trainers.filter(t => t.crm_permissions?.enabled).length}</div><div className="stat-label">CRM 활성 트레이너</div></div>
-                <div className="stat-card"><div className="stat-num" style={{ color: 'var(--text-dim)' }}>{trainers.length - trainers.filter(t => t.crm_permissions?.enabled).length}</div><div className="stat-label">CRM 비활성</div></div>
+                <div className="stat-card"><div className="stat-num" style={{ color: '#a78bfa' }}>{trainers.filter(t => (t.crm_permissions?.crm_access || t.crm_permissions?.enabled)).length}</div><div className="stat-label">CRM 활성 트레이너</div></div>
+                <div className="stat-card"><div className="stat-num" style={{ color: 'var(--text-dim)' }}>{trainers.length - trainers.filter(t => (t.crm_permissions?.crm_access || t.crm_permissions?.enabled)).length}</div><div className="stat-label">CRM 비활성</div></div>
               </div>
               <div className="card table-wrap">
                 <table>
@@ -1666,7 +1673,8 @@ export default function AdminPortal() {
                     {!trainers.length && <tr><td colSpan={2 + CRM_FEATURES.length} className="empty">트레이너가 없어요</td></tr>}
                     {trainers.map(t => {
                       const perms = t.crm_permissions || {}
-                      const enabled = !!perms.enabled
+                      // P0 fix: crm_access 가 실제 CRM 게이트 키. 이전 데이터의 enabled 도 alias 로 인정 (마이그레이션).
+                      const enabled = !!(perms.crm_access || perms.enabled)
                       return (
                         <tr key={t.id}>
                           <td>
