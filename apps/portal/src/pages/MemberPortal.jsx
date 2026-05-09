@@ -368,17 +368,29 @@ export default function MemberPortal() {
   async function loadMoreLogs() {
     if (logsLoading || !logsHasMore || !member) return
     setLogsLoading(true)
-    const { data } = await supabase
-      .from('logs')
-      .select('id, created_at, read_at, session_number, content, media_urls, session_rating, exercises_data, session_id, workout_session:workout_sessions(exercises)')
-      .eq('member_id', member.id)
-      .order('created_at', { ascending: false })
-      .range(logsOffset, logsOffset + 19)
-    const rows = data || []
-    setMemberLogs(prev => [...prev, ...rows])
-    setLogsOffset(prev => prev + rows.length)
-    setLogsHasMore(rows.length === 20)
-    setLogsLoading(false)
+    try {
+      const { data, error } = await supabase
+        .from('logs')
+        .select('id, created_at, read_at, session_number, content, media_urls, session_rating, exercises_data, session_id, workout_session:workout_sessions(exercises)')
+        .eq('member_id', member.id)
+        .order('created_at', { ascending: false })
+        .range(logsOffset, logsOffset + 19)
+      if (error) {
+        // P0 fix: 그 동안 error 무시되어 사용자가 "더보기" 클릭해도 silent 실패. 알림 추가.
+        console.warn('[loadMoreLogs] 로드 실패:', error.message)
+        showToast('수업 일지 로드 실패: ' + error.message)
+        return
+      }
+      const rows = data || []
+      setMemberLogs(prev => [...prev, ...rows])
+      setLogsOffset(prev => prev + rows.length)
+      setLogsHasMore(rows.length === 20)
+    } catch (e) {
+      console.warn('[loadMoreLogs] catch:', e?.message)
+      showToast('수업 일지 로드 중 오류가 발생했어요')
+    } finally {
+      setLogsLoading(false)
+    }
   }
 
   // 로그 카드 내 모든 <video> 의 배속을 일괄 변경
