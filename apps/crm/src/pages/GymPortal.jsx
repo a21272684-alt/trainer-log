@@ -290,7 +290,7 @@ function OnboardingSetup({ authUser, onComplete, onSwitchAccount }) {
    컴포넌트
 ═══════════════════════════════════════════════════════════════ */
 export default function GymPortal() {
-  const [screen,   setScreen]   = useState('landing') // 'landing' | 'login' | 'loading' | 'dashboard' | 'onboarding'
+  const [screen,   setScreen]   = useState('landing') // 'landing' | 'login' | 'loading' | 'dashboard' | 'onboarding' | 'access_denied'
   const [authUser, setAuthUser] = useState(null)
   const [gymInfo,  setGymInfo]  = useState(null)      // { trainer, gym }
 
@@ -392,6 +392,18 @@ export default function GymPortal() {
 
     if (!gymData) {
       setScreen('onboarding')
+      return
+    }
+
+    // P0 fix: 관리자 (admin) 가 'CRM 활성화' OFF 한 트레이너의 포털 진입 차단.
+    // 그동안 admin 의 토글은 DB 에 저장됐지만 CRM 측에서 한 번도 검사 안 함 → silent fail.
+    // 정책: 센터 owner 는 무조건 통과 (자기 헬스장이라). 그 외 직원만 crm_access 검사.
+    // legacy 'enabled' 키도 alias 로 인정 (마이그레이션 호환).
+    const perms = trainerData.crm_permissions || {}
+    const hasAccess = perms.crm_access === true || perms.enabled === true
+    if (trainerData.role !== 'owner' && !hasAccess) {
+      setGymInfo({ trainer: trainerData, gym: gymData })
+      setScreen('access_denied')
       return
     }
 
@@ -682,6 +694,41 @@ export default function GymPortal() {
         flexDirection:'column',gap:'16px'}}>
         <div style={{fontSize:'32px',animation:'spin 1s linear infinite'}}>⟳</div>
         <div style={{fontSize:'14px'}}>센터 정보를 불러오는 중...</div>
+      </div>
+    )
+  }
+
+  /* ── 관리자에 의한 CRM 접근 차단 화면 ── */
+  if (screen === 'access_denied') {
+    return (
+      <div style={{
+        minHeight: '100vh', background: '#0a0a0a', color: '#fff',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: "'Noto Sans KR', sans-serif", padding: '20px',
+      }}>
+        <div style={{
+          maxWidth: '480px', width: '100%', background: '#161616',
+          border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px',
+          padding: '32px 28px', textAlign: 'center',
+        }}>
+          <div style={{ fontSize: '40px', marginBottom: '14px' }}>🔒</div>
+          <h2 style={{ fontSize: '20px', fontWeight: 800, margin: '0 0 12px', letterSpacing: '-0.5px' }}>CRM 포털 접근 권한이 없습니다</h2>
+          <p style={{ fontSize: '14px', lineHeight: 1.7, color: 'rgba(255,255,255,0.6)', margin: '0 0 24px' }}>
+            현재 계정 ({gymInfo?.trainer?.name || ''}) 은 CRM 포털 사용 권한이 비활성화되어 있어요.
+            <br/>관리자 또는 센터 대표에게 권한 활성화를 요청해주세요.
+          </p>
+          <button
+            onClick={async () => {
+              await supabase.auth.signOut()
+              setAuthUser(null); setGymInfo(null); setScreen('landing')
+            }}
+            style={{
+              padding: '10px 24px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.15)',
+              background: 'rgba(255,255,255,0.04)', color: '#fff', fontSize: '13px',
+              fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+            }}
+          >다른 계정으로 로그인</button>
+        </div>
       </div>
     )
   }
