@@ -943,10 +943,19 @@ export default function Landing() {
             </div>
           </FadeUp>
 
+          {/* portal_buttons 3-way 정규화: 'show' | 'coming_soon' | 'hidden'.
+              backward compat: boolean true → 'show', false → 'coming_soon'.
+              'hidden' → 카드·푸터 링크 모두 완전 숨김 (조용한 출시용). */}
+          {(() => { return null })()}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'14px',marginBottom:'14px'}}>
             {/* 트레이너 앱 */}
+            {(() => {
+              const v = portalButtons.trainer
+              const state = v === true ? 'show' : v === false ? 'coming_soon' : (v || 'show')
+              if (state === 'hidden') return null
+              return (
             <SlideCard delay={0}>
-              {portalButtons.trainer === true ? (
+              {state === 'show' ? (
                 <Link to="/trainer" style={{
                   background:'linear-gradient(145deg,#1e293b,#162004)',
                   border:'1px solid rgba(200,241,53,0.3)',borderRadius:'20px',padding:'32px 24px',
@@ -983,10 +992,17 @@ export default function Landing() {
                 </div>
               )}
             </SlideCard>
+              )
+            })()}
 
             {/* 회원 포털 */}
+            {(() => {
+              const v = portalButtons.member
+              const state = v === true ? 'show' : v === false ? 'coming_soon' : (v || 'show')
+              if (state === 'hidden') return null
+              return (
             <SlideCard delay={150}>
-              {portalButtons.member === true ? (
+              {state === 'show' ? (
                 <Link to="/member" style={{
                   background:'linear-gradient(145deg,#1e293b,#041020)',
                   border:'1px solid rgba(79,195,247,0.3)',borderRadius:'20px',padding:'32px 24px',
@@ -1023,11 +1039,18 @@ export default function Landing() {
                 </div>
               )}
             </SlideCard>
+              )
+            })()}
           </div>
 
           {/* 커뮤니티 */}
+          {(() => {
+            const v = portalButtons.community
+            const state = v === true ? 'show' : v === false ? 'coming_soon' : (v || 'show')
+            if (state === 'hidden') return null
+            return (
           <SlideCard delay={300}>
-            {portalButtons.community === true ? (
+            {state === 'show' ? (
               <Link to="/community" style={{
                 background:'linear-gradient(145deg,#1e293b,#1a0d04)',
                 border:'1px solid rgba(255,152,0,0.3)',borderRadius:'20px',padding:'26px 30px',
@@ -1068,10 +1091,17 @@ export default function Landing() {
               </div>
             )}
           </SlideCard>
+            )
+          })()}
 
           {/* 헬스장 CRM */}
+          {(() => {
+            const v = portalButtons.crm
+            const state = v === true ? 'show' : v === false ? 'coming_soon' : (v || 'show')
+            if (state === 'hidden') return null
+            return (
           <SlideCard delay={450}>
-            {portalButtons.crm === true ? (
+            {state === 'show' ? (
               <Link to="/crm" style={{
                 background:'linear-gradient(145deg,#1e293b,#1a0520)',
                 border:'1px solid rgba(224,64,251,0.3)',borderRadius:'20px',padding:'26px 30px',
@@ -1117,6 +1147,8 @@ export default function Landing() {
               </div>
             )}
           </SlideCard>
+            )
+          })()}
         </div>
       </section>
 
@@ -1125,11 +1157,23 @@ export default function Landing() {
         <div style={{fontSize:'15px',fontWeight:900,letterSpacing:'-0.5px',marginBottom:'14px',color:'#94a3b8'}}>
           오<span style={{background:'#c8f135',color:'#111',padding:'0 5px',borderRadius:'4px',marginLeft:'2px',fontSize:'13px'}}>운</span>
         </div>
+        {/* 푸터 포털 링크 — 'hidden' 인 항목은 완전히 숨김 (조용한 출시) */}
         <div style={{display:'flex',justifyContent:'center',gap:'24px',marginBottom:'12px'}}>
-          <Link to="/trainer" style={{fontSize:'12px',color:'#475569',textDecoration:'none'}}>트레이너 앱</Link>
-          <Link to="/member" style={{fontSize:'12px',color:'#475569',textDecoration:'none'}}>회원 포털</Link>
-          <Link to="/community" style={{fontSize:'12px',color:'#475569',textDecoration:'none'}}>커뮤니티</Link>
-          <Link to="/crm" style={{fontSize:'12px',color:'#475569',textDecoration:'none'}}>헬스장 CRM</Link>
+          {(() => {
+            const linkStyle = {fontSize:'12px',color:'#475569',textDecoration:'none'}
+            const items = [
+              { key: 'trainer',   to: '/trainer',   label: '트레이너 앱' },
+              { key: 'member',    to: '/member',    label: '회원 포털' },
+              { key: 'community', to: '/community', label: '커뮤니티' },
+              { key: 'crm',       to: '/crm',       label: '헬스장 CRM' },
+            ]
+            return items.map(it => {
+              const v = portalButtons[it.key]
+              const state = v === true ? 'show' : v === false ? 'coming_soon' : (v || 'show')
+              if (state === 'hidden') return null
+              return <Link key={it.key} to={it.to} style={linkStyle}>{it.label}</Link>
+            })
+          })()}
         </div>
         <div style={{display:'flex',justifyContent:'center',gap:'20px',marginBottom:'16px'}}>
           <Link to="/terms" style={{fontSize:'11px',color:'#64748b',textDecoration:'none'}}>이용약관</Link>
