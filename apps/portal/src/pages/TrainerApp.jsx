@@ -1621,6 +1621,10 @@ export default function TrainerApp() {
   const [trainer, setTrainer] = useState(null)
   const [members, setMembers] = useState([])
   const [logs, setLogs] = useState([])
+  // P0 perf fix: members.find() 가 .map() / .reduce() 안에서 호출되면 O(N×M) 폭발.
+  // 회원 100명 + 로그 500건 시 50,000회 비교. Map.get() 으로 O(1) 변환.
+  // members 변경 시에만 Map 재생성 (useMemo deps).
+  const memberById = useMemo(() => new Map(members.map(m => [m.id, m])), [members])
   const [tab, setTab] = useState('members')
   const [activePage, setActivePage] = useState('page-members')
   const [currentMemberId, setCurrentMemberId] = useState(null)
@@ -3667,8 +3671,9 @@ export default function TrainerApp() {
     const weekLogs = logs.filter(l => new Date(l.created_at) >= weekStart)
     const monthLogs = logs.filter(l => new Date(l.created_at) >= monthStart)
     const remainRevenue = members.reduce((s,m) => s+(m.session_price||0)*(m.total_sessions-m.done_sessions), 0)
-    const weekRevenue = weekLogs.reduce((s,l) => { const m=members.find(x=>x.id===l.member_id); return s+(m?.session_price||0) }, 0)
-    const monthRevenue = monthLogs.reduce((s,l) => { const m=members.find(x=>x.id===l.member_id); return s+(m?.session_price||0) }, 0)
+    // P0 perf fix: 외부 memberById useMemo (members 변경 시만 재생성) 활용 → O(N×M) → O(N).
+    const weekRevenue = weekLogs.reduce((s,l) => s + (memberById.get(l.member_id)?.session_price || 0), 0)
+    const monthRevenue = monthLogs.reduce((s,l) => s + (memberById.get(l.member_id)?.session_price || 0), 0)
     const dayOfMonth = now.getDate()
     const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate()
     const projectedMonth = dayOfMonth>0 ? Math.round(monthRevenue/dayOfMonth*daysInMonth) : 0
@@ -4767,7 +4772,7 @@ export default function TrainerApp() {
                   const d   = new Date(l.created_at)
                   const pad = n => String(n).padStart(2,'0')
                   const dateTimeStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-                  const memberName = l.members?.name || members.find(x=>x.id===l.member_id)?.name || '(알 수 없음)'
+                  const memberName = l.members?.name || memberById.get(l.member_id)?.name || '(알 수 없음)'
                   const initial    = memberName[0] || '?'
 
                   // 읽음 배지 텍스트
@@ -6946,7 +6951,7 @@ export default function TrainerApp() {
                 <>
                   <div style={{fontSize:'11px',fontWeight:700,color:'#ef4444',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'0.05em'}}>⏳ 미확인</div>
                   {unreadLogs.map(l => {
-                    const mem = members.find(x=>x.id===l.member_id)
+                    const mem = memberById.get(l.member_id)
                     return (
                       <div key={l.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:'var(--surface2)',borderRadius:'8px',marginBottom:'4px'}}>
                         <div>
@@ -6966,7 +6971,7 @@ export default function TrainerApp() {
                 <>
                   <div style={{fontSize:'11px',fontWeight:700,color:'#4ade80',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'0.05em'}}>✅ 확인 완료</div>
                   {readLogs.map(l => {
-                    const mem = members.find(x=>x.id===l.member_id)
+                    const mem = memberById.get(l.member_id)
                     return (
                       <div key={l.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:'var(--surface2)',borderRadius:'8px',marginBottom:'4px'}}>
                         <div>
