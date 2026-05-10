@@ -344,14 +344,23 @@ export default function Landing() {
       return false
     }
 
-    // 포털 버튼 객체를 항상 4개 키 모두 boolean 으로 정규화.
+    // 포털 버튼 객체 정규화 — 3-way ('show' | 'coming_soon' | 'hidden') 와 legacy boolean 모두 지원.
+    // 그동안 toStrictBool 로 강제 boolean 변환 → admin 이 새 string 값 저장해도 false 로 회귀 → 모두 "준비중" 표시되던 버그.
+    // Fix: string 값은 유효하면 그대로 패스, boolean 도 그대로. 카드 렌더 시 IIFE 가 최종 매핑.
+    const VALID_STATES = ['show', 'coming_soon', 'hidden']
+    const normalizeOne = (v) => {
+      if (v === true || v === false) return v
+      if (typeof v === 'string' && VALID_STATES.includes(v)) return v
+      // 알 수 없는 값 (undefined / null / 다른 string) → 기본값 'show' (안전한 기본 노출)
+      return 'show'
+    }
     const normalizePortals = (raw) => {
       const safe = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {}
       return {
-        trainer:   toStrictBool(safe.trainer),
-        member:    toStrictBool(safe.member),
-        community: toStrictBool(safe.community),
-        crm:       toStrictBool(safe.crm),
+        trainer:   normalizeOne(safe.trainer),
+        member:    normalizeOne(safe.member),
+        community: normalizeOne(safe.community),
+        crm:       normalizeOne(safe.crm),
       }
     }
 
