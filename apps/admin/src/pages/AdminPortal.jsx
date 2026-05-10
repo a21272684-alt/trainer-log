@@ -2128,7 +2128,7 @@ export default function AdminPortal() {
             </div>
           )}
 
-          {/* ── 포털 버튼 ON/OFF ── */}
+          {/* ── 포털 버튼 노출 관리 (3-way: 표시 / 준비중 / 숨김) ── */}
           {page === 'landing' && landingSite === 'main' && subTab === 'portal_buttons' && (() => {
             const PORTALS = [
               { key: 'trainer', label: '트레이너 앱', icon: '💪', color: '#c8f135', desc: '/trainer — AI 수업일지 · 회원관리 · 스케줄 · 매출' },
@@ -2136,49 +2136,75 @@ export default function AdminPortal() {
               { key: 'community', label: '커뮤니티', icon: '🤝', color: '#ff9800', desc: '/community — 구인·구직 · 센터 매칭 · 수강생 모집' },
               { key: 'crm', label: '헬스장 CRM', icon: '🏢', color: '#e040fb', desc: '/crm — 트레이너 관리 · 매출 현황 · 정산' },
             ]
-            const toggle = (key) => {
-              const next = { ...landingPortalButtons, [key]: !landingPortalButtons[key] }
+            // P1 (D-4 출시 전): 그동안 boolean (true/false) 만 지원 → 3-way 'show' / 'coming_soon' / 'hidden' 으로 확장.
+            // 'hidden' 은 quiet launch 용 — 랜딩에서 카드·푸터 링크 모두 완전히 안 보임. CRM/Community 베타 미공개에 사용.
+            // backward compat: 기존 true → 'show' 로 정규화, false → 'coming_soon'.
+            const normalize = (v) => (v === true ? 'show' : v === false ? 'coming_soon' : (v || 'show'))
+            const setState = (key, state) => {
+              const next = { ...landingPortalButtons, [key]: state }
               saveLandingPortalButtons(next)
+            }
+            const STATE_META = {
+              show:        { label: '표시',     bg: 'rgba(200,241,53,0.12)', color: '#c8f135', border: 'rgba(200,241,53,0.25)' },
+              coming_soon: { label: '준비중',   bg: 'rgba(239,68,68,0.12)',  color: '#ef4444', border: 'rgba(239,68,68,0.25)' },
+              hidden:      { label: '숨김',     bg: 'rgba(100,116,139,0.12)',color: '#94a3b8', border: 'rgba(100,116,139,0.25)' },
             }
             return (
               <div>
                 <div className="section-title">포털 버튼 노출 관리</div>
                 <div style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '20px', lineHeight: 1.7 }}>
-                  OFF로 설정하면 랜딩페이지 <strong style={{ color: 'var(--text)' }}>GET STARTED</strong> 섹션에서 해당 포털 카드가 <strong style={{ color: '#ef4444' }}>준비중</strong>으로 표시되고 클릭이 비활성화돼요.
+                  3가지 상태로 설정 가능:
+                  <br/>· <strong style={{ color: '#c8f135' }}>표시</strong>: 랜딩페이지에서 정상 노출, 클릭 가능
+                  <br/>· <strong style={{ color: '#ef4444' }}>준비중</strong>: 카드는 보이나 "Coming Soon" 표시 + 클릭 비활성화 (출시 예정 알림)
+                  <br/>· <strong style={{ color: '#94a3b8' }}>숨김</strong>: 카드·푸터 링크 모두 완전히 사라짐 (조용한 출시 — 베타 단계 권장)
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {PORTALS.map(p => {
-                    const isOn = landingPortalButtons[p.key] !== false
+                    const state = normalize(landingPortalButtons[p.key])
+                    const meta = STATE_META[state] || STATE_META.show
                     return (
                       <div key={p.key} className="card" style={{
                         display: 'flex', alignItems: 'center', gap: '16px',
-                        border: `1px solid ${isOn ? p.color + '33' : 'var(--border)'}`,
-                        opacity: isOn ? 1 : 0.65,
+                        border: `1px solid ${state === 'show' ? p.color + '33' : 'var(--border)'}`,
+                        opacity: state === 'show' ? 1 : 0.7,
                       }}>
-                        <div style={{ fontSize: '28px', flexShrink: 0 }}>{p.icon}</div>
+                        <div style={{ fontSize: '28px', flexShrink: 0, opacity: state === 'hidden' ? 0.4 : 1 }}>{p.icon}</div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
-                            <span style={{ fontWeight: 700, fontSize: '14px', color: isOn ? p.color : 'var(--text-dim)' }}>{p.label}</span>
-                            {isOn
-                              ? <span style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(200,241,53,0.12)', color: '#c8f135', padding: '2px 7px', borderRadius: '10px', border: '1px solid rgba(200,241,53,0.25)' }}>ON</span>
-                              : <span style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(239,68,68,0.12)', color: '#ef4444', padding: '2px 7px', borderRadius: '10px', border: '1px solid rgba(239,68,68,0.25)' }}>OFF · 준비중</span>
-                            }
+                            <span style={{ fontWeight: 700, fontSize: '14px', color: state === 'show' ? p.color : 'var(--text-dim)' }}>{p.label}</span>
+                            <span style={{
+                              fontSize: '10px', fontWeight: 700,
+                              background: meta.bg, color: meta.color, border: `1px solid ${meta.border}`,
+                              padding: '2px 7px', borderRadius: '10px',
+                            }}>{meta.label}</span>
                           </div>
                           <div style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: "'DM Mono',monospace" }}>{p.desc}</div>
                         </div>
-                        <button
-                          className={`crm-toggle${isOn ? ' on' : ''}`}
-                          style={{ flexShrink: 0 }}
-                          onClick={() => toggle(p.key)}
-                        >
-                          {isOn ? 'ON' : 'OFF'}
-                        </button>
+                        <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                          {Object.entries(STATE_META).map(([s, m]) => (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => setState(p.key, s)}
+                              style={{
+                                padding: '6px 10px', borderRadius: '6px',
+                                fontSize: '11px', fontWeight: 700,
+                                border: state === s ? `1px solid ${m.color}` : '1px solid var(--border)',
+                                background: state === s ? m.bg : 'transparent',
+                                color: state === s ? m.color : 'var(--text-dim)',
+                                cursor: 'pointer', fontFamily: 'inherit',
+                                transition: 'all 0.15s',
+                              }}
+                            >{m.label}</button>
+                          ))}
+                        </div>
                       </div>
                     )
                   })}
                 </div>
                 <div style={{ marginTop: '16px', padding: '12px 14px', background: 'rgba(255,152,0,0.06)', border: '1px solid rgba(255,152,0,0.2)', borderRadius: '10px', fontSize: '12px', color: 'rgba(255,152,0,0.8)', lineHeight: 1.7 }}>
-                  ⚠️ 변경 즉시 저장됩니다. 토글을 클릭하면 바로 랜딩페이지에 반영돼요.
+                  ⚠️ 변경 즉시 저장됩니다. 클릭하면 바로 랜딩페이지에 반영돼요.
+                  <br/>💡 <strong>베타 권장:</strong> 트레이너/회원 = 표시, 커뮤니티/CRM = <strong>숨김</strong> (조용한 출시 — 정식 공개 시점에 표시로 전환)
                 </div>
               </div>
             )
