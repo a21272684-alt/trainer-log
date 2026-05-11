@@ -1617,7 +1617,9 @@ function SlideCard({ children, delay = 0 }) {
 
 export default function TrainerApp() {
   const showToast = useToast()
-  const [screen, setScreen] = useState('landing') // landing, login, reg, app
+  const [screen, setScreen] = useState('landing') // landing, login, reg, pending, rejected, app
+  // 가입 요청 상태 (053 마이그레이션 화이트리스트). pending/rejected 화면에 사용.
+  const [signupInfo, setSignupInfo] = useState(null) // { status, reason?, name?, requested_at? }
   const [trainer, setTrainer] = useState(null)
   const [members, setMembers] = useState([])
   const [logs, setLogs] = useState([])
@@ -1825,7 +1827,8 @@ export default function TrainerApp() {
   // 등록 동의 체크박스
   const [agreedTerms,   setAgreedTerms]   = useState(false) // 이용약관
   const [agreedPrivacy, setAgreedPrivacy] = useState(false) // 개인정보처리방침
-  const [agreedAI,      setAgreedAI]      = useState(false) // 음성·AI 처리 동의
+  // 음성·AI 처리 동의는 제거됨 (2026-05-11): STT 가 디바이스 내장 기능으로 전환되어
+  // 외부 Gemini API 로 녹음 전송 없음 → 별도 동의 불필요.
 
 
   // 스케줄 + 알림 설정 localStorage 동기화 — 3개 effect → 1개로 통합
@@ -2013,7 +2016,7 @@ export default function TrainerApp() {
     setAuthUser(au)
     // Phase B-1.1 — RLS 강화 후 trainers 직접 select 가 차단되므로,
     // auth_id 매칭 + email fallback 을 SECURITY DEFINER RPC 한 번으로 처리.
-    // (마이그레이션 050 적용 필요)
+    // (마이그레이션 050/053 적용 필요)
     const { data: row, error } = await supabase.rpc('trainer_resolve_or_create', {
       p_email: au.email ?? null,
     })
@@ -2022,13 +2025,51 @@ export default function TrainerApp() {
       showToast('로그인 처리 오류: ' + error.message)
       return
     }
-    if (row) {
+    // ⚠️ row.id 가드: Postgres 함수 RETURNS trainers (composite) 가 RETURN NULL 할 때
+    // PostgREST/supabase-js 가 빈 객체 {id:null, name:null, ...} 로 변환함.
+    // 단순히 `if (row)` 만 체크하면 빈 객체도 truthy 라 _loginWithRecord 로 빠져
+    // trainer.id=null 상태로 메인 진입 → 모든 후속 쿼리 400 에러.
+    if (row && row.id) {
       await _loginWithRecord(row)
       return
     }
-    // 매핑 없음 → 신규 트레이너 등록 화면
-    setRegName(au.user_metadata?.full_name || au.user_metadata?.name || au.email?.split('@')[0] || '')
-    setScreen('reg')
+    // 매핑 없음 → 053 마이그레이션 화이트리스트 흐름:
+    // (1) 기존 가입 요청 상태 확인 → pending/rejected/already_trainer 분기
+    // (2) none 이면 신규 등록 화면
+    try {
+      const { data: stat, error: statErr } = await supabase.rpc('trainer_get_signup_status', {
+        p_email: au.email ?? null,
+      })
+      if (statErr) {
+        console.error('[handleAuthUser] get_signup_status 실패:', statErr)
+        showToast('가입 상태 조회 오류: ' + statErr.message)
+        return
+      }
+      const status = stat?.status || 'none'
+      if (status === 'pending') {
+        setSignupInfo(stat)
+        setScreen('pending')
+        return
+      }
+      if (status === 'rejected') {
+        setSignupInfo(stat)
+        setScreen('rejected')
+        return
+      }
+      if (status === 'already_trainer') {
+        // race: status 는 trainer 인데 row 매핑 실패. resolve 재시도 1회.
+        const retry = await supabase.rpc('trainer_resolve_or_create', { p_email: au.email ?? null })
+        if (retry.data && retry.data.id) { await _loginWithRecord(retry.data); return }
+        showToast('계정 매핑 오류가 발생했어요. 다시 로그인해주세요.')
+        return
+      }
+      // none → 신규 등록 화면
+      setRegName(au.user_metadata?.full_name || au.user_metadata?.name || au.email?.split('@')[0] || '')
+      setScreen('reg')
+    } catch(e) {
+      console.error('[handleAuthUser] signup_status catch:', e)
+      showToast('가입 상태 조회 오류: ' + (e.message || e))
+    }
   }
 
   async function loadFeatureGates(trainerId) {
@@ -2067,33 +2108,36 @@ export default function TrainerApp() {
   async function register() {
     if (!regName) { showToast('이름을 입력해주세요'); return }
     if (!agreedTerms || !agreedPrivacy) { showToast('이용약관 및 개인정보처리방침에 동의해주세요'); return }
-    if (!agreedAI) { showToast('AI 수업일지 기능 이용을 위한 음성 데이터 처리에 동의해주세요'); return }
     if (!authUser) { showToast('먼저 소셜 로그인을 해주세요'); setScreen('login'); return }
     try {
-      // Phase B-1.1 — RLS 강화 후 trainers 직접 INSERT 차단됨.
-      // 매핑 RPC 가 신규 INSERT 도 같이 처리 (p_name 제공 시).
-      const { data: inserted, error: insertErr } = await supabase.rpc('trainer_resolve_or_create', {
-        p_email: authUser.email ?? null,
+      // Phase D-4.1 (053) — 화이트리스트 전환:
+      // 직접 trainers INSERT → admin 승인 대기열 (trainer_signup_requests) 에 pending row 생성.
+      // admin 승인 후에야 trainers 행이 생기고 다음 로그인 시 (a) 분기로 매핑됨.
+      const { data: result, error: reqErr } = await supabase.rpc('trainer_create_signup_request', {
+        p_email: authUser.email ?? '',
         p_name:  regName,
-        p_phone: '',
       })
-      if (insertErr) {
-        console.error('[register] rpc error:', insertErr)
-        throw new Error(insertErr.message || insertErr.code || JSON.stringify(insertErr))
+      if (reqErr) {
+        console.error('[register] create_signup_request error:', reqErr)
+        throw new Error(reqErr.message || reqErr.code || JSON.stringify(reqErr))
       }
-      if (!inserted) {
-        throw new Error('등록 실패: 매핑 RPC 가 빈 결과를 반환했습니다')
+      const status = result?.status
+      if (status === 'already_trainer') {
+        // race: 사이에 admin 이 사전등록 등으로 trainer 만들어준 경우 → resolve 재시도
+        const retry = await supabase.rpc('trainer_resolve_or_create', { p_email: authUser.email ?? null })
+        if (retry.data && retry.data.id) { await _loginWithRecord(retry.data); return }
+        showToast('계정 매핑 오류가 발생했어요. 다시 로그인해주세요.')
+        return
       }
-
-      // 로그인 진행
-      try {
-        await _loginWithRecord(inserted)
-      } catch(loginErr) {
-        console.error('[register] _loginWithRecord error:', loginErr)
-        // 로그인 단계 실패해도 등록은 됐으니 앱 화면 진입
-        setTrainer(inserted); setCredits(inserted.credits ?? 0); setScreen('app')
-        showToast('✓ 등록됐어요. ' + inserted.name + ' 트레이너님!')
+      if (status === 'rejected') {
+        setSignupInfo(result)
+        setScreen('rejected')
+        return
       }
+      // pending (신규 또는 기존)
+      setSignupInfo({ status: 'pending', name: regName, email: authUser.email })
+      setScreen('pending')
+      showToast('✓ 가입 요청이 접수됐어요. 관리자 승인을 기다려주세요.')
     } catch(e) {
       console.error('[register] catch:', e)
       const msg = e.message || JSON.stringify(e)
@@ -4155,30 +4199,13 @@ export default function TrainerApp() {
                 </span>
               </label>
 
-              {/* 음성·AI 데이터 처리 동의 */}
-              <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:'10px',padding:'12px 14px'}}>
-                <label style={{display:'flex',alignItems:'flex-start',gap:'10px',cursor:'pointer'}}>
-                  <input type="checkbox" checked={agreedAI} onChange={e=>setAgreedAI(e.target.checked)}
-                    style={{marginTop:'2px',width:'16px',height:'16px',accentColor:'#d97706',flexShrink:0}} />
-                  <span style={{fontSize:'13px',color:'#92400e',lineHeight:1.6}}>
-                    <span style={{color:'#ef4444',fontWeight:700,marginRight:'3px'}}>[필수]</span>
-                    AI 수업일지 기능 이용 시 수업 녹음 파일이 <strong>Google Gemini API</strong>로 전송되어 AI 분석에 활용됨을 이해하고 동의합니다.
-                  </span>
-                </label>
-                <div style={{marginTop:'8px',paddingLeft:'26px',fontSize:'11px',color:'#b45309',lineHeight:1.7}}>
-                  · 녹음 파일은 회사 서버에 저장되지 않으며 API 전송 후 즉시 처리됩니다.<br/>
-                  · AI 모델 학습에 활용되지 않습니다 (Google Gemini API 이용약관 기준).<br/>
-                  · 수업 참여 회원에게도 녹음 사실을 사전 고지할 책임이 트레이너에게 있습니다.<br/>
-                  · 동의 철회 시 AI 수업일지 기능 이용이 중단됩니다.
-                </div>
-              </div>
             </div>
 
             <button className="btn btn-primary btn-full"
               style={{
                 marginTop:'16px',padding:'13px',fontSize:'14px',
-                opacity: (agreedTerms && agreedPrivacy && agreedAI) ? 1 : 0.45,
-                cursor: (agreedTerms && agreedPrivacy && agreedAI) ? 'pointer' : 'not-allowed',
+                opacity: (agreedTerms && agreedPrivacy) ? 1 : 0.45,
+                cursor: (agreedTerms && agreedPrivacy) ? 'pointer' : 'not-allowed',
               }}
               onClick={register}>
               트레이너 등록 완료
@@ -4193,6 +4220,93 @@ export default function TrainerApp() {
             <div style={{textAlign:'center',marginTop:'16px'}}>
               <span style={{fontSize:'13px',color:'#4d7c0f',cursor:'pointer',fontWeight:600}}
                 onClick={()=>setScreen('login')}>← 뒤로</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // === 가입 요청 승인 대기 화면 (053 화이트리스트) ===
+  if (screen === 'pending') {
+    return (
+      <div className="login-wrap">
+        <div style={{width:'100%',maxWidth:'440px'}}>
+          <div style={{background:'#fff',border:'1px solid #E1E4D9',borderRadius:'22px',
+            padding:'40px 32px',boxShadow:'0 8px 40px rgba(0,0,0,0.08),0 1px 4px rgba(0,0,0,0.04)'}}>
+            <div style={{textAlign:'center',marginBottom:'8px',fontSize:'42px'}}>⏳</div>
+            <div style={{textAlign:'center',fontSize:'20px',fontWeight:800,color:'#111',marginBottom:'8px',letterSpacing:'-0.3px'}}>
+              가입 요청 승인 대기 중
+            </div>
+            <div style={{textAlign:'center',fontSize:'13px',color:'#6B7280',lineHeight:1.7,marginBottom:'20px'}}>
+              관리자 검토 후 승인되면 다시 로그인해 이용할 수 있어요.<br/>
+              평일 기준 1~2일 내에 처리될 예정이에요.
+            </div>
+            {signupInfo && (
+              <div style={{background:'#f9fafb',border:'1px solid #E1E4D9',borderRadius:'10px',
+                padding:'14px 16px',marginBottom:'18px',fontSize:'13px',color:'#374151',lineHeight:1.7}}>
+                <div>이름: <strong style={{color:'#111'}}>{signupInfo.name || regName || '-'}</strong></div>
+                <div>이메일: <strong style={{color:'#111'}}>{signupInfo.email || authUser?.email || '-'}</strong></div>
+                <div>상태: <span style={{color:'#d97706',fontWeight:700}}>승인 대기</span></div>
+              </div>
+            )}
+            <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:'10px',
+              padding:'12px 14px',fontSize:'12px',color:'#92400e',lineHeight:1.7,marginBottom:'18px'}}>
+              💡 승인 알림은 별도로 발송되지 않아요. ownapp(카카오채널)로 문의 주세요.
+            </div>
+            <button className="btn btn-primary btn-full"
+              style={{padding:'13px',fontSize:'14px'}}
+              onClick={async () => {
+                await supabase.auth.signOut()
+                setSignupInfo(null); setAuthUser(null); setScreen('login')
+              }}>
+              로그아웃
+            </button>
+            <div style={{textAlign:'center',marginTop:'14px'}}>
+              <Link to="/" style={{fontSize:'12px',color:'#9CA3AF',textDecoration:'none'}}>← 메인으로</Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // === 가입 요청 거부됨 화면 (053 화이트리스트) ===
+  if (screen === 'rejected') {
+    return (
+      <div className="login-wrap">
+        <div style={{width:'100%',maxWidth:'440px'}}>
+          <div style={{background:'#fff',border:'1px solid #E1E4D9',borderRadius:'22px',
+            padding:'40px 32px',boxShadow:'0 8px 40px rgba(0,0,0,0.08),0 1px 4px rgba(0,0,0,0.04)'}}>
+            <div style={{textAlign:'center',marginBottom:'8px',fontSize:'42px'}}>🚫</div>
+            <div style={{textAlign:'center',fontSize:'20px',fontWeight:800,color:'#111',marginBottom:'8px',letterSpacing:'-0.3px'}}>
+              가입이 거부되었어요
+            </div>
+            <div style={{textAlign:'center',fontSize:'13px',color:'#6B7280',lineHeight:1.7,marginBottom:'20px'}}>
+              현재 이 이메일로는 트레이너 앱 이용이 어려운 상태예요.
+            </div>
+            {signupInfo?.reason && (
+              <div style={{background:'rgba(239,68,68,0.06)',border:'1px solid rgba(239,68,68,0.25)',
+                borderRadius:'10px',padding:'14px 16px',marginBottom:'18px',
+                fontSize:'13px',color:'#991b1b',lineHeight:1.7}}>
+                <div style={{fontWeight:700,marginBottom:'4px'}}>사유</div>
+                <div>{signupInfo.reason}</div>
+              </div>
+            )}
+            <div style={{background:'#f9fafb',border:'1px solid #E1E4D9',borderRadius:'10px',
+              padding:'12px 14px',fontSize:'12px',color:'#6B7280',lineHeight:1.7,marginBottom:'18px'}}>
+              문의가 있으시면 카카오 채널을 통해 연락주세요.
+            </div>
+            <button className="btn btn-primary btn-full"
+              style={{padding:'13px',fontSize:'14px'}}
+              onClick={async () => {
+                await supabase.auth.signOut()
+                setSignupInfo(null); setAuthUser(null); setScreen('login')
+              }}>
+              로그아웃
+            </button>
+            <div style={{textAlign:'center',marginTop:'14px'}}>
+              <Link to="/" style={{fontSize:'12px',color:'#9CA3AF',textDecoration:'none'}}>← 메인으로</Link>
             </div>
           </div>
         </div>
