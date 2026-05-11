@@ -5,3 +5,6 @@ dist
 .env.local
 .env.*.local
 .claude/
+
+# 생성물 — md 파일이 SoT, PDF 는 scripts/md_to_pdf.py 로 재생성 가능
+docs/*.pdf
