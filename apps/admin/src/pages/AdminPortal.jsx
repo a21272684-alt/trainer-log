@@ -57,7 +57,7 @@ function parseSettingValue(raw) {
 const PORTAL_TABS = {
   // 1:1 문의(support) 탭은 카카오 채널 외부 우회로 완전 폐기 — admin 관리 항목 0건.
   // 자유게시판(free_board) 모더레이션도 제거 — 운영 단순화.
-  trainer:   [{ id: 'list', label: '트레이너 목록' }, { id: 'logs', label: '수업일지' }, { id: 'subs', label: '구독 관리' }, { id: 'plans', label: '플랜 관리' }],
+  trainer:   [{ id: 'list', label: '트레이너 목록' }, { id: 'pending', label: '가입 승인 대기' }, { id: 'logs', label: '수업일지' }, { id: 'subs', label: '구독 관리' }, { id: 'plans', label: '플랜 관리' }],
   member:    [{ id: 'status', label: '회원 현황' }, { id: 'notices', label: '공지사항 관리' }],
   community: [{ id: 'posts', label: '게시글' }, { id: 'users', label: '유저' }, { id: 'contacts', label: '연락 요청' }, { id: 'market', label: '마켓 거래 관리' }],
   crm:       [{ id: 'permissions', label: '권한 관리' }],
@@ -341,6 +341,11 @@ export default function AdminPortal() {
   const [trainerRegForm, setTrainerRegForm] = useState({ name: '', email: '' })
   const [trainerRegLoading, setTrainerRegLoading] = useState(false)
 
+  // 트레이너 가입 승인 대기열 (053 마이그레이션)
+  const [signupRequests, setSignupRequests] = useState([])
+  const [signupFilter, setSignupFilter] = useState('pending') // pending | rejected | approved | null(all)
+  const [signupActionId, setSignupActionId] = useState(null) // 처리 중 row id (버튼 중복 클릭 방지)
+
   // 플랜 관리
   const [planGuideVisible, setPlanGuideVisible] = useState(true)
   const [plans, setPlans] = useState(DEFAULT_PLANS)
@@ -436,7 +441,7 @@ export default function AdminPortal() {
       // inquiries / member_posts 조회 제거 — 1:1 문의·자유게시판 관리 기능 폐기
       // RLS strict (050/051) 적용 후 trainers/members/logs 직접 SELECT 가 anon key 로
       // 0행 반환 → SECURITY DEFINER admin RPC (052) 경유. 정렬·페이징은 함수 내부 처리.
-      const [t, m, l, s, cu, cp, cc, settings, ntc] = await Promise.all([
+      const [t, m, l, s, cu, cp, cc, settings, ntc, sigReq] = await Promise.all([
         supabase.rpc('admin_list_trainers', { p_admin_token: ADMIN_TOKEN }),
         supabase.rpc('admin_list_members', { p_admin_token: ADMIN_TOKEN }),
         supabase.rpc('admin_list_logs', { p_admin_token: ADMIN_TOKEN, p_limit: ADMIN_LOAD_LIMIT }),
@@ -454,10 +459,13 @@ export default function AdminPortal() {
           'legal_terms', 'legal_privacy', 'legal_refund',
         ]).limit(ADMIN_LOAD_LIMIT),
         supabase.from('notices').select('*').order('is_pinned', { ascending: false }).order('created_at', { ascending: false }).limit(ADMIN_LOAD_LIMIT),
+        // 053 — 트레이너 가입 승인 대기열. p_status=NULL 로 전체 페치 후 UI 측에서 필터.
+        supabase.rpc('admin_list_signup_requests', { p_admin_token: ADMIN_TOKEN, p_status: null }),
       ])
       setTrainers(t.data || []); setMembers(m.data || []); setLogs(l.data || []); setSubs(s.data || [])
       setCommUsers(cu.data || []); setCommPosts(cp.data || []); setCommContacts(cc.data || [])
       setNotices(ntc.data || [])
+      setSignupRequests(sigReq.data || [])
       if (settings.data) {
         // 일반 설정 (도메인 분리)
         const vis = settings.data.find(r => r.key === 'plan_guide_visible')
@@ -892,6 +900,63 @@ export default function AdminPortal() {
       alert('오류: ' + e.message)
     } finally {
       setTrainerRegLoading(false)
+    }
+  }
+
+  // ===== 트레이너 가입 승인 대기열 (053) =====
+  async function approveSignupRequest(req) {
+    if (!window.confirm(`'${req.name}' (${req.email}) 트레이너 가입을 승인하시겠습니까?\n승인 시 free 플랜으로 자동 등록됩니다.`)) return
+    setSignupActionId(req.id)
+    try {
+      const { error } = await supabase.rpc('admin_approve_signup_request', {
+        p_admin_token: ADMIN_TOKEN,
+        p_request_id: req.id,
+      })
+      if (error) { alert('승인 실패: ' + error.message); return }
+      alert('✓ 승인됐어요. 트레이너로 등록되었습니다.')
+      await loadAll()
+    } catch (e) {
+      alert('오류: ' + e.message)
+    } finally {
+      setSignupActionId(null)
+    }
+  }
+
+  async function rejectSignupRequest(req) {
+    const reason = window.prompt(`'${req.name}' (${req.email}) 가입을 거부하시겠습니까?\n사유를 입력하면 사용자에게 표시됩니다 (선택, 비우면 사유 없음).`, '')
+    if (reason === null) return // 취소
+    setSignupActionId(req.id)
+    try {
+      const { error } = await supabase.rpc('admin_reject_signup_request', {
+        p_admin_token: ADMIN_TOKEN,
+        p_request_id: req.id,
+        p_reason: reason || null,
+      })
+      if (error) { alert('거부 실패: ' + error.message); return }
+      alert('✓ 거부됐어요.')
+      await loadAll()
+    } catch (e) {
+      alert('오류: ' + e.message)
+    } finally {
+      setSignupActionId(null)
+    }
+  }
+
+  async function deleteSignupRequest(req) {
+    if (!window.confirm(`거부 기록을 삭제하시겠습니까?\n삭제하면 해당 이메일로 다시 가입 요청이 가능해집니다.`)) return
+    setSignupActionId(req.id)
+    try {
+      const { error } = await supabase.rpc('admin_delete_signup_request', {
+        p_admin_token: ADMIN_TOKEN,
+        p_request_id: req.id,
+      })
+      if (error) { alert('삭제 실패: ' + error.message); return }
+      alert('✓ 거부 기록이 삭제됐어요.')
+      await loadAll()
+    } catch (e) {
+      alert('오류: ' + e.message)
+    } finally {
+      setSignupActionId(null)
     }
   }
 
@@ -1330,6 +1395,95 @@ export default function AdminPortal() {
               </div>
             </div>
           )}
+
+          {/* ==================== 가입 승인 대기열 (053 화이트리스트) ==================== */}
+          {page === 'trainer' && subTab === 'pending' && (() => {
+            const filtered = signupRequests.filter(r => !signupFilter || r.status === signupFilter)
+            const pendingCount = signupRequests.filter(r => r.status === 'pending').length
+            const rejectedCount = signupRequests.filter(r => r.status === 'rejected').length
+            const approvedCount = signupRequests.filter(r => r.status === 'approved').length
+            return (
+              <div>
+                <div className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  트레이너 가입 승인 대기열
+                  <span style={{ fontSize: '12px', color: 'var(--text-dim)', fontWeight: 400 }}>
+                    pending {pendingCount}건 · rejected {rejectedCount}건 · approved {approvedCount}건
+                  </span>
+                </div>
+                <div style={{ marginBottom: '14px', fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.7 }}>
+                  사용자가 OAuth 로그인 후 '가입 요청' 을 보내면 여기 표시됩니다.<br />
+                  <strong>승인</strong> 시 free 플랜(AI 월 20회) 으로 자동 등록 · <strong>거부</strong> 시 사용자에게 사유 표시 + 같은 이메일 재요청 차단.
+                </div>
+                <div className="period-tabs" style={{ marginBottom: '14px' }}>
+                  {[
+                    { id: 'pending', label: `대기 (${pendingCount})` },
+                    { id: 'rejected', label: `거부 (${rejectedCount})` },
+                    { id: 'approved', label: `승인됨 (${approvedCount})` },
+                    { id: null, label: '전체' },
+                  ].map(f => (
+                    <button
+                      key={String(f.id)}
+                      className={`period-tab${signupFilter === f.id ? ' active' : ''}`}
+                      onClick={() => setSignupFilter(f.id)}
+                    >{f.label}</button>
+                  ))}
+                </div>
+                <div className="card table-wrap">
+                  <table>
+                    <thead>
+                      <tr><th>이름</th><th>이메일</th><th>요청일</th><th>상태</th><th>사유 / 검토일</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                      {!filtered.length && (
+                        <tr><td colSpan={6} className="empty">{signupFilter === 'pending' ? '대기 중인 가입 요청이 없어요' : '해당 상태의 요청이 없어요'}</td></tr>
+                      )}
+                      {filtered.map(req => {
+                        const reqDate = new Date(req.requested_at)
+                        const revDate = req.reviewed_at ? new Date(req.reviewed_at) : null
+                        const statusStyle = req.status === 'pending'
+                          ? { bg: 'rgba(217,119,6,0.12)', color: '#d97706', border: 'rgba(217,119,6,0.3)', label: '대기' }
+                          : req.status === 'approved'
+                          ? { bg: 'rgba(16,185,129,0.12)', color: '#10b981', border: 'rgba(16,185,129,0.3)', label: '승인됨' }
+                          : { bg: 'rgba(239,68,68,0.12)', color: '#ef4444', border: 'rgba(239,68,68,0.3)', label: '거부' }
+                        const busy = signupActionId === req.id
+                        return (
+                          <tr key={req.id}>
+                            <td><div className="name-cell"><div className="avatar">{req.name?.[0] || '?'}</div><span style={{ color: 'var(--text)', fontWeight: 500 }}>{req.name}</span></div></td>
+                            <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{req.email}</td>
+                            <td style={{ fontSize: '12px', fontFamily: "'DM Mono',monospace", color: 'var(--text-dim)' }}>
+                              {reqDate.toLocaleDateString('ko-KR', { year: '2-digit', month: 'short', day: 'numeric' })}<br />
+                              <span style={{ fontSize: '11px' }}>{reqDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</span>
+                            </td>
+                            <td>
+                              <span style={{ background: statusStyle.bg, color: statusStyle.color, border: `1px solid ${statusStyle.border}`, padding: '3px 10px', borderRadius: '5px', fontSize: '11px', fontWeight: 700 }}>{statusStyle.label}</span>
+                            </td>
+                            <td style={{ fontSize: '11px', color: 'var(--text-dim)', maxWidth: '200px' }}>
+                              {req.rejection_reason && <div style={{ marginBottom: '2px', color: '#991b1b' }}>“{req.rejection_reason}”</div>}
+                              {revDate && <div style={{ fontFamily: "'DM Mono',monospace" }}>{revDate.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} {revDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</div>}
+                            </td>
+                            <td style={{ whiteSpace: 'nowrap' }}>
+                              {req.status === 'pending' && (
+                                <>
+                                  <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => approveSignupRequest(req)} style={{ marginRight: '6px' }}>승인</button>
+                                  <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => rejectSignupRequest(req)} style={{ color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}>거부</button>
+                                </>
+                              )}
+                              {req.status === 'rejected' && (
+                                <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => deleteSignupRequest(req)} style={{ fontSize: '11px' }}>기록 삭제 (재요청 허용)</button>
+                              )}
+                              {req.status === 'approved' && (
+                                <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>완료</span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          })()}
 
           {page === 'trainer' && subTab === 'logs' && (
             <div>
