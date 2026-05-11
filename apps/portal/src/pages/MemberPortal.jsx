@@ -268,7 +268,12 @@ export default function MemberPortal() {
         p_email: au.email ?? null,
       })
       if (error) throw error
-      if (row) {
+      // ⚠️ row.id 가드 (2026-05-11 추가): Postgres 함수 RETURNS members (composite) 가
+      // RETURN NULL 할 때 PostgREST/supabase-js 가 빈 객체 {id:null, name:null, ...} 로 변환.
+      // 단순 `if (row)` 만 체크하면 빈 객체도 truthy 라 _loginWithRecord 로 빠져
+      // 트레이너가 등록하지 않은 사용자도 회원앱에 빈 상태로 진입하는 보안 버그 발생.
+      // (트레이너 앱의 trainer_resolve_or_create 와 동일 패턴 fix)
+      if (row && row.id) {
         await _loginWithRecord(row)
         return
       }
