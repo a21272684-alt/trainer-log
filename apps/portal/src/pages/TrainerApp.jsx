@@ -173,6 +173,30 @@ function WeeklyReportPanel({ gymId, apiKey }) {
 
   const mono = { fontFamily: "'DM Mono',monospace" }
 
+  // ── 7일 1회 rate limit (AI 비용 폭탄 방지) ────────────────
+  // 무한 재생성 / 수동 생성 클릭으로 Gemini API 호출이 누적되는 것을 차단.
+  // 가장 최근 done 리포트의 generated_at 기준으로 7일 경과 시에만 다시 생성 가능.
+  // pending 첫 생성 (자동 알림 배너) 흐름은 lastGeneratedAt 이 없어 cooldown.blocked=false 라
+  // 자연스럽게 면제됨. UNIQUE(gym_id, week_start) 제약과 함께 이중 안전장치.
+  const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
+  const cooldown = useMemo(() => {
+    const last = reports
+      .filter(r => r.status === 'done' && r.generated_at)
+      .sort((a, b) => new Date(b.generated_at) - new Date(a.generated_at))[0]
+    if (!last) return { blocked: false }
+    const elapsed = Date.now() - new Date(last.generated_at).getTime()
+    if (elapsed >= SEVEN_DAYS_MS) return { blocked: false, lastGeneratedAt: last.generated_at }
+    const hoursLeft = Math.max(1, Math.ceil((SEVEN_DAYS_MS - elapsed) / (60 * 60 * 1000)))
+    return { blocked: true, hoursLeft, lastGeneratedAt: last.generated_at }
+  }, [reports])
+
+  // 표시용 잔여시간 라벨 ("3일" / "5시간")
+  const cooldownLabel = cooldown.blocked
+    ? (cooldown.hoursLeft >= 24
+        ? `약 ${Math.ceil(cooldown.hoursLeft / 24)}일 후`
+        : `약 ${cooldown.hoursLeft}시간 후`)
+    : ''
+
   // ── 리포트 목록 로드 ──────────────────────────────────────
   async function loadReports() {
     if (!gymId) return
@@ -191,6 +215,14 @@ function WeeklyReportPanel({ gymId, apiKey }) {
 
   // ── 리포트 생성 ───────────────────────────────────────────
   async function handleGenerate(existingReport = null) {
+    // [Rate limit] 중복 클릭/race 차단 — 이미 생성 진행 중이면 즉시 무시.
+    if (phase === 'loading') return
+    // [Rate limit] 7일 1회 제한 — 가장 최근 done 리포트 generated_at 기준.
+    // AI 비용 폭탄 방지: 무한 재생성 / 수동 생성 클릭 차단.
+    if (cooldown.blocked) {
+      showToast(`주간 리포트는 7일에 1회만 생성 가능해요 (${cooldownLabel} 다시 시도 가능)`)
+      return
+    }
     if (!apiKey) { showToast('AI 서비스 준비 중이에요. 잠시 후 다시 시도해주세요'); return }
     if (!gymId)  { showToast('센터 정보가 없어요. 트레이너 설정에서 gym_id를 확인해주세요'); return }
 
@@ -356,9 +388,13 @@ function WeeklyReportPanel({ gymId, apiKey }) {
                   </div>
                 </div>
                 <button onClick={() => handleGenerate({ ...selected, status: 'pending' })}
+                  disabled={cooldown.blocked || phase === 'loading'}
+                  title={cooldown.blocked ? `7일 1회 제한 — ${cooldownLabel} 다시 시도 가능` : ''}
                   style={{padding:'6px 10px',borderRadius:'6px',border:'1px solid var(--border)',
-                    background:'transparent',color:'var(--text-dim)',fontSize:'11px',cursor:'pointer',fontFamily:'inherit'}}>
-                  🔄 재생성
+                    background:'transparent',color:'var(--text-dim)',fontSize:'11px',fontFamily:'inherit',
+                    cursor: cooldown.blocked ? 'not-allowed' : 'pointer',
+                    opacity: cooldown.blocked ? 0.4 : 1}}>
+                  {cooldown.blocked ? '🔒 7일 제한' : '🔄 재생성'}
                 </button>
               </div>
 
@@ -375,10 +411,16 @@ function WeeklyReportPanel({ gymId, apiKey }) {
       {/* 새 리포트 생성 버튼 (리포트가 있을 때) */}
       {doneReports.length > 0 && pendingReports.length === 0 && phase !== 'loading' && (
         <button onClick={() => handleGenerate()}
+          disabled={cooldown.blocked}
+          title={cooldown.blocked ? `7일 1회 제한 — ${cooldownLabel} 다시 시도 가능` : ''}
           style={{width:'100%',marginTop:'10px',padding:'9px',borderRadius:'8px',
             border:'1px solid var(--border)',background:'transparent',color:'var(--text-dim)',
-            fontSize:'12px',cursor:'pointer',fontFamily:'inherit'}}>
-          + 이번 주 리포트 수동 생성
+            fontSize:'12px',fontFamily:'inherit',
+            cursor: cooldown.blocked ? 'not-allowed' : 'pointer',
+            opacity: cooldown.blocked ? 0.5 : 1}}>
+          {cooldown.blocked
+            ? `🔒 7일 1회 제한 — ${cooldownLabel} 생성 가능`
+            : '+ 이번 주 리포트 수동 생성'}
         </button>
       )}
     </div>
