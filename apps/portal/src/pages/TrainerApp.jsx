@@ -4107,7 +4107,11 @@ export default function TrainerApp() {
                 </svg>
                 Google로 로그인
               </button>
-              {/* Kakao */}
+              {/* Kakao OAuth — 2026-05-11 비활성화
+                  카카오 디벨로퍼스 앱 등록 + Supabase Provider 연동 + 이메일 동의 검수가
+                  완료되지 않아 현재 카카오 로그인 시도 시 에러 발생. 베타 운영 단계에서는
+                  Google OAuth 만으로 충분. 정식 출시 단계(Phase E) 에서 카카오 디벨로퍼스
+                  설정 후 아래 블록 주석만 해제하면 복원됨. signInWithKakao 함수는 보존.
               <button onClick={signInWithKakao} style={{
                 display:'flex',alignItems:'center',justifyContent:'center',gap:10,
                 width:'100%',padding:'13px 20px',borderRadius:'10px',
@@ -4120,6 +4124,7 @@ export default function TrainerApp() {
                 </svg>
                 카카오로 로그인
               </button>
+              */}
             </div>
 
             <div style={{marginTop:'16px',padding:'10px 0',borderTop:'1px solid #F3F4F6',textAlign:'center'}}>
