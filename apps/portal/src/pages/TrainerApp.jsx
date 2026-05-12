@@ -7,6 +7,7 @@ import { subscribeToPush, scheduleNotification, deleteScheduledNotification } fr
 import { useToast } from '@trainer-log/shared/components/common/Toast'
 import Modal from '@trainer-log/shared/components/common/Modal'
 import TermsAgreementModal from '@trainer-log/shared/components/common/TermsAgreementModal'
+import InAppBrowserBanner from '@trainer-log/shared/components/common/InAppBrowserBanner'
 import { Link } from 'react-router-dom'
 import '../styles/trainer.css'
 import { computeStats, buildInsightPrompt, callGeminiInsight } from '@trainer-log/shared/lib/memberInsights'
@@ -4125,6 +4126,9 @@ export default function TrainerApp() {
           {/* 로고 + 카드 */}
           <div style={{background:'#fff',border:'1px solid #E1E4D9',borderRadius:'22px',
             padding:'40px 32px',boxShadow:'0 8px 40px rgba(0,0,0,0.08),0 1px 4px rgba(0,0,0,0.04)'}}>
+
+            {/* 카카오톡/페이스북 등 인앱 브라우저 사용자 안내 */}
+            <InAppBrowserBanner />
 
             {/* 로고 */}
             <div style={{marginBottom:'28px'}}>

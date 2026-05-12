@@ -3,6 +3,7 @@ import { supabase } from '@trainer-log/shared/lib/supabase'
 import { useToast } from '@trainer-log/shared/components/common/Toast'
 import Modal from '@trainer-log/shared/components/common/Modal'
 import TermsAgreementModal from '@trainer-log/shared/components/common/TermsAgreementModal'
+import InAppBrowserBanner from '@trainer-log/shared/components/common/InAppBrowserBanner'
 import { EXERCISE_DB } from '../lib/exercises'
 import { Link } from 'react-router-dom'
 import { Chart, registerables } from 'chart.js'
@@ -1223,6 +1224,8 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
       <div className="m-login-wrap">
         <div style={{width:'100%',maxWidth:'400px'}}>
           <div className="m-login-card">
+            {/* 카카오톡/페이스북 등 인앱 브라우저 사용자 안내 — Google OAuth disallowed_useragent 차단 사전 차단 */}
+            <InAppBrowserBanner />
             {/* 로고 */}
             <div style={{marginBottom:'28px'}}>
               <div className="m-login-logo">오운</div>
