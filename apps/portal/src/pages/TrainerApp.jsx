@@ -6043,8 +6043,8 @@ export default function TrainerApp() {
                   value={rawInput}
                   onChange={e => setRawInput(e.target.value)}
                   placeholder={speechSupported
-                    ? '위 버튼을 눌러 말로 입력하거나, 여기에 직접 입력하세요.\n\n💡 스마트폰 자판의 마이크 버튼도 사용할 수 있어요!'
-                    : '수업 내용을 입력하세요.\n\n💡 스마트폰 자판의 마이크 버튼을 누르면\n말로 쉽게 입력할 수 있어요!'}
+                    ? '위 버튼을 눌러서 음성인식을 사용하면, 분석후 텍스트로 변환됩니다!\n수기로 직접 입력하셔도 됩니다!'
+                    : '이 브라우저는 음성인식이 지원되지 않아요.\n수기로 직접 입력하시거나, 스마트폰 자판의 마이크 버튼을 사용해주세요.'}
                   style={{
                     width:'100%',
                     minHeight:'160px',
