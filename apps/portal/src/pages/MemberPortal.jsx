@@ -969,7 +969,22 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
   function wfAddEx() { setWorkoutForm(f=>({...f,exercises:[...f.exercises,emptyWEx()]})) }
   function wfRemoveEx(localId) { setWorkoutForm(f=>({...f,exercises:f.exercises.filter(e=>e.localId!==localId)})) }
   function wfUpdateEx(localId, key, val) { setWorkoutForm(f=>({...f,exercises:f.exercises.map(e=>e.localId===localId?{...e,[key]:val}:e)})) }
-  function wfAddSet(localId) { setWorkoutForm(f=>({...f,exercises:f.exercises.map(e=>e.localId===localId?{...e,sets:[...e.sets,{weight:'',reps:'',rest_sec:''}]}:e)})) }
+  // 세트 추가 — 이전 세트(가장 최근 세트)의 weight/reps/rest_sec 을 복사해서 새 세트로 추가.
+  // 회원 피드백 반영 (2026-05-13): 같은 무게·횟수로 여러 세트 진행이 흔해서 매번 입력 반복 부담 컸음.
+  // 빈 세트만 있을 때(첫 세트가 비어있음) 는 그대로 빈 값으로 추가 — 복사할 값 자체가 없으므로.
+  function wfAddSet(localId) {
+    setWorkoutForm(f => ({
+      ...f,
+      exercises: f.exercises.map(e => {
+        if (e.localId !== localId) return e
+        const last = e.sets[e.sets.length - 1]
+        const newSet = last
+          ? { weight: last.weight || '', reps: last.reps || '', rest_sec: last.rest_sec || '' }
+          : { weight: '', reps: '', rest_sec: '' }
+        return { ...e, sets: [...e.sets, newSet] }
+      }),
+    }))
+  }
   function wfRemoveSet(localId, idx) { setWorkoutForm(f=>({...f,exercises:f.exercises.map(e=>e.localId===localId?{...e,sets:e.sets.filter((_,i)=>i!==idx)}:e)})) }
   function wfUpdateSet(localId, idx, key, val) { setWorkoutForm(f=>({...f,exercises:f.exercises.map(e=>e.localId===localId?{...e,sets:e.sets.map((s,i)=>i===idx?{...s,[key]:val}:s)}:e)})) }
   function handleExNameChange(localId, val) {
