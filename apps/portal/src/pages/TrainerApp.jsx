@@ -3659,12 +3659,15 @@ export default function TrainerApp() {
     const nDays = cols.length
     // 5일(평일만) → 모바일 한 화면에 꽉 채움(가로 스크롤 X).
     // 6~7일(주말 일정 존재) → 기존처럼 minmax(88px)+minWidth 로 가로 스크롤 허용.
-    const colTrack    = nDays <= 5 ? 'minmax(0, 1fr)' : 'minmax(88px, 1fr)'
-    const gridMinWidth = nDays <= 5 ? '100%' : `${48 + nDays * 88}px`
+    const fit = nDays <= 5
+    const colTrack     = fit ? 'minmax(0, 1fr)' : 'minmax(88px, 1fr)'
+    const gridMinWidth = fit ? '100%' : `${48 + nDays * 88}px`
 
     return (
-      <div className="sg-wrap">
-        <div className="sg" style={{display:'grid',gridTemplateColumns:`48px repeat(${nDays}, ${colTrack})`,minWidth:gridMinWidth}}>
+      // fit 모드: sg-wrap 미세 가로 스크롤 차단 (서브픽셀 반올림 대비 이중 안전).
+      <div className="sg-wrap" style={fit ? { overflowX: 'hidden' } : undefined}>
+        {/* sg-fit: CSS 의 .sg-th/.sg-dc min-width:88px 를 0 으로 풀어 minmax(0,1fr) 실작동 */}
+        <div className={`sg${fit ? ' sg-fit' : ''}`} style={{display:'grid',gridTemplateColumns:`48px repeat(${nDays}, ${colTrack})`,minWidth:gridMinWidth}}>
           <div className="sg-th-e" style={{height:'36px'}}></div>
           {cols.map(({ d, idx, label }) => {
             const isToday = dStr(d)===todayStr
