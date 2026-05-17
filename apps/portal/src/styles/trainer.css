@@ -284,6 +284,13 @@
 .sg-dc:hover { background: rgba(200,241,53,0.07); }
 .sg-hl { position: absolute; left: 0; right: 0; pointer-events: none; }
 
+/* 평일만(<=5일) 표시 모드 — min-width 88px 해제해 컬럼을 화면 폭에 균등 분배.
+   인라인 gridTemplateColumns 의 minmax(0,1fr) 가 실제로 작동하게 됨.
+   → 모바일에서 가로 스크롤 0 + 월~금 동일 폭 (에브리타임 방식).
+   6~7일(주말 일정 존재) 일 때는 .sg-fit 미적용 → 기존 88px + 가로 스크롤 유지. */
+.sg-fit .sg-th,
+.sg-fit .sg-dc { min-width: 0; }
+
 /* 이벤트 블록 — Fat-finger 터치 영역 확보 */
 .sg-blk {
   position: absolute;
