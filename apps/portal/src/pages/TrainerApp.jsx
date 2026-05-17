@@ -3646,15 +3646,29 @@ export default function TrainerApp() {
 
   // === RENDER SCHEDULE GRID ===
   function renderScheduleGrid() {
-    const dates = getWeekDates(); const todayStr = dStr(new Date())
+    const todayStr = dStr(new Date())
     const totalSlots = (EH-SH)*60/SMIN; const totalPx = totalSlots*SPX
+
+    // 평일(월~금, 원래 요일 index 0~4) 은 항상 표시.
+    // 주말(토=5, 일=6) 은 해당 날짜에 일정이 있을 때만 컬럼 노출 (에브리타임 방식).
+    // 필터해도 요일 라벨이 어긋나지 않도록 원래 요일 인덱스(idx)/라벨을 보존.
+    const cols = getWeekDates()
+      .map((d, idx) => ({ d, idx, label: DAYS[idx], ds: dStr(d) }))
+      .filter(({ idx, ds }) => idx < 5 || (blocksByDate[ds] || []).length > 0)
+
+    const nDays = cols.length
+    // 5일(평일만) → 모바일 한 화면에 꽉 채움(가로 스크롤 X).
+    // 6~7일(주말 일정 존재) → 기존처럼 minmax(88px)+minWidth 로 가로 스크롤 허용.
+    const colTrack    = nDays <= 5 ? 'minmax(0, 1fr)' : 'minmax(88px, 1fr)'
+    const gridMinWidth = nDays <= 5 ? '100%' : `${48 + nDays * 88}px`
+
     return (
       <div className="sg-wrap">
-        <div className="sg" style={{display:'grid',gridTemplateColumns:'48px repeat(7, minmax(88px, 1fr))',minWidth:'664px'}}>
+        <div className="sg" style={{display:'grid',gridTemplateColumns:`48px repeat(${nDays}, ${colTrack})`,minWidth:gridMinWidth}}>
           <div className="sg-th-e" style={{height:'36px'}}></div>
-          {dates.map((d,i) => {
+          {cols.map(({ d, idx, label }) => {
             const isToday = dStr(d)===todayStr
-            return <div key={i} className={`sg-th${isToday?' today':''}`}><span className="d">{d.getDate()}</span>{DAYS[i]}</div>
+            return <div key={idx} className={`sg-th${isToday?' today':''}`}><span className="d">{d.getDate()}</span>{label}</div>
           })}
           <div className="sg-tc" style={{height:totalPx+'px',position:'relative'}}>
             {Array.from({length:totalSlots+1}).map((_,s) => {
@@ -3663,8 +3677,8 @@ export default function TrainerApp() {
               return null
             })}
           </div>
-          {dates.map(d => {
-            const ds = dStr(d); const dayBlocks = blocksByDate[ds] || []
+          {cols.map(({ ds }) => {
+            const dayBlocks = blocksByDate[ds] || []
             return (
               <div key={ds} className="sg-dc" style={{height:totalPx+'px'}} onClick={e => {
                 const rect = e.currentTarget.getBoundingClientRect(); const y = e.clientY-rect.top
