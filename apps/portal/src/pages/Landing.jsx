@@ -432,7 +432,13 @@ export default function Landing() {
   }, [])
 
   return (
-    <div style={{background:'radial-gradient(ellipse 48% 40% at 100% 0%, #d9f99d 0%, rgba(217,249,157,0.38) 20%, transparent 50%), radial-gradient(ellipse 48% 40% at 0% 0%, #ecfccb 0%, rgba(236,252,203,0.4) 20%, transparent 50%), radial-gradient(ellipse 48% 40% at 0% 100%, #d9f99d 0%, rgba(217,249,157,0.38) 20%, transparent 50%), radial-gradient(ellipse 48% 40% at 100% 100%, #ecfccb 0%, rgba(236,252,203,0.4) 20%, transparent 50%), #ffffff',backgroundAttachment:'fixed',color:'#0f172a',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden'}}>
+    <div style={{background:'#ffffff',color:'#0f172a',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden',position:'relative'}}>
+      {/* 4코너 라임 오버레이 — position:fixed 라 모바일 포함 스크롤 내내 화면 4모서리 일관.
+          background-attachment:fixed 의 모바일 미지원 우회. pointerEvents:none 로 클릭 통과, zIndex:0 으로 콘텐츠 뒤. */}
+      <div aria-hidden="true" style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:0,
+        background:'radial-gradient(ellipse 48% 40% at 100% 0%, #d9f99d 0%, rgba(217,249,157,0.38) 20%, transparent 50%), radial-gradient(ellipse 48% 40% at 0% 0%, #ecfccb 0%, rgba(236,252,203,0.4) 20%, transparent 50%), radial-gradient(ellipse 48% 40% at 0% 100%, #d9f99d 0%, rgba(217,249,157,0.38) 20%, transparent 50%), radial-gradient(ellipse 48% 40% at 100% 100%, #ecfccb 0%, rgba(236,252,203,0.4) 20%, transparent 50%)'}}/>
+      {/* 콘텐츠 래퍼 — 오버레이 위 (zIndex:1) */}
+      <div style={{position:'relative',zIndex:1}}>
 
       {/* ── STICKY NAV ── */}
       <nav style={{position:'sticky',top:0,zIndex:100,background:'rgba(248,250,252,0.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid #e2e8f0',padding:'0 20px'}}>
@@ -1471,6 +1477,7 @@ export default function Landing() {
         </div>
         <div style={{fontSize:'11px',color:'#1e293b',fontFamily:"'DM Mono',monospace"}}>v2.0 · 오운</div>
       </footer>
+      </div>
     </div>
   )
 }
