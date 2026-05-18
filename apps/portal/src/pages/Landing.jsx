@@ -432,7 +432,7 @@ export default function Landing() {
   }, [])
 
   return (
-    <div style={{background:'#f8fafc',color:'#0f172a',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden'}}>
+    <div style={{background:'linear-gradient(135deg,#fafff0 0%,#ffffff 45%,#f0fdf4 100%)',color:'#0f172a',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden'}}>
 
       {/* ── STICKY NAV ── */}
       <nav style={{position:'sticky',top:0,zIndex:100,background:'rgba(248,250,252,0.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid #e2e8f0',padding:'0 20px'}}>
@@ -622,7 +622,7 @@ export default function Landing() {
       </section>
 
       {/* ── 문제 인식 (PROBLEM) ── */}
-      <section style={{background:'#f8fafc',padding:'80px 24px'}}>
+      <section style={{background:'transparent',padding:'80px 24px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{textAlign:'center',marginBottom:'48px'}}>
@@ -766,7 +766,7 @@ export default function Landing() {
       </section>
 
       {/* ── AI 수업일지 하이라이트 ── */}
-      <section style={{background:'#f8fafc',padding:'0 24px 80px'}}>
+      <section style={{background:'transparent',padding:'0 24px 80px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{background:'linear-gradient(135deg,#0f172a 0%,#14290a 100%)',borderRadius:'24px',padding:'40px 36px',color:'#fff',position:'relative',overflow:'hidden'}}>
@@ -848,7 +848,7 @@ export default function Landing() {
       </section>
 
       {/* ── 트레이너 후기 (RESULTS) ── */}
-      <section style={{background:'#f8fafc',padding:'80px 24px'}}>
+      <section style={{background:'transparent',padding:'80px 24px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{textAlign:'center',marginBottom:'48px'}}>
@@ -918,7 +918,7 @@ export default function Landing() {
       </section>
 
       {/* ── 기능 비교 (COMPARISON) ── */}
-      <section style={{background:'#f8fafc',padding:'80px 24px'}}>
+      <section style={{background:'transparent',padding:'80px 24px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{textAlign:'center',marginBottom:'48px'}}>
@@ -998,7 +998,7 @@ export default function Landing() {
       </section>
 
       {/* ── 회원 포털 — 좌 폰 목업(개인운동 일지·근육 다이어그램) / 우 텍스트 (교차) ── */}
-      <section style={{background:'#f8fafc',padding:'88px 24px'}}>
+      <section style={{background:'transparent',padding:'88px 24px'}}>
         <style>{`
           @media (max-width:880px){
             .ld-mx-grid{grid-template-columns:1fr !important;gap:36px !important}
@@ -1113,7 +1113,7 @@ export default function Landing() {
       </section>
 
       {/* ── 요금제 ── */}
-      <section style={{background:'#f8fafc',padding:'80px 24px'}}>
+      <section style={{background:'transparent',padding:'80px 24px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{textAlign:'center',marginBottom:'48px'}}>
@@ -1182,7 +1182,7 @@ export default function Landing() {
       </section>
 
       {/* ── FAQ ── */}
-      <section style={{background:'#f8fafc',padding:'80px 24px'}}>
+      <section style={{background:'transparent',padding:'80px 24px'}}>
         <div style={{maxWidth:'680px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{textAlign:'center',marginBottom:'48px'}}>
@@ -1220,7 +1220,7 @@ export default function Landing() {
       </section>
 
       {/* ── 최하단 CTA ── */}
-      <section style={{background:'#f8fafc',padding:'80px 24px'}}>
+      <section style={{background:'transparent',padding:'80px 24px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{textAlign:'center',marginBottom:'48px'}}>
