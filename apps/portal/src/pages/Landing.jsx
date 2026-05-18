@@ -546,7 +546,7 @@ export default function Landing() {
                 {/* 회원 정보 */}
                 <div style={{padding:'11px 13px 0'}}>
                   <div style={{fontSize:'13px',fontWeight:800,color:'#0f172a'}}>오운(회원용)</div>
-                  <div style={{fontSize:'9px',color:'#94a3b8',marginTop:'1px'}}>📱 2684 · 체형교정</div>
+                  <div style={{fontSize:'9px',color:'#94a3b8',marginTop:'1px'}}>· 체형교정 · PT 진행 중</div>
                   {/* 세션 현황 */}
                   <div style={{marginTop:'9px',background:'#fff',border:'1px solid #eef2f7',
                     borderRadius:'10px',padding:'9px 10px'}}>
