@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Fragment } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 
@@ -648,34 +648,120 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── 솔루션 (SOLUTION) ── */}
-      <section style={{background:'#fff',padding:'80px 24px'}}>
-        <div style={{maxWidth:'860px',margin:'0 auto'}}>
-          <FadeUp>
-            <div style={{textAlign:'center',marginBottom:'48px'}}>
-              <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',color:'#16a34a',marginBottom:'10px'}}>SOLUTION</div>
-              <h2 style={{fontSize:'clamp(22px,4vw,32px)',fontWeight:800,color:'#0f172a',letterSpacing:'-1px',margin:'0 0 10px',lineHeight:1.3}}>
-                오운이 이렇게 해결해드려요
+      {/* ── 솔루션 (SOLUTION) — 좌 텍스트 / 우 폰 목업(완성된 AI 수업일지) ── */}
+      <section style={{background:'#fff',padding:'88px 24px'}}>
+        <style>{`
+          @keyframes ldFloaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+          .ld-floaty{animation:ldFloaty 5.5s ease-in-out infinite}
+          @media (max-width:880px){
+            .ld-sx-grid{grid-template-columns:1fr !important;gap:36px !important}
+            .ld-sx-mockup{order:2}
+            .ld-sx-text{order:1;text-align:center}
+            .ld-sx-list{text-align:left;max-width:420px;margin:0 auto}
+          }
+          @media (prefers-reduced-motion:reduce){.ld-floaty{animation:none !important}}
+        `}</style>
+        <div className="ld-sx-grid" style={{maxWidth:'1080px',margin:'0 auto',display:'grid',
+          gridTemplateColumns:'1fr 0.86fr',gap:'56px',alignItems:'center'}}>
+
+          {/* 좌: 텍스트 */}
+          <div className="ld-sx-text">
+            <FadeUp>
+              <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',color:'#16a34a',marginBottom:'12px'}}>SOLUTION</div>
+              <h2 style={{fontSize:'clamp(24px,4vw,34px)',fontWeight:800,color:'#0f172a',letterSpacing:'-1px',margin:'0 0 12px',lineHeight:1.25}}>
+                녹음만 올리면<br/>AI가 일지를 완성해요
               </h2>
-              <p style={{fontSize:'14px',color:'#64748b',margin:0}}>복잡한 설정 없이, 쓰는 즉시 달라집니다</p>
+              <p style={{fontSize:'15px',color:'#64748b',margin:'0 0 28px',lineHeight:1.6}}>
+                수업 후 1분 브리핑이면 끝. AI가 운동·세트·피드백·다음 목표까지
+                완성된 일지로 만들어 회원에게 바로 전달돼요.
+              </p>
+            </FadeUp>
+            <div className="ld-sx-list" style={{display:'flex',flexDirection:'column',gap:'14px'}}>
+              {solutions.map((s,i) => (
+                <FadeUp key={i} delay={i * 90}>
+                  <div style={{display:'flex',gap:'12px',alignItems:'flex-start'}}>
+                    <span style={{fontSize:'18px',flexShrink:0,marginTop:'1px'}}>{s.icon}</span>
+                    <div>
+                      <div style={{display:'flex',alignItems:'center',gap:'7px',marginBottom:'3px',flexWrap:'wrap'}}>
+                        <span style={{fontSize:'14px',fontWeight:700,color:'#0f172a',letterSpacing:'-0.3px'}}>{s.title}</span>
+                        <span style={{fontSize:'10px',fontWeight:700,color:'#16a34a',background:'rgba(22,163,74,0.1)',
+                          padding:'2px 8px',borderRadius:'20px'}}>{s.tag}</span>
+                      </div>
+                      <div style={{fontSize:'12.5px',color:'#64748b',lineHeight:1.6}}>{s.desc}</div>
+                    </div>
+                  </div>
+                </FadeUp>
+              ))}
+            </div>
+          </div>
+
+          {/* 우: 폰 목업 — 완성된 AI 수업일지 결과 화면 (CSS 재현, 이름은 '회원님' 일반화) */}
+          <FadeUp delay={120}>
+            <div className="ld-sx-mockup" style={{display:'flex',justifyContent:'center'}}>
+              <div className="ld-floaty" style={{width:'278px',background:'#fff',borderRadius:'32px',
+                padding:'9px',border:'9px solid #0f172a',
+                boxShadow:'0 26px 60px rgba(15,23,42,0.24),0 6px 16px rgba(15,23,42,0.1)'}}>
+                <div style={{borderRadius:'23px',overflow:'hidden',background:'#fff'}}>
+
+                  {/* 상단바 */}
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+                    padding:'10px 12px',borderBottom:'1px solid #f1f5f9'}}>
+                    <span style={{fontWeight:900,fontSize:'13px',color:'#0f172a'}}>오운</span>
+                    <span style={{fontSize:'8px',fontWeight:700,color:'#854d0e',background:'#fef08a',
+                      borderRadius:'12px',padding:'3px 8px'}}>💬 1:1 문의</span>
+                  </div>
+
+                  <div style={{padding:'11px 12px 13px'}}>
+                    {/* 회차 헤더 */}
+                    <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'9px'}}>
+                      <div style={{textAlign:'center',background:'#f1f5f9',borderRadius:'8px',padding:'4px 8px'}}>
+                        <div style={{fontSize:'13px',fontWeight:900,color:'#0f172a',lineHeight:1}}>3</div>
+                        <div style={{fontSize:'7px',color:'#94a3b8'}}>5월</div>
+                      </div>
+                      <div>
+                        <div style={{fontSize:'9px',fontWeight:700,color:'#16a34a'}}>5회차 · ⭐ 5</div>
+                        <div style={{fontSize:'8px',color:'#94a3b8'}}>오후 04:25</div>
+                      </div>
+                    </div>
+                    <div style={{fontSize:'9px',color:'#475569',marginBottom:'2px'}}>📋 수업일지 · 회원님</div>
+                    <div style={{fontSize:'8px',color:'#94a3b8',marginBottom:'10px'}}>📅 2026년 5월 4일 · 5/10회차</div>
+
+                    {/* 오늘의 운동 */}
+                    <div style={{fontSize:'9px',fontWeight:800,color:'#0f172a',marginBottom:'4px'}}>🐂 오늘의 운동</div>
+                    <div style={{background:'#f8fafc',borderRadius:'8px',padding:'8px',marginBottom:'9px'}}>
+                      <div style={{fontSize:'9px',fontWeight:700,color:'#0f172a'}}>바벨 스쿼트</div>
+                      <div style={{fontSize:'8px',color:'#64748b',marginTop:'2px'}}>1세트 · 10회 (RIR 1)</div>
+                      <div style={{fontSize:'8px',color:'#64748b',marginTop:'3px',lineHeight:1.5}}>
+                        💪 발의 중심점을 단단히 유지하며 안정적인 자세를 보여주셨습니다.</div>
+                    </div>
+
+                    {/* 트레이너 코멘트 */}
+                    <div style={{fontSize:'9px',fontWeight:800,color:'#0f172a',marginBottom:'4px'}}>💬 트레이너 코멘트</div>
+                    <div style={{fontSize:'8px',color:'#64748b',lineHeight:1.6,marginBottom:'9px'}}>
+                      회원님, 오늘 5회차 수업도 정말 수고 많으셨습니다 😊 무게 중심이
+                      흔들리지 않아 동작 퍼포먼스가 한층 향상된 것을 느낄 수 있었습니다 👍</div>
+
+                    {/* 다음 목표 */}
+                    <div style={{fontSize:'9px',fontWeight:800,color:'#0f172a',marginBottom:'4px'}}>🎯 다음 수업 목표</div>
+                    <div style={{fontSize:'8px',color:'#64748b',lineHeight:1.7}}>
+                      · 엉덩이 근육 수축감 명확히 느끼도록 지도<br/>
+                      · 웜업으로 코어 활성화 드릴 추가</div>
+                  </div>
+
+                  {/* 하단 탭 */}
+                  <div style={{display:'flex',borderTop:'1px solid #f1f5f9',fontSize:'7px',
+                    fontWeight:700,textAlign:'center'}}>
+                    {['📄 수업일지','⚖️ 체중','🍱 식단','🏃 운동','💬 커뮤니티'].map((t,i)=>(
+                      <span key={i} style={{flex:1,padding:'8px 2px',
+                        color:i===0?'#16a34a':'#cbd5e1'}}>{t}</span>
+                    ))}
+                  </div>
+
+                </div>
+              </div>
             </div>
           </FadeUp>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:'16px'}}>
-            {solutions.map((s,i) => (
-              <SlideCard key={i} delay={i * 130}>
-                <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:'16px',padding:'24px',
-                  boxShadow:'0 2px 12px rgba(22,163,74,0.06)',height:'100%',boxSizing:'border-box'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'14px'}}>
-                    <span style={{fontSize:'20px'}}>{s.icon}</span>
-                    <span style={{fontSize:'11px',fontWeight:700,color:'#16a34a',background:'rgba(22,163,74,0.1)',
-                      padding:'3px 10px',borderRadius:'20px',letterSpacing:'0.05em'}}>{s.tag}</span>
-                  </div>
-                  <div style={{fontSize:'15px',fontWeight:700,color:'#0f172a',marginBottom:'8px',letterSpacing:'-0.3px'}}>{s.title}</div>
-                  <div style={{fontSize:'13px',color:'#475569',lineHeight:1.75}}>{s.desc}</div>
-                </div>
-              </SlideCard>
-            ))}
-          </div>
+
         </div>
       </section>
 
@@ -911,30 +997,118 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── 회원 포털 기능 ── */}
-      <section style={{background:'#f8fafc',padding:'80px 24px'}}>
-        <div style={{maxWidth:'860px',margin:'0 auto'}}>
-          <FadeUp>
-            <div style={{marginBottom:'40px',textAlign:'center'}}>
-              <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',color:'#0284c7',marginBottom:'10px'}}>MEMBER PORTAL</div>
-              <h2 style={{fontSize:'clamp(22px,4vw,32px)',fontWeight:800,color:'#0f172a',letterSpacing:'-1px',margin:'0 0 10px',lineHeight:1.3}}>
-                회원이 직접 기록하고 확인하는 공간
-              </h2>
-              <p style={{fontSize:'14px',color:'#64748b',margin:0}}>트레이너와 연결된 나만의 건강 기록장</p>
+      {/* ── 회원 포털 — 좌 폰 목업(개인운동 일지·근육 다이어그램) / 우 텍스트 (교차) ── */}
+      <section style={{background:'#f8fafc',padding:'88px 24px'}}>
+        <style>{`
+          @media (max-width:880px){
+            .ld-mx-grid{grid-template-columns:1fr !important;gap:36px !important}
+            .ld-mx-mockup{order:1}
+            .ld-mx-text{order:2;text-align:center}
+            .ld-mx-list{text-align:left;max-width:420px;margin:0 auto}
+          }
+        `}</style>
+        <div className="ld-mx-grid" style={{maxWidth:'1080px',margin:'0 auto',display:'grid',
+          gridTemplateColumns:'0.86fr 1fr',gap:'56px',alignItems:'center'}}>
+
+          {/* 좌: 폰 목업 — 개인운동 일지 (근육 다이어그램) */}
+          <FadeUp delay={120}>
+            <div className="ld-mx-mockup" style={{display:'flex',justifyContent:'center'}}>
+              <div className="ld-floaty" style={{width:'278px',background:'#fff',borderRadius:'32px',
+                padding:'9px',border:'9px solid #0f172a',
+                boxShadow:'0 26px 60px rgba(2,132,199,0.2),0 6px 16px rgba(15,23,42,0.1)'}}>
+                <div style={{borderRadius:'23px',overflow:'hidden',background:'#fff'}}>
+
+                  {/* 상단바 */}
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+                    padding:'10px 12px',borderBottom:'1px solid #f1f5f9'}}>
+                    <span style={{fontWeight:900,fontSize:'13px',color:'#0f172a'}}>오운</span>
+                    <span style={{fontSize:'8px',color:'#94a3b8'}}>개인운동 일지</span>
+                  </div>
+
+                  <div style={{padding:'12px'}}>
+                    {/* 근육 다이어그램 (앞/뒤 인체 SVG, 어깨 강조) */}
+                    <div style={{display:'flex',justifyContent:'center',gap:'18px',
+                      background:'#f8fafc',borderRadius:'10px',padding:'12px 0',marginBottom:'6px'}}>
+                      {['앞면','뒷면'].map((label)=>(
+                        <div key={label} style={{textAlign:'center'}}>
+                          <svg width="44" height="92" viewBox="0 0 80 180">
+                            <circle cx="40" cy="13" r="11" fill="#d1d5db"/>
+                            <rect x="35" y="23" width="10" height="8" rx="2" fill="#d1d5db"/>
+                            <ellipse cx="21" cy="39" rx="9" ry="8" fill="#8b5cf6"/>
+                            <ellipse cx="59" cy="39" rx="9" ry="8" fill="#8b5cf6"/>
+                            <path d="M30 33 Q40 38 50 33 L52 66 Q40 70 28 66 Z" fill="#e5e7eb"/>
+                            <rect x="29" y="66" width="22" height="28" rx="3" fill="#e5e7eb"/>
+                            <ellipse cx="32" cy="122" rx="11" ry="20" fill="#e5e7eb"/>
+                            <ellipse cx="48" cy="122" rx="11" ry="20" fill="#e5e7eb"/>
+                          </svg>
+                          <div style={{fontSize:'7px',color:'#94a3b8',marginTop:'1px'}}>{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'5px',
+                      fontSize:'8px',color:'#64748b',marginBottom:'11px'}}>
+                      <span style={{width:'8px',height:'8px',borderRadius:'50%',background:'#8b5cf6',display:'inline-block'}}/>
+                      어깨
+                    </div>
+
+                    {/* 세트 표 */}
+                    <div style={{display:'grid',gridTemplateColumns:'auto 1fr 1fr 1fr',gap:'5px 6px',
+                      fontSize:'8px',color:'#64748b',alignItems:'center',marginBottom:'9px'}}>
+                      <span style={{fontWeight:700,color:'#94a3b8'}}>세트</span>
+                      <span style={{fontWeight:700,color:'#94a3b8',textAlign:'center'}}>kg</span>
+                      <span style={{fontWeight:700,color:'#94a3b8',textAlign:'center'}}>횟수</span>
+                      <span style={{fontWeight:700,color:'#94a3b8',textAlign:'center'}}>휴식</span>
+                      {[1,2,3].map(n=>(
+                        <Fragment key={n}>
+                          <span style={{fontWeight:700,color:'#475569'}}>{n}</span>
+                          <span style={{textAlign:'center',background:'#f8fafc',borderRadius:'4px',padding:'3px 0'}}>1.5</span>
+                          <span style={{textAlign:'center',background:'#f8fafc',borderRadius:'4px',padding:'3px 0'}}>25</span>
+                          <span style={{textAlign:'center',background:'#f8fafc',borderRadius:'4px',padding:'3px 0'}}>60</span>
+                        </Fragment>
+                      ))}
+                    </div>
+
+                    {/* 루틴 저장 */}
+                    <div style={{display:'flex',gap:'5px'}}>
+                      <div style={{flex:1,background:'#f1f5f9',borderRadius:'7px',padding:'7px',
+                        fontSize:'8px',color:'#cbd5e1'}}>루틴 이름 입력</div>
+                      <div style={{background:'#0284c7',color:'#fff',borderRadius:'7px',padding:'7px 11px',
+                        fontSize:'8px',fontWeight:700}}>저장</div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
             </div>
           </FadeUp>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:'16px'}}>
-            {memberFeatures.map((f,i) => (
-              <SlideCard key={i} delay={i * 130}>
-                <div style={{background:'#f0f9ff',border:'1px solid #bae6fd',borderRadius:'16px',padding:'24px',
-                  boxShadow:'0 2px 8px rgba(2,132,199,0.06)',height:'100%',boxSizing:'border-box'}}>
-                  <div style={{fontSize:'28px',marginBottom:'12px'}}>{f.icon}</div>
-                  <div style={{fontSize:'15px',fontWeight:700,color:'#0f172a',marginBottom:'8px',letterSpacing:'-0.3px'}}>{f.title}</div>
-                  <div style={{fontSize:'13px',color:'#475569',lineHeight:1.7}}>{f.desc}</div>
-                </div>
-              </SlideCard>
-            ))}
+
+          {/* 우: 텍스트 */}
+          <div className="ld-mx-text">
+            <FadeUp>
+              <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',color:'#0284c7',marginBottom:'12px'}}>MEMBER PORTAL</div>
+              <h2 style={{fontSize:'clamp(24px,4vw,34px)',fontWeight:800,color:'#0f172a',letterSpacing:'-1px',margin:'0 0 12px',lineHeight:1.25}}>
+                회원이 직접 기록하고<br/>확인하는 공간
+              </h2>
+              <p style={{fontSize:'15px',color:'#64748b',margin:'0 0 28px',lineHeight:1.6}}>
+                트레이너와 연결된 나만의 건강 기록장. 운동·체중·식단을
+                스스로 남기고, 트레이너 일지도 함께 확인해요.
+              </p>
+            </FadeUp>
+            <div className="ld-mx-list" style={{display:'flex',flexDirection:'column',gap:'14px'}}>
+              {memberFeatures.map((f,i) => (
+                <FadeUp key={i} delay={i * 90}>
+                  <div style={{display:'flex',gap:'12px',alignItems:'flex-start'}}>
+                    <span style={{fontSize:'20px',flexShrink:0}}>{f.icon}</span>
+                    <div>
+                      <div style={{fontSize:'14px',fontWeight:700,color:'#0f172a',marginBottom:'3px',letterSpacing:'-0.3px'}}>{f.title}</div>
+                      <div style={{fontSize:'12.5px',color:'#64748b',lineHeight:1.6}}>{f.desc}</div>
+                    </div>
+                  </div>
+                </FadeUp>
+              ))}
+            </div>
           </div>
+
         </div>
       </section>
 
