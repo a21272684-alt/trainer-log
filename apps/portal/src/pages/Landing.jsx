@@ -432,7 +432,7 @@ export default function Landing() {
   }, [])
 
   return (
-    <div style={{background:'#f7fee7',color:'#0f172a',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden'}}>
+    <div style={{background:'#f8fafc',color:'#0f172a',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden'}}>
 
       {/* ── STICKY NAV ── */}
       <nav style={{position:'sticky',top:0,zIndex:100,background:'rgba(248,250,252,0.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid #e2e8f0',padding:'0 20px'}}>
@@ -530,7 +530,7 @@ export default function Landing() {
               width:'288px',background:'#fff',borderRadius:'34px',padding:'10px',
               border:'9px solid #0f172a',
               boxShadow:'0 30px 70px rgba(15,23,42,0.28),0 8px 20px rgba(15,23,42,0.12)'}}>
-              <div style={{borderRadius:'24px',overflow:'hidden',background:'#f7fee7'}}>
+              <div style={{borderRadius:'24px',overflow:'hidden',background:'#f8fafc'}}>
 
                 {/* 상단바 */}
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
@@ -569,7 +569,7 @@ export default function Landing() {
                 </div>
 
                 {/* 본문 — AI 음성 버튼 + 브리핑 + AI 관점 */}
-                <div style={{padding:'11px 13px 14px',background:'#f7fee7'}}>
+                <div style={{padding:'11px 13px 14px',background:'#f8fafc'}}>
                   <div style={{background:'#eef4ff',border:'1px solid #dbe7ff',borderRadius:'10px',
                     padding:'12px',textAlign:'center',fontSize:'11px',fontWeight:800,
                     color:'#1d4ed8',marginBottom:'8px'}}>
@@ -622,7 +622,7 @@ export default function Landing() {
       </section>
 
       {/* ── 문제 인식 (PROBLEM) ── */}
-      <section style={{background:'#f7fee7',padding:'80px 24px'}}>
+      <section style={{background:'#f8fafc',padding:'80px 24px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{textAlign:'center',marginBottom:'48px'}}>
@@ -728,7 +728,7 @@ export default function Landing() {
 
                     {/* 오늘의 운동 */}
                     <div style={{fontSize:'9px',fontWeight:800,color:'#0f172a',marginBottom:'4px'}}>🐂 오늘의 운동</div>
-                    <div style={{background:'#f7fee7',borderRadius:'8px',padding:'8px',marginBottom:'9px'}}>
+                    <div style={{background:'#f8fafc',borderRadius:'8px',padding:'8px',marginBottom:'9px'}}>
                       <div style={{fontSize:'9px',fontWeight:700,color:'#0f172a'}}>바벨 스쿼트</div>
                       <div style={{fontSize:'8px',color:'#64748b',marginTop:'2px'}}>1세트 · 10회 (RIR 1)</div>
                       <div style={{fontSize:'8px',color:'#64748b',marginTop:'3px',lineHeight:1.5}}>
@@ -766,7 +766,7 @@ export default function Landing() {
       </section>
 
       {/* ── AI 수업일지 하이라이트 ── */}
-      <section style={{background:'#f7fee7',padding:'0 24px 80px'}}>
+      <section style={{background:'#f8fafc',padding:'0 24px 80px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{background:'linear-gradient(135deg,#0f172a 0%,#14290a 100%)',borderRadius:'24px',padding:'40px 36px',color:'#fff',position:'relative',overflow:'hidden'}}>
@@ -848,7 +848,7 @@ export default function Landing() {
       </section>
 
       {/* ── 트레이너 후기 (RESULTS) ── */}
-      <section style={{background:'#f7fee7',padding:'80px 24px'}}>
+      <section style={{background:'#f8fafc',padding:'80px 24px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{textAlign:'center',marginBottom:'48px'}}>
@@ -918,7 +918,7 @@ export default function Landing() {
       </section>
 
       {/* ── 기능 비교 (COMPARISON) ── */}
-      <section style={{background:'#f7fee7',padding:'80px 24px'}}>
+      <section style={{background:'#f8fafc',padding:'80px 24px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{textAlign:'center',marginBottom:'48px'}}>
@@ -998,7 +998,7 @@ export default function Landing() {
       </section>
 
       {/* ── 회원 포털 — 좌 폰 목업(개인운동 일지·근육 다이어그램) / 우 텍스트 (교차) ── */}
-      <section style={{background:'#f7fee7',padding:'88px 24px'}}>
+      <section style={{background:'#f8fafc',padding:'88px 24px'}}>
         <style>{`
           @media (max-width:880px){
             .ld-mx-grid{grid-template-columns:1fr !important;gap:36px !important}
@@ -1028,7 +1028,7 @@ export default function Landing() {
                   <div style={{padding:'12px'}}>
                     {/* 근육 다이어그램 (앞/뒤 인체 SVG, 어깨 강조) */}
                     <div style={{display:'flex',justifyContent:'center',gap:'18px',
-                      background:'#f7fee7',borderRadius:'10px',padding:'12px 0',marginBottom:'6px'}}>
+                      background:'#f8fafc',borderRadius:'10px',padding:'12px 0',marginBottom:'6px'}}>
                       {['앞면','뒷면'].map((label)=>(
                         <div key={label} style={{textAlign:'center'}}>
                           <svg width="44" height="92" viewBox="0 0 80 180">
@@ -1061,9 +1061,9 @@ export default function Landing() {
                       {[1,2,3].map(n=>(
                         <Fragment key={n}>
                           <span style={{fontWeight:700,color:'#475569'}}>{n}</span>
-                          <span style={{textAlign:'center',background:'#f7fee7',borderRadius:'4px',padding:'3px 0'}}>1.5</span>
-                          <span style={{textAlign:'center',background:'#f7fee7',borderRadius:'4px',padding:'3px 0'}}>25</span>
-                          <span style={{textAlign:'center',background:'#f7fee7',borderRadius:'4px',padding:'3px 0'}}>60</span>
+                          <span style={{textAlign:'center',background:'#f8fafc',borderRadius:'4px',padding:'3px 0'}}>1.5</span>
+                          <span style={{textAlign:'center',background:'#f8fafc',borderRadius:'4px',padding:'3px 0'}}>25</span>
+                          <span style={{textAlign:'center',background:'#f8fafc',borderRadius:'4px',padding:'3px 0'}}>60</span>
                         </Fragment>
                       ))}
                     </div>
@@ -1113,7 +1113,7 @@ export default function Landing() {
       </section>
 
       {/* ── 요금제 ── */}
-      <section style={{background:'#f7fee7',padding:'80px 24px'}}>
+      <section style={{background:'#f8fafc',padding:'80px 24px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{textAlign:'center',marginBottom:'48px'}}>
@@ -1182,7 +1182,7 @@ export default function Landing() {
       </section>
 
       {/* ── FAQ ── */}
-      <section style={{background:'#f7fee7',padding:'80px 24px'}}>
+      <section style={{background:'#f8fafc',padding:'80px 24px'}}>
         <div style={{maxWidth:'680px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{textAlign:'center',marginBottom:'48px'}}>
@@ -1220,7 +1220,7 @@ export default function Landing() {
       </section>
 
       {/* ── 최하단 CTA ── */}
-      <section style={{background:'#f7fee7',padding:'80px 24px'}}>
+      <section style={{background:'#f8fafc',padding:'80px 24px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{textAlign:'center',marginBottom:'48px'}}>
