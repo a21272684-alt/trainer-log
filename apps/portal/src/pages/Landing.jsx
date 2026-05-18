@@ -432,7 +432,7 @@ export default function Landing() {
   }, [])
 
   return (
-    <div style={{background:'linear-gradient(135deg,#fafff0 0%,#ffffff 45%,#f0fdf4 100%)',color:'#0f172a',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden'}}>
+    <div style={{background:'radial-gradient(ellipse 55% 45% at 100% 0%, #d9f99d 0%, rgba(217,249,157,0.4) 22%, transparent 52%), radial-gradient(ellipse 50% 45% at 0% 100%, #ecfccb 0%, rgba(236,252,203,0.45) 22%, transparent 52%), #ffffff',backgroundAttachment:'fixed',color:'#0f172a',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden'}}>
 
       {/* ── STICKY NAV ── */}
       <nav style={{position:'sticky',top:0,zIndex:100,background:'rgba(248,250,252,0.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid #e2e8f0',padding:'0 20px'}}>
