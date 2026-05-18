@@ -447,54 +447,160 @@ export default function Landing() {
         </div>
       </nav>
 
-      {/* ── HERO ── */}
-      <section style={{position:'relative',minHeight:'90vh',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',padding:'60px 24px 40px'}}>
-        <div style={{position:'absolute',inset:0,
-          backgroundImage:'url(https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?auto=format&fit=crop&w=1920&q=80)',
-          backgroundSize:'cover',backgroundPosition:'center 30%',zIndex:0}}/>
-        <div style={{position:'absolute',inset:0,
-          background:'linear-gradient(110deg,rgba(248,250,252,0.96) 0%,rgba(248,250,252,0.78) 45%,rgba(248,250,252,0.30) 100%)',
-          zIndex:1}}/>
-        <div style={{position:'absolute',bottom:0,left:0,right:0,height:'160px',
-          background:'linear-gradient(transparent,#f8fafc)',zIndex:2}}/>
+      {/* ── HERO (리뉴얼 2026-05 — 라임 그라데이션 + 폰 목업 + 진입 모션) ── */}
+      <section style={{position:'relative',minHeight:'100vh',display:'flex',alignItems:'center',
+        overflow:'hidden',padding:'88px 24px 64px',
+        background:'linear-gradient(135deg,#fafff0 0%,#ffffff 42%,#f0fdf4 100%)'}}>
 
-        <div style={{position:'relative',zIndex:3,width:'100%',maxWidth:'860px',margin:'0 auto'}}>
-          <div style={{maxWidth:'560px'}}>
-            <div style={{display:'inline-block',fontSize:'11px',fontWeight:700,letterSpacing:'0.14em',
-              color:'#3f6212',background:'rgba(200,241,53,0.3)',padding:'5px 14px',borderRadius:'20px',
-              border:'1px solid rgba(132,204,22,0.5)',marginBottom:'24px'}}>
+        {/* 배경 floating blob (transform/opacity 만 — GPU 가속, 리플로우 0) */}
+        <div className="ld-blob ld-blob-1" />
+        <div className="ld-blob ld-blob-2" />
+
+        <style>{`
+          .ld-blob{position:absolute;border-radius:50%;filter:blur(72px);z-index:0;pointer-events:none}
+          .ld-blob-1{width:400px;height:400px;background:rgba(200,241,53,0.34);top:-90px;right:-70px;animation:ldFloat1 15s ease-in-out infinite}
+          .ld-blob-2{width:340px;height:340px;background:rgba(132,204,22,0.16);bottom:-110px;left:-90px;animation:ldFloat2 19s ease-in-out infinite}
+          @keyframes ldFloat1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(38px,-28px) scale(1.08)}}
+          @keyframes ldFloat2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-30px,38px) scale(1.1)}}
+          @keyframes ldRise{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
+          .ld-rise{opacity:0;animation:ldRise .8s cubic-bezier(.22,1,.36,1) forwards}
+          @keyframes ldPhoneIn{from{opacity:0;transform:translateX(56px) rotate(7deg) scale(.92)}to{opacity:1;transform:translateX(0) rotate(-3deg) scale(1)}}
+          @keyframes ldPhoneFloat{0%,100%{transform:translateX(0) rotate(-3deg) translateY(0)}50%{transform:translateX(0) rotate(-3deg) translateY(-14px)}}
+          .ld-phone{animation:ldPhoneIn 1s cubic-bezier(.22,1,.36,1) .3s both,ldPhoneFloat 5.5s ease-in-out 1.3s infinite}
+          @media (max-width:880px){
+            .ld-hero-grid{grid-template-columns:1fr !important;gap:8px !important;text-align:center}
+            .ld-hero-cta,.ld-hero-checks{justify-content:center !important}
+            .ld-phone-wrap{margin-top:36px !important}
+            .ld-phone{transform:rotate(0deg) !important;animation:ldPhoneIn 1s cubic-bezier(.22,1,.36,1) .3s both !important}
+          }
+          @media (prefers-reduced-motion:reduce){
+            .ld-blob,.ld-phone{animation:none !important}
+            .ld-rise{animation:none !important;opacity:1 !important}
+          }
+        `}</style>
+
+        <div className="ld-hero-grid" style={{position:'relative',zIndex:2,width:'100%',
+          maxWidth:'1120px',margin:'0 auto',display:'grid',
+          gridTemplateColumns:'1.08fr 0.92fr',gap:'52px',alignItems:'center'}}>
+
+          {/* ── 좌: 텍스트 ── */}
+          <div>
+            <div className="ld-rise" style={{animationDelay:'0ms',display:'inline-block',
+              fontSize:'11px',fontWeight:700,letterSpacing:'0.14em',color:'#3f6212',
+              background:'rgba(200,241,53,0.32)',padding:'6px 15px',borderRadius:'20px',
+              border:'1px solid rgba(132,204,22,0.45)',marginBottom:'22px'}}>
               {hero.badge}
             </div>
-            <h1 style={{fontSize:'clamp(32px,7vw,58px)',fontWeight:900,letterSpacing:'-2px',
-              lineHeight:1.1,color:'#0f172a',margin:'0 0 20px'}}>
+            <h1 className="ld-rise" style={{animationDelay:'90ms',
+              fontSize:'clamp(36px,6.4vw,64px)',fontWeight:900,letterSpacing:'-2.5px',
+              lineHeight:1.08,color:'#0f172a',margin:'0 0 18px'}}>
               {hero.headline}<br/>
-              <span style={{color:'#84cc16'}}>{hero.highlight}</span>{hero.headlineAfter}
+              <span style={{color:'#65a30d'}}>{hero.highlight}</span>{hero.headlineAfter}
             </h1>
-            <p style={{fontSize:'clamp(16px,2.5vw,20px)',fontWeight:600,color:'#334155',
-              margin:'0 0 12px',lineHeight:1.5,letterSpacing:'-0.3px'}}>
+            <p className="ld-rise" style={{animationDelay:'170ms',
+              fontSize:'clamp(15px,2.2vw,19px)',fontWeight:600,color:'#475569',
+              margin:'0 0 30px',lineHeight:1.55,letterSpacing:'-0.3px',maxWidth:'440px'}}>
               {hero.subheadline}
             </p>
-            <p style={{fontSize:'14px',color:'#64748b',lineHeight:1.9,margin:'0 0 32px',maxWidth:'380px'}}>
-              {hero.desc}
-            </p>
-            <div style={{display:'flex',gap:'10px',flexWrap:'wrap',marginBottom:'28px'}}>
-              <Link to="/trainer" style={{background:'#0f172a',color:'#fff',padding:'14px 28px',
-                borderRadius:'12px',fontWeight:700,fontSize:'14px',textDecoration:'none',
-                boxShadow:'0 4px 20px rgba(15,23,42,0.25)',letterSpacing:'-0.3px'}}>
+            <div className="ld-rise ld-hero-cta" style={{animationDelay:'250ms',
+              display:'flex',gap:'10px',flexWrap:'wrap',marginBottom:'22px'}}>
+              <Link to="/trainer" style={{background:'#c8f135',color:'#0f172a',
+                padding:'15px 30px',borderRadius:'13px',fontWeight:800,fontSize:'15px',
+                textDecoration:'none',boxShadow:'0 6px 24px rgba(200,241,53,0.5)',
+                letterSpacing:'-0.3px'}}>
                 무료로 시작하기 →
               </Link>
-              <Link to="/member" style={{background:'#c8f135',color:'#0f172a',padding:'14px 28px',
-                borderRadius:'12px',fontWeight:700,fontSize:'14px',textDecoration:'none',
-                boxShadow:'0 4px 20px rgba(200,241,53,0.45)',letterSpacing:'-0.3px'}}>
-                회원 포털 입장
+              <Link to="/member" style={{background:'transparent',color:'#0f172a',
+                padding:'15px 26px',borderRadius:'13px',fontWeight:700,fontSize:'14px',
+                textDecoration:'none',border:'1.5px solid #cbd5e1',letterSpacing:'-0.3px'}}>
+                회원 포털
               </Link>
             </div>
-            <div style={{display:'flex',gap:'16px',flexWrap:'wrap',alignItems:'center'}}>
-              {['✓ 무료 플랜으로 지금 시작','✓ 3분이면 첫 리포트 발송','✓ 결제 수단 등록 불필요'].map((t,i) => (
+            <div className="ld-rise ld-hero-checks" style={{animationDelay:'330ms',
+              display:'flex',gap:'14px',flexWrap:'wrap',alignItems:'center'}}>
+              {['✓ 무료 플랜으로 시작','✓ 3분이면 첫 리포트','✓ 카드 등록 불필요'].map((t,i) => (
                 <span key={i} style={{fontSize:'12px',fontWeight:600,color:'#16a34a'}}>{t}</span>
               ))}
             </div>
           </div>
+
+          {/* ── 우: 폰 목업 (AI 수업일지 작성 화면 CSS 재현) ── */}
+          <div className="ld-phone-wrap" style={{display:'flex',justifyContent:'center'}}>
+            <div className="ld-phone" style={{
+              width:'288px',background:'#fff',borderRadius:'34px',padding:'10px',
+              border:'9px solid #0f172a',
+              boxShadow:'0 30px 70px rgba(15,23,42,0.28),0 8px 20px rgba(15,23,42,0.12)'}}>
+              <div style={{borderRadius:'24px',overflow:'hidden',background:'#f8fafc'}}>
+
+                {/* 상단바 */}
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+                  padding:'11px 13px',background:'#fff',borderBottom:'1px solid #eef2f7'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:'4px',fontWeight:900,fontSize:'14px',color:'#0f172a'}}>
+                    <span>🏠</span><span>오</span>
+                    <span style={{background:'#c8f135',borderRadius:'5px',padding:'1px 5px'}}>운</span>
+                  </div>
+                  <span style={{fontSize:'9px',color:'#94a3b8',border:'1px solid #e2e8f0',
+                    borderRadius:'12px',padding:'3px 8px'}}>⚙ AI 설정</span>
+                </div>
+
+                {/* 회원 정보 */}
+                <div style={{padding:'11px 13px 0'}}>
+                  <div style={{fontSize:'13px',fontWeight:800,color:'#0f172a'}}>오운(회원용)</div>
+                  <div style={{fontSize:'9px',color:'#94a3b8',marginTop:'1px'}}>· 체형교정 · PT 진행 중</div>
+                  {/* 세션 현황 */}
+                  <div style={{marginTop:'9px',background:'#fff',border:'1px solid #eef2f7',
+                    borderRadius:'10px',padding:'9px 10px'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'6px'}}>
+                      <span style={{fontSize:'9px',fontWeight:700,color:'#475569'}}>세션 현황</span>
+                      <span style={{fontSize:'8px',fontWeight:700,color:'#3f6212',
+                        background:'rgba(200,241,53,0.35)',borderRadius:'8px',padding:'2px 7px'}}>6회 완료 · 4회 남음</span>
+                    </div>
+                    <div style={{height:'5px',borderRadius:'3px',background:'#eef2f7',overflow:'hidden'}}>
+                      <div style={{width:'60%',height:'100%',background:'#84cc16',borderRadius:'3px'}}/>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 탭 */}
+                <div style={{display:'flex',gap:'2px',padding:'10px 13px 0',fontSize:'9px',fontWeight:700}}>
+                  <span style={{color:'#0f172a',borderBottom:'2px solid #84cc16',padding:'5px 4px'}}>📝 수업일지</span>
+                  <span style={{color:'#cbd5e1',padding:'5px 4px'}}>📋 출석부</span>
+                  <span style={{color:'#cbd5e1',padding:'5px 4px'}}>💪 건강기록</span>
+                </div>
+
+                {/* 본문 — AI 음성 버튼 + 브리핑 + AI 관점 */}
+                <div style={{padding:'11px 13px 14px',background:'#f8fafc'}}>
+                  <div style={{background:'#eef4ff',border:'1px solid #dbe7ff',borderRadius:'10px',
+                    padding:'12px',textAlign:'center',fontSize:'11px',fontWeight:800,
+                    color:'#1d4ed8',marginBottom:'8px'}}>
+                    🤖 AI 음성으로 일지 쓰기
+                  </div>
+                  <div style={{background:'#fff',border:'1px dashed #cbd5e1',borderRadius:'9px',
+                    padding:'9px',textAlign:'center',fontSize:'8px',color:'#94a3b8',marginBottom:'8px'}}>
+                    🖼️ 사진·영상 첨부 (최대 5개)
+                  </div>
+                  <div style={{fontSize:'8px',fontWeight:700,color:'#475569',marginBottom:'4px'}}>수업 내용 브리핑</div>
+                  <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:'9px',
+                    padding:'9px',fontSize:'8px',color:'#cbd5e1',lineHeight:1.6,minHeight:'46px',marginBottom:'10px'}}>
+                    음성인식을 사용하면 분석 후 텍스트로 변환됩니다. 직접 입력도 가능해요.
+                  </div>
+                  <div style={{fontSize:'8px',fontWeight:700,color:'#94a3b8',textAlign:'center',marginBottom:'7px'}}>— AI 해석 관점 —</div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'5px',fontSize:'8px',fontWeight:700}}>
+                    <div style={{background:'#fdf2f8',border:'1px solid #fbcfe8',color:'#be185d',
+                      borderRadius:'8px',padding:'7px',textAlign:'center'}}>🩹 재활·부상 케어</div>
+                    <div style={{background:'#fff',border:'1px solid #e2e8f0',color:'#64748b',
+                      borderRadius:'8px',padding:'7px',textAlign:'center'}}>💪 동기부여·심리</div>
+                    <div style={{background:'#fff',border:'1px solid #e2e8f0',color:'#64748b',
+                      borderRadius:'8px',padding:'7px',textAlign:'center'}}>🏆 퍼포먼스·기술</div>
+                    <div style={{background:'#fff',border:'1px solid #e2e8f0',color:'#64748b',
+                      borderRadius:'8px',padding:'7px',textAlign:'center'}}>🥗 다이어트·체성분</div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
         </div>
       </section>
 
