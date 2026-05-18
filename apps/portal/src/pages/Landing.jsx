@@ -918,7 +918,7 @@ export default function Landing() {
       </section>
 
       {/* ── 기능 비교 (COMPARISON) ── */}
-      <section style={{background:'#0f172a',padding:'80px 24px'}}>
+      <section style={{background:'linear-gradient(135deg,#14290a 0%,#1a2e05 100%)',padding:'80px 24px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{textAlign:'center',marginBottom:'48px'}}>
@@ -1113,7 +1113,7 @@ export default function Landing() {
       </section>
 
       {/* ── 요금제 ── */}
-      <section style={{background:'#0f172a',padding:'80px 24px'}}>
+      <section style={{background:'linear-gradient(135deg,#14290a 0%,#1a2e05 100%)',padding:'80px 24px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{textAlign:'center',marginBottom:'48px'}}>
@@ -1220,7 +1220,7 @@ export default function Landing() {
       </section>
 
       {/* ── 최하단 CTA ── */}
-      <section style={{background:'#0f172a',padding:'80px 24px'}}>
+      <section style={{background:'linear-gradient(135deg,#14290a 0%,#1a2e05 100%)',padding:'80px 24px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{textAlign:'center',marginBottom:'48px'}}>
