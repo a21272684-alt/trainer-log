@@ -432,7 +432,13 @@ export default function Landing() {
   }, [])
 
   return (
-    <div style={{background:'#f8fafc',color:'#0f172a',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden'}}>
+    <div style={{background:'#ffffff',color:'#0f172a',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden',position:'relative'}}>
+      {/* 4코너 라임 오버레이 — position:fixed 라 모바일 포함 스크롤 내내 화면 4모서리 일관.
+          background-attachment:fixed 의 모바일 미지원 우회. pointerEvents:none 로 클릭 통과, zIndex:0 으로 콘텐츠 뒤. */}
+      <div aria-hidden="true" style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:0,
+        background:'radial-gradient(ellipse 48% 40% at 100% 0%, #d9f99d 0%, rgba(217,249,157,0.38) 20%, transparent 50%), radial-gradient(ellipse 48% 40% at 0% 0%, #ecfccb 0%, rgba(236,252,203,0.4) 20%, transparent 50%), radial-gradient(ellipse 48% 40% at 0% 100%, #d9f99d 0%, rgba(217,249,157,0.38) 20%, transparent 50%), radial-gradient(ellipse 48% 40% at 100% 100%, #ecfccb 0%, rgba(236,252,203,0.4) 20%, transparent 50%)'}}/>
+      {/* 콘텐츠 래퍼 — 오버레이 위 (zIndex:1) */}
+      <div style={{position:'relative',zIndex:1}}>
 
       {/* ── STICKY NAV ── */}
       <nav style={{position:'sticky',top:0,zIndex:100,background:'rgba(248,250,252,0.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid #e2e8f0',padding:'0 20px'}}>
@@ -622,7 +628,7 @@ export default function Landing() {
       </section>
 
       {/* ── 문제 인식 (PROBLEM) ── */}
-      <section style={{background:'#f8fafc',padding:'80px 24px'}}>
+      <section style={{background:'transparent',padding:'80px 24px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{textAlign:'center',marginBottom:'48px'}}>
@@ -766,7 +772,7 @@ export default function Landing() {
       </section>
 
       {/* ── AI 수업일지 하이라이트 ── */}
-      <section style={{background:'#f8fafc',padding:'0 24px 80px'}}>
+      <section style={{background:'transparent',padding:'0 24px 80px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{background:'linear-gradient(135deg,#0f172a 0%,#14290a 100%)',borderRadius:'24px',padding:'40px 36px',color:'#fff',position:'relative',overflow:'hidden'}}>
@@ -848,7 +854,7 @@ export default function Landing() {
       </section>
 
       {/* ── 트레이너 후기 (RESULTS) ── */}
-      <section style={{background:'#f8fafc',padding:'80px 24px'}}>
+      <section style={{background:'transparent',padding:'80px 24px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{textAlign:'center',marginBottom:'48px'}}>
@@ -918,24 +924,24 @@ export default function Landing() {
       </section>
 
       {/* ── 기능 비교 (COMPARISON) ── */}
-      <section style={{background:'#0f172a',padding:'80px 24px'}}>
+      <section style={{background:'transparent',padding:'80px 24px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{textAlign:'center',marginBottom:'48px'}}>
-              <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',color:'#c8f135',marginBottom:'10px'}}>COMPARISON</div>
-              <h2 style={{fontSize:'clamp(22px,4vw,32px)',fontWeight:800,color:'#fff',letterSpacing:'-1px',margin:'0 0 10px',lineHeight:1.3}}>
+              <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',color:'#16a34a',marginBottom:'10px'}}>COMPARISON</div>
+              <h2 style={{fontSize:'clamp(22px,4vw,32px)',fontWeight:800,color:'#0f172a',letterSpacing:'-1px',margin:'0 0 10px',lineHeight:1.3}}>
                 오운 vs 기존 방식
               </h2>
-              <p style={{fontSize:'14px',color:'rgba(255,255,255,0.45)',margin:0}}>지금 쓰는 방법과 무엇이 다른지 확인해보세요</p>
+              <p style={{fontSize:'14px',color:'#64748b',margin:0}}>지금 쓰는 방법과 무엇이 다른지 확인해보세요</p>
             </div>
           </FadeUp>
           <FadeUp delay={100}>
-            <div style={{borderRadius:'20px',overflow:'hidden',border:'1px solid rgba(255,255,255,0.08)'}}>
+            <div style={{borderRadius:'20px',overflow:'hidden',border:'1px solid #e5e7eb',background:'#fff',boxShadow:'0 2px 12px rgba(15,23,42,0.05)'}}>
               {/* 헤더 */}
               <div style={{display:'grid',gridTemplateColumns:'1.2fr 1fr 1fr'}}>
-                <div style={{padding:'14px 20px',fontSize:'11px',fontWeight:700,letterSpacing:'0.08em',color:'rgba(255,255,255,0.35)',background:'rgba(255,255,255,0.03)',borderBottom:'1px solid rgba(255,255,255,0.08)'}}>기능</div>
-                <div style={{padding:'14px 20px',fontSize:'11px',fontWeight:700,letterSpacing:'0.08em',color:'rgba(255,255,255,0.35)',background:'rgba(255,255,255,0.03)',borderLeft:'1px solid rgba(255,255,255,0.06)',borderBottom:'1px solid rgba(255,255,255,0.08)'}}>기존 방식</div>
-                <div style={{padding:'14px 20px',fontSize:'11px',fontWeight:700,letterSpacing:'0.08em',color:'#c8f135',background:'rgba(200,241,53,0.05)',borderLeft:'1px solid rgba(200,241,53,0.15)',borderBottom:'1px solid rgba(200,241,53,0.12)',display:'flex',alignItems:'center',gap:'5px'}}>
+                <div style={{padding:'14px 20px',fontSize:'11px',fontWeight:700,letterSpacing:'0.08em',color:'#94a3b8',background:'#f8fafc',borderBottom:'1px solid #e5e7eb'}}>기능</div>
+                <div style={{padding:'14px 20px',fontSize:'11px',fontWeight:700,letterSpacing:'0.08em',color:'#94a3b8',background:'#f8fafc',borderLeft:'1px solid #eef2f7',borderBottom:'1px solid #e5e7eb'}}>기존 방식</div>
+                <div style={{padding:'14px 20px',fontSize:'11px',fontWeight:700,letterSpacing:'0.08em',color:'#16a34a',background:'#f0fdf4',borderLeft:'1px solid #bbf7d0',borderBottom:'1px solid #bbf7d0',display:'flex',alignItems:'center',gap:'5px'}}>
                   <span>✦</span> 오운
                 </div>
               </div>
@@ -943,18 +949,18 @@ export default function Landing() {
               {comparison.map((row, i) => (
                 <div key={i} style={{
                   display:'grid',gridTemplateColumns:'1.2fr 1fr 1fr',
-                  borderBottom: i < comparison.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
-                  background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
+                  borderBottom: i < comparison.length - 1 ? '1px solid #f1f5f9' : 'none',
+                  background: i % 2 === 0 ? '#fff' : '#fafbfc',
                 }}>
-                  <div style={{padding:'15px 20px',fontSize:'13px',fontWeight:600,color:'rgba(255,255,255,0.75)',lineHeight:1.4}}>
+                  <div style={{padding:'15px 20px',fontSize:'13px',fontWeight:600,color:'#334155',lineHeight:1.4}}>
                     {row.feature}
                   </div>
-                  <div style={{padding:'15px 20px',fontSize:'13px',color:'rgba(255,255,255,0.35)',borderLeft:'1px solid rgba(255,255,255,0.05)',display:'flex',alignItems:'center',gap:'8px',lineHeight:1.4}}>
+                  <div style={{padding:'15px 20px',fontSize:'13px',color:'#94a3b8',borderLeft:'1px solid #f1f5f9',display:'flex',alignItems:'center',gap:'8px',lineHeight:1.4}}>
                     <span style={{color:'#ef4444',fontSize:'13px',flexShrink:0,fontWeight:700}}>✗</span>
                     {row.legacy}
                   </div>
-                  <div style={{padding:'15px 20px',fontSize:'13px',color:'#c8f135',borderLeft:'1px solid rgba(200,241,53,0.12)',background:'rgba(200,241,53,0.03)',display:'flex',alignItems:'center',gap:'8px',fontWeight:600,lineHeight:1.4}}>
-                    <span style={{color:'#c8f135',fontSize:'13px',flexShrink:0}}>✓</span>
+                  <div style={{padding:'15px 20px',fontSize:'13px',color:'#15803d',borderLeft:'1px solid #bbf7d0',background:'#f0fdf4',display:'flex',alignItems:'center',gap:'8px',fontWeight:600,lineHeight:1.4}}>
+                    <span style={{color:'#16a34a',fontSize:'13px',flexShrink:0}}>✓</span>
                     {row.ours}
                   </div>
                 </div>
@@ -998,7 +1004,7 @@ export default function Landing() {
       </section>
 
       {/* ── 회원 포털 — 좌 폰 목업(개인운동 일지·근육 다이어그램) / 우 텍스트 (교차) ── */}
-      <section style={{background:'#f8fafc',padding:'88px 24px'}}>
+      <section style={{background:'transparent',padding:'88px 24px'}}>
         <style>{`
           @media (max-width:880px){
             .ld-mx-grid{grid-template-columns:1fr !important;gap:36px !important}
@@ -1113,52 +1119,52 @@ export default function Landing() {
       </section>
 
       {/* ── 요금제 ── */}
-      <section style={{background:'#0f172a',padding:'80px 24px'}}>
+      <section style={{background:'transparent',padding:'80px 24px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{textAlign:'center',marginBottom:'48px'}}>
-              <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',color:'#c8f135',marginBottom:'12px'}}>PRICING</div>
-              <h2 style={{fontSize:'clamp(22px,4vw,32px)',fontWeight:800,color:'#fff',letterSpacing:'-1px',margin:'0 0 10px',lineHeight:1.3}}>
+              <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',color:'#16a34a',marginBottom:'12px'}}>PRICING</div>
+              <h2 style={{fontSize:'clamp(22px,4vw,32px)',fontWeight:800,color:'#0f172a',letterSpacing:'-1px',margin:'0 0 10px',lineHeight:1.3}}>
                 합리적인 요금제
               </h2>
-              <p style={{fontSize:'14px',color:'rgba(255,255,255,0.45)',margin:0}}>무료 플랜으로 시작하고, 필요할 때 업그레이드하세요</p>
+              <p style={{fontSize:'14px',color:'#64748b',margin:0}}>무료 플랜으로 시작하고, 필요할 때 업그레이드하세요</p>
             </div>
           </FadeUp>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:'16px',maxWidth:'640px',margin:'0 auto'}}>
             {landingPlans.map((plan, i) => (
               <SlideCard key={i} delay={i * 150}>
                 <div style={{
-                  background: plan.highlight ? 'linear-gradient(145deg,#1e2f08,#0f1a03)' : 'rgba(255,255,255,0.04)',
-                  border: plan.highlight ? '1px solid rgba(200,241,53,0.4)' : '1px solid rgba(255,255,255,0.1)',
+                  background: plan.highlight ? '#f0fdf4' : '#fff',
+                  border: plan.highlight ? '1.5px solid #84cc16' : '1px solid #e5e7eb',
                   borderRadius:'20px',
                   padding:'28px 24px',
                   position:'relative',
-                  boxShadow: plan.highlight ? '0 8px 32px rgba(200,241,53,0.15)' : 'none',
+                  boxShadow: plan.highlight ? '0 8px 32px rgba(132,204,22,0.18)' : '0 2px 12px rgba(15,23,42,0.05)',
                   height:'100%',boxSizing:'border-box',
                 }}>
                   {plan.tag && (
                     <div style={{position:'absolute',top:'-12px',left:'50%',transform:'translateX(-50%)',
-                      background:'#c8f135',color:'#0f172a',fontSize:'11px',fontWeight:800,padding:'4px 14px',
+                      background:'#84cc16',color:'#fff',fontSize:'11px',fontWeight:800,padding:'4px 14px',
                       borderRadius:'20px',letterSpacing:'0.05em',whiteSpace:'nowrap'}}>
                       {plan.tag}
                     </div>
                   )}
-                  <div style={{fontSize:'13px',fontWeight:700,color: plan.highlight ? '#c8f135' : '#94a3b8',marginBottom:'8px'}}>{plan.name}</div>
-                  <div style={{fontSize:'clamp(28px,5vw,38px)',fontWeight:900,color:'#fff',letterSpacing:'-2px',lineHeight:1,marginBottom:'4px'}}>{plan.price}</div>
-                  <div style={{fontSize:'12px',color:'rgba(255,255,255,0.4)',marginBottom:'24px'}}>{plan.period}</div>
+                  <div style={{fontSize:'13px',fontWeight:700,color: plan.highlight ? '#16a34a' : '#94a3b8',marginBottom:'8px'}}>{plan.name}</div>
+                  <div style={{fontSize:'clamp(28px,5vw,38px)',fontWeight:900,color:'#0f172a',letterSpacing:'-2px',lineHeight:1,marginBottom:'4px'}}>{plan.price}</div>
+                  <div style={{fontSize:'12px',color:'#94a3b8',marginBottom:'24px'}}>{plan.period}</div>
                   <div style={{display:'flex',flexDirection:'column',gap:'10px',marginBottom:'24px'}}>
                     {plan.features.map((f, j) => (
                       <div key={j} style={{display:'flex',gap:'8px',alignItems:'center'}}>
-                        <span style={{color: plan.highlight ? '#c8f135' : '#64748b',fontSize:'13px',flexShrink:0}}>✓</span>
-                        <span style={{fontSize:'13px',color:'rgba(255,255,255,0.7)'}}>{f}</span>
+                        <span style={{color: plan.highlight ? '#16a34a' : '#84cc16',fontSize:'13px',flexShrink:0}}>✓</span>
+                        <span style={{fontSize:'13px',color:'#475569'}}>{f}</span>
                       </div>
                     ))}
                   </div>
                   {plan.ctaLink.startsWith('/') ? (
                     <Link to={plan.ctaLink} style={{
                       display:'block',textAlign:'center',padding:'12px',
-                      background: plan.highlight ? '#c8f135' : 'rgba(255,255,255,0.08)',
-                      color: plan.highlight ? '#0f172a' : '#fff',
+                      background: plan.highlight ? '#84cc16' : '#0f172a',
+                      color:'#fff',
                       borderRadius:'10px',fontWeight:700,fontSize:'14px',textDecoration:'none',marginBottom:'8px'
                     }}>
                       {plan.cta}
@@ -1166,14 +1172,14 @@ export default function Landing() {
                   ) : (
                     <a href={plan.ctaLink} style={{
                       display:'block',textAlign:'center',padding:'12px',
-                      background: plan.highlight ? '#c8f135' : 'rgba(255,255,255,0.08)',
-                      color: plan.highlight ? '#0f172a' : '#fff',
+                      background: plan.highlight ? '#84cc16' : '#0f172a',
+                      color:'#fff',
                       borderRadius:'10px',fontWeight:700,fontSize:'14px',textDecoration:'none',marginBottom:'8px'
                     }}>
                       {plan.cta}
                     </a>
                   )}
-                  <div style={{textAlign:'center',fontSize:'11px',color:'rgba(255,255,255,0.3)'}}>{plan.note}</div>
+                  <div style={{textAlign:'center',fontSize:'11px',color:'#94a3b8'}}>{plan.note}</div>
                 </div>
               </SlideCard>
             ))}
@@ -1182,7 +1188,7 @@ export default function Landing() {
       </section>
 
       {/* ── FAQ ── */}
-      <section style={{background:'#f8fafc',padding:'80px 24px'}}>
+      <section style={{background:'transparent',padding:'80px 24px'}}>
         <div style={{maxWidth:'680px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{textAlign:'center',marginBottom:'48px'}}>
@@ -1220,15 +1226,15 @@ export default function Landing() {
       </section>
 
       {/* ── 최하단 CTA ── */}
-      <section style={{background:'#0f172a',padding:'80px 24px'}}>
+      <section style={{background:'transparent',padding:'80px 24px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
             <div style={{textAlign:'center',marginBottom:'48px'}}>
-              <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',color:'#c8f135',marginBottom:'12px'}}>GET STARTED</div>
-              <h2 style={{fontSize:'clamp(24px,5vw,36px)',fontWeight:800,color:'#fff',letterSpacing:'-1px',margin:'0 0 10px'}}>
+              <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',color:'#16a34a',marginBottom:'12px'}}>GET STARTED</div>
+              <h2 style={{fontSize:'clamp(24px,5vw,36px)',fontWeight:800,color:'#0f172a',letterSpacing:'-1px',margin:'0 0 10px'}}>
                 어떤 역할로 시작할까요?
               </h2>
-              <p style={{fontSize:'14px',color:'rgba(255,255,255,0.5)',margin:0}}>포털을 선택해 바로 시작할 수 있어요</p>
+              <p style={{fontSize:'14px',color:'#64748b',margin:0}}>포털을 선택해 바로 시작할 수 있어요</p>
             </div>
           </FadeUp>
 
@@ -1246,36 +1252,36 @@ export default function Landing() {
             <SlideCard delay={0}>
               {state === 'show' ? (
                 <Link to="/trainer" style={{
-                  background:'linear-gradient(145deg,#1e293b,#162004)',
+                  background:'#ffffff',
                   border:'1px solid rgba(200,241,53,0.3)',borderRadius:'20px',padding:'32px 24px',
-                  textAlign:'center',textDecoration:'none',color:'#fff',display:'block',
-                  boxShadow:'0 8px 32px rgba(0,0,0,0.3)',height:'100%',boxSizing:'border-box'}}>
+                  textAlign:'center',textDecoration:'none',color:'#0f172a',display:'block',
+                  boxShadow:'0 4px 20px rgba(15,23,42,0.07)',height:'100%',boxSizing:'border-box'}}>
                   <div style={{fontSize:'36px',marginBottom:'14px'}}>💪</div>
                   <div style={{fontSize:'17px',fontWeight:800,marginBottom:'8px',letterSpacing:'-0.5px'}}>트레이너 앱</div>
-                  <div style={{fontSize:'12px',color:'rgba(255,255,255,0.5)',lineHeight:1.7,marginBottom:'18px'}}>
+                  <div style={{fontSize:'12px',color:'#64748b',lineHeight:1.7,marginBottom:'18px'}}>
                     수업일지 · 회원관리<br/>스케줄 · 매출 분석
                   </div>
-                  <div style={{display:'inline-block',fontSize:'13px',color:'#c8f135',fontWeight:700,
-                    background:'rgba(200,241,53,0.1)',padding:'7px 16px',borderRadius:'8px',
-                    border:'1px solid rgba(200,241,53,0.25)'}}>
+                  <div style={{display:'inline-block',fontSize:'13px',color:'#15803d',fontWeight:700,
+                    background:'#f0fdf4',padding:'7px 16px',borderRadius:'8px',
+                    border:'1px solid #bbf7d0'}}>
                     무료로 시작하기 →
                   </div>
                 </Link>
               ) : (
                 <div style={{
-                  background:'linear-gradient(145deg,#1e293b,#162004)',
+                  background:'#ffffff',
                   border:'1px solid rgba(200,241,53,0.12)',borderRadius:'20px',padding:'32px 24px',
-                  textAlign:'center',color:'rgba(255,255,255,0.3)',display:'block',
+                  textAlign:'center',color:'#94a3b8',display:'block',
                   boxShadow:'0 8px 32px rgba(0,0,0,0.3)',height:'100%',boxSizing:'border-box',
                   cursor:'not-allowed',filter:'grayscale(0.4)'}}>
                   <div style={{fontSize:'36px',marginBottom:'14px',opacity:0.4}}>💪</div>
                   <div style={{fontSize:'17px',fontWeight:800,marginBottom:'8px',letterSpacing:'-0.5px'}}>트레이너 앱</div>
-                  <div style={{fontSize:'12px',color:'rgba(255,255,255,0.25)',lineHeight:1.7,marginBottom:'18px'}}>
+                  <div style={{fontSize:'12px',color:'#94a3b8',lineHeight:1.7,marginBottom:'18px'}}>
                     수업일지 · 회원관리<br/>스케줄 · 매출 분석
                   </div>
                   <div style={{display:'inline-block',fontSize:'12px',fontWeight:700,
-                    background:'rgba(255,255,255,0.06)',color:'rgba(255,255,255,0.35)',padding:'7px 16px',borderRadius:'8px',
-                    border:'1px solid rgba(255,255,255,0.1)'}}>
+                    background:'#f1f5f9',color:'#94a3b8',padding:'7px 16px',borderRadius:'8px',
+                    border:'1px solid #e5e7eb'}}>
                     🔜 준비중
                   </div>
                 </div>
@@ -1293,36 +1299,36 @@ export default function Landing() {
             <SlideCard delay={150}>
               {state === 'show' ? (
                 <Link to="/member" style={{
-                  background:'linear-gradient(145deg,#1e293b,#041020)',
+                  background:'#ffffff',
                   border:'1px solid rgba(79,195,247,0.3)',borderRadius:'20px',padding:'32px 24px',
-                  textAlign:'center',textDecoration:'none',color:'#fff',display:'block',
-                  boxShadow:'0 8px 32px rgba(0,0,0,0.3)',height:'100%',boxSizing:'border-box'}}>
+                  textAlign:'center',textDecoration:'none',color:'#0f172a',display:'block',
+                  boxShadow:'0 4px 20px rgba(15,23,42,0.07)',height:'100%',boxSizing:'border-box'}}>
                   <div style={{fontSize:'36px',marginBottom:'14px'}}>🏃</div>
                   <div style={{fontSize:'17px',fontWeight:800,marginBottom:'8px',letterSpacing:'-0.5px'}}>회원 포털</div>
-                  <div style={{fontSize:'12px',color:'rgba(255,255,255,0.5)',lineHeight:1.7,marginBottom:'18px'}}>
+                  <div style={{fontSize:'12px',color:'#64748b',lineHeight:1.7,marginBottom:'18px'}}>
                     수업일지 · 체중관리<br/>개인운동 · 커뮤니티
                   </div>
-                  <div style={{display:'inline-block',fontSize:'13px',color:'#4fc3f7',fontWeight:700,
-                    background:'rgba(79,195,247,0.1)',padding:'7px 16px',borderRadius:'8px',
-                    border:'1px solid rgba(79,195,247,0.25)'}}>
+                  <div style={{display:'inline-block',fontSize:'13px',color:'#0284c7',fontWeight:700,
+                    background:'#f0f9ff',padding:'7px 16px',borderRadius:'8px',
+                    border:'1px solid #bae6fd'}}>
                     입장하기 →
                   </div>
                 </Link>
               ) : (
                 <div style={{
-                  background:'linear-gradient(145deg,#1e293b,#041020)',
+                  background:'#ffffff',
                   border:'1px solid rgba(79,195,247,0.1)',borderRadius:'20px',padding:'32px 24px',
-                  textAlign:'center',color:'rgba(255,255,255,0.3)',display:'block',
+                  textAlign:'center',color:'#94a3b8',display:'block',
                   boxShadow:'0 8px 32px rgba(0,0,0,0.3)',height:'100%',boxSizing:'border-box',
                   cursor:'not-allowed',filter:'grayscale(0.4)'}}>
                   <div style={{fontSize:'36px',marginBottom:'14px',opacity:0.4}}>🏃</div>
                   <div style={{fontSize:'17px',fontWeight:800,marginBottom:'8px',letterSpacing:'-0.5px'}}>회원 포털</div>
-                  <div style={{fontSize:'12px',color:'rgba(255,255,255,0.25)',lineHeight:1.7,marginBottom:'18px'}}>
+                  <div style={{fontSize:'12px',color:'#94a3b8',lineHeight:1.7,marginBottom:'18px'}}>
                     수업일지 · 체중관리<br/>개인운동 · 커뮤니티
                   </div>
                   <div style={{display:'inline-block',fontSize:'12px',fontWeight:700,
-                    background:'rgba(255,255,255,0.06)',color:'rgba(255,255,255,0.35)',padding:'7px 16px',borderRadius:'8px',
-                    border:'1px solid rgba(255,255,255,0.1)'}}>
+                    background:'#f1f5f9',color:'#94a3b8',padding:'7px 16px',borderRadius:'8px',
+                    border:'1px solid #e5e7eb'}}>
                     🔜 준비중
                   </div>
                 </div>
@@ -1341,15 +1347,15 @@ export default function Landing() {
           <SlideCard delay={300}>
             {state === 'show' ? (
               <Link to="/community" style={{
-                background:'linear-gradient(145deg,#1e293b,#1a0d04)',
+                background:'#ffffff',
                 border:'1px solid rgba(255,152,0,0.3)',borderRadius:'20px',padding:'26px 30px',
-                textDecoration:'none',color:'#fff',display:'flex',alignItems:'center',
+                textDecoration:'none',color:'#0f172a',display:'flex',alignItems:'center',
                 justifyContent:'space-between',gap:'16px',boxShadow:'0 8px 32px rgba(0,0,0,0.3)'}}>
                 <div style={{display:'flex',alignItems:'center',gap:'18px'}}>
                   <div style={{fontSize:'36px'}}>🤝</div>
                   <div>
                     <div style={{fontSize:'16px',fontWeight:800,marginBottom:'4px',letterSpacing:'-0.5px'}}>커뮤니티</div>
-                    <div style={{fontSize:'12px',color:'rgba(255,255,255,0.5)'}}>트레이너 구인 · 구직 · 센터 매칭 · 수강생 모집</div>
+                    <div style={{fontSize:'12px',color:'#64748b'}}>트레이너 구인 · 구직 · 센터 매칭 · 수강생 모집</div>
                   </div>
                 </div>
                 <div style={{display:'inline-block',fontSize:'13px',color:'#ff9800',fontWeight:700,
@@ -1360,21 +1366,21 @@ export default function Landing() {
               </Link>
             ) : (
               <div style={{
-                background:'linear-gradient(145deg,#1e293b,#1a0d04)',
+                background:'#ffffff',
                 border:'1px solid rgba(255,152,0,0.1)',borderRadius:'20px',padding:'26px 30px',
-                color:'rgba(255,255,255,0.3)',display:'flex',alignItems:'center',
+                color:'#94a3b8',display:'flex',alignItems:'center',
                 justifyContent:'space-between',gap:'16px',boxShadow:'0 8px 32px rgba(0,0,0,0.3)',
                 cursor:'not-allowed',filter:'grayscale(0.4)'}}>
                 <div style={{display:'flex',alignItems:'center',gap:'18px'}}>
                   <div style={{fontSize:'36px',opacity:0.4}}>🤝</div>
                   <div>
                     <div style={{fontSize:'16px',fontWeight:800,marginBottom:'4px',letterSpacing:'-0.5px'}}>커뮤니티</div>
-                    <div style={{fontSize:'12px',color:'rgba(255,255,255,0.25)'}}>트레이너 구인 · 구직 · 센터 매칭 · 수강생 모집</div>
+                    <div style={{fontSize:'12px',color:'#94a3b8'}}>트레이너 구인 · 구직 · 센터 매칭 · 수강생 모집</div>
                   </div>
                 </div>
                 <div style={{display:'inline-block',fontSize:'12px',fontWeight:700,
-                  background:'rgba(255,255,255,0.06)',color:'rgba(255,255,255,0.35)',padding:'7px 16px',borderRadius:'8px',
-                  border:'1px solid rgba(255,255,255,0.1)',flexShrink:0}}>
+                  background:'#f1f5f9',color:'#94a3b8',padding:'7px 16px',borderRadius:'8px',
+                  border:'1px solid #e5e7eb',flexShrink:0}}>
                   🔜 준비중
                 </div>
               </div>
@@ -1392,9 +1398,9 @@ export default function Landing() {
           <SlideCard delay={450}>
             {state === 'show' ? (
               <Link to="/crm" style={{
-                background:'linear-gradient(145deg,#1e293b,#1a0520)',
+                background:'#ffffff',
                 border:'1px solid rgba(224,64,251,0.3)',borderRadius:'20px',padding:'26px 30px',
-                textDecoration:'none',color:'#fff',display:'flex',alignItems:'center',
+                textDecoration:'none',color:'#0f172a',display:'flex',alignItems:'center',
                 justifyContent:'space-between',gap:'16px',boxShadow:'0 8px 32px rgba(0,0,0,0.3)'}}>
                 <div style={{display:'flex',alignItems:'center',gap:'18px'}}>
                   <div style={{fontSize:'36px'}}>🏢</div>
@@ -1403,7 +1409,7 @@ export default function Landing() {
                       <div style={{fontSize:'16px',fontWeight:800,letterSpacing:'-0.5px'}}>헬스장 CRM</div>
                       <span style={{fontSize:'10px',fontWeight:700,background:'rgba(224,64,251,0.15)',color:'#e040fb',padding:'2px 7px',borderRadius:'20px',border:'1px solid rgba(224,64,251,0.3)'}}>BETA</span>
                     </div>
-                    <div style={{fontSize:'12px',color:'rgba(255,255,255,0.5)'}}>트레이너 관리 · 매출 현황 · 회원 CRM · 정산</div>
+                    <div style={{fontSize:'12px',color:'#64748b'}}>트레이너 관리 · 매출 현황 · 회원 CRM · 정산</div>
                   </div>
                 </div>
                 <div style={{display:'inline-block',fontSize:'13px',color:'#e040fb',fontWeight:700,
@@ -1414,9 +1420,9 @@ export default function Landing() {
               </Link>
             ) : (
               <div style={{
-                background:'linear-gradient(145deg,#1e293b,#1a0520)',
+                background:'#ffffff',
                 border:'1px solid rgba(224,64,251,0.1)',borderRadius:'20px',padding:'26px 30px',
-                color:'rgba(255,255,255,0.3)',display:'flex',alignItems:'center',
+                color:'#94a3b8',display:'flex',alignItems:'center',
                 justifyContent:'space-between',gap:'16px',boxShadow:'0 8px 32px rgba(0,0,0,0.3)',
                 cursor:'not-allowed',filter:'grayscale(0.4)'}}>
                 <div style={{display:'flex',alignItems:'center',gap:'18px'}}>
@@ -1425,12 +1431,12 @@ export default function Landing() {
                     <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'4px'}}>
                       <div style={{fontSize:'16px',fontWeight:800,letterSpacing:'-0.5px'}}>헬스장 CRM</div>
                     </div>
-                    <div style={{fontSize:'12px',color:'rgba(255,255,255,0.25)'}}>트레이너 관리 · 매출 현황 · 회원 CRM · 정산</div>
+                    <div style={{fontSize:'12px',color:'#94a3b8'}}>트레이너 관리 · 매출 현황 · 회원 CRM · 정산</div>
                   </div>
                 </div>
                 <div style={{display:'inline-block',fontSize:'12px',fontWeight:700,
-                  background:'rgba(255,255,255,0.06)',color:'rgba(255,255,255,0.35)',padding:'7px 16px',borderRadius:'8px',
-                  border:'1px solid rgba(255,255,255,0.1)',flexShrink:0}}>
+                  background:'#f1f5f9',color:'#94a3b8',padding:'7px 16px',borderRadius:'8px',
+                  border:'1px solid #e5e7eb',flexShrink:0}}>
                   🔜 준비중
                 </div>
               </div>
@@ -1471,6 +1477,7 @@ export default function Landing() {
         </div>
         <div style={{fontSize:'11px',color:'#1e293b',fontFamily:"'DM Mono',monospace"}}>v2.0 · 오운</div>
       </footer>
+      </div>
     </div>
   )
 }
