@@ -8,6 +8,7 @@ import { useToast } from '@trainer-log/shared/components/common/Toast'
 import Modal from '@trainer-log/shared/components/common/Modal'
 import TermsAgreementModal from '@trainer-log/shared/components/common/TermsAgreementModal'
 import InAppBrowserBanner from '@trainer-log/shared/components/common/InAppBrowserBanner'
+import LoginNoticeModal from '@trainer-log/shared/components/common/LoginNoticeModal'
 import { Link } from 'react-router-dom'
 import '../styles/trainer.css'
 import { computeStats, buildInsightPrompt, callGeminiInsight } from '@trainer-log/shared/lib/memberInsights'
@@ -4476,6 +4477,8 @@ export default function TrainerApp() {
     <div style={{paddingBottom: MAIN_PAGES.includes(activePage) ? '72px' : '0'}}>
       {/* 최초 로그인 1회 약관 동의 모달 (user_metadata.terms_agreed 미설정 시 강제 노출) */}
       <TermsAgreementModal />
+      {/* 로그인 후 공지 (admin login_notice 설정 시) — 트레이너 화면 진입 시 1회 */}
+      <LoginNoticeModal target="trainer" />
       <div className="topbar-t">
         <div className="topbar-left"><Link to="/" style={{background:'none',border:'none',color:'var(--text-muted)',fontSize:'18px',textDecoration:'none'}}>⌂</Link><div className="topbar-title">오<span>운</span></div></div>
         <button className="settings-btn" onClick={()=>setSettingsModal(true)}>⚙ AI 설정</button>
