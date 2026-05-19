@@ -4,6 +4,7 @@ import { useToast } from '@trainer-log/shared/components/common/Toast'
 import Modal from '@trainer-log/shared/components/common/Modal'
 import TermsAgreementModal from '@trainer-log/shared/components/common/TermsAgreementModal'
 import InAppBrowserBanner from '@trainer-log/shared/components/common/InAppBrowserBanner'
+import LoginNoticeModal from '@trainer-log/shared/components/common/LoginNoticeModal'
 import { EXERCISE_DB } from '../lib/exercises'
 import { Link } from 'react-router-dom'
 import { Chart, registerables } from 'chart.js'
@@ -1360,6 +1361,8 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
     <div className="member-portal" style={{paddingBottom:'72px'}}>
       {/* 최초 로그인 1회 약관 동의 모달 (user_metadata.terms_agreed 미설정 시 강제 노출) */}
       <TermsAgreementModal />
+      {/* 로그인 후 공지 (admin login_notice 설정 시) — 회원 화면 진입 시 1회 */}
+      <LoginNoticeModal target="member" />
       <div className="m-topbar">
         <div className="m-topbar-title">오운</div>
         <div style={{display:'flex',alignItems:'center',gap:'8px'}}>

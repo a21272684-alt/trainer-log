@@ -398,6 +398,11 @@ export default function AdminPortal() {
   const [centralApiKey, setCentralApiKey] = useState('')
   const [apiKeyLoaded, setApiKeyLoaded] = useState(false)
   const [urgentInquiryUrl, setUrgentInquiryUrl] = useState('')   // 긴급문의 카카오 오픈채팅 링크
+  // 로그인 후 공지 (app_settings.login_notice). 트레이너/회원 앱 로그인 시 모달 노출.
+  const [loginNotice, setLoginNotice] = useState({
+    enabled: false, title: '업데이트 안내', newItems: '', plannedItems: '',
+    snoozeDays: 7, target: 'all',
+  })
 
   // 법적 고지 관리 (이용약관 / 개인정보처리방침 / 환불정책)
   const [legalTerms,   setLegalTerms]   = useState('')
@@ -457,6 +462,7 @@ export default function AdminPortal() {
           'landing_v1',
           'feature_gates', 'urgent_inquiry_url',
           'legal_terms', 'legal_privacy', 'legal_refund',
+          'login_notice',
         ]).limit(ADMIN_LOAD_LIMIT),
         supabase.from('notices').select('*').order('is_pinned', { ascending: false }).order('created_at', { ascending: false }).limit(ADMIN_LOAD_LIMIT),
         // 053 — 트레이너 가입 승인 대기열. p_status=NULL 로 전체 페치 후 UI 측에서 필터.
@@ -524,6 +530,21 @@ export default function AdminPortal() {
         const urgentRow = settings.data.find(r => r.key === 'urgent_inquiry_url')
         const urgentParsed = parseSettingValue(urgentRow?.value)
         if (urgentParsed) setUrgentInquiryUrl(String(urgentParsed).replace(/^"|"$/g, ''))
+
+        // 로그인 공지 (login_notice) — 객체. 기존값 있으면 폼에 채움.
+        const lnRow = settings.data.find(r => r.key === 'login_notice')
+        const lnParsed = parseSettingValue(lnRow?.value)
+        if (lnParsed && typeof lnParsed === 'object') {
+          setLoginNotice(prev => ({
+            ...prev,
+            enabled:      !!lnParsed.enabled,
+            title:        lnParsed.title || '업데이트 안내',
+            newItems:     lnParsed.newItems || '',
+            plannedItems: lnParsed.plannedItems || '',
+            snoozeDays:   Number(lnParsed.snoozeDays) > 0 ? Number(lnParsed.snoozeDays) : 7,
+            target:       ['all','trainer','member'].includes(lnParsed.target) ? lnParsed.target : 'all',
+          }))
+        }
 
         // 법적 고지 3종 (이용약관 / 개인정보처리방침 / 환불정책) — string/object 양형 호환
         const pickLegalText = (raw) => {
@@ -607,6 +628,26 @@ export default function AdminPortal() {
       showToast('✓ 긴급문의 링크가 저장됐어요')
     } catch (e) {
       console.error('긴급문의 링크 저장 오류:', e)
+      showToast('오류: ' + (e?.message || '저장 실패'))
+    }
+  }
+
+  // 로그인 공지 저장 (RPC 경유) — updatedAt 갱신 시 클라 스누즈 무시하고 재노출
+  async function saveLoginNotice() {
+    try {
+      const payload = {
+        enabled:      !!loginNotice.enabled,
+        title:        (loginNotice.title || '').trim() || '공지',
+        newItems:     loginNotice.newItems || '',
+        plannedItems: loginNotice.plannedItems || '',
+        snoozeDays:   Number(loginNotice.snoozeDays) > 0 ? Number(loginNotice.snoozeDays) : 7,
+        target:       ['all','trainer','member'].includes(loginNotice.target) ? loginNotice.target : 'all',
+        updatedAt:    new Date().toISOString(),
+      }
+      await adminUpsertSetting('login_notice', payload)
+      showToast('✓ 로그인 공지가 저장됐어요 (즉시 반영)')
+    } catch (e) {
+      console.error('로그인 공지 저장 오류:', e)
       showToast('오류: ' + (e?.message || '저장 실패'))
     }
   }
@@ -2737,6 +2778,77 @@ export default function AdminPortal() {
                   ? <div style={{ fontSize: '11px', color: '#4ade80', marginTop: '8px' }}>✓ 채널 링크 설정됨 — 4대 포털의 1:1 문의 버튼에 즉시 반영됩니다.</div>
                   : <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '8px' }}>링크 미설정 시 일부 포털은 카카오 오픈채팅 메인으로 폴백합니다.</div>
                 }
+              </div>
+
+              {/* 로그인 공지 카드 (login_notice) */}
+              <div className="card" style={{ padding: '18px', marginBottom: '18px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 800 }}>📢 로그인 공지 (login_notice)</div>
+                  <button className="btn btn-primary" onClick={saveLoginNotice} style={{ fontSize: '12px', padding: '6px 14px' }}>💾 저장</button>
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '12px', lineHeight: 1.6 }}>
+                  트레이너·회원 앱 로그인 직후 1회 모달로 표시됩니다. 저장 시 보안 RPC(<code>app_settings_admin_upsert</code>) 경유 즉시 반영. 저장하면 자동으로 새 공지로 인식되어 "N일 보지않기" 누른 사용자에게도 다시 노출됩니다.
+                </div>
+
+                {/* ON-OFF + 대상 + 스누즈 */}
+                <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '12px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={loginNotice.enabled}
+                      onChange={e => setLoginNotice(p => ({ ...p, enabled: e.target.checked }))}
+                      style={{ width: '15px', height: '15px', accentColor: '#84cc16' }} />
+                    공지 활성화
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                    대상
+                    <select value={loginNotice.target}
+                      onChange={e => setLoginNotice(p => ({ ...p, target: e.target.value }))}
+                      style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: '12px' }}>
+                      <option value="all">전체 (트레이너+회원)</option>
+                      <option value="trainer">트레이너만</option>
+                      <option value="member">회원만</option>
+                    </select>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                    "N일 보지않기"
+                    <input type="number" min="1" max="60" value={loginNotice.snoozeDays}
+                      onChange={e => setLoginNotice(p => ({ ...p, snoozeDays: e.target.value }))}
+                      style={{ width: '56px', padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: '12px' }} />
+                    일
+                  </label>
+                </div>
+
+                {/* 제목 */}
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '4px' }}>제목</div>
+                <input type="text" value={loginNotice.title}
+                  onChange={e => setLoginNotice(p => ({ ...p, title: e.target.value }))}
+                  placeholder="업데이트 안내"
+                  style={{ width: '100%', padding: '9px 12px', fontSize: '13px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', boxSizing: 'border-box', marginBottom: '12px' }} />
+
+                {/* 신규 기능 */}
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '4px' }}>
+                  신규 기능 <span style={{ fontWeight: 400 }}>(한 줄 = 한 항목, <code>날짜 | 내용</code> 형식 권장)</span>
+                </div>
+                <textarea value={loginNotice.newItems}
+                  onChange={e => setLoginNotice(p => ({ ...p, newItems: e.target.value }))}
+                  rows={4}
+                  placeholder={'2026-05-19 | 시간표가 모바일에 맞게 개선되었습니다\n2026-05-17 | 개인운동 세트 추가 시 이전 세트가 복사됩니다'}
+                  style={{ width: '100%', padding: '10px 12px', fontSize: '13px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', boxSizing: 'border-box', marginBottom: '12px', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 }} />
+
+                {/* 업데이트 예정 */}
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '4px' }}>
+                  업데이트 예정 <span style={{ fontWeight: 400 }}>(한 줄 = 한 항목)</span>
+                </div>
+                <textarea value={loginNotice.plannedItems}
+                  onChange={e => setLoginNotice(p => ({ ...p, plannedItems: e.target.value }))}
+                  rows={3}
+                  placeholder={'카카오 로그인 추가 예정\nPlay 스토어 앱 출시 예정'}
+                  style={{ width: '100%', padding: '10px 12px', fontSize: '13px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 }} />
+
+                <div style={{ fontSize: '11px', color: loginNotice.enabled ? '#4ade80' : 'var(--text-dim)', marginTop: '10px' }}>
+                  {loginNotice.enabled
+                    ? `✓ 활성 — ${loginNotice.target === 'all' ? '트레이너+회원' : loginNotice.target === 'trainer' ? '트레이너' : '회원'} 로그인 시 노출`
+                    : '비활성 — 저장해도 아무에게도 안 보입니다 (체크박스 ON 필요)'}
+                </div>
               </div>
 
               {/* 운영 안내 카드 (정보성) */}
