@@ -1676,7 +1676,7 @@ export default function TrainerApp() {
   const [currentMemberId, setCurrentMemberId] = useState(null)
   const [exercises, setExercises] = useState([])
   const [rawInput, setRawInput] = useState('')
-  const [perspectiveChip,  setPerspectiveChip]  = useState('rehab') // AI 해석 관점 칩 ('rehab'|'motivation'|'performance'|'diet')
+  const [perspectiveChip,  setPerspectiveChip]  = useState('rehab') // AI 해석 관점 칩 ('rehab'|'motivation'|'performance'|'diet'|'ak'|'complex')
   const [extraInstruction, setExtraInstruction] = useState('')       // 추가 지시사항 오버라이드
   const [showRirGuide,     setShowRirGuide]     = useState(false)    // RIR 가이드 아코디언
   const [isListening, setIsListening] = useState(false)         // 음성 인식 활성 여부
@@ -6158,13 +6158,15 @@ export default function TrainerApp() {
                   <span style={{fontSize:'11px',color:'var(--text-dim)'}}>AI 해석 관점</span>
                   <div style={{flex:1,height:'1px',background:'var(--border)'}}></div>
                 </div>
-                {/* 칩 버튼 4개 */}
+                {/* 칩 버튼 6개 */}
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'10px'}}>
                   {[
                     { value:'rehab',       label:'🩹 재활·부상 케어',  activeColor:'#f9a8d4', activeBg:'rgba(249,168,212,0.15)', activeBorder:'rgba(249,168,212,0.5)', paid:false },
                     { value:'motivation',  label:'💪 동기부여·심리',   activeColor:'#86efac', activeBg:'rgba(134,239,172,0.15)', activeBorder:'rgba(134,239,172,0.5)', paid:false },
                     { value:'performance', label:'🏆 퍼포먼스·기술',   activeColor:'#fcd34d', activeBg:'rgba(252,211,77,0.15)',  activeBorder:'rgba(252,211,77,0.5)',  paid:true  },
                     { value:'diet',        label:'🥗 다이어트·체성분', activeColor:'#c4b5fd', activeBg:'rgba(196,181,253,0.15)', activeBorder:'rgba(196,181,253,0.5)', paid:true  },
+                    { value:'ak',          label:'🧠 AK·응용근신경학', activeColor:'#a5b4fc', activeBg:'rgba(165,180,252,0.15)', activeBorder:'rgba(165,180,252,0.5)', paid:true  },
+                    { value:'complex',     label:'🌀 복잡계',          activeColor:'#67e8f9', activeBg:'rgba(103,232,249,0.15)', activeBorder:'rgba(103,232,249,0.5)', paid:true  },
                   ].map(chip => {
                     const isActive = (perspectiveChip || 'rehab') === chip.value
                     const showCrown = chip.paid && !isPaid
