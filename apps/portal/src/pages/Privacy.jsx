@@ -39,7 +39,8 @@ function FallbackPrivacy() {
       <div style={S.section}>
         <h2 style={S.h2}>제1조 (총칙)</h2>
         <p style={S.p}><strong>이루스케일즈</strong>(대표 윤준현, 서비스명 "오운", 이하 "회사")는 이용자의 개인정보를 중요시하며, 「개인정보 보호법」, 「정보통신망 이용촉진 및 정보보호 등에 관한 법률」 등 관련 법령을 준수하기 위하여 본 처리방침을 수립·공개합니다.</p>
-        <p style={S.p}>본 방침은 회사가 운영하는 트레이너 포털, 회원 포털, 커뮤니티 포털, 헬스장 운영자(CRM) 포털 등 모든 서비스에 적용됩니다. 단, <strong>베타 단계에서는 트레이너 포털·회원 포털만 활성화</strong>되며, 커뮤니티·CRM 포털 관련 조항은 해당 포털 정식 출시 시점부터 효력을 가집니다.</p>
+        {/* BETA HIDDEN — community/CRM 미공개 (2026-05-21~) · 정식 출시 시 "트레이너 포털, 회원 포털, 커뮤니티 포털, 헬스장 운영자(CRM) 포털 등 모든 서비스에 적용됩니다." 로 원복 (베타 단계 안내 문장은 정식 출시 시 제거) */}
+        <p style={S.p}>본 방침은 회사가 운영하는 트레이너 포털, 회원 포털 등 모든 서비스에 적용됩니다.</p>
         <div style={S.highlight}>
           ⚠️ <strong>민감정보 처리 사전 고지</strong> — 본 서비스는 「개인정보 보호법」 제23조에서 정한 <strong>민감정보(건강에 관한 정보)</strong> 인 회원의 체중·운동 기록·식단·체형 사진·수면 메모 등을 처리합니다. 회사는 회원이 자발적으로 입력·업로드한 데이터에 한하여 본 정보를 수집하며, 본 처리방침의 동의는 동 민감정보 처리에 대한 별도 동의로 간주됩니다(제5조의2 참조).
         </div>
@@ -66,7 +67,8 @@ function FallbackPrivacy() {
             <tr><td style={S.td}>트레이너</td><td style={S.td}>소속 센터, 직급, 연락처(자가 입력), 프로필 사진</td></tr>
             <tr><td style={S.td}>회원 PII</td><td style={S.td}>이름, 연락처, 생년월일(선택), 운동 목적 — 트레이너가 입력</td></tr>
             <tr><td style={S.td}>건강·운동 데이터 <span style={{ color: '#dc2626', fontWeight: 700 }}>(민감정보)</span></td><td style={S.td}>체중, 수면 메모, 운동 세션, 운동 루틴, 식단 기록·식단 사진, 체형·운동 사진, 출석 기록 — 「개인정보 보호법」 제23조 민감정보(건강에 관한 정보)에 해당</td></tr>
-            <tr><td style={S.td}>커뮤니티</td><td style={S.td}>게시글, 사진, 댓글, 좋아요·연락 요청 내역</td></tr>
+            {/* BETA HIDDEN — community 미공개 (2026-05-21~) · 정식 출시 시 주석 해제 */}
+            {/* BETA HIDDEN: <tr><td style={S.td}>커뮤니티</td><td style={S.td}>게시글, 사진, 댓글, 좋아요·연락 요청 내역</td></tr> */}
             <tr><td style={S.td}>운영 정보</td><td style={S.td}>유료 플랜 활성 상태, AI 크레딧 잔액(관리자 수동 부여 시)</td></tr>
           </tbody>
         </table>
@@ -89,7 +91,8 @@ function FallbackPrivacy() {
           <li style={S.li}>회원 식별 및 로그인 인증, 본인 확인</li>
           <li style={S.li}>피트니스 관리·수업일지 작성·전송 등 서비스 본연의 기능 제공</li>
           <li style={S.li}>AI 기반 분석을 통한 향상된 서비스 제공(아래 제5조 참조)</li>
-          <li style={S.li}>커뮤니티 운영, 부적절 콘텐츠 신고 처리, 분쟁 해결</li>
+          {/* BETA HIDDEN — community 미공개 (2026-05-21~) · 정식 출시 시 주석 해제 */}
+          {/* BETA HIDDEN: <li style={S.li}>커뮤니티 운영, 부적절 콘텐츠 신고 처리, 분쟁 해결</li> */}
           <li style={S.li}>고객 문의 응대 및 공지사항 전달</li>
           <li style={S.li}>서비스 통계 분석 및 품질 개선</li>
           <li style={S.li}>법령상 의무 이행</li>
@@ -109,7 +112,8 @@ function FallbackPrivacy() {
           </thead>
           <tbody>
             <tr><td style={S.td}>부정 이용 기록</td><td style={S.td}>1년</td><td style={S.td}>부정 이용 방지</td></tr>
-            <tr><td style={S.td}>커뮤니티 신고 처리 이력</td><td style={S.td}>3개월</td><td style={S.td}>분쟁 대응</td></tr>
+            {/* BETA HIDDEN — community 미공개 (2026-05-21~) · 정식 출시 시 주석 해제 */}
+            {/* BETA HIDDEN: <tr><td style={S.td}>커뮤니티 신고 처리 이력</td><td style={S.td}>3개월</td><td style={S.td}>분쟁 대응</td></tr> */}
             <tr><td style={S.td}>서비스 접속 로그</td><td style={S.td}>3개월</td><td style={S.td}>통신비밀보호법</td></tr>
           </tbody>
         </table>
