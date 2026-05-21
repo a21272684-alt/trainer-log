@@ -52,19 +52,23 @@ function FallbackTerms() {
 
       <div style={S.section}>
         <h2 style={S.h2}>제2조 (정의)</h2>
+        <div style={S.info}>
+          <strong>📌 베타 단계 적용 범위</strong><br/>
+          현재 서비스는 베타 단계로, <strong>트레이너 포털</strong>과 <strong>회원 포털</strong>만 활성화되어 있습니다. 커뮤니티 포털·헬스장 운영자(CRM) 포털은 정식 출시 시 단계적으로 공개될 예정이며, 정식 출시 시점에 본 약관의 해당 조항이 효력을 가집니다.
+        </div>
         <ul style={S.ul}>
           <li style={S.li}><strong>"서비스"</strong>란 회사가 제공하는 트레이너 포털, 회원 포털, 커뮤니티 포털, 헬스장 운영자 포털 및 부속 기능 일체를 말합니다.</li>
           <li style={S.li}><strong>"트레이너"</strong>란 서비스에 가입하여 자신의 회원을 관리하는 개인 트레이너를 말합니다.</li>
           <li style={S.li}><strong>"회원(Member)"</strong>이란 트레이너가 등록한 피트니스 이용자로서 회원 포털을 이용하는 자를 말합니다.</li>
-          <li style={S.li}><strong>"커뮤니티 이용자"</strong>란 커뮤니티 포털 가입자를 말합니다.</li>
-          <li style={S.li}><strong>"헬스장 운영자"</strong>란 CRM 포털을 통해 센터를 관리하는 대표자를 말합니다.</li>
+          <li style={S.li}><strong>"커뮤니티 이용자"</strong>란 커뮤니티 포털 가입자를 말합니다. <em>(베타 단계 비공개)</em></li>
+          <li style={S.li}><strong>"헬스장 운영자"</strong>란 CRM 포털을 통해 센터를 관리하는 대표자를 말합니다. <em>(베타 단계 비공개)</em></li>
           <li style={S.li}><strong>"콘텐츠"</strong>란 서비스 내에서 유통되는 운동 루틴·프로그램·게시글·이미지 등 디지털 재화를 말합니다.</li>
         </ul>
       </div>
 
       <div style={S.section}>
         <h2 style={S.h2}>제3조 (계정 및 인증)</h2>
-        <p style={S.p}>① 이용자는 Google 또는 Kakao 계정을 통한 OAuth 인증으로 서비스에 가입할 수 있습니다.</p>
+        <p style={S.p}>① 이용자는 <strong>Google 계정을 통한 OAuth 인증</strong>으로 서비스에 가입할 수 있습니다. (Kakao OAuth 는 정식 출시 시 추가 제공 예정)</p>
         <p style={S.p}>② 이용자는 본인 계정의 보안을 직접 유지할 책임이 있으며, 계정의 양도·대여·공유는 금지됩니다.</p>
         <p style={S.p}>③ 회사는 본인 확인 절차에 필요한 최소한의 정보만 OAuth 제공자로부터 수집합니다(상세 내용은 개인정보 처리방침 참조).</p>
       </div>
@@ -72,12 +76,15 @@ function FallbackTerms() {
       <div style={S.section}>
         <h2 style={S.h2}>제4조 (서비스의 내용)</h2>
         <ul style={S.ul}>
-          <li style={S.li}><strong>트레이너 포털</strong>: 회원 관리, 수업일지 작성·전송, 운동 루틴 설계, 일정 관리, 매출 관리.</li>
-          <li style={S.li}><strong>회원 포털</strong>: 본인의 운동 기록·식단 기록·건강 데이터(체중 등) 열람 및 자가 입력, 트레이너로부터 받은 수업일지 열람.</li>
-          <li style={S.li}><strong>커뮤니티 포털</strong>: 게시글 작성·열람, 트레이너 간 정보 교류, 운동 루틴 등 디지털 콘텐츠의 등록·교환.</li>
-          <li style={S.li}><strong>헬스장 운영자(CRM) 포털</strong>: 소속 트레이너·회원 통계, 정산 운영, 주간 운영 리포트.</li>
+          <li style={S.li}><strong>트레이너 포털</strong> <em style={{ color: '#16a34a', fontStyle: 'normal', fontSize: '12px' }}>(✓ 베타 운영 중)</em>: 회원 관리, 수업일지 작성·전송, 운동 루틴 설계, 일정 관리, 매출 관리.</li>
+          <li style={S.li}><strong>회원 포털</strong> <em style={{ color: '#16a34a', fontStyle: 'normal', fontSize: '12px' }}>(✓ 베타 운영 중)</em>: 본인의 운동 기록·식단 기록·건강 데이터(체중 등) 열람 및 자가 입력, 트레이너로부터 받은 수업일지 열람.</li>
+          <li style={S.li}><strong>커뮤니티 포털</strong> <em style={{ color: '#d97706', fontStyle: 'normal', fontSize: '12px' }}>(준비 중 — 정식 출시 시 공개)</em>: 게시글 작성·열람, 트레이너 간 정보 교류, 운동 루틴 등 디지털 콘텐츠의 등록·교환.</li>
+          <li style={S.li}><strong>헬스장 운영자(CRM) 포털</strong> <em style={{ color: '#d97706', fontStyle: 'normal', fontSize: '12px' }}>(준비 중 — 정식 출시 시 공개)</em>: 소속 트레이너·회원 통계, 정산 운영, 주간 운영 리포트.</li>
         </ul>
         <p style={S.p}>본 서비스는 디지털 형태로만 제공되며, 실물 상품의 판매·배송·교환·반품을 포함하지 않습니다.</p>
+        <div style={S.highlight}>
+          ⚠️ "준비 중" 으로 표시된 포털은 베타 단계에서 비공개이며, 정식 출시 시 별도 공지와 함께 본 약관 해당 조항이 효력을 가집니다. 베타 사용자는 트레이너 포털·회원 포털에 한정하여 본 약관에 동의한 것으로 봅니다.
+        </div>
       </div>
 
       <div style={S.section}>
@@ -104,6 +111,9 @@ function FallbackTerms() {
 
       <div style={S.section}>
         <h2 style={S.h2}>제7조 (커뮤니티 및 콘텐츠 거래 — 통신판매중개자 면책)</h2>
+        <div style={S.info}>
+          📌 본 조는 커뮤니티 포털 정식 출시 시점부터 효력이 발생합니다. 베타 단계에서 커뮤니티 포털은 비공개이므로 본 조에 따른 콘텐츠 거래는 발생하지 않습니다.
+        </div>
         <p style={S.p}>① 커뮤니티 포털 내 운동 루틴 템플릿 등 트레이너·이용자 간의 디지털 콘텐츠 거래에 있어, 회사는 거래 당사자가 아닌 <strong>통신판매중개자</strong>의 지위를 가집니다.</p>
         <p style={S.p}>② 회사는 콘텐츠의 품질·정확성·적법성·거래의 이행을 보증하지 않으며, 콘텐츠 자체로 인하여 발생한 손해 및 거래 당사자(판매자·구매자) 간의 분쟁에 대해 원칙적으로 개입하지 않습니다. 회사가 직접 거래의 당사자가 아닌 한 회사는 책임을 지지 않습니다.</p>
         <p style={S.p}>③ 다만, 회사는 신고가 접수된 부적절·위법 콘텐츠에 대해 일시 비공개·삭제·이용 제한 등의 조치를 취할 수 있습니다.</p>
@@ -205,7 +215,7 @@ export default function Terms() {
         <div style={S.header}>
           <div style={S.badge}>LEGAL</div>
           <h1 style={S.title}>이용약관</h1>
-          <p style={S.meta}>시행일: 2026년 5월 8일 · 버전: 3.0</p>
+          <p style={S.meta}>시행일: 2026년 5월 21일 · 버전: 3.1</p>
         </div>
 
         {loading ? (

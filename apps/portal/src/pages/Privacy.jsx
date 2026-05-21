@@ -39,7 +39,7 @@ function FallbackPrivacy() {
       <div style={S.section}>
         <h2 style={S.h2}>제1조 (총칙)</h2>
         <p style={S.p}><strong>이루스케일즈</strong>(대표 윤준현, 서비스명 "오운", 이하 "회사")는 이용자의 개인정보를 중요시하며, 「개인정보 보호법」, 「정보통신망 이용촉진 및 정보보호 등에 관한 법률」 등 관련 법령을 준수하기 위하여 본 처리방침을 수립·공개합니다.</p>
-        <p style={S.p}>본 방침은 회사가 운영하는 트레이너 포털, 회원 포털, 커뮤니티 포털, 헬스장 운영자(CRM) 포털 등 모든 서비스에 적용됩니다.</p>
+        <p style={S.p}>본 방침은 회사가 운영하는 트레이너 포털, 회원 포털, 커뮤니티 포털, 헬스장 운영자(CRM) 포털 등 모든 서비스에 적용됩니다. 단, <strong>베타 단계에서는 트레이너 포털·회원 포털만 활성화</strong>되며, 커뮤니티·CRM 포털 관련 조항은 해당 포털 정식 출시 시점부터 효력을 가집니다.</p>
         <div style={S.highlight}>
           ⚠️ <strong>민감정보 처리 사전 고지</strong> — 본 서비스는 「개인정보 보호법」 제23조에서 정한 <strong>민감정보(건강에 관한 정보)</strong> 인 회원의 체중·운동 기록·식단·체형 사진·수면 메모 등을 처리합니다. 회사는 회원이 자발적으로 입력·업로드한 데이터에 한하여 본 정보를 수집하며, 본 처리방침의 동의는 동 민감정보 처리에 대한 별도 동의로 간주됩니다(제5조의2 참조).
         </div>
@@ -49,7 +49,7 @@ function FallbackPrivacy() {
         <h2 style={S.h2}>제2조 (수집하는 개인정보 항목 및 방법)</h2>
 
         <h3 style={S.h3}>① 가입·인증 시 수집 항목</h3>
-        <p style={S.p}>회사는 Google 또는 Kakao OAuth를 통해 이용자가 동의한 다음의 정보를 자동으로 전달받습니다.</p>
+        <p style={S.p}>회사는 <strong>Google OAuth</strong>를 통해 이용자가 동의한 다음의 정보를 자동으로 전달받습니다. (Kakao OAuth 는 정식 출시 시 추가 제공 예정이며, 활성화 시점에 본 방침에 반영합니다.)</p>
         <ul style={S.ul}>
           <li style={S.li}>이메일 주소, 이름(또는 닉네임), 프로필 사진(선택), OAuth 제공자 식별자</li>
         </ul>
@@ -173,9 +173,9 @@ function FallbackPrivacy() {
               <td style={S.td}>이메일·이름, 분석 대상 데이터</td>
             </tr>
             <tr>
-              <td style={S.td}>Kakao Corp.</td>
-              <td style={S.td}>OAuth 인증</td>
-              <td style={S.td}>이메일·이름·프로필 사진</td>
+              <td style={S.td}>Google LLC (Google Fonts)</td>
+              <td style={S.td}>웹 폰트 파일 배포 (fonts.googleapis.com)</td>
+              <td style={S.td}>접속 IP·User-Agent (폰트 파일 요청 시 자동 전송)</td>
             </tr>
             <tr>
               <td style={S.td}>Vercel Inc.</td>
@@ -307,7 +307,7 @@ export default function Privacy() {
         <div style={S.header}>
           <div style={S.badge}>PRIVACY</div>
           <h1 style={S.title}>개인정보 처리방침</h1>
-          <p style={S.meta}>시행일: 2026년 5월 8일 · 버전: 3.0</p>
+          <p style={S.meta}>시행일: 2026년 5월 21일 · 버전: 3.1</p>
         </div>
 
         {loading ? (
