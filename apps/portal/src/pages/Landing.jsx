@@ -375,6 +375,7 @@ export default function Landing() {
   const [solutions,      setSolutions]      = useState(SOLUTIONS)
   const [reviews,        setReviews]        = useState(REVIEWS)
   const [reviewsPaused,  setReviewsPaused]  = useState(false) // 후기 marquee tap-to-pause (모바일)
+  const [reviewsLoaded,  setReviewsLoaded]  = useState(false) // DB 로드 완료 전 기본 placeholder flash 방지
   const [kakao,          setKakao]          = useState(KAKAO_MSGS)
   const [targets,        setTargets]        = useState(TARGETS)
   const [memberFeatures, setMemberFeatures] = useState(MEMBER_FEATURES)
@@ -493,6 +494,8 @@ export default function Landing() {
           if (!v1Applied.has('portal_buttons')   && row.key === 'landing_portal_buttons'   && v && typeof v === 'object' && !Array.isArray(v)) setPortalButtons(normalizePortals(v))
         })
       })
+      // 성공/실패 무관하게 로드 완료 표시 → 후기 섹션 렌더 게이트 해제 (DB 응답 전 placeholder flash 방지)
+      .then(() => setReviewsLoaded(true), () => setReviewsLoaded(true))
   }, [])
 
   return (
@@ -932,6 +935,8 @@ export default function Landing() {
         </div>
 
         {(() => {
+          // DB 로드 완료 전엔 기본 placeholder 후기를 그리지 않는다 (flash 방지). 높이만 잡아 점프 방지.
+          if (!reviewsLoaded) return <div style={{minHeight:'360px'}} aria-hidden="true" />
           const n = reviews.length
           // 후기 3개 미만 → 가운데 정렬 정적 표시 (복제·치우침 없음)
           if (n > 0 && n < 3) {
