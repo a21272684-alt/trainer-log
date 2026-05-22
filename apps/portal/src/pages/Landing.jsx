@@ -65,6 +65,8 @@ const STATS = [
   { num: '0원', label: '시작 비용', sub: '무료 플랜으로 지금 바로 시작' },
 ]
 
+// certified: true 일 때만 "인증된 사용자" 뱃지 노출. 실명·인스타 확보된 실제 인증 후기에만 true.
+// 아래 3개는 placeholder(가명) → false. admin / DB(landing_reviews) 로 실제 후기 교체 시 certified:true 지정.
 const REVIEWS = [
   {
     name: '김O준 트레이너',
@@ -74,6 +76,7 @@ const REVIEWS = [
     initial: '김',
     photo: '',
     instagram: '',
+    certified: false,
   },
   {
     name: '이O현 트레이너',
@@ -83,6 +86,7 @@ const REVIEWS = [
     initial: '이',
     photo: '',
     instagram: '',
+    certified: false,
   },
   {
     name: '박O영 트레이너',
@@ -92,6 +96,7 @@ const REVIEWS = [
     initial: '박',
     photo: '',
     instagram: '',
+    certified: false,
   },
 ]
 
@@ -268,6 +273,64 @@ function SlideCard({ children, delay = 0 }) {
   )
 }
 
+// 후기 카드 (옵션2 — 상단 큰 배너 이미지). marquee / 정적 양쪽에서 재사용.
+function ReviewCard({ r, ariaHidden }) {
+  return (
+    <div className="ld-mq-card" role="listitem" aria-hidden={ariaHidden ? 'true' : undefined}>
+      {/* 상단 큰 배너 이미지 — 사진 있으면 img, 없으면 이니셜 그라데이션 폴백 */}
+      {r.photo
+        ? <img src={r.photo} alt={r.name} className="ld-mq-photo"
+            onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex' }}
+          />
+        : null
+      }
+      <div className="ld-mq-photo ld-mq-photo-fallback" style={{display: r.photo ? 'none' : 'flex'}}>
+        {r.initial || r.name?.[0] || '?'}
+      </div>
+      {/* 본문 */}
+      <div className="ld-mq-body">
+        {/* 별점 */}
+        <div style={{display:'flex',marginBottom:'12px'}}>
+          {[...Array(r.rating||5)].map((_, j) => (
+            <span key={j} style={{color:'#f59e0b',fontSize:'14px'}}>★</span>
+          ))}
+        </div>
+        {/* 후기 텍스트 */}
+        <p style={{fontSize:'13px',color:'#334155',lineHeight:1.85,margin:'0 0 16px',flex:1}}>"{r.text}"</p>
+        {/* 이름 · 지역 · 인스타 */}
+        <div>
+          <div style={{fontSize:'14px',fontWeight:700,color:'#0f172a',marginBottom:'2px'}}>{r.name}</div>
+          <div style={{fontSize:'11px',color:'#94a3b8'}}>{r.location}</div>
+          {r.instagram && (
+            <a
+              href={`https://instagram.com/${(r.instagram||'').replace('@','')}`}
+              target="_blank" rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
+              style={{display:'inline-flex',alignItems:'center',gap:'4px',
+                fontSize:'11px',color:'#e1306c',fontWeight:600,
+                textDecoration:'none',marginTop:'3px'}}
+            >
+              <span style={{fontSize:'12px'}}>📸</span>
+              {r.instagram.startsWith('@') ? r.instagram : `@${r.instagram}`}
+            </a>
+          )}
+        </div>
+        {/* 인증 뱃지 — certified:true 일 때만 */}
+        {r.certified && (
+          <div style={{marginTop:'14px',paddingTop:'14px',borderTop:'1px solid #f1f5f9'}}>
+            <span style={{display:'inline-flex',alignItems:'center',gap:'5px',
+              fontSize:'11px',fontWeight:700,color:'#3f6212',
+              background:'rgba(200,241,53,0.22)',border:'1px solid rgba(132,204,22,0.4)',
+              padding:'4px 10px',borderRadius:'20px'}}>
+              <span style={{fontSize:'12px'}}>✓</span> 인증된 사용자
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // 숫자 카운트업 (ex. "98%" → 0%…98%)
 function CountUp({ value }) {
   const [ref, inView] = useInView(0.5)
@@ -311,6 +374,7 @@ export default function Landing() {
   const [problems,       setProblems]       = useState(PROBLEMS)
   const [solutions,      setSolutions]      = useState(SOLUTIONS)
   const [reviews,        setReviews]        = useState(REVIEWS)
+  const [reviewsPaused,  setReviewsPaused]  = useState(false) // 후기 marquee tap-to-pause (모바일)
   const [kakao,          setKakao]          = useState(KAKAO_MSGS)
   const [targets,        setTargets]        = useState(TARGETS)
   const [memberFeatures, setMemberFeatures] = useState(MEMBER_FEATURES)
@@ -853,74 +917,92 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── 트레이너 후기 (RESULTS) ── */}
-      <section style={{background:'transparent',padding:'80px 24px'}}>
-        <div style={{maxWidth:'860px',margin:'0 auto'}}>
+      {/* ── 트레이너 후기 (RESULTS) — 무한 가로 marquee ── */}
+      <section style={{background:'transparent',padding:'80px 0',overflow:'hidden'}}>
+        <div style={{maxWidth:'860px',margin:'0 auto',padding:'0 24px'}}>
           <FadeUp>
-            <div style={{textAlign:'center',marginBottom:'48px'}}>
+            <div style={{textAlign:'center',marginBottom:'40px'}}>
               <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'0.13em',color:'#7c3aed',marginBottom:'10px'}}>RESULTS</div>
               <h2 style={{fontSize:'clamp(22px,4vw,32px)',fontWeight:800,color:'#0f172a',letterSpacing:'-1px',margin:'0 0 10px',lineHeight:1.3}}>
                 이미 검증된 트레이너들의 선택
               </h2>
-              <p style={{fontSize:'14px',color:'#64748b',margin:0}}>오운을 쓰고 달라진 점들</p>
+              <p style={{fontSize:'14px',color:'#64748b',margin:0}}>오운을 쓰고 달라진 점들 · <span style={{color:'#94a3b8'}}>카드 위에 올리거나(모바일은 탭) 멈출 수 있어요</span></p>
             </div>
           </FadeUp>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:'16px'}}>
-            {reviews.map((r,i) => (
-              <SlideCard key={i} delay={i * 130}>
-                <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:'16px',padding:'24px',
-                  boxShadow:'0 2px 12px rgba(0,0,0,0.05)',height:'100%',boxSizing:'border-box',display:'flex',flexDirection:'column'}}>
-                  {/* 별점 */}
-                  <div style={{display:'flex',marginBottom:'12px'}}>
-                    {[...Array(r.rating||5)].map((_,j) => (
-                      <span key={j} style={{color:'#f59e0b',fontSize:'14px'}}>★</span>
-                    ))}
-                  </div>
-                  {/* 후기 텍스트 */}
-                  <p style={{fontSize:'13px',color:'#334155',lineHeight:1.85,margin:'0 0 20px',flex:1}}>"{r.text}"</p>
-                  {/* 하단: 프로필 */}
-                  <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
-                    {/* 프로필 사진 or 이니셜 */}
-                    {r.photo
-                      ? <img src={r.photo} alt={r.name}
-                          style={{width:'44px',height:'44px',borderRadius:'50%',objectFit:'cover',
-                            flexShrink:0,border:'2px solid #e2e8f0',boxShadow:'0 2px 8px rgba(0,0,0,0.1)'}}
-                          onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex' }}
-                        />
-                      : null
-                    }
-                    {/* 이니셜 아바타 — 사진 없거나 에러 시 표시 */}
-                    <div style={{
-                      width:'44px',height:'44px',borderRadius:'50%',
-                      background:'linear-gradient(135deg,#c8f135,#84cc16)',
-                      display: r.photo ? 'none' : 'flex',
-                      alignItems:'center',justifyContent:'center',
-                      fontWeight:900,fontSize:'17px',color:'#1a2e05',flexShrink:0,
-                    }}>
-                      {r.initial || r.name?.[0] || '?'}
-                    </div>
-                    <div style={{minWidth:0}}>
-                      <div style={{fontSize:'13px',fontWeight:700,color:'#0f172a',marginBottom:'2px'}}>{r.name}</div>
-                      <div style={{fontSize:'11px',color:'#94a3b8'}}>{r.location}</div>
-                      {r.instagram && (
-                        <a
-                          href={`https://instagram.com/${(r.instagram||'').replace('@','')}`}
-                          target="_blank" rel="noopener noreferrer"
-                          style={{display:'inline-flex',alignItems:'center',gap:'4px',
-                            fontSize:'11px',color:'#e1306c',fontWeight:600,
-                            textDecoration:'none',marginTop:'3px'}}
-                        >
-                          <span style={{fontSize:'12px'}}>📸</span>
-                          {r.instagram.startsWith('@') ? r.instagram : `@${r.instagram}`}
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </SlideCard>
-            ))}
-          </div>
         </div>
+
+        {(() => {
+          const n = reviews.length
+          // 후기 3개 미만 → 가운데 정렬 정적 표시 (복제·치우침 없음)
+          if (n > 0 && n < 3) {
+            return (
+              <div style={{maxWidth:'860px',margin:'0 auto',padding:'0 24px',
+                display:'flex',justifyContent:'center',flexWrap:'wrap',gap:'16px'}}>
+                {reviews.map((r, i) => <ReviewCard key={i} r={r} />)}
+              </div>
+            )
+          }
+          if (n === 0) return null
+          // 3개 이상 → 무한 marquee. 한 세트가 넓은 화면도 채우도록 카드 수 보강 후 2벌 복제.
+          const reps = Math.max(1, Math.ceil(6 / n))
+          const oneSet = Array.from({ length: reps }, () => reviews).flat()
+          const loopCards = [...oneSet, ...oneSet]
+          return (
+            /* full-bleed marquee 뷰포트 — 좌우 끝 페이드 마스크 */
+            <div
+              className="ld-mq"
+              onClick={() => setReviewsPaused(p => !p)}
+              role="list"
+              aria-label="트레이너 후기"
+            >
+              <div className={`ld-mq-track${reviewsPaused ? ' ld-mq-paused' : ''}`}>
+                {/* 2벌 복제 → translateX -50% 로 끊김 없는 무한 루프 */}
+                {loopCards.map((r, i) => (
+                  <ReviewCard key={i} r={r} ariaHidden={i >= oneSet.length} />
+                ))}
+              </div>
+            </div>
+          )
+        })()}
+
+        <style>{`
+          .ld-mq{
+            position:relative;width:100%;overflow:hidden;cursor:pointer;
+            -webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);
+            mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);
+          }
+          .ld-mq-track{
+            display:flex;width:max-content;
+            animation:ldMarquee 28s linear infinite;
+            will-change:transform;
+          }
+          .ld-mq:hover .ld-mq-track{animation-play-state:paused}
+          .ld-mq-track.ld-mq-paused{animation-play-state:paused}
+          .ld-mq-card{
+            flex:0 0 auto;width:340px;margin-right:16px;box-sizing:border-box;
+            background:#fff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;
+            box-shadow:0 2px 12px rgba(0,0,0,0.05);
+            display:flex;flex-direction:column;
+          }
+          .ld-mq-photo{width:100%;height:240px;object-fit:cover;display:block;flex-shrink:0}
+          .ld-mq-photo-fallback{
+            width:100%;height:240px;flex-shrink:0;
+            background:linear-gradient(135deg,#c8f135,#84cc16);
+            align-items:center;justify-content:center;
+            font-weight:900;font-size:64px;color:#1a2e05;
+          }
+          .ld-mq-body{padding:20px 22px 22px;display:flex;flex-direction:column;flex:1}
+          @keyframes ldMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+          @media (max-width:880px){
+            .ld-mq-track{animation-duration:45s}   /* 모바일은 더 느리게 */
+            .ld-mq-card{width:300px}
+            .ld-mq-photo,.ld-mq-photo-fallback{height:210px}
+          }
+          @media (prefers-reduced-motion:reduce){
+            .ld-mq{overflow-x:auto;-webkit-overflow-scrolling:touch}
+            .ld-mq-track{animation:none}
+          }
+        `}</style>
       </section>
 
       {/* ── 기능 비교 (COMPARISON) ── */}

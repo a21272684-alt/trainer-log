@@ -369,6 +369,7 @@ export default function AdminPortal() {
   const [landingKakao, setLandingKakao] = useState(DEFAULT_LANDING_KAKAO)
   const [landingFaqs, setLandingFaqs] = useState(DEFAULT_LANDING_FAQS)
   const [landingEditModal, setLandingEditModal] = useState(null) // {type, index, data}
+  const [photoUploading, setPhotoUploading] = useState(false) // 후기 사진 업로드 중
 
   // 랜딩 추가 섹션
   const [landingAiHighlight, setLandingAiHighlight] = useState(DEFAULT_LANDING_AI_HIGHLIGHT)
@@ -1973,7 +1974,7 @@ export default function AdminPortal() {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
                 <div className="section-title" style={{ margin: 0 }}>트레이너 후기</div>
-                <button className="btn btn-primary btn-sm" onClick={() => openLandingEdit('reviews', -1, { name: '', location: '', text: '', rating: 5, initial: '', photo: '', instagram: '' })}>+ 추가</button>
+                <button className="btn btn-primary btn-sm" onClick={() => openLandingEdit('reviews', -1, { name: '', location: '', text: '', rating: 5, initial: '', photo: '', instagram: '', certified: false })}>+ 추가</button>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {landingReviews.map((r, i) => (
@@ -1991,6 +1992,9 @@ export default function AdminPortal() {
                           <span style={{ fontSize: '11px', color: '#e1306c', fontWeight: 600 }}>
                             📸 {r.instagram.startsWith('@') ? r.instagram : `@${r.instagram}`}
                           </span>
+                        )}
+                        {r.certified && (
+                          <span style={{ fontSize: '10px', fontWeight: 700, color: '#3f6212', background: 'rgba(200,241,53,0.25)', border: '1px solid rgba(132,204,22,0.4)', padding: '2px 7px', borderRadius: '20px' }}>✓ 인증</span>
                         )}
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px', lineHeight: 1.6 }}>"{r.text}"</div>
@@ -2986,20 +2990,70 @@ export default function AdminPortal() {
           )
           if (landingEditModal.type === 'reviews') return (
             <>
-              {/* 프로필 사진 미리보기 */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px', padding: '14px', background: 'var(--surface)', borderRadius: '10px', border: '1px solid var(--border)' }}>
+              {/* 사진 미리보기 — 랜딩 카드와 동일한 가로 배너 형태 */}
+              <div style={{ marginBottom: '14px' }}>
                 {d.photo
-                  ? <img src={d.photo} alt="preview" style={{ width: '56px', height: '56px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--border)', flexShrink: 0 }} onError={e => { e.target.src = '' }} />
-                  : <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--accent)', color: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '20px', flexShrink: 0 }}>{d.initial || '?'}</div>
+                  ? <img src={d.photo} alt="preview" style={{ width: '100%', height: '160px', borderRadius: '10px', objectFit: 'cover', border: '1px solid var(--border)', display: 'block' }} onError={e => { e.target.style.display = 'none' }} />
+                  : <div style={{ width: '100%', height: '160px', borderRadius: '10px', background: 'linear-gradient(135deg,#c8f135,#84cc16)', color: '#1a2e05', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '40px' }}>{d.initial || d.name?.[0] || '?'}</div>
                 }
-                <div style={{ fontSize: '12px', color: 'var(--text-dim)', lineHeight: 1.6 }}>
-                  사진 URL을 입력하면 이니셜 대신 실제 사진이 표시됩니다.<br />
-                  <span style={{ color: 'var(--text-muted)' }}>이미지 링크를 직접 복사해서 붙여넣기 하세요.</span>
+                <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '6px', textAlign: 'center' }}>
+                  랜딩 후기 카드에 위와 같이 표시됩니다 {d.photo ? '' : '· (사진 없으면 이름 첫 글자)'}
                 </div>
               </div>
+
+              {/* ① 파일 직접 업로드 (권장) */}
               <div className="form-group">
-                <label>프로필 사진 URL <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>(선택)</span></label>
+                <label>사진 첨부 <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>(권장 · JPG/PNG/WebP, 3MB 이하)</span></label>
+                <label className="btn btn-primary btn-full" style={{ cursor: photoUploading ? 'wait' : 'pointer', opacity: photoUploading ? 0.6 : 1, textAlign: 'center' }}>
+                  {photoUploading ? '업로드 중…' : '📁 컴퓨터에서 사진 선택'}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    disabled={photoUploading}
+                    style={{ display: 'none' }}
+                    onChange={async e => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      const okTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
+                      if (!okTypes.includes(file.type)) { showToast('JPG, PNG, WebP, GIF 형식만 업로드할 수 있어요'); e.target.value = ''; return }
+                      if (file.size > 3 * 1024 * 1024) { showToast('3MB 이하 이미지만 업로드할 수 있어요'); e.target.value = ''; return }
+                      setPhotoUploading(true)
+                      try {
+                        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+                        const path = `reviews/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`
+                        const { error: upErr } = await supabase.storage.from('landing-assets').upload(path, file, { upsert: true, contentType: file.type })
+                        if (upErr) {
+                          if (upErr.message?.includes('Bucket not found') || String(upErr.statusCode) === '400' || String(upErr.statusCode) === '404') {
+                            throw new Error('스토리지 버킷이 아직 없어요.\nSupabase SQL Editor에서 054_landing_assets_bucket.sql 을 실행해주세요.')
+                          }
+                          throw upErr
+                        }
+                        const { data: urlData } = supabase.storage.from('landing-assets').getPublicUrl(path)
+                        if (!urlData?.publicUrl) throw new Error('URL 생성 실패')
+                        upd({ photo: urlData.publicUrl })
+                        showToast('✓ 사진이 업로드됐어요')
+                      } catch (err) {
+                        console.error('후기 사진 업로드 오류:', err)
+                        showToast('업로드 실패: ' + (err?.message || '오류'))
+                      } finally {
+                        setPhotoUploading(false)
+                        e.target.value = '' // 같은 파일 재선택 허용
+                      }
+                    }}
+                  />
+                </label>
+                {d.photo && (
+                  <button type="button" className="btn btn-sm" style={{ marginTop: '8px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }} onClick={() => upd({ photo: '' })}>사진 제거</button>
+                )}
+              </div>
+
+              {/* ② URL 직접 입력 (선택, 보조) */}
+              <div className="form-group">
+                <label style={{ color: 'var(--text-dim)' }}>또는 이미지 주소(URL) 직접 입력 <span style={{ fontWeight: 400 }}>(선택)</span></label>
                 <input value={d.photo || ''} onChange={e => upd({ photo: e.target.value })} placeholder="https://...jpg" />
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.6, marginTop: '6px' }}>
+                  이미 인터넷에 올라간 사진 주소가 있으면 여기에 붙여넣어도 됩니다. (인스타·블로그 사진 우클릭 → "이미지 주소 복사")
+                </div>
               </div>
               <div className="form-row">
                 <div className="form-group"><label>이름</label><input value={d.name || ''} onChange={e => upd({ name: e.target.value })} placeholder="김O준 트레이너" /></div>
@@ -3014,6 +3068,16 @@ export default function AdminPortal() {
               </div>
               <div className="form-group"><label>후기 내용</label><textarea rows={4} value={d.text || ''} onChange={e => upd({ text: e.target.value })} placeholder="후기를 입력하세요" /></div>
               <div className="form-group"><label>별점 (1~5)</label><input type="number" min={1} max={5} value={d.rating || 5} onChange={e => upd({ rating: Number(e.target.value) })} /></div>
+              <div className="form-group" style={{ padding: '12px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '9px', cursor: 'pointer', margin: 0 }}>
+                  <input type="checkbox" checked={!!d.certified} onChange={e => upd({ certified: e.target.checked })} style={{ width: '16px', height: '16px', flexShrink: 0 }} />
+                  <span style={{ fontSize: '13px', fontWeight: 600 }}>✓ 인증된 사용자로 표시</span>
+                </label>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.6, marginTop: '8px' }}>
+                  체크하면 랜딩 후기 카드 하단에 <strong>"✓ 인증된 사용자"</strong> 뱃지가 표시됩니다.<br />
+                  ⚠️ <strong>실제 본인 동의를 받은 진짜 후기에만</strong> 체크하세요. 가명·예시 후기에 체크하면 표시광고법 위반 소지가 있습니다.
+                </div>
+              </div>
               <button className="btn btn-primary btn-full" onClick={saveLandingEdit}>저장</button>
             </>
           )
