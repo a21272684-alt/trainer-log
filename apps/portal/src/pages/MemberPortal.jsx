@@ -17,7 +17,6 @@ Chart.register(...registerables)
 
 const MUSCLE_GROUPS = ['가슴','등','어깨','이두','삼두','하체','코어','유산소','전신']
 const MUSCLE_COLOR = {'가슴':'#ef4444','등':'#3b82f6','어깨':'#8b5cf6','이두':'#f97316','삼두':'#06b6d4','하체':'#22c55e','코어':'#eab308','유산소':'#ec4899','전신':'#6b7280'}
-const REACTIONS = ['❤️','🔥','💪','👏','😮','💯','🙌']
 
 function MuscleDiagram({ primary = [], secondary = [] }) {
   if (!primary.length && !secondary.length) return null
@@ -162,19 +161,6 @@ export default function MemberPortal() {
   const [workoutDetailId, setWorkoutDetailId] = useState(null)
   const [exQuery, setExQuery] = useState({}) // localId -> query text (for autocomplete visibility)
 
-  // Community state
-  const [communityTab, setCommunityTab] = useState('notice') // 'notice' | 'free'
-  const [posts, setPosts] = useState([])
-  const [myReactions, setMyReactions] = useState({})   // postId -> Set of reactions
-  const [reactionCounts, setReactionCounts] = useState({}) // postId -> {emoji: count}
-  const [postModal, setPostModal] = useState(false)
-  const [postContent, setPostContent] = useState('')
-  const [postPhotoFile, setPostPhotoFile] = useState(null)
-  const [postPhotoPreview, setPostPhotoPreview] = useState('')
-
-  // Notices (공지사항) state - 읽기 전용 (관리는 AdminPortal에서)
-  const [notices, setNotices] = useState([])
-
   // Diet v2 state
   const [trainerApiKey, setTrainerApiKey] = useState('')
   const [dietLogs, setDietLogs] = useState([])
@@ -204,7 +190,6 @@ export default function MemberPortal() {
   const [savingTemplate, setSavingTemplate] = useState(false)
   const [applyingTemplate, setApplyingTemplate] = useState(false)
   const [savingWorkout, setSavingWorkout] = useState(false)
-  const [creatingPost, setCreatingPost] = useState(false)
 
   // 1:1 문의 → 카카오톡 채널 우회 (inquiries 테이블 사용 중단, 운영 비용 절감)
   // app_settings.urgent_inquiry_url 가 있으면 그 URL을, 없으면 폴백 URL을 새창으로 연다.
@@ -232,17 +217,6 @@ export default function MemberPortal() {
 
   const today = () => new Date().toISOString().split('T')[0]
   const formatDate = (str) => new Date(str+'T00:00:00').toLocaleDateString('ko-KR',{month:'short',day:'numeric'})
-  const formatRelative = (str) => {
-    const diff = Date.now() - new Date(str).getTime()
-    const mins = Math.floor(diff / 60000)
-    if (mins < 1) return '방금 전'
-    if (mins < 60) return `${mins}분 전`
-    const hours = Math.floor(mins / 60)
-    if (hours < 24) return `${hours}시간 전`
-    const days = Math.floor(hours / 24)
-    if (days < 7) return `${days}일 전`
-    return new Date(str).toLocaleDateString('ko-KR', {month:'short',day:'numeric'})
-  }
 
   /* ── OAuth 로그인 ────────────────────────────────────────── */
   async function signInWithGoogle() {
@@ -461,13 +435,6 @@ export default function MemberPortal() {
           console.warn('[loadLogs] catch:', e.message)
           showToast('수업일지 로드 중 오류: ' + e.message)
         })
-    }
-  }, [tab, member])
-
-  useEffect(() => {
-    if (tab === 'community' && member) {
-      loadPosts()
-      loadNotices()
     }
   }, [tab, member])
 
@@ -1000,117 +967,6 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
     setExQuery(q => ({...q, [localId]: ''}))
   }
 
-  // === COMMUNITY ===
-  async function loadPosts() {
-    if (!member?.trainer_id) { setPosts([]); return }
-    try {
-      const { data: postsData, error } = await supabase
-        .from('member_posts')
-        .select('*')
-        .eq('trainer_id', member.trainer_id)
-        .order('created_at', { ascending: false })
-        .limit(50)
-      if (error) { setPosts([]); return }  // 테이블 미생성 등 오류 시 빈 피드로 표시
-      setPosts(postsData || [])
-      if (postsData?.length) {
-        const ids = postsData.map(p => p.id)
-        const { data: reactData } = await supabase.from('member_reactions').select('*').in('post_id', ids)
-        if (reactData) {
-          const counts = {}; const mine = {}
-          for (const r of reactData) {
-            if (!counts[r.post_id]) counts[r.post_id] = {}
-            counts[r.post_id][r.reaction] = (counts[r.post_id][r.reaction] || 0) + 1
-            if (r.member_id === member.id) {
-              if (!mine[r.post_id]) mine[r.post_id] = new Set()
-              mine[r.post_id].add(r.reaction)
-            }
-          }
-          setReactionCounts(counts)
-          setMyReactions(mine)
-        }
-      }
-    } catch(e) { setPosts([]); console.warn('[loadPosts] 오류:', e.message) }
-  }
-  async function createPost() {
-    if (creatingPost) return
-    if (!postContent.trim() && !postPhotoFile) { showToast('내용이나 사진을 추가해주세요'); return }
-    setCreatingPost(true)
-    let uploadedPostPath = null  // C-002: insert 실패 시 storage 롤백 대상
-    try {
-      let photo_url = null
-      if (postPhotoFile) {
-        // Storage RLS: 첫 폴더 = auth.uid()::text 강제
-        const authUid = member?.auth_id || null
-        if (!authUid) throw new Error('사진 업로드는 로그인 후 가능해요')
-        const ext = postPhotoFile.name.split('.').pop()
-        const path = `${authUid}/${Date.now()}.${ext}`
-        const { error: upErr } = await supabase.storage.from('community-photos').upload(path, postPhotoFile)
-        if (upErr) throw upErr
-        const { data: { publicUrl } } = supabase.storage.from('community-photos').getPublicUrl(path)
-        photo_url = publicUrl
-        uploadedPostPath = path
-      }
-      const { error } = await supabase.from('member_posts').insert({
-        member_id: member.id, member_name: member.name,
-        trainer_id: member.trainer_id, content: postContent.trim() || null, photo_url,
-      })
-      if (error) throw error
-      setPostContent(''); setPostPhotoFile(null); setPostPhotoPreview(''); setPostModal(false)
-      await loadPosts()
-      showToast('✓ 게시됐어요!')
-    } catch(e) {
-      // C-002: insert/이후 흐름이 실패하면 업로드된 사진은 orphan → 롤백
-      if (uploadedPostPath) await removeStorageOnError(supabase, 'community-photos', uploadedPostPath)
-      console.error('게시글 작성 오류:', e)
-      showToast('오류: ' + (e?.message || '게시 실패'))
-    } finally {
-      setCreatingPost(false)
-    }
-  }
-  async function toggleReaction(postId, reaction) {
-    const mySet = myReactions[postId] || new Set()
-    const hasIt = mySet.has(reaction)
-    // Optimistic update
-    setMyReactions(prev => {
-      const next = {...prev}; const s = new Set(next[postId] || [])
-      hasIt ? s.delete(reaction) : s.add(reaction)
-      next[postId] = s; return next
-    })
-    setReactionCounts(prev => {
-      const next = {...prev}
-      if (!next[postId]) next[postId] = {}
-      const n = (next[postId][reaction] || 0) + (hasIt ? -1 : 1)
-      next[postId] = {...next[postId]}
-      if (n <= 0) delete next[postId][reaction]; else next[postId][reaction] = n
-      return next
-    })
-    try {
-      if (hasIt) {
-        await supabase.from('member_reactions').delete().eq('post_id', postId).eq('member_id', member.id).eq('reaction', reaction)
-      } else {
-        await supabase.from('member_reactions').upsert({ post_id: postId, member_id: member.id, reaction }, { onConflict: 'post_id,member_id,reaction' })
-      }
-    } catch(e) { showToast('오류가 발생했어요'); loadPosts() }
-  }
-  async function deletePost(postId) {
-    const { error } = await supabase.from('member_posts').delete().eq('id', postId)
-    if (!error) { await loadPosts(); showToast('삭제됐어요') }
-    else showToast('오류: ' + error.message)
-  }
-
-  // === NOTICES (공지사항) - 읽기 전용 ===
-  async function loadNotices() {
-    try {
-      const { data, error } = await supabase
-        .from('notices')
-        .select('*')
-        .order('is_pinned', { ascending: false })
-        .order('created_at', { ascending: false })
-      if (error) throw error
-      setNotices(data || [])
-    } catch(e) { setNotices([]); console.warn('[loadNotices] 오류:', e.message) }
-  }
-
   // === COMPUTED ===
   const latestMorning = healthRecords.find(r => r.morning_weight)
   const currentW = latestMorning?.morning_weight || null
@@ -1124,7 +980,6 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
       { icon:'📋', title:'수업일지 열람', desc:'트레이너가 작성한 수업일지를 열람하고 PDF로 저장해요' },
       { icon:'⚖️', title:'체중·건강 추적', desc:'공복/저녁 체중, 수면을 기록하고 14일 추이를 확인해요' },
       { icon:'🏃', title:'개인운동 일지', desc:'60+ 종목 자동완성, 세트·볼륨 계산, 근육 다이어그램 제공' },
-      { icon:'🤝', title:'회원 커뮤니티', desc:'같은 센터 회원들과 운동 일상을 사진·이모지로 공유해요' },
     ]
     return (
       <div style={{background:'#F7F8F4',color:'#111827',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden'}}>
@@ -1343,15 +1198,6 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
           stroke={active ? '#10B981' : '#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
           <path d="M6.5 6.5h11M6.5 17.5h11M3 10h3v4H3zM18 10h3v4h-3zM6.5 12h11"/>
-        </svg>
-      ),
-    },
-    {
-      key: 'community', label: '커뮤니티',
-      icon: (active) => (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-          stroke={active ? '#10B981' : '#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
         </svg>
       ),
     },
@@ -2538,123 +2384,6 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
         )
       })()}
 
-      {/* 커뮤니티 */}
-      {tab === 'community' && (
-        <div className="m-page">
-          {/* 헤더 */}
-          <div style={{marginBottom:'14px'}}>
-            <div style={{fontSize:'18px',fontWeight:800,color:'#111'}}>🤝 커뮤니티</div>
-            <div style={{fontSize:'12px',color:'#6b7280',marginTop:'2px'}}>트레이너 공지 및 회원 자유 게시판</div>
-          </div>
-
-          {/* 서브 탭 */}
-          <div style={{display:'flex',gap:'0',marginBottom:'16px',background:'#F0FDF4',borderRadius:'12px',padding:'4px',border:'1px solid #A7F3D0'}}>
-            {[['notice','📢 공지사항'],['free','💬 자유게시판']].map(([key,label])=>(
-              <button key={key} onClick={()=>setCommunityTab(key)}
-                style={{flex:1,padding:'9px 0',border:'none',borderRadius:'9px',cursor:'pointer',fontSize:'13px',fontWeight:700,fontFamily:'inherit',transition:'all 0.15s',
-                  background: communityTab===key ? '#fff' : 'transparent',
-                  color: communityTab===key ? '#10B981' : '#6b7280',
-                  boxShadow: communityTab===key ? '0 2px 8px rgba(16,185,129,0.15)' : 'none'}}>
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {/* ── 공지사항 탭 ── */}
-          {communityTab === 'notice' && (
-            <div>
-              {!notices.length && (
-                <div className="empty">
-                  <div style={{fontSize:'32px',marginBottom:'12px'}}>📢</div>
-                  <p>등록된 공지사항이 없어요</p>
-                </div>
-              )}
-              {notices.map(notice => (
-                <div key={notice.id} style={{background:'#fff',borderRadius:'16px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)',marginBottom:'12px',padding:'16px',borderLeft: notice.is_pinned ? '4px solid #10B981' : '4px solid transparent'}}>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:'flex',alignItems:'center',gap:'6px',marginBottom:'6px'}}>
-                      {notice.is_pinned && <span style={{fontSize:'10px',padding:'2px 8px',background:'#F0FDF4',color:'#10B981',borderRadius:'6px',fontWeight:700,flexShrink:0,border:'1px solid #A7F3D0'}}>📌 고정</span>}
-                      <div style={{fontSize:'14px',fontWeight:700,color:'#1a1a1a',wordBreak:'break-word'}}>{notice.title}</div>
-                    </div>
-                    <p style={{fontSize:'13px',lineHeight:'1.7',margin:'0 0 10px',color:'#444',wordBreak:'break-word',whiteSpace:'pre-wrap'}}>{notice.content}</p>
-                    <div style={{fontSize:'11px',color:'#6b7280',display:'flex',alignItems:'center',gap:'4px'}}>
-                      <span>{notice.author_name}</span>
-                      <span>·</span>
-                      <span>{formatRelative(notice.created_at)}</span>
-                      {notice.updated_at !== notice.created_at && <span style={{color:'#10B981'}}>· 수정됨</span>}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* ── 자유게시판 탭 ── */}
-          {communityTab === 'free' && (
-            <div>
-              <div style={{display:'flex',justifyContent:'flex-end',marginBottom:'14px'}}>
-                {member.trainer_id && (
-                  <button
-                    onClick={()=>setPostModal(true)}
-                    style={{padding:'9px 18px',border:'none',borderRadius:'12px',background:'linear-gradient(135deg,#10B981,#059669)',color:'#fff',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'inherit',boxShadow:'0 2px 8px rgba(16,185,129,0.3)'}}
-                  >+ 글쓰기</button>
-                )}
-              </div>
-              {!member.trainer_id && (
-                <div className="empty">커뮤니티는 트레이너에게 등록된 회원만 이용할 수 있어요.</div>
-              )}
-              {member.trainer_id && !posts.length && (
-                <div className="empty"><div style={{fontSize:'32px',marginBottom:'12px'}}>💬</div><p>아직 게시물이 없어요</p><p style={{fontSize:'12px',marginTop:'4px'}}>첫 번째 게시물을 올려보세요!</p></div>
-              )}
-              {posts.map(post => {
-                const counts = reactionCounts[post.id] || {}
-                const mine = myReactions[post.id] || new Set()
-                const totalReactions = Object.values(counts).reduce((a,b)=>a+b,0)
-                return (
-                  <div key={post.id} style={{background:'#fff',borderRadius:'16px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)',marginBottom:'14px',padding:'16px',border:'1px solid #f0f0f0'}}>
-                    <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'12px'}}>
-                      <div style={{width:'38px',height:'38px',borderRadius:'50%',background:'linear-gradient(135deg,#10B981,#059669)',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:'15px',fontWeight:800,flexShrink:0,boxShadow:'0 2px 6px rgba(16,185,129,0.3)'}}>
-                        {(post.member_name||'?')[0]}
-                      </div>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:'13px',fontWeight:700,color:'#111'}}>{post.member_name||'회원'}</div>
-                        <div style={{fontSize:'11px',color:'#6b7280'}}>{formatRelative(post.created_at)}</div>
-                      </div>
-                      {post.member_id === member.id && (
-                        <button onClick={()=>deletePost(post.id)} style={{background:'none',border:'none',color:'#d1d5db',cursor:'pointer',fontSize:'18px',padding:'2px 6px',lineHeight:1}}>×</button>
-                      )}
-                    </div>
-                    {post.content && <p style={{fontSize:'14px',lineHeight:'1.7',margin:'0 0 12px',color:'#333',wordBreak:'break-word'}}>{post.content}</p>}
-                    {post.photo_url && (
-                      <img src={post.photo_url} alt="첨부 사진" crossOrigin="anonymous" style={{width:'100%',borderRadius:'12px',objectFit:'cover',maxHeight:'340px',marginBottom:'12px',display:'block'}} />
-                    )}
-                    {totalReactions > 0 && (
-                      <div style={{fontSize:'12px',color:'#6b7280',marginBottom:'10px',display:'flex',flexWrap:'wrap',gap:'6px'}}>
-                        {REACTIONS.filter(r=>counts[r]>0).map(r=>(
-                          <span key={r} style={{background:'#F0FDF4',padding:'2px 8px',borderRadius:'10px',color:'#059669',fontWeight:600}}>{r} {counts[r]}</span>
-                        ))}
-                      </div>
-                    )}
-                    <div style={{display:'flex',flexWrap:'wrap',gap:'6px',borderTop:'1px solid #F0FDF4',paddingTop:'12px'}}>
-                      {REACTIONS.map(r => (
-                        <button key={r} onClick={()=>toggleReaction(post.id, r)}
-                          style={{padding:'6px 11px',borderRadius:'20px',border:'1.5px solid',fontSize:'13px',cursor:'pointer',fontFamily:'inherit',transition:'all 0.15s',
-                            background: mine.has(r) ? '#F0FDF4' : '#fafafa',
-                            borderColor: mine.has(r) ? '#10B981' : '#e5e7eb',
-                            fontWeight: mine.has(r) ? 700 : 400,
-                            transform: mine.has(r) ? 'scale(1.08)' : 'scale(1)'}}>
-                          {r}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* WORKOUT MODAL */}
       <Modal open={workoutModal} onClose={()=>setWorkoutModal(false)} title={workoutEditId?'운동일지 수정':'운동 기록'} maxWidth="520px">
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'8px'}}>
@@ -2759,31 +2488,6 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
         ))}
       </Modal>
 
-      {/* POST CREATE MODAL */}
-      <Modal open={postModal} onClose={()=>setPostModal(false)} title="운동 일상 공유" maxWidth="400px">
-        <div className="form-group">
-          <label>내용</label>
-          <textarea value={postContent} onChange={e=>setPostContent(e.target.value)}
-            placeholder="오늘 운동 어땠나요? 공유하고 싶은 일상을 적어보세요 💪"
-            rows={4} style={{resize:'vertical'}} />
-        </div>
-        <div className="form-group">
-          <label>사진 첨부 (선택)</label>
-          <input type="file" accept="image/*" onChange={e=>{
-            const file = e.target.files?.[0]; if (!file) return
-            setPostPhotoFile(file)
-            setPostPhotoPreview(URL.createObjectURL(file))
-          }} style={{fontSize:'12px'}} />
-          {postPhotoPreview && (
-            <div style={{marginTop:'8px',position:'relative',display:'inline-block'}}>
-              <img src={postPhotoPreview} alt="미리보기" style={{maxWidth:'100%',maxHeight:'200px',borderRadius:'8px',objectFit:'cover',display:'block'}} />
-              <button onClick={()=>{setPostPhotoFile(null);setPostPhotoPreview('')}}
-                style={{position:'absolute',top:'4px',right:'4px',background:'rgba(0,0,0,0.55)',border:'none',borderRadius:'50%',width:'22px',height:'22px',color:'#fff',cursor:'pointer',fontSize:'13px',lineHeight:'22px',textAlign:'center'}}>✕</button>
-            </div>
-          )}
-        </div>
-        <button className="btn btn-primary" style={{width:'100%',opacity:creatingPost?0.55:1,cursor:creatingPost?'not-allowed':'pointer'}} disabled={creatingPost} onClick={createPost}>{creatingPost ? '게시 중…' : '게시하기'}</button>
-      </Modal>
     </div>
   )
 }
