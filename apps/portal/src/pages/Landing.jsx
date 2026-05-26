@@ -1425,11 +1425,10 @@ export default function Landing() {
             })()}
           </div>
 
-          {/* 커뮤니티 */}
+          {/* 커뮤니티 — 운영(prod)에선 숨김, 로컬 dev 에서만 노출 (개발용) */}
           {(() => {
-            const v = portalButtons.community
-            const state = v === true ? 'show' : v === false ? 'coming_soon' : (v || 'show')
-            if (state === 'hidden') return null
+            if (!import.meta.env.DEV) return null
+            const state = 'show'
             return (
           <SlideCard delay={300}>
             {state === 'show' ? (
@@ -1546,7 +1545,8 @@ export default function Landing() {
             const items = [
               { key: 'trainer',   to: '/trainer',   label: '트레이너 앱' },
               { key: 'member',    to: '/member',    label: '회원 포털' },
-              { key: 'community', to: '/community', label: '커뮤니티' },
+              // 커뮤니티는 운영(prod)에선 숨김, 로컬 dev 에서만 노출
+              ...(import.meta.env.DEV ? [{ key: 'community', to: '/community', label: '커뮤니티' }] : []),
               { key: 'crm',       to: '/crm',       label: '헬스장 CRM' },
             ]
             return items.map(it => {
