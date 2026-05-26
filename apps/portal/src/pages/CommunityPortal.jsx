@@ -700,10 +700,9 @@ export default function CommunityPortal() {
         if (error.code === '23505') { showToast('이미 연락 요청을 보냈습니다'); return }
         throw error
       }
-      const { error: updErr } = await supabase.from('community_posts')
-        .update({ contact_count: (selPost.contact_count || 0) + 1 })
-        .eq('id', selPost.id)
-      if (updErr) throw updErr
+      // contact_count 증가는 DB 트리거(trg_community_contact_count)가 처리.
+      // 작성자-only RLS 하에서 비작성자가 직접 UPDATE 할 수 없으므로 클라 증가 제거.
+      // 화면 표시는 낙관적으로만 +1.
       const updated = { ...selPost, contact_count: (selPost.contact_count || 0) + 1 }
       setSelPost(updated); setShowContactModal(false)
       showToast('연락 요청을 보냈습니다')
