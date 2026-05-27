@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS trainer_profiles (
   created_at  timestamptz DEFAULT now(),
   updated_at  timestamptz DEFAULT now()
 );
+-- 이미 테이블이 생성된 경우(이전 버전 적용)에도 display_name 보장 (멱등)
+ALTER TABLE trainer_profiles ADD COLUMN IF NOT EXISTS display_name text;
 ALTER TABLE trainer_profiles ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "tp_public_read" ON trainer_profiles;
