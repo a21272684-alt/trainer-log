@@ -1760,7 +1760,12 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
           {/* 일별 기록 */}
           <div style={{fontSize:'11px',fontWeight:700,color:'#9CA3AF',letterSpacing:'0.08em',marginBottom:'10px'}}>일별 기록</div>
           {healthRecords.filter(r=>r.morning_weight||r.evening_weight).slice(0,14).map(r => {
-            const diff = (r.morning_weight&&r.evening_weight)?(r.evening_weight-r.morning_weight).toFixed(1):null
+            // 일중: 같은 날 저녁 − 공복
+            const intra = (r.morning_weight&&r.evening_weight)?(r.evening_weight-r.morning_weight).toFixed(1):null
+            // 전일비: 현재 공복 체중 − 직전(더 과거) 기록 중 공복 체중이 있는 가장 최근 기록.
+            // healthRecords 는 record_date 내림차순 정렬이라 find() 가 곧 "직전 기록". 추가 쿼리 없음(메모리 계산).
+            const prevMorning = r.morning_weight ? healthRecords.find(x => x.morning_weight && x.record_date < r.record_date) : null
+            const dod = prevMorning ? (r.morning_weight - prevMorning.morning_weight).toFixed(1) : null
             return (
               <div key={r.id} style={{
                 background:'#fff',borderRadius:'14px',padding:'13px 14px',marginBottom:'8px',
@@ -1768,17 +1773,23 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                 display:'flex',alignItems:'center',justifyContent:'space-between',
               }}>
                 <div style={{fontSize:'12px',fontWeight:600,color:'#374151',minWidth:'48px'}}>{formatDate(r.record_date)}</div>
-                <div style={{display:'flex',gap:'12px',flex:1,justifyContent:'center'}}>
+                <div style={{display:'flex',gap:'10px',flex:1,justifyContent:'center'}}>
                   {[{v:r.morning_weight,l:'공복'},{v:r.evening_weight,l:'저녁'}].map(({v,l})=>(
                     <div key={l} style={{textAlign:'center'}}>
                       <div style={{fontSize:'14px',fontWeight:700,color:v?'#111':'#d1d5db'}}>{v||'—'}</div>
                       <div style={{fontSize:'9px',color:'#9CA3AF'}}>{l}</div>
                     </div>
                   ))}
-                  {diff && (
+                  {intra && (
                     <div style={{textAlign:'center'}}>
-                      <div style={{fontSize:'13px',fontWeight:700,color:parseFloat(diff)>0?'#ef4444':'#10B981'}}>{parseFloat(diff)>0?'+':''}{diff}</div>
-                      <div style={{fontSize:'9px',color:'#9CA3AF'}}>증감</div>
+                      <div style={{fontSize:'13px',fontWeight:700,color:parseFloat(intra)>0?'#ef4444':'#10B981'}}>{parseFloat(intra)>0?'+':''}{intra}</div>
+                      <div style={{fontSize:'9px',color:'#9CA3AF'}}>일중</div>
+                    </div>
+                  )}
+                  {dod && (
+                    <div style={{textAlign:'center'}}>
+                      <div style={{fontSize:'13px',fontWeight:700,color:parseFloat(dod)>0?'#ef4444':parseFloat(dod)<0?'#10B981':'#9CA3AF'}}>{parseFloat(dod)>0?'+':''}{dod}</div>
+                      <div style={{fontSize:'9px',color:'#9CA3AF'}}>전일비</div>
                     </div>
                   )}
                 </div>
