@@ -9,6 +9,8 @@ import Modal from '@trainer-log/shared/components/common/Modal'
 import TermsAgreementModal from '@trainer-log/shared/components/common/TermsAgreementModal'
 import InAppBrowserBanner from '@trainer-log/shared/components/common/InAppBrowserBanner'
 import LoginNoticeModal from '@trainer-log/shared/components/common/LoginNoticeModal'
+// dev 전용 — 공개 프로필 편집 (배포엔 미노출, import.meta.env.DEV 게이팅)
+import ProfileEditor from './trainer/ProfileEditor'
 import { Link } from 'react-router-dom'
 import '../styles/trainer.css'
 import { computeStats, buildInsightPrompt, callGeminiInsight } from '@trainer-log/shared/lib/memberInsights'
@@ -1672,6 +1674,7 @@ export default function TrainerApp() {
   // members 변경 시에만 Map 재생성 (useMemo deps).
   const memberById = useMemo(() => new Map(members.map(m => [m.id, m])), [members])
   const [tab, setTab] = useState('members')
+  const [showProfileEditor, setShowProfileEditor] = useState(false) // dev 전용 공개 프로필 편집
   const [activePage, setActivePage] = useState('page-members')
   const [currentMemberId, setCurrentMemberId] = useState(null)
   const [exercises, setExercises] = useState([])
@@ -5236,6 +5239,22 @@ export default function TrainerApp() {
               )}
             </div>
           </div>
+
+          {/* dev 전용 — 공개 프로필 관리 (배포 앱엔 미노출, 공개 시점은 사용자 통제) */}
+          {import.meta.env.DEV && (
+            <div style={{ marginBottom: '20px' }}>
+              <button type="button" onClick={() => setShowProfileEditor(true)}
+                style={{ width: '100%', padding: '12px', borderRadius: '10px',
+                  border: '1px solid rgba(200,241,53,0.45)', background: 'rgba(200,241,53,0.08)',
+                  color: 'var(--text)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                🪪 공개 프로필 관리 (dev)
+              </button>
+              <Modal open={showProfileEditor} onClose={() => setShowProfileEditor(false)}
+                title="공개 프로필 관리" maxWidth="560px">
+                {trainer && <ProfileEditor trainer={trainer} onClose={() => setShowProfileEditor(false)} />}
+              </Modal>
+            </div>
+          )}
 
           {/* ── 3열 상세 플랜 카드 (관리자 포털과 동기화된 Free / Pro / Premium) ── */}
           {planGuideVisible === true && (() => {
