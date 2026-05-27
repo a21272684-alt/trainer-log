@@ -10,9 +10,12 @@
 -- 1. trainer_profiles — 1 트레이너 1 공개 프로필
 -- ============================================================
 CREATE TABLE IF NOT EXISTS trainer_profiles (
-  trainer_id  uuid PRIMARY KEY REFERENCES trainers(id) ON DELETE CASCADE,
-  handle      text UNIQUE NOT NULL,
-  is_public   boolean NOT NULL DEFAULT false,
+  trainer_id   uuid PRIMARY KEY REFERENCES trainers(id) ON DELETE CASCADE,
+  handle       text UNIQUE NOT NULL,
+  is_public    boolean NOT NULL DEFAULT false,
+  -- 공개 페이지는 anon 이 보는데 trainers 테이블은 050 RLS 로 anon 차단됨.
+  -- 따라서 공개 표시용 이름/사진은 trainer_profiles 에 비정규화 저장(공개 읽기 가능).
+  display_name text,
   tagline     text,
   bio         text,
   specialties text[] DEFAULT '{}',
@@ -23,6 +26,8 @@ CREATE TABLE IF NOT EXISTS trainer_profiles (
   created_at  timestamptz DEFAULT now(),
   updated_at  timestamptz DEFAULT now()
 );
+-- 이미 테이블이 생성된 경우(이전 버전 적용)에도 display_name 보장 (멱등)
+ALTER TABLE trainer_profiles ADD COLUMN IF NOT EXISTS display_name text;
 ALTER TABLE trainer_profiles ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "tp_public_read" ON trainer_profiles;
