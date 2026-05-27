@@ -25,7 +25,7 @@ function normalizeHandle(v) {
 }
 
 export default function ProfileEditor({ trainer, onClose }) {
-  const { showToast } = useToast()
+  const showToast = useToast()
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
   const [savedHandle, setSavedHandle] = useState(null) // 저장돼있던 핸들(변경 경고용)
