@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>시안 — 상담 흐름 (PII 미수집 / 익명 이벤트 + 카톡 연결)</title>
+<style>
+  :root{--lime:#c8f135;--ink:#111827;--navy:#0f172a}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,'Segoe UI','Malgun Gothic',sans-serif;background:#0a0f1a;
+    padding:28px 16px;color:#0f172a}
+  .title{color:#e2e8f0;text-align:center;font-size:18px;font-weight:800;margin-bottom:6px}
+  .desc{color:#94a3b8;text-align:center;font-size:13px;max-width:740px;margin:0 auto 24px;line-height:1.6}
+  .row{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;align-items:flex-start}
+  .col{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .cap{color:#cbd5e1;font-size:13px;font-weight:700;text-align:center}
+  .cap small{display:block;color:#64748b;font-weight:400;margin-top:2px}
+  .phone{width:330px;background:#f8fafc;border-radius:26px;overflow:hidden;
+    box-shadow:0 20px 50px rgba(0,0,0,.55);border:1px solid #1e293b;min-height:540px;display:flex;flex-direction:column}
+  .url{background:#000;color:#9ca3af;font-size:11px;padding:9px 14px;text-align:center;font-family:monospace}
+  .top{background:var(--navy);color:#fff;padding:18px 20px;border-bottom:3px solid var(--lime)}
+  .top .t{font-size:17px;font-weight:800}
+  .top .s{font-size:12px;color:var(--lime);margin-top:3px}
+  .pad{padding:18px 20px;display:flex;flex-direction:column;gap:16px;flex:1}
+  label{font-size:12px;font-weight:700;color:#475569;display:block;margin-bottom:7px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{font-size:12px;font-weight:700;padding:7px 12px;border-radius:20px;border:1.5px solid #e2e8f0;color:#64748b;background:#fff}
+  .chip.on{background:#f0fbd2;color:#4d7c0f;border-color:#d9f99d}
+  .btn{padding:14px;border-radius:13px;font-size:14px;font-weight:800;text-align:center;border:none;cursor:pointer;width:100%}
+  .btn-kakao{background:#FEE500;color:#3b1e1e;display:flex;align-items:center;justify-content:center;gap:7px}
+  .btn-main{background:var(--lime);color:var(--ink)}
+  .btn-ghost{background:#fff;color:#4d7c0f;border:1.5px solid var(--lime)}
+  .privacy{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px;font-size:12px;color:#15803d;line-height:1.6;display:flex;gap:7px}
+  .privacy b{color:#166534}
+  .spacer{flex:1}
+  .done{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px 24px;gap:8px}
+  .circle{width:72px;height:72px;border-radius:50%;background:#FEE500;display:flex;align-items:center;justify-content:center;font-size:34px;margin-bottom:8px;box-shadow:0 6px 18px rgba(254,229,0,.5)}
+  .done h2{font-size:19px;font-weight:800}
+  .done p{font-size:13px;color:#64748b;line-height:1.6}
+  .softsell{background:#f7fee7;border:1px solid #ecfccb;border-radius:14px;padding:14px;font-size:12px;color:#3f6212;line-height:1.6;margin-top:14px}
+  .pkg{border:1.5px solid #e2e8f0;border-radius:14px;padding:14px;background:#fff;position:relative}
+  .pkg.hot{border-color:var(--lime);background:#fbffe9}
+  .badge{position:absolute;top:-9px;right:12px;background:var(--lime);color:var(--ink);font-size:10px;font-weight:800;padding:3px 9px;border-radius:8px}
+  .pkg .nm{font-size:14px;font-weight:800;color:#0f172a}
+  .pkg .pr{font-size:20px;font-weight:900;color:#4d7c0f;margin-top:4px}
+  .pkg .pr small{font-size:12px;color:#64748b;font-weight:600}
+  .pkg .ds{font-size:11px;color:#64748b;margin-top:4px}
+  .infoline{font-size:12px;color:#64748b;display:flex;gap:7px;align-items:center}
+</style>
+</head>
+<body>
+  <div class="title">📱 시안 — 상담 흐름 (PII 미수집 버전: 익명 이벤트 + 카톡 연결)</div>
+  <div class="desc">이름·전화 입력 없음. 관심분야(익명)만 선택 → 카카오톡으로 직접 상담. 오운은 "문의 발생" 익명 이벤트만 기록(전환·노출 데이터용), 개인정보는 카카오가 처리.</div>
+
+  <div class="row">
+    <!-- ① 상담 연결 (PII 없음) -->
+    <div class="col">
+      <div class="cap">① 상담 연결<small>[1:1 상담 신청하기] 클릭 직후</small></div>
+      <div class="phone">
+        <div class="url">ownapp.kr/t/jihoon-pt/contact</div>
+        <div class="top"><div class="t">김지훈 트레이너와<br>상담하기</div><div class="s">카카오톡으로 바로 연결돼요</div></div>
+        <div class="pad">
+          <div>
+            <label>관심 분야 (선택 — 트레이너가 미리 파악해요)</label>
+            <div class="chips"><span class="chip on">체중감량</span><span class="chip">바디프로필</span><span class="chip">체형교정</span><span class="chip on">식단</span></div>
+          </div>
+          <div class="spacer"></div>
+          <button class="btn btn-kakao">💬 카카오톡으로 상담하기</button>
+          <div class="privacy">🔒 <span><b>오운은 이름·연락처를 저장하지 않아요.</b> 상담은 카카오톡에서 진행되고, 오운엔 "문의 발생"만 익명으로 기록됩니다.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ② 연결 완료 -->
+    <div class="col">
+      <div class="cap">② 카톡 연결<small>버튼 클릭 후</small></div>
+      <div class="phone">
+        <div class="url">talk to · 김지훈 트레이너</div>
+        <div class="done">
+          <div class="circle">💬</div>
+          <h2>카카오톡으로 연결했어요</h2>
+          <p>채팅창에서 김지훈 트레이너와<br>바로 상담하세요.<br><b style="color:#4d7c0f">관심분야도 함께 전달됐어요</b></p>
+          <div class="softsell">
+            🏃 수업을 시작하면 <b>수업일지·체중·식단</b>을 오운 회원 앱으로 받아볼 수 있어요. 트레이너가 등록해 드려요.
+          </div>
+          <button class="btn btn-ghost" style="margin-top:16px">프로필로 돌아가기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ③ 수업/가격 안내 -->
+    <div class="col">
+      <div class="cap">③ 수업·가격 안내<small>[수업/가격 안내 보기] 클릭</small></div>
+      <div class="phone">
+        <div class="url">ownapp.kr/t/jihoon-pt/pricing</div>
+        <div class="top"><div class="t">수업 안내</div><div class="s">서울 마포 · 1:1 PT</div></div>
+        <div class="pad">
+          <div class="pkg"><div class="nm">체험 수업 (1회)</div><div class="pr">30,000원</div><div class="ds">처음이라면 부담 없이 한 번</div></div>
+          <div class="pkg"><div class="nm">10회 패키지</div><div class="pr">450,000원 <small>· 회당 45,000원</small></div><div class="ds">2~3개월 단기 목표용</div></div>
+          <div class="pkg hot"><div class="badge">인기</div><div class="nm">20회 패키지</div><div class="pr">800,000원 <small>· 회당 40,000원</small></div><div class="ds">바디프로필·체중감량 추천</div></div>
+          <div class="pkg"><div class="nm">+ 식단 코칭 (월)</div><div class="pr">100,000원</div><div class="ds">주간 식단 피드백 · 옵션</div></div>
+          <div class="infoline">🕗 평일 06–22시 / 주말 09–18시</div>
+          <div class="infoline">📍 마포 ○○짐 · 주차 가능</div>
+          <div class="infoline" style="color:#94a3b8;font-size:11px">※ 환불은 잔여 횟수 기준 · 자세한 사항 상담 시 안내</div>
+          <button class="btn btn-kakao">이 조건으로 카톡 상담 →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="desc" style="margin-top:24px;font-size:12px">
+    PII 미수집: ①에서 이름·전화 입력 없음 → 관심분야(익명)만 골라 카톡으로 연결. 오운엔 <b>profile_events</b>(profile_id·시각·관심분야, 개인식별 X)만 남아 "문의 N건" 같은 노출·전환 지표로 활용. 개인정보 처리·보관은 카카오 몫이라 오운의 법적·보안 부담 거의 0.
+  </div>
+</body>
+</html>

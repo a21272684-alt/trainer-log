@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>시안 — 회원 진척 공유 카드 (인스타 스토리용)</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,'Segoe UI','Malgun Gothic',sans-serif;background:#0f172a;
+    display:flex;flex-direction:column;align-items:center;gap:14px;padding:30px 12px}
+  .note{color:#94a3b8;font-size:13px;text-align:center;max-width:420px;line-height:1.6}
+  /* 인스타 스토리 비율 9:16 */
+  .card{width:330px;height:586px;border-radius:24px;overflow:hidden;position:relative;
+    background:linear-gradient(160deg,#065f46 0%,#10B981 55%,#34d399 100%);color:#fff;
+    box-shadow:0 24px 60px rgba(0,0,0,.5);display:flex;flex-direction:column}
+  .top{padding:26px 24px 0;display:flex;justify-content:space-between;align-items:center}
+  .brand{font-size:14px;font-weight:900;letter-spacing:-.5px}
+  .brand .chip{background:#c8f135;color:#111;padding:0 6px;border-radius:5px;margin-left:1px}
+  .who{font-size:12px;opacity:.9}
+  .mid{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:0 24px}
+  .label{font-size:14px;font-weight:600;opacity:.92;letter-spacing:.5px}
+  .big{font-size:84px;font-weight:900;line-height:1;letter-spacing:-3px;margin:6px 0;text-shadow:0 4px 20px rgba(0,0,0,.2)}
+  .sub{font-size:14px;opacity:.92}
+  .bars{display:flex;gap:18px;margin-top:30px}
+  .stat{text-align:center}
+  .stat .n{font-size:26px;font-weight:800}
+  .stat .l{font-size:11px;opacity:.85;margin-top:2px}
+  .quote{margin-top:26px;font-size:13px;opacity:.95;font-style:italic;line-height:1.5}
+  .bottom{padding:18px 24px 26px;text-align:center;background:rgba(0,0,0,.18)}
+  .with{font-size:12px;opacity:.9;margin-bottom:8px}
+  .cta{display:inline-block;background:#fff;color:#059669;font-size:13px;font-weight:800;padding:10px 20px;border-radius:30px}
+  .miniwave{display:flex;align-items:flex-end;gap:3px;height:34px;margin-top:18px}
+  .miniwave i{width:7px;background:rgba(255,255,255,.55);border-radius:3px}
+</style>
+</head>
+<body>
+  <div class="note">📱 시안 ② — 회원 진척 공유 카드<br>회원이 성과를 인스타 스토리/카톡에 자랑하고 싶게 만드는 "인증 카드". 공유될 때마다 오운 브랜드 + 트레이너가 자연 노출 (= 0원 바이럴).</div>
+  <div class="card">
+    <div class="top">
+      <div class="brand">오<span class="chip">운</span></div>
+      <div class="who">민지님의 12주 기록</div>
+    </div>
+    <div class="mid">
+      <div class="label">시작보다</div>
+      <div class="big">-6.4<span style="font-size:30px">kg</span></div>
+      <div class="sub">68.0kg → 61.6kg · 목표까지 1.6kg</div>
+      <!-- 미니 체중 추이 -->
+      <div class="miniwave">
+        <i style="height:100%"></i><i style="height:92%"></i><i style="height:88%"></i>
+        <i style="height:80%"></i><i style="height:74%"></i><i style="height:66%"></i>
+        <i style="height:58%"></i><i style="height:52%"></i><i style="height:44%"></i>
+        <i style="height:40%"></i><i style="height:33%"></i><i style="height:28%"></i>
+      </div>
+      <div class="bars">
+        <div class="stat"><div class="n">36</div><div class="l">수업 출석</div></div>
+        <div class="stat"><div class="n">48</div><div class="l">운동 기록</div></div>
+        <div class="stat"><div class="n">21일</div><div class="l">최장 연속</div></div>
+      </div>
+      <div class="quote">"기록하니까 진짜 바뀌네요 💪"</div>
+    </div>
+    <div class="bottom">
+      <div class="with">with 김지훈 트레이너 · 오운</div>
+      <span class="cta">나도 시작하기 → ownapp.kr</span>
+    </div>
+  </div>
+  <div class="note" style="font-size:12px">회원이 "캡처해서 올리고 싶은 한 장". 앱이 자동 생성 → 공유 버튼만 누르면 끝. 트레이너 이름 + 오운 + ownapp.kr 링크가 같이 박혀 무료로 퍼집니다. (나이키런·캐시워크 공유 카드와 같은 원리)</div>
+</body>
+</html>
