@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>시안 — 회원 앱: 변화 공유(비포애프터 제출) 화면</title>
+<style>
+  :root{--lime:#c8f135;--ink:#111827;--navy:#0f172a}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,'Segoe UI','Malgun Gothic',sans-serif;background:#0a0f1a;
+    padding:28px 16px;color:#0f172a}
+  .title{color:#e2e8f0;text-align:center;font-size:18px;font-weight:800;margin-bottom:6px}
+  .desc{color:#94a3b8;text-align:center;font-size:13px;max-width:680px;margin:0 auto 24px;line-height:1.6}
+  .row{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;align-items:flex-start}
+  .col{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .cap{color:#cbd5e1;font-size:13px;font-weight:700;text-align:center}
+  .cap small{display:block;color:#64748b;font-weight:400;margin-top:2px}
+  .phone{width:340px;background:#f8fafc;border-radius:26px;overflow:hidden;
+    box-shadow:0 20px 50px rgba(0,0,0,.55);border:1px solid #1e293b;min-height:600px;display:flex;flex-direction:column}
+  .bar{background:var(--navy);color:#fff;padding:14px 18px;border-bottom:3px solid var(--lime);display:flex;align-items:center;gap:10px}
+  .bar .back{font-size:18px;color:var(--lime)}
+  .bar .t{font-size:15px;font-weight:800}
+  .pad{padding:16px 18px;display:flex;flex-direction:column;gap:16px;flex:1}
+  /* 트레이너 요청 카드 */
+  .req{background:#fbffe9;border:1px solid #ecfccb;border-radius:14px;padding:13px;display:flex;gap:10px;align-items:center}
+  .req .av{width:38px;height:38px;border-radius:50%;background:var(--lime);color:var(--ink);font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .req .tx{font-size:12.5px;color:#3f6212;line-height:1.5}
+  .req .tx b{color:#166534}
+  .sec-t{font-size:12px;font-weight:800;color:#475569;margin-bottom:8px}
+  /* 업로드 슬롯 */
+  .slots{display:flex;gap:10px}
+  .slot{flex:1;height:150px;border-radius:12px;position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .slot.empty{border:2px dashed #cbd5e1;background:#fff;color:#94a3b8;font-size:12px;gap:6px}
+  .slot.empty .ic{font-size:26px}
+  .slot.filled.b{background:linear-gradient(160deg,#cbd5e1,#94a3b8)}
+  .slot .lbl{position:absolute;top:8px;left:8px;font-size:9px;font-weight:800;color:#fff;background:rgba(0,0,0,.4);padding:2px 7px;border-radius:6px}
+  .slot .face{position:absolute;top:30px;left:50%;transform:translateX(-50%);width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.55)}
+  .compress{font-size:11px;color:#94a3b8;display:flex;gap:5px;align-items:center}
+  /* 성과 입력 */
+  .fields{display:flex;gap:10px}
+  .fld{flex:1}
+  .fld label{font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:5px}
+  .fld .inp{border:1.5px solid #e2e8f0;border-radius:10px;padding:10px;font-size:13px;background:#fff;color:#475569}
+  /* 토글 */
+  .toggle{display:flex;justify-content:space-between;align-items:center;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:13px}
+  .toggle.on{border-color:var(--lime);background:#fbffe9}
+  .toggle .lt{font-size:13px;font-weight:700;color:#0f172a}
+  .toggle .ls{font-size:11px;color:#64748b;margin-top:2px}
+  .sw{width:42px;height:24px;border-radius:14px;background:#cbd5e1;position:relative;flex-shrink:0}
+  .sw.on{background:var(--lime)}
+  .sw::after{content:"";position:absolute;top:2px;width:20px;height:20px;border-radius:50%;background:#fff;left:2px;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+  .sw.on::after{left:20px}
+  .consent{border-color:#86efac;background:#f0fdf4}
+  .consent .lt{color:#166534}
+  .privacy{font-size:11px;color:#15803d;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:9px 11px;line-height:1.5;display:flex;gap:6px}
+  .btn{padding:14px;border-radius:13px;font-size:14px;font-weight:800;text-align:center;border:none;cursor:pointer;width:100%}
+  .btn-main{background:var(--lime);color:var(--ink)}
+  .btn-revoke{background:#fff;color:#dc2626;border:1.5px solid #fecaca}
+  .spacer{flex:1}
+  /* 제출 후 */
+  .done-card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;overflow:hidden}
+  .done-imgs{display:flex;height:120px}
+  .done-imgs .h{flex:1;position:relative;display:flex;align-items:flex-end;justify-content:center}
+  .done-imgs .h.b{background:linear-gradient(160deg,#cbd5e1,#94a3b8)}
+  .done-imgs .h.a{background:linear-gradient(160deg,#d9f99d,#a3e635)}
+  .done-imgs .lbl{position:absolute;top:6px;left:6px;font-size:9px;font-weight:800;color:#fff;background:rgba(0,0,0,.4);padding:1px 6px;border-radius:5px}
+  .done-meta{padding:11px 13px;display:flex;justify-content:space-between;align-items:center}
+  .status{font-size:12px;color:#166534;font-weight:700;display:flex;gap:5px;align-items:center}
+  .pill{font-size:10px;font-weight:800;color:#166534;background:#dcfce7;padding:3px 9px;border-radius:8px}
+</style>
+</head>
+<body>
+  <div class="title">📱 시안 — 회원 앱: "내 변화 공유" 화면 (제출 + 동의)</div>
+  <div class="desc">회원이 자기 앱 안에서 직접 비포애프터를 올리고 "공개 동의"까지 누르는 화면. 회원 주도 = 동의 자연 확보, 유지보수 가벼움.</div>
+
+  <div class="row">
+    <!-- ① 제출 화면 -->
+    <div class="col">
+      <div class="cap">① 변화 공유 (제출)<small>트레이너 요청 시 / 회원 앱 내</small></div>
+      <div class="phone">
+        <div class="bar"><span class="back">‹</span><span class="t">내 변화 공유</span></div>
+        <div class="pad">
+          <div class="req"><div class="av">김</div><div class="tx"><b>김지훈 트레이너</b>가 회원님의 변화를 프로필에 소개하고 싶어해요. 공유해 주실래요? 😊</div></div>
+
+          <div>
+            <div class="sec-t">사진 (비포 / 애프터)</div>
+            <div class="slots">
+              <div class="slot filled b"><span class="lbl">BEFORE</span><div class="face"></div></div>
+              <div class="slot empty"><span class="ic">＋</span><span>애프터 추가</span></div>
+            </div>
+            <div class="compress" style="margin-top:7px">🗜️ 올리면 자동으로 작게 압축돼요 (데이터·화질 걱정 X)</div>
+          </div>
+
+          <div>
+            <div class="sec-t">성과 (선택)</div>
+            <div class="fields">
+              <div class="fld"><label>기간</label><div class="inp">12주</div></div>
+              <div class="fld"><label>변화</label><div class="inp">-8.4kg</div></div>
+            </div>
+          </div>
+
+          <div class="toggle on"><div><div class="lt">얼굴 가리기</div><div class="ls">기본 켜짐 — 얼굴은 흐리게</div></div><div class="sw on"></div></div>
+
+          <div class="toggle consent"><div><div class="lt">✓ 공개 프로필에 게시 동의</div><div class="ls">김지훈 트레이너 프로필에 노출돼요</div></div><div class="sw on"></div></div>
+
+          <div class="privacy">🔒 <span>동의를 끄면 게시되지 않아요. 게시 후에도 <b>언제든 내릴 수 있어요.</b></span></div>
+          <button class="btn btn-main">변화 공유하기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ② 제출 후 (관리/내리기) -->
+    <div class="col">
+      <div class="cap">② 공유 후 (관리)<small>내가 올린 변화 · 내리기 가능</small></div>
+      <div class="phone">
+        <div class="bar"><span class="back">‹</span><span class="t">내 변화 공유</span></div>
+        <div class="pad">
+          <div class="req" style="background:#f0fdf4;border-color:#bbf7d0"><div class="av" style="background:#22c55e;color:#fff">✓</div><div class="tx" style="color:#166534">변화가 <b>김지훈 트레이너 프로필</b>에 게시됐어요. 감사합니다! 🎉</div></div>
+
+          <div class="done-card">
+            <div class="done-imgs"><div class="h b"><span class="lbl">BEFORE</span></div><div class="h a"><span class="lbl">AFTER</span></div></div>
+            <div class="done-meta"><span style="font-size:13px;font-weight:800;color:#4d7c0f">-8.4kg · 12주</span><span class="pill">게시 중</span></div>
+          </div>
+
+          <div class="status">🌐 ownapp.kr/t/jihoon-pt 에 노출 중 · 얼굴 가림 적용</div>
+
+          <div class="spacer"></div>
+          <div class="privacy">언제든 내릴 수 있어요. 내리면 즉시 프로필에서 사라집니다.</div>
+          <button class="btn btn-revoke">프로필에서 내리기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="desc" style="margin-top:24px;font-size:12px">
+    ① 회원이 직접 사진 업로드(자동 압축) + 얼굴가림(기본 ON) + <b>공개 동의 토글</b> → 제출. ② 게시 후엔 회원이 <b>스스로 "내리기"</b> 가능(revoke) → 민원·삭제요청 CS가 사라짐. 오운은 상태값(동의/게시/내림)만 저장 = 저유지보수.
+  </div>
+</body>
+</html>

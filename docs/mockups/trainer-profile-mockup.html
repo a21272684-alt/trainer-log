@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>시안 — 트레이너 공개 프로필 (오운 라임 + 비포애프터)</title>
+<style>
+  :root{--lime:#c8f135;--ink:#111827;--navy:#0f172a}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,'Segoe UI','Malgun Gothic',sans-serif;background:#0a0f1a;
+    display:flex;flex-direction:column;align-items:center;gap:14px;padding:30px 12px;color:#0f172a}
+  .note{color:#94a3b8;font-size:13px;text-align:center;max-width:420px;line-height:1.6}
+  .phone{width:390px;max-width:100%;background:#f8fafc;border-radius:28px;overflow:hidden;
+    box-shadow:0 24px 60px rgba(0,0,0,.55);border:1px solid #1e293b}
+  .url{background:#000;color:#9ca3af;font-size:12px;padding:10px 16px;text-align:center;font-family:monospace}
+  .hero{background:var(--navy);padding:30px 22px 24px;color:#fff;position:relative}
+  .hero::after{content:"";position:absolute;left:0;right:0;bottom:0;height:4px;background:var(--lime)}
+  .avatar{width:84px;height:84px;border-radius:50%;background:var(--lime);display:flex;align-items:center;
+    justify-content:center;font-size:34px;font-weight:800;color:var(--ink);margin-bottom:12px;box-shadow:0 6px 16px rgba(200,241,53,.35)}
+  .name{font-size:22px;font-weight:800;letter-spacing:-.5px}
+  .tagline{font-size:13px;color:var(--lime);font-weight:600;margin-top:4px}
+  .meta{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+  .meta span{background:rgba(255,255,255,.12);font-size:11px;font-weight:600;padding:4px 10px;border-radius:8px;border:1px solid rgba(200,241,53,.25)}
+  .body{padding:20px 22px 26px;display:flex;flex-direction:column;gap:18px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{background:#f0fbd2;color:#4d7c0f;font-size:12px;font-weight:700;padding:5px 11px;border-radius:20px;border:1px solid #d9f99d}
+  .sec-t{font-size:12px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+  .sec-t .more{font-size:11px;color:#4d7c0f;font-weight:700;text-transform:none}
+  .intro{font-size:13.5px;line-height:1.7;color:#334155}
+  .proof{background:var(--navy);border-radius:16px;padding:16px;color:#fff;border:1px solid rgba(200,241,53,.2)}
+  .proof-h{font-size:11px;color:var(--lime);font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:5px}
+  .stats{display:flex;justify-content:space-around;text-align:center}
+  .stats .n{font-size:21px;font-weight:800;color:var(--lime)}
+  .stats .l{font-size:10px;color:#94a3b8;margin-top:2px}
+  /* ── 비포애프터 갤러리 (작게) ── */
+  .ba-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .ba{border-radius:12px;overflow:hidden;background:#fff;border:1px solid #e5e7eb;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+  .ba .imgs{display:flex;position:relative}
+  .ba .half{flex:1;height:96px;position:relative;display:flex;align-items:flex-end;justify-content:center}
+  .ba .half.b{background:linear-gradient(160deg,#cbd5e1,#94a3b8)}
+  .ba .half.a{background:linear-gradient(160deg,#d9f99d,#a3e635)}
+  /* 얼굴 가림(블러) 표현 */
+  .ba .face{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.55);backdrop-filter:blur(2px)}
+  .ba .tag{font-size:9px;font-weight:800;color:#fff;background:rgba(0,0,0,.4);padding:1px 6px;border-radius:6px;margin-bottom:6px}
+  .ba .cap{padding:7px 9px;display:flex;justify-content:space-between;align-items:center}
+  .ba .cap .res{font-size:12px;font-weight:800;color:#4d7c0f}
+  .ba .cap .dur{font-size:10px;color:#94a3b8}
+  .consent{font-size:10.5px;color:#15803d;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:6px 9px;display:flex;gap:5px;align-items:center;margin-top:8px}
+  .review{background:#f1f5f9;border-radius:12px;padding:13px 14px;font-size:12.5px;color:#475569;line-height:1.6}
+  .review .who{font-size:11px;color:#94a3b8;margin-top:6px}
+  .cta{display:flex;flex-direction:column;gap:9px}
+  .btn{padding:14px;border-radius:13px;font-size:14px;font-weight:800;text-align:center;border:none;cursor:pointer}
+  .btn-main{background:var(--lime);color:var(--ink)}
+  .btn-kakao{background:#FEE500;color:#3b1e1e}
+  .btn-ghost{background:#fff;color:#4d7c0f;border:1.5px solid var(--lime)}
+  .foot{text-align:center;font-size:10px;color:#cbd5e1;padding:6px 0 2px}
+  .foot b{color:#4d7c0f}
+</style>
+</head>
+<body>
+  <div class="note">📱 시안 ① — 트레이너 공개 프로필 (라임 + 회원 비포애프터)<br>비포애프터는 작은 썸네일 그리드 · 얼굴 가림 기본 · "회원 동의" 표시.</div>
+  <div class="phone">
+    <div class="url">ownapp.kr/t/jihoon-pt</div>
+    <div class="hero">
+      <div class="avatar">김</div>
+      <div class="name">김지훈 트레이너</div>
+      <div class="tagline">체중감량 · 바디프로필 전문 PT · 8년차</div>
+      <div class="meta"><span>📍 서울 마포</span><span>🏋️ 1:1 PT</span><span>🥗 식단 코칭</span></div>
+    </div>
+    <div class="body">
+      <div>
+        <div class="sec-t">전문 분야</div>
+        <div class="chips"><span class="chip">체중감량</span><span class="chip">바디프로필</span><span class="chip">체형교정</span><span class="chip">식단관리</span></div>
+      </div>
+      <div>
+        <div class="sec-t">소개</div>
+        <p class="intro">"운동은 짧고 굵게, 기록은 꼼꼼하게." 회원 한 분 한 분 일지·식단을 데이터로 관리합니다. 8주 단위 현실적 목표로 함께해요.</p>
+      </div>
+
+      <!-- ── 회원 비포애프터 (작게) ── -->
+      <div>
+        <div class="sec-t"><span>회원 변화 (BEFORE → AFTER)</span><span class="more">더보기 ›</span></div>
+        <div class="ba-grid">
+          <div class="ba"><div class="imgs"><div class="half b"><div class="face"></div><span class="tag">BEFORE</span></div><div class="half a"><div class="face"></div><span class="tag">AFTER</span></div></div><div class="cap"><span class="res">-8.4kg</span><span class="dur">12주</span></div></div>
+          <div class="ba"><div class="imgs"><div class="half b"><div class="face"></div><span class="tag">BEFORE</span></div><div class="half a"><div class="face"></div><span class="tag">AFTER</span></div></div><div class="cap"><span class="res">근육 +4kg</span><span class="dur">16주</span></div></div>
+          <div class="ba"><div class="imgs"><div class="half b"><div class="face"></div><span class="tag">BEFORE</span></div><div class="half a"><div class="face"></div><span class="tag">AFTER</span></div></div><div class="cap"><span class="res">체지방 -11%</span><span class="dur">20주</span></div></div>
+          <div class="ba"><div class="imgs"><div class="half b"><div class="face"></div><span class="tag">BEFORE</span></div><div class="half a"><div class="face"></div><span class="tag">AFTER</span></div></div><div class="cap"><span class="res">바디프로필</span><span class="dur">10주</span></div></div>
+        </div>
+        <div class="consent">✓ <span>모든 사진은 회원 동의 후 게시 · 얼굴은 기본 비공개</span></div>
+      </div>
+
+      <div class="proof">
+        <div class="proof-h">✓ 오운 인증 트레이너 — 실제 활동 데이터</div>
+        <div class="stats">
+          <div><div class="n">320</div><div class="l">누적 수업일지</div></div>
+          <div><div class="n">8.2개월</div><div class="l">평균 회원 유지</div></div>
+          <div><div class="n">94%</div><div class="l">출석 관리율</div></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="sec-t">회원 후기</div>
+        <div class="review">"일지를 매번 보내주셔서 내가 뭘 했는지 확실히 보여요. 3개월 -7kg 성공!"<div class="who">— 회원 박○○ · 인증된 후기</div></div>
+      </div>
+      <div class="cta">
+        <button class="btn btn-main">💬 1:1 상담 신청하기</button>
+        <button class="btn btn-kakao">카카오톡으로 문의</button>
+        <button class="btn btn-ghost">수업/가격 안내 보기</button>
+      </div>
+      <div class="foot">Powered by <b>오운</b> · ownapp.kr</div>
+    </div>
+  </div>
+  <div class="note" style="font-size:12px">비포애프터는 작은 2열 썸네일(BEFORE 회색 / AFTER 라임) + 성과·기간 캡션. 얼굴은 흐림 처리(기본). 탭하면 크게. "회원 동의" 배지로 신뢰+법적 안전.</div>
+</body>
+</html>
