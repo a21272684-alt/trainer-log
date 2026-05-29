@@ -11,6 +11,8 @@ import { Chart, registerables } from 'chart.js'
 import { callGeminiMultipart, buildFoodVisionParts, parseFoodVisionResult } from '@trainer-log/shared/lib/ai_templates'
 import { compressImage } from '@trainer-log/shared/lib/imageCompress'
 import { removeStorageOnError } from '@trainer-log/shared/lib/storageCleanup'
+// dev 전용 — 회원 변화 공유(비포애프터) (배포엔 미노출, import.meta.env.DEV 게이팅)
+import TransformationsShare from './member/TransformationsShare'
 import '../styles/member.css'
 
 Chart.register(...registerables)
@@ -121,6 +123,7 @@ export default function MemberPortal() {
   const [loggedIn, setLoggedIn] = useState(false)
   const [member, setMember] = useState(null)
   const [tab, setTab] = useState('logs')
+  const [showTransformShare, setShowTransformShare] = useState(false) // dev 전용 변화 공유
   const [memberLogs, setMemberLogs] = useState([])
   const [logsOffset,  setLogsOffset]  = useState(0)
   const [logsHasMore, setLogsHasMore] = useState(false)
@@ -1269,6 +1272,22 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
       {/* ── 수업일지 ── */}
       {tab === 'logs' && (
         <div className="m-page">
+
+          {/* dev 전용 — 내 변화 공유 진입 (배포 앱엔 미노출, 공개 시점 사용자 통제) */}
+          {import.meta.env.DEV && (
+            <div style={{ marginBottom: '14px' }}>
+              <button type="button" onClick={() => setShowTransformShare(true)}
+                style={{ width: '100%', padding: '11px', borderRadius: '10px',
+                  border: '1px solid rgba(200,241,53,0.45)', background: 'rgba(200,241,53,0.08)',
+                  color: '#0f172a', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                🪪 내 변화 공유 (dev)
+              </button>
+              <Modal open={showTransformShare} onClose={() => setShowTransformShare(false)}
+                title="내 변화 공유" maxWidth="520px">
+                {member && <TransformationsShare member={member} onClose={() => setShowTransformShare(false)} />}
+              </Modal>
+            </div>
+          )}
 
           {/* 헤더 카드 — 세션 현황 */}
           {(() => {
