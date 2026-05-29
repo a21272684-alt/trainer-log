@@ -104,9 +104,13 @@ export default function PublicProfile() {
                       <BAimg url={t.before_url} label="BEFORE" />
                       <BAimg url={t.after_url} label="AFTER" after />
                     </div>
-                    <div style={{ padding: '11px 13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 14, fontWeight: 800, color: '#4d7c0f' }}>{t.result_label || '변화'}</span>
-                      <span style={{ fontSize: 11, color: '#94a3b8' }}>{t.duration_label || ''}</span>
+                    <div style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(to right, #fbffe9, #ffffff 60%)', borderTop: `3px solid ${LIME}` }}>
+                      <span style={{ fontSize: 24, fontWeight: 900, color: '#0f172a', letterSpacing: -0.8 }}>{t.result_label || '변화'}</span>
+                      {t.duration_label && (
+                        <span style={{ background: LIME, color: INK, fontSize: 12, fontWeight: 800, padding: '5px 12px', borderRadius: 20, letterSpacing: 0.3 }}>
+                          {t.duration_label}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}
