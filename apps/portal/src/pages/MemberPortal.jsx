@@ -1278,11 +1278,11 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
             <div style={{ marginBottom: '14px' }}>
               <button type="button" onClick={() => setShowTransformShare(true)}
                 style={{ width: '100%', padding: '13px', borderRadius: '11px', border: 'none',
-                  background: 'linear-gradient(135deg, #c8f135 0%, #a3e635 100%)',
+                  background: 'linear-gradient(135deg, #d9f99d 0%, #c8f135 100%)',
                   color: '#111827', fontSize: '13px', fontWeight: 800,
                   cursor: 'pointer', fontFamily: 'inherit',
-                  boxShadow: '0 2px 12px rgba(200,241,53,0.35)', letterSpacing: '-0.2px' }}>
-                🪪 내 변화 공유 (dev)
+                  boxShadow: '0 1px 8px rgba(200,241,53,0.25)', letterSpacing: '-0.2px' }}>
+                💪 내 변화 공유 (dev)
               </button>
               <Modal open={showTransformShare} onClose={() => setShowTransformShare(false)}
                 title="내 변화 공유" maxWidth="520px">

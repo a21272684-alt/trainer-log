@@ -5247,11 +5247,11 @@ export default function TrainerApp() {
             <div style={{ marginBottom: '20px' }}>
               <button type="button" onClick={() => setShowProfileEditor(true)}
                 style={{ width: '100%', padding: '13px', borderRadius: '11px', border: 'none',
-                  background: 'linear-gradient(135deg, #c8f135 0%, #a3e635 100%)',
+                  background: 'linear-gradient(135deg, #d9f99d 0%, #c8f135 100%)',
                   color: '#111827', fontSize: '13px', fontWeight: 800,
                   cursor: 'pointer', fontFamily: 'inherit',
-                  boxShadow: '0 2px 12px rgba(200,241,53,0.35)', letterSpacing: '-0.2px' }}>
-                🪪 공개 프로필 관리 (dev)
+                  boxShadow: '0 1px 8px rgba(200,241,53,0.25)', letterSpacing: '-0.2px' }}>
+                👤 공개 프로필 관리 (dev)
               </button>
               <Modal open={showProfileEditor} onClose={() => setShowProfileEditor(false)}
                 title="공개 프로필 관리" maxWidth="560px">
@@ -5260,10 +5260,10 @@ export default function TrainerApp() {
 
               <button type="button" onClick={() => setShowTransformUpload(true)}
                 style={{ width: '100%', padding: '13px', borderRadius: '11px', marginTop: '10px', border: 'none',
-                  background: 'linear-gradient(135deg, #c8f135 0%, #a3e635 100%)',
+                  background: 'linear-gradient(135deg, #d9f99d 0%, #c8f135 100%)',
                   color: '#111827', fontSize: '13px', fontWeight: 800,
                   cursor: 'pointer', fontFamily: 'inherit',
-                  boxShadow: '0 2px 12px rgba(200,241,53,0.35)', letterSpacing: '-0.2px' }}>
+                  boxShadow: '0 1px 8px rgba(200,241,53,0.25)', letterSpacing: '-0.2px' }}>
                 📸 회원 변화 사진 업로드 (dev)
               </button>
               <Modal open={showTransformUpload} onClose={() => setShowTransformUpload(false)}
