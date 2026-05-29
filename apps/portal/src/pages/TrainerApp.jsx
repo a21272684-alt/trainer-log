@@ -5246,9 +5246,11 @@ export default function TrainerApp() {
           {import.meta.env.DEV && (
             <div style={{ marginBottom: '20px' }}>
               <button type="button" onClick={() => setShowProfileEditor(true)}
-                style={{ width: '100%', padding: '12px', borderRadius: '10px',
-                  border: '1px solid rgba(200,241,53,0.45)', background: 'rgba(200,241,53,0.08)',
-                  color: 'var(--text)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                style={{ width: '100%', padding: '13px', borderRadius: '11px', border: 'none',
+                  background: 'linear-gradient(135deg, #c8f135 0%, #a3e635 100%)',
+                  color: '#111827', fontSize: '13px', fontWeight: 800,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  boxShadow: '0 2px 12px rgba(200,241,53,0.35)', letterSpacing: '-0.2px' }}>
                 🪪 공개 프로필 관리 (dev)
               </button>
               <Modal open={showProfileEditor} onClose={() => setShowProfileEditor(false)}
@@ -5257,9 +5259,11 @@ export default function TrainerApp() {
               </Modal>
 
               <button type="button" onClick={() => setShowTransformUpload(true)}
-                style={{ width: '100%', padding: '12px', borderRadius: '10px', marginTop: '8px',
-                  border: '1px solid rgba(200,241,53,0.45)', background: 'rgba(200,241,53,0.08)',
-                  color: 'var(--text)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                style={{ width: '100%', padding: '13px', borderRadius: '11px', marginTop: '10px', border: 'none',
+                  background: 'linear-gradient(135deg, #c8f135 0%, #a3e635 100%)',
+                  color: '#111827', fontSize: '13px', fontWeight: 800,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  boxShadow: '0 2px 12px rgba(200,241,53,0.35)', letterSpacing: '-0.2px' }}>
                 📸 회원 변화 사진 업로드 (dev)
               </button>
               <Modal open={showTransformUpload} onClose={() => setShowTransformUpload(false)}
