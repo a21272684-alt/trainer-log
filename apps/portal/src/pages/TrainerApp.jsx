@@ -9,8 +9,9 @@ import Modal from '@trainer-log/shared/components/common/Modal'
 import TermsAgreementModal from '@trainer-log/shared/components/common/TermsAgreementModal'
 import InAppBrowserBanner from '@trainer-log/shared/components/common/InAppBrowserBanner'
 import LoginNoticeModal from '@trainer-log/shared/components/common/LoginNoticeModal'
-// dev 전용 — 공개 프로필 편집 (배포엔 미노출, import.meta.env.DEV 게이팅)
+// dev 전용 — 공개 프로필 편집 / 회원 변화 업로드 (배포엔 미노출)
 import ProfileEditor from './trainer/ProfileEditor'
+import MemberTransformationUpload from './trainer/MemberTransformationUpload'
 import { Link } from 'react-router-dom'
 import '../styles/trainer.css'
 import { computeStats, buildInsightPrompt, callGeminiInsight } from '@trainer-log/shared/lib/memberInsights'
@@ -1675,6 +1676,7 @@ export default function TrainerApp() {
   const memberById = useMemo(() => new Map(members.map(m => [m.id, m])), [members])
   const [tab, setTab] = useState('members')
   const [showProfileEditor, setShowProfileEditor] = useState(false) // dev 전용 공개 프로필 편집
+  const [showTransformUpload, setShowTransformUpload] = useState(false) // dev 전용 회원 변화 업로드
   const [activePage, setActivePage] = useState('page-members')
   const [currentMemberId, setCurrentMemberId] = useState(null)
   const [exercises, setExercises] = useState([])
@@ -5244,14 +5246,29 @@ export default function TrainerApp() {
           {import.meta.env.DEV && (
             <div style={{ marginBottom: '20px' }}>
               <button type="button" onClick={() => setShowProfileEditor(true)}
-                style={{ width: '100%', padding: '12px', borderRadius: '10px',
-                  border: '1px solid rgba(200,241,53,0.45)', background: 'rgba(200,241,53,0.08)',
-                  color: 'var(--text)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                🪪 공개 프로필 관리 (dev)
+                style={{ width: '100%', padding: '13px', borderRadius: '11px', border: 'none',
+                  background: 'linear-gradient(135deg, #d9f99d 0%, #c8f135 100%)',
+                  color: '#111827', fontSize: '13px', fontWeight: 800,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  boxShadow: '0 1px 8px rgba(200,241,53,0.25)', letterSpacing: '-0.2px' }}>
+                👤 공개 프로필 관리 (dev)
               </button>
               <Modal open={showProfileEditor} onClose={() => setShowProfileEditor(false)}
                 title="공개 프로필 관리" maxWidth="560px">
                 {trainer && <ProfileEditor trainer={trainer} onClose={() => setShowProfileEditor(false)} />}
+              </Modal>
+
+              <button type="button" onClick={() => setShowTransformUpload(true)}
+                style={{ width: '100%', padding: '13px', borderRadius: '11px', marginTop: '10px', border: 'none',
+                  background: 'linear-gradient(135deg, #d9f99d 0%, #c8f135 100%)',
+                  color: '#111827', fontSize: '13px', fontWeight: 800,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  boxShadow: '0 1px 8px rgba(200,241,53,0.25)', letterSpacing: '-0.2px' }}>
+                📸 회원 변화 사진 업로드 (dev)
+              </button>
+              <Modal open={showTransformUpload} onClose={() => setShowTransformUpload(false)}
+                title="회원 변화 사진 업로드" maxWidth="520px">
+                {trainer && <MemberTransformationUpload trainer={trainer} members={members} onClose={() => setShowTransformUpload(false)} />}
               </Modal>
             </div>
           )}

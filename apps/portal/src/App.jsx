@@ -1,5 +1,5 @@
 import { useEffect, lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ToastProvider } from '@trainer-log/shared/components/common/Toast'
 import Landing from './pages/Landing'
 import TrainerApp from './pages/TrainerApp'
@@ -16,6 +16,8 @@ import ComingSoon from './pages/ComingSoon'
 // 운영 빌드(import.meta.env.DEV === false)에선 계속 ComingSoon 으로 가린다.
 // lazy import 라 운영 번들은 별도 chunk 로 분리 → main 번들 크기 영향 최소.
 const CommunityPortal = lazy(() => import('./pages/CommunityPortal'))
+// dev 전용 — 트레이너 공개 프로필 /t/{handle} (배포엔 미노출, 공개 시점 사용자 통제)
+const PublicProfile = lazy(() => import('./pages/trainer/PublicProfile'))
 
 export default function App() {
   return (
@@ -52,6 +54,12 @@ export default function App() {
               emoji="🏢"
               description={'헬스장 운영자를 위한 회원 관리 ·\n트레이너 정산 · 매출 분석 도구를 준비 중이에요.\n\n사전 도입 문의는 카카오톡 채널 @ownapp 으로.'}
             />
+          } />
+          {/* dev: 트레이너 공개 프로필 / prod: 미공개라 홈으로 */}
+          <Route path="/t/:handle" element={
+            import.meta.env.DEV
+              ? <Suspense fallback={null}><PublicProfile /></Suspense>
+              : <Navigate to="/" replace />
           } />
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
