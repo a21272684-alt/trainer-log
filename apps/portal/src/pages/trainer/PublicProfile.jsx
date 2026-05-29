@@ -97,21 +97,21 @@ export default function PublicProfile() {
 
           {transes.length > 0 && (
             <Section title="회원 변화 (BEFORE → AFTER)">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {transes.map(t => (
-                  <div key={t.id} style={{ border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
-                    <div style={{ display: 'flex', height: 96 }}>
-                      <BAimg url={t.before_url} label="BEFORE" hidden={t.face_hidden} />
-                      <BAimg url={t.after_url} label="AFTER" hidden={t.face_hidden} after />
+                  <div key={t.id} style={{ border: '1px solid #e5e7eb', borderRadius: 14, overflow: 'hidden', background: '#fff' }}>
+                    <div style={{ display: 'flex', height: 220 }}>
+                      <BAimg url={t.before_url} label="BEFORE" />
+                      <BAimg url={t.after_url} label="AFTER" after />
                     </div>
-                    <div style={{ padding: '7px 9px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: '#4d7c0f' }}>{t.result_label || '변화'}</span>
-                      <span style={{ fontSize: 10, color: '#94a3b8' }}>{t.duration_label || ''}</span>
+                    <div style={{ padding: '11px 13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: '#4d7c0f' }}>{t.result_label || '변화'}</span>
+                      <span style={{ fontSize: 11, color: '#94a3b8' }}>{t.duration_label || ''}</span>
                     </div>
                   </div>
                 ))}
               </div>
-              <div style={{ fontSize: 10.5, color: '#15803d', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '6px 9px', marginTop: 8 }}>
+              <div style={{ fontSize: 10.5, color: '#15803d', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '6px 9px', marginTop: 10 }}>
                 ✓ 모든 사진은 회원 동의 후 게시
               </div>
             </Section>
