@@ -30,14 +30,14 @@ function useInView(threshold = 0.12) {
   return [ref, inView]
 }
 
-// ── 스크롤 시 아래에서 페이드업 ──
+// ── 스크롤 시 아래에서 페이드업 (천천히, 돋보이게) ──
 function FadeUp({ children, delay = 0 }) {
   const [ref, inView] = useInView(0.1)
   return (
     <div ref={ref} style={{
       opacity: inView ? 1 : 0,
-      transform: inView ? 'translateY(0)' : 'translateY(34px)',
-      transition: `opacity .7s cubic-bezier(.22,1,.36,1) ${delay}ms, transform .7s cubic-bezier(.22,1,.36,1) ${delay}ms`,
+      transform: inView ? 'translateY(0)' : 'translateY(44px)',
+      transition: `opacity 1.1s cubic-bezier(.22,1,.36,1) ${delay}ms, transform 1.1s cubic-bezier(.22,1,.36,1) ${delay}ms`,
     }}>
       {children}
     </div>
@@ -116,14 +116,14 @@ export default function PublicProfile() {
                   </div>}
             </div>
 
-            <div className="pp-fade" style={{ animationDelay: '.12s' }}>
+            <div className="pp-fade" style={{ animationDelay: '.35s' }}>
               <div style={{ fontSize: 25, fontWeight: 900, marginTop: 16, letterSpacing: -0.5 }}>{profile.display_name}</div>
               {profile.tagline && (
                 <div style={{ fontSize: 13.5, color: LIME, fontWeight: 600, marginTop: 6, lineHeight: 1.5 }}>{profile.tagline}</div>
               )}
             </div>
 
-            <div className="pp-fade" style={{ animationDelay: '.22s', display: 'flex', gap: 7, marginTop: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <div className="pp-fade" style={{ animationDelay: '.6s', display: 'flex', gap: 7, marginTop: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
               {profile.location && <Meta>📍 {profile.location}</Meta>}
               {(profile.specialties || []).slice(0, 3).map(s => <Meta key={s}>{s}</Meta>)}
             </div>
@@ -144,7 +144,7 @@ export default function PublicProfile() {
           )}
 
           {profile.bio && (
-            <FadeUp delay={60}>
+            <FadeUp delay={130}>
               <Section title="소개" emoji="✍️">
                 <div style={{ background: '#fff', borderRadius: 16, padding: '16px 18px', boxShadow: '0 2px 14px rgba(15,23,42,0.06)' }}>
                   <p style={{ fontSize: 14, lineHeight: 1.75, color: '#334155', whiteSpace: 'pre-wrap', margin: 0 }}>{profile.bio}</p>
@@ -154,7 +154,7 @@ export default function PublicProfile() {
           )}
 
           {transes.length > 0 && (
-            <FadeUp delay={120}>
+            <FadeUp delay={260}>
               <Section title="회원 변화" emoji="🔥" sub="BEFORE → AFTER">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   {transes.map(t => (
@@ -275,17 +275,17 @@ function Styles() {
         animation:ppGlow 6.5s ease-in-out infinite .8s; }
 
       .pp-avatar-wrap{ display:inline-block; border-radius:50%;
-        animation:ppAvatarIn .6s cubic-bezier(.22,1,.36,1), ppRingPulse 2.4s ease-out .6s; }
+        animation:ppAvatarIn 1s cubic-bezier(.22,1,.36,1), ppRingPulse 2.8s ease-out 1s; }
       .pp-avatar{ width:104px; height:104px; border-radius:50%;
         border:3px solid ${LIME}; box-shadow:0 10px 30px rgba(200,241,53,.35); display:block; }
 
-      .pp-fade{ animation:ppFade .6s cubic-bezier(.22,1,.36,1) both; }
+      .pp-fade{ animation:ppFade .9s cubic-bezier(.22,1,.36,1) both; }
 
       .pp-ba-card{ border-radius:18px; overflow:hidden; background:#fff;
         box-shadow:0 4px 20px rgba(15,23,42,.10); transition:transform .25s ease, box-shadow .25s ease; }
       .pp-ba-card:hover{ transform:translateY(-3px); box-shadow:0 10px 30px rgba(15,23,42,.16); }
 
-      .pp-cta-bar{ animation:ppBarUp .5s cubic-bezier(.22,1,.36,1) .3s both; }
+      .pp-cta-bar{ animation:ppBarUp .8s cubic-bezier(.22,1,.36,1) .9s both; }
       .pp-btn{ padding:15px; border-radius:14px; border:none; font-size:15px; font-weight:900;
         cursor:pointer; font-family:inherit; transition:transform .12s ease, box-shadow .12s ease; }
       .pp-btn:hover{ transform:translateY(-2px); }
