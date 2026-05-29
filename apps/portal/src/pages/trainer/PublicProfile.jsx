@@ -52,6 +52,7 @@ export default function PublicProfile() {
   const [transes, setTranses]   = useState([])
   const [panel, setPanel]       = useState(null) // 'contact' | 'pricing' | null
   const [interests, setInterests] = useState([])
+  const [stats, setStats]       = useState(null) // 오운 인증 데이터
 
   useEffect(() => { load() /* eslint-disable-next-line */ }, [handle])
 
@@ -70,6 +71,9 @@ export default function PublicProfile() {
       ])
       setPackages(pkgs || [])
       setTranses(tr || [])
+      // 오운 인증 데이터 (집계, PII 없음) — 실패/비표시 시 null
+      supabase.rpc('get_public_trainer_stats', { p_handle: handle })
+        .then(({ data }) => setStats(data || null), () => {})
     } catch (e) { console.warn('[PublicProfile]', e.message); setProfile(null) }
     setLoading(false)
   }
@@ -132,6 +136,22 @@ export default function PublicProfile() {
 
         {/* ───── 본문 ───── */}
         <div style={{ padding: '24px 20px 8px', display: 'flex', flexDirection: 'column', gap: 22 }}>
+
+          {/* 오운 인증 데이터 (신뢰 증명) */}
+          {stats && (stats.total_logs > 0 || stats.total_members > 0) && (
+            <FadeUp>
+              <div className="pp-stats">
+                <div className="pp-stats-h">✓ 오운 인증 트레이너 · 실제 활동 데이터</div>
+                <div style={{ display: 'flex', justifyContent: 'space-around', textAlign: 'center' }}>
+                  <Stat n={stats.total_logs} label="누적 수업일지" />
+                  <StatDivider />
+                  <Stat n={stats.total_members} label="관리 회원" suffix="명" />
+                  <StatDivider />
+                  <Stat n={stats.active_months} label="활동 기간" suffix="개월" />
+                </div>
+              </div>
+            </FadeUp>
+          )}
 
           {(profile.specialties || []).length > 0 && (
             <FadeUp>
@@ -281,6 +301,10 @@ function Styles() {
 
       .pp-fade{ animation:ppFade .9s cubic-bezier(.22,1,.36,1) both; }
 
+      .pp-stats{ background:linear-gradient(135deg,#0f172a,#1e293b); border:1px solid rgba(200,241,53,.22);
+        border-radius:18px; padding:18px 16px; box-shadow:0 6px 22px rgba(15,23,42,.18); }
+      .pp-stats-h{ font-size:11px; font-weight:800; color:${LIME}; margin-bottom:14px; text-align:center; letter-spacing:.2px; }
+
       .pp-ba-card{ border-radius:18px; overflow:hidden; background:#fff;
         box-shadow:0 4px 20px rgba(15,23,42,.10); transition:transform .25s ease, box-shadow .25s ease; }
       .pp-ba-card:hover{ transform:translateY(-3px); box-shadow:0 10px 30px rgba(15,23,42,.16); }
@@ -330,6 +354,19 @@ function Section({ title, emoji, sub, children }) {
 }
 function Chip({ children }) {
   return <span style={{ background: '#fff', color: LIME_DK, fontSize: 12.5, fontWeight: 700, padding: '7px 13px', borderRadius: 20, border: '1.5px solid #e6f5b8', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>{children}</span>
+}
+function Stat({ n, label, suffix }) {
+  return (
+    <div style={{ flex: 1 }}>
+      <div style={{ fontSize: 24, fontWeight: 900, color: LIME, letterSpacing: -0.5 }}>
+        {Number(n).toLocaleString()}<span style={{ fontSize: 13 }}>{suffix || ''}</span>
+      </div>
+      <div style={{ fontSize: 10.5, color: '#94a3b8', marginTop: 3 }}>{label}</div>
+    </div>
+  )
+}
+function StatDivider() {
+  return <div style={{ width: 1, alignSelf: 'stretch', background: 'rgba(255,255,255,0.12)', margin: '0 2px' }} />
 }
 function BAimg({ url, label, after }) {
   return (
