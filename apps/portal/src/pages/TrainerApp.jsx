@@ -6354,7 +6354,10 @@ export default function TrainerApp() {
                 )
               }())}
               {!generating && !showPreview && (
-                canUse('ai_journal') ? (
+                /* AI 일지는 "유료 플랜 OR 크레딧 보유" 면 사용 가능.
+                   크레딧 1개 = 생성 1회 모델 + Free 플랜도 'AI 일지 월 20회' 제공이므로,
+                   크레딧이 있는데 플랜 게이트로 막히던 버그 수정 (생성 함수는 크레딧/월한도로 제어). */
+                (canUse('ai_journal') || credits > 0) ? (
                   <button
                     className="btn btn-primary"
                     style={{width:'100%',marginBottom:'10px',
