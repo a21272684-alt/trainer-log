@@ -13,6 +13,7 @@ import { compressImage } from '@trainer-log/shared/lib/imageCompress'
 import { removeStorageOnError } from '@trainer-log/shared/lib/storageCleanup'
 // dev 전용 — 회원 변화 공유(비포애프터) (배포엔 미노출, import.meta.env.DEV 게이팅)
 import TransformationsShare from './member/TransformationsShare'
+import MemberAttendanceView from './member/MemberAttendanceView'
 import '../styles/member.css'
 
 Chart.register(...registerables)
@@ -124,6 +125,7 @@ export default function MemberPortal() {
   const [member, setMember] = useState(null)
   const [tab, setTab] = useState('logs')
   const [showTransformShare, setShowTransformShare] = useState(false) // dev 전용 변화 공유
+  const [showAttendance, setShowAttendance] = useState(false) // 출결 내역·정책
   const [memberLogs, setMemberLogs] = useState([])
   const [logsOffset,  setLogsOffset]  = useState(0)
   const [logsHasMore, setLogsHasMore] = useState(false)
@@ -1290,6 +1292,19 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
               </Modal>
             </div>
           )}
+
+          {/* 출결 내역 · 정책 (항상 노출) */}
+          <div style={{ marginBottom: '14px' }}>
+            <button type="button" onClick={() => setShowAttendance(true)}
+              style={{ width: '100%', padding: '12px', borderRadius: '11px', border: '1px solid #A7F3D0',
+                background: '#F0FDF4', color: '#065f46', fontSize: '13px', fontWeight: 700,
+                cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+              📋 출결 내역 · 정책 보기
+            </button>
+            <Modal open={showAttendance} onClose={() => setShowAttendance(false)} title="출결 내역 · 정책" maxWidth="500px">
+              {member && <MemberAttendanceView member={member} onAgreed={(t) => setMember(m => ({ ...m, attendance_policy_agreed_at: t }))} />}
+            </Modal>
+          </div>
 
           {/* 헤더 카드 — 세션 현황 */}
           {(() => {
