@@ -66,8 +66,13 @@ const PORTAL_TABS = {
 
 const DEFAULT_TAB = { trainer: 'list', member: 'status', community: 'posts', crm: 'permissions', landing: 'hero' }
 
-// 후기 사진 표시 위치 → object-position 값 (얼굴 잘림 조절)
-const posCss = (p) => p === 'center' ? 'center center' : p === 'bottom' ? 'center bottom' : 'center top'
+// 후기 사진 세로 포커스(0~100%) → object-position. 옛 photo_position(top/center/bottom) 자동 매핑.
+const reviewFocusY = (r) =>
+  typeof r?.photo_focus_y === 'number' ? r.photo_focus_y
+    : r?.photo_position === 'center' ? 50
+    : r?.photo_position === 'bottom' ? 100
+    : 0
+const reviewObjPos = (r) => `50% ${reviewFocusY(r)}%`
 
 // ── 기능 게이트 정의 ─────────────────────────────────────────
 const FEATURE_DEFS = [
@@ -2999,7 +3004,7 @@ export default function AdminPortal() {
               {/* 사진 미리보기 — 랜딩 카드와 동일한 가로 배너 형태 */}
               <div style={{ marginBottom: '14px' }}>
                 {d.photo
-                  ? <img src={d.photo} alt="preview" style={{ width: '100%', height: '160px', borderRadius: '10px', objectFit: 'cover', objectPosition: posCss(d.photo_position), border: '1px solid var(--border)', display: 'block' }} onError={e => { e.target.style.display = 'none' }} />
+                  ? <img src={d.photo} alt="preview" style={{ width: '100%', height: '160px', borderRadius: '10px', objectFit: 'cover', objectPosition: reviewObjPos(d), border: '1px solid var(--border)', display: 'block' }} onError={e => { e.target.style.display = 'none' }} />
                   : <div style={{ width: '100%', height: '160px', borderRadius: '10px', background: 'linear-gradient(135deg,#c8f135,#84cc16)', color: '#1a2e05', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '40px' }}>{d.initial || d.name?.[0] || '?'}</div>
                 }
                 <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '6px', textAlign: 'center' }}>
@@ -3053,23 +3058,20 @@ export default function AdminPortal() {
                 )}
               </div>
 
-              {/* 사진 위치 — 얼굴이 잘릴 때 보일 부분 선택 (위 미리보기로 확인) */}
+              {/* 사진 세로 위치 — 슬라이더로 미세 조절 (위 미리보기 실시간 반영) */}
               {d.photo && (
                 <div className="form-group">
-                  <label>사진 표시 위치 <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>(얼굴이 잘리면 조절하세요)</span></label>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    {[['top', '상단'], ['center', '중앙'], ['bottom', '하단']].map(([val, label]) => {
-                      const cur = d.photo_position || 'top'
-                      const on = cur === val
-                      return (
-                        <button key={val} type="button" onClick={() => upd({ photo_position: val })}
-                          style={{ flex: 1, padding: '9px 0', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 700, fontFamily: 'inherit',
-                            background: on ? '#c8f135' : 'var(--surface)', color: on ? '#1a2e05' : 'var(--text-muted)',
-                            border: `1px solid ${on ? '#c8f135' : 'var(--border)'}` }}>
-                          {label}
-                        </button>
-                      )
-                    })}
+                  <label>사진 세로 위치 <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>(얼굴/몸이 잘리면 미리보기 보며 조절)</span></label>
+                  <input
+                    type="range" min="0" max="100" step="1"
+                    value={reviewFocusY(d)}
+                    onChange={e => upd({ photo_focus_y: Number(e.target.value) })}
+                    style={{ width: '100%', accentColor: '#c8f135' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-dim)', marginTop: '2px' }}>
+                    <span>⬆ 위쪽(얼굴)</span>
+                    <span>{reviewFocusY(d)}%</span>
+                    <span>아래쪽(몸) ⬇</span>
                   </div>
                 </div>
               )}
