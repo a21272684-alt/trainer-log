@@ -2357,73 +2357,25 @@ export default function TrainerApp() {
     setProducts(data || [])
   }
 
-  // 주간 리더보드 로드 (소속 센터 gym_id로 격리, 무제한 fetch 차단)
+  // 주간 리더보드 로드 — 전체 트레이너 대상, opt-in 실명 (get_weekly_leaderboard RPC).
+  // 050/051 strict RLS 로 직접 cross-trainer 조회가 막히므로 SECURITY DEFINER RPC 경유.
   async function loadLeaderboard() {
     setLbLoading(true)
     try {
-      // 자기 센터에 소속이 없으면 리더보드 자체를 노출하지 않음 (스코프 누수 방지)
-      const myGymId = trainer?.gym_id
-      if (!myGymId) {
-        setLeaderboard({ list: [], totalLogs: 0, totalRead: 0, overallRate: 0 })
-        return
-      }
-
-      // 이번 주 월요일 0시
-      const now = new Date()
-      const daysFromMon = (now.getDay() + 6) % 7
-      const monday = new Date(now)
-      monday.setDate(now.getDate() - daysFromMon)
-      monday.setHours(0, 0, 0, 0)
-
-      // ① 우리 센터 트레이너 명단 (이름 매핑 + log 필터 화이트리스트)
-      const { data: gymTrainers, error: trainersErr } = await supabase
-        .from('trainers')
-        .select('id, name')
-        .eq('gym_id', myGymId)
-        .limit(500)
-      if (trainersErr) throw trainersErr
-      const trainerMap = {}
-      const allowedIds = new Set()
-      ;(gymTrainers || []).forEach(t => {
-        trainerMap[t.id] = t.name
-        allowedIds.add(String(t.id))
-      })
-      if (allowedIds.size === 0) {
-        setLeaderboard({ list: [], totalLogs: 0, totalRead: 0, overallRate: 0 })
-        return
-      }
-
-      // ② 동일 센터 트레이너의 이번 주 로그만 조회 (gym_id 격리 + 상한)
-      const { data: logsData, error: logsErr } = await supabase
-        .from('logs')
-        .select('trainer_id, read_at')
-        .gte('created_at', monday.toISOString())
-        .in('trainer_id', Array.from(allowedIds))
-        .limit(5000)
-      if (logsErr) throw logsErr
-
-      // 방어적 후처리: 우리 센터 ID 화이트리스트로 한 번 더 필터
-      const weekLogs = (logsData || []).filter(l => allowedIds.has(String(l.trainer_id)))
-
-      const grouped = {}
-      weekLogs.forEach(l => {
-        if (!grouped[l.trainer_id]) grouped[l.trainer_id] = { count: 0, read: 0 }
-        grouped[l.trainer_id].count++
-        if (l.read_at) grouped[l.trainer_id].read++
-      })
-      const list = Object.entries(grouped)
-        .map(([id, v]) => ({
-          name: trainerMap[id] || '알 수 없음',
-          logCount: v.count,
-          readCount: v.read,
-          readRate: v.count > 0 ? Math.round(v.read / v.count * 100) : 0,
-          isMe: id === String(trainer?.id),
-        }))
-        .sort((a, b) => b.logCount - a.logCount)
-
-      const totalRead = weekLogs.filter(l => l.read_at).length
-      const overallRate = weekLogs.length > 0 ? Math.round(totalRead / weekLogs.length * 100) : 0
-      setLeaderboard({ list, totalLogs: weekLogs.length, totalRead, overallRate })
+      const { data, error } = await supabase.rpc('get_weekly_leaderboard')
+      if (error) throw error
+      if (!data) { setLeaderboard({ list: [], totalLogs: 0, totalRead: 0, overallRate: 0, selfOptedIn: false }); return }
+      const list = (data.list || []).map(t => ({
+        name: t.name || '알 수 없음',
+        logCount: t.log_count || 0,
+        readCount: t.read_count || 0,
+        readRate: (t.log_count || 0) > 0 ? Math.round((t.read_count || 0) / t.log_count * 100) : 0,
+        isMe: !!t.is_me,
+      }))
+      const totalLogs = data.total_logs || 0
+      const totalRead = data.total_read || 0
+      const overallRate = totalLogs > 0 ? Math.round(totalRead / totalLogs * 100) : 0
+      setLeaderboard({ list, totalLogs, totalRead, overallRate, selfOptedIn: !!data.self_opted_in })
     } catch(e) {
       setLeaderboard(null)
       showToast('리더보드 데이터를 불러오지 못했어요')
@@ -2431,6 +2383,18 @@ export default function TrainerApp() {
     } finally {
       setLbLoading(false)
     }
+  }
+
+  // 리더보드 이름 공개 동의 토글 (trainers self-update RLS)
+  async function toggleLeaderboardOptIn() {
+    if (!trainer?.id) return
+    const next = !(leaderboard?.selfOptedIn)
+    try {
+      const { error } = await supabase.from('trainers').update({ leaderboard_opt_in: next }).eq('id', trainer.id)
+      if (error) throw error
+      showToast(next ? '✓ 리더보드에 이름을 공개해요' : '이름 공개를 해제했어요')
+      await loadLeaderboard()
+    } catch(e) { showToast('변경 실패: ' + e.message) }
   }
   useEffect(() => {
     if (tab === 'settings' && trainer) {
@@ -5399,6 +5363,25 @@ export default function TrainerApp() {
             <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',letterSpacing:'0.08em'}}>🏆 이번 주 일지 발송 리더보드</div>
             <button onClick={loadLeaderboard} style={{fontSize:'11px',color:'var(--text-dim)',background:'none',border:'none',cursor:'pointer',padding:'2px 6px'}}>↻ 새로고침</button>
           </div>
+          {/* 이름 공개 동의 토글 (opt-in) */}
+          {!lbLoading && leaderboard && (
+            <div onClick={toggleLeaderboardOptIn}
+              style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'10px',cursor:'pointer',
+                background:'var(--surface)',border:`1px solid ${leaderboard.selfOptedIn?'rgba(200,241,53,0.3)':'var(--border)'}`,
+                borderRadius:'10px',padding:'10px 12px',marginBottom:'10px'}}>
+              <div style={{fontSize:'12px',color:'var(--text-muted)',lineHeight:1.5}}>
+                다른 트레이너에게 <b style={{color:'var(--text)'}}>내 이름 공개</b>
+                <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'2px'}}>
+                  {leaderboard.selfOptedIn ? '공개 중 — 랭킹에 실명으로 표시돼요' : '비공개 — 나만 내 순위를 봐요'}
+                </div>
+              </div>
+              <span style={{width:'40px',height:'23px',borderRadius:'12px',flexShrink:0,position:'relative',
+                background:leaderboard.selfOptedIn?'var(--accent)':'var(--surface2)',transition:'background .15s'}}>
+                <span style={{position:'absolute',top:'2px',left:leaderboard.selfOptedIn?'19px':'2px',width:'19px',height:'19px',
+                  borderRadius:'50%',background:'#fff',transition:'left .15s'}} />
+              </span>
+            </div>
+          )}
           {lbLoading && <div style={{textAlign:'center',padding:'20px',color:'var(--text-dim)',fontSize:'12px'}}>불러오는 중...</div>}
           {!lbLoading && leaderboard && (
             leaderboard.list.length === 0
