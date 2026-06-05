@@ -13,6 +13,7 @@ import LoginNoticeModal from '@trainer-log/shared/components/common/LoginNoticeM
 import ProfileEditor from './trainer/ProfileEditor'
 import MemberTransformationUpload from './trainer/MemberTransformationUpload'
 import MemberDietView from './trainer/MemberDietView'
+import AttendancePolicyEditor from './trainer/AttendancePolicyEditor'
 import { Link } from 'react-router-dom'
 import '../styles/trainer.css'
 import { computeStats, buildInsightPrompt, callGeminiInsight } from '@trainer-log/shared/lib/memberInsights'
@@ -1778,7 +1779,10 @@ export default function TrainerApp() {
   const [sessionInfoOpen, setSessionInfoOpen] = useState(false)
 
   // Attendance
-  const [attendanceDates,  setAttendanceDates]  = useState([]) // [{id, attended_date}]
+  const [attendanceDates,  setAttendanceDates]  = useState([]) // [{id, attended_date, status, session_deducted}]
+  const [attendancePolicy, setAttendancePolicy] = useState(null) // 트레이너 출결 정책
+  const [showAttendancePolicy, setShowAttendancePolicy] = useState(false) // 정책 편집 모달
+  const [noshowDate, setNoshowDate] = useState('') // 노쇼/취소 기록용 선택 날짜
   const [attendanceMonth,  setAttendanceMonth]  = useState(() => { const n=new Date(); return {y:n.getFullYear(),m:n.getMonth()} })
   const [todayAttendSet,   setTodayAttendSet]   = useState(new Set()) // 오늘 출석한 회원 ID Set
 
@@ -2738,15 +2742,52 @@ export default function TrainerApp() {
     const to = `${y}-${String(m+1).padStart(2,'0')}-${new Date(y,m+1,0).getDate()}`
     const { data } = await supabase.from('attendance').select('*').eq('member_id', memberId).gte('attended_date', from).lte('attended_date', to)
     setAttendanceDates(data || [])
+    // 트레이너 출결 정책 1회 로드 (노쇼 차감 판단용)
+    if (attendancePolicy === null && trainer?.id) {
+      const { data: pol } = await supabase.from('attendance_policies').select('*').eq('trainer_id', trainer.id).maybeSingle()
+      setAttendancePolicy(pol || { cancel_deadline_hours: 24, noshow_deduct: 1, policy_text: null, _none: true })
+    }
   }
   async function toggleAttendance(dateStr) {
     const existing = attendanceDates.find(a => a.attended_date === dateStr)
     if (existing) {
+      // 차감됐던 노쇼를 지우면 세션 복원
+      if (existing.session_deducted && currentMember) {
+        await supabase.from('members').update({ done_sessions: Math.max(0, (currentMember.done_sessions||0) - 1) }).eq('id', currentMember.id)
+        await loadMembers()
+      }
       await supabase.from('attendance').delete().eq('id', existing.id)
     } else {
-      await supabase.from('attendance').insert({ trainer_id: trainer.id, member_id: currentMemberId, attended_date: dateStr })
+      await supabase.from('attendance').insert({ trainer_id: trainer.id, member_id: currentMemberId, attended_date: dateStr, status: 'attended' })
     }
     await loadAttendance(currentMemberId)
+  }
+  // 노쇼/사전취소 기록 (정책에 따라 세션 차감)
+  async function recordAttendanceStatus(dateStr, status) {
+    if (!dateStr) { showToast('날짜를 선택해주세요'); return }
+    const existing = attendanceDates.find(a => a.attended_date === dateStr)
+    const deduct = status === 'noshow' && attendancePolicy?.noshow_deduct === 1
+    try {
+      if (existing) {
+        // 상태 변경: 이전 차감 여부와 새 차감 여부 차이만큼 세션 보정
+        const prevDeducted = !!existing.session_deducted
+        await supabase.from('attendance').update({ status, session_deducted: deduct }).eq('id', existing.id)
+        if (prevDeducted !== deduct && currentMember) {
+          const delta = deduct ? 1 : -1
+          await supabase.from('members').update({ done_sessions: Math.max(0, (currentMember.done_sessions||0) + delta) }).eq('id', currentMember.id)
+          await loadMembers()
+        }
+      } else {
+        await supabase.from('attendance').insert({ trainer_id: trainer.id, member_id: currentMemberId, attended_date: dateStr, status, session_deducted: deduct })
+        if (deduct && currentMember) {
+          await supabase.from('members').update({ done_sessions: (currentMember.done_sessions||0) + 1 }).eq('id', currentMember.id)
+          await loadMembers()
+        }
+      }
+      await loadAttendance(currentMemberId)
+      setNoshowDate('')
+      showToast(status === 'noshow' ? (deduct ? '노쇼 기록 · 세션 1회 차감' : '노쇼 기록됨 (차감 없음)') : '사전취소 기록됨')
+    } catch (e) { showToast('처리 실패: ' + e.message) }
   }
 
   // 오늘 출석한 회원 ID 목록 로드 (회원 리스트 퀵 액션용)
@@ -5731,8 +5772,11 @@ export default function TrainerApp() {
             const daysInMonth = new Date(y, m+1, 0).getDate()
             const startDow = (firstDay.getDay()+6)%7 // 월=0
             const todayStr = new Date().toISOString().split('T')[0]
-            const attendedSet = new Set(attendanceDates.map(a => a.attended_date))
-            const monthCount = attendanceDates.length
+            const statusOf = d => attendanceDates.find(a => a.attended_date === d)?.status || null
+            const attendedSet = new Set(attendanceDates.filter(a => (a.status||'attended')==='attended').map(a => a.attended_date))
+            const noshowSet   = new Set(attendanceDates.filter(a => a.status==='noshow').map(a => a.attended_date))
+            const cancelledSet= new Set(attendanceDates.filter(a => a.status==='cancelled').map(a => a.attended_date))
+            const monthCount = attendedSet.size
             return (
               <div>
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
@@ -5749,38 +5793,69 @@ export default function TrainerApp() {
                     const day = i+1
                     const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
                     const isAttended = attendedSet.has(dateStr)
+                    const isNoshow = noshowSet.has(dateStr)
+                    const isCancelled = cancelledSet.has(dateStr)
                     const isToday = dateStr === todayStr
                     const isFuture = dateStr > todayStr
+                    const bg = isAttended ? 'var(--accent)' : isNoshow ? 'rgba(239,68,68,0.85)' : isCancelled ? 'rgba(148,163,184,0.35)' : isToday ? 'rgba(200,241,53,0.12)' : 'var(--surface2)'
+                    const fg = isAttended ? '#0f0f0f' : isNoshow ? '#fff' : isToday ? 'var(--accent)' : isFuture ? 'var(--text-dim)' : 'var(--text)'
                     return (
                       <div key={day} onClick={()=>!isFuture&&toggleAttendance(dateStr)}
-                        style={{aspectRatio:'1',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'8px',fontSize:'13px',fontWeight:isAttended?700:400,cursor:isFuture?'default':'pointer',
-                          background:isAttended?'var(--accent)':isToday?'rgba(200,241,53,0.12)':'var(--surface2)',
-                          color:isAttended?'#0f0f0f':isToday?'var(--accent)':isFuture?'var(--text-dim)':'var(--text)',
-                          border:isToday&&!isAttended?'1px solid rgba(200,241,53,0.4)':'1px solid transparent',
+                        title={isNoshow?'노쇼':isCancelled?'취소':''}
+                        style={{aspectRatio:'1',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'8px',fontSize:'13px',fontWeight:(isAttended||isNoshow)?700:400,cursor:isFuture?'default':'pointer',
+                          background:bg, color:fg,
+                          border:isToday&&!isAttended&&!isNoshow&&!isCancelled?'1px solid rgba(200,241,53,0.4)':'1px solid transparent',
                           opacity:isFuture?0.4:1}}>
                         {day}
                       </div>
                     )
                   })}
                 </div>
+                {/* 노쇼/취소 기록 + 정책 */}
+                <div style={{marginTop:'14px',display:'flex',gap:'8px',alignItems:'center'}}>
+                  <input type="date" value={noshowDate} max={todayStr}
+                    onChange={e=>setNoshowDate(e.target.value)}
+                    style={{flex:1,fontSize:'12px'}} />
+                  <button className="btn btn-sm" style={{background:'rgba(239,68,68,0.1)',color:'#ef4444',border:'1px solid rgba(239,68,68,0.25)',whiteSpace:'nowrap'}}
+                    onClick={()=>recordAttendanceStatus(noshowDate||todayStr,'noshow')}>노쇼</button>
+                  <button className="btn btn-sm" style={{background:'var(--surface2)',color:'var(--text-muted)',border:'1px solid var(--border)',whiteSpace:'nowrap'}}
+                    onClick={()=>recordAttendanceStatus(noshowDate||todayStr,'cancelled')}>사전취소</button>
+                </div>
+                <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'6px',lineHeight:1.5}}>
+                  날짜 선택 후 기록 (미선택 시 오늘). 노쇼는 {attendancePolicy?.noshow_deduct===1?'정책에 따라 세션 1회 차감':'차감 없음'}.{' '}
+                  <span onClick={()=>setShowAttendancePolicy(true)} style={{color:'var(--accent)',cursor:'pointer',fontWeight:600}}>출결 정책 설정 ›</span>
+                </div>
+
                 {attendanceDates.length>0 && (
                   <div style={{marginTop:'16px'}}>
-                    <div className="section-label">출석 일시</div>
-                    {[...attendanceDates].sort((a,b)=>b.attended_date.localeCompare(a.attended_date)).map(a=>(
-                      <div key={a.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 12px',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'8px',marginBottom:'6px'}}>
-                        <div style={{fontSize:'13px'}}>
-                          {new Date(a.attended_date+'T00:00:00').toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})}
+                    <div className="section-label">출결 내역</div>
+                    {[...attendanceDates].sort((a,b)=>b.attended_date.localeCompare(a.attended_date)).map(a=>{
+                      const st = a.status || 'attended'
+                      const meta = st==='noshow' ? {label:'노쇼',c:'#ef4444',bg:'rgba(239,68,68,0.1)'}
+                        : st==='cancelled' ? {label:'사전취소',c:'var(--text-muted)',bg:'var(--surface2)'}
+                        : {label:'출석',c:'var(--accent)',bg:'rgba(200,241,53,0.1)'}
+                      return (
+                        <div key={a.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 12px',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'8px',marginBottom:'6px'}}>
+                          <div style={{fontSize:'13px'}}>
+                            {new Date(a.attended_date+'T00:00:00').toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})}
+                          </div>
+                          <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                            {a.session_deducted && <span style={{fontSize:'10px',color:'#ef4444'}}>−1회</span>}
+                            <span style={{fontSize:'11px',color:meta.c,background:meta.bg,padding:'2px 8px',borderRadius:'4px'}}>{meta.label}</span>
+                            <button onClick={()=>toggleAttendance(a.attended_date)} style={{background:'none',border:'none',color:'var(--text-dim)',cursor:'pointer',fontSize:'15px',lineHeight:1}}>×</button>
+                          </div>
                         </div>
-                        <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
-                          <span style={{fontSize:'11px',color:'var(--accent)',background:'rgba(200,241,53,0.1)',padding:'2px 8px',borderRadius:'4px'}}>출석</span>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>
             )
           })()}
+
+          <Modal open={showAttendancePolicy} onClose={() => setShowAttendancePolicy(false)} title="출결 정책 설정" maxWidth="480px">
+            {trainer && <AttendancePolicyEditor trainer={trainer} onClose={() => { setShowAttendancePolicy(false); setAttendancePolicy(null); if (currentMemberId) loadAttendance(currentMemberId) }} />}
+          </Modal>
 
           {rtab === 'health' && (
             <div>
