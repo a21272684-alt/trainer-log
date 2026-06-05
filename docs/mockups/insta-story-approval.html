@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>오운 — 승인제 안내 (인스타 스토리)</title>
+<style>
+  :root{--lime:#c8f135;--ink:#0f172a}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:#000;display:flex;justify-content:center;align-items:center;min-height:100vh;
+    font-family:-apple-system,'Segoe UI','Malgun Gothic',sans-serif}
+
+  /* 인스타 스토리 1080x1920 (9:16). 화면에 맞게 축소 표시 */
+  .story{
+    width:1080px;height:1920px;
+    transform:scale(.42);transform-origin:center center;
+    position:relative;overflow:hidden;color:#fff;
+    background:linear-gradient(165deg,#0b1220 0%,#16233b 55%,#0b1220 100%);
+    display:flex;flex-direction:column;
+  }
+  /* 라임 글로우 */
+  .glow{position:absolute;border-radius:50%;pointer-events:none}
+  .g1{top:-160px;right:-120px;width:560px;height:560px;
+    background:radial-gradient(circle,rgba(200,241,53,.30),transparent 70%)}
+  .g2{bottom:-200px;left:-160px;width:520px;height:520px;
+    background:radial-gradient(circle,rgba(200,241,53,.16),transparent 70%)}
+
+  .inner{position:relative;flex:1;display:flex;flex-direction:column;
+    padding:150px 90px 120px;}  /* 상하 인스타 UI 안전영역 확보 */
+
+  /* 로고 */
+  .logo{font-size:60px;font-weight:900;letter-spacing:-2px;display:flex;align-items:center;gap:2px}
+  .logo .chip{background:var(--lime);color:var(--ink);padding:2px 16px;border-radius:14px;margin-left:4px}
+
+  .badge{display:inline-block;margin-top:54px;font-size:26px;font-weight:800;letter-spacing:4px;
+    color:var(--lime);border:2px solid rgba(200,241,53,.5);border-radius:100px;padding:12px 28px;align-self:flex-start}
+
+  .head{margin-top:40px;font-size:86px;font-weight:900;line-height:1.16;letter-spacing:-3px}
+  .head .hl{color:var(--lime)}
+
+  .reason{margin-top:46px;background:rgba(255,255,255,.05);border:1px solid rgba(200,241,53,.25);
+    border-radius:32px;padding:40px 42px}
+  .reason .q{font-size:32px;font-weight:800;color:var(--lime);margin-bottom:16px}
+  .reason .a{font-size:36px;font-weight:600;line-height:1.5;color:#e8eef6}
+  .reason .a b{color:#fff;font-weight:800}
+
+  /* 단계 */
+  .steps{margin-top:44px;display:flex;flex-direction:column;gap:22px}
+  .step{display:flex;align-items:center;gap:28px}
+  .num{flex:0 0 76px;height:76px;border-radius:50%;background:var(--lime);color:var(--ink);
+    font-size:40px;font-weight:900;display:flex;align-items:center;justify-content:center}
+  .stx{font-size:42px;font-weight:700}
+  .stx span{display:block;font-size:28px;font-weight:500;color:#9fb0c4;margin-top:4px}
+
+  /* 강조 안내 박스 */
+  .notice{margin-top:40px;background:rgba(200,241,53,.12);border:2px solid var(--lime);
+    border-radius:28px;padding:32px 38px;font-size:36px;font-weight:600;line-height:1.45;color:#eef7d6;text-align:center}
+  .notice b{color:var(--lime);font-weight:900}
+
+  .foot{margin-top:auto;padding-top:44px}
+  .foot .kakao{font-size:34px;font-weight:800;color:#fff}
+  .foot .kakao b{color:var(--lime)}
+  .foot .url{font-size:30px;color:#7c8aa0;margin-top:14px;font-family:'DM Mono',monospace}
+</style>
+</head>
+<body>
+  <div class="story">
+    <div class="glow g1"></div>
+    <div class="glow g2"></div>
+    <div class="inner">
+      <div class="logo">오<span class="chip">운</span></div>
+
+      <div class="badge">MEMBERSHIP NOTICE</div>
+
+      <div class="head">지금은<br><span class="hl">승인제</span>로<br>운영하고 있어요</div>
+
+      <div class="reason">
+        <div class="q">왜 승인제인가요?</div>
+        <div class="a"><b>악성 어뷰징(부정 가입·도용)</b>을 막고,<br>모두가 안심하고 쓸 수 있는<br>환경을 지키기 위해서예요.</div>
+      </div>
+
+      <div class="steps">
+        <div class="step"><div class="num">1</div><div class="stx">가입 신청<span>이름·정보 입력 후 신청</span></div></div>
+        <div class="step"><div class="num">2</div><div class="stx">가입 후 문의 → 승인<span>꼭 DM·카카오로 문의해야 승인돼요</span></div></div>
+        <div class="step"><div class="num">3</div><div class="stx">승인 완료 → 이용 시작<span>승인되면 바로 사용 가능</span></div></div>
+      </div>
+
+      <div class="notice">
+        ⚠️ 가입만 하면 승인되지 않아요.<br><b>가입 후 반드시 DM 또는 카카오로 문의</b>해 주세요!
+      </div>
+
+      <div class="foot">
+        <div class="kakao">📩 인스타 DM · <b>@iruscales</b></div>
+        <div class="kakao" style="margin-top:10px">💬 카카오톡 채널 · <b>@ownapp</b></div>
+        <div class="url">ownapp.kr</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
