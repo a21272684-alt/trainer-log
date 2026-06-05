@@ -12,6 +12,7 @@ import LoginNoticeModal from '@trainer-log/shared/components/common/LoginNoticeM
 // dev 전용 — 공개 프로필 편집 / 회원 변화 업로드 (배포엔 미노출)
 import ProfileEditor from './trainer/ProfileEditor'
 import MemberTransformationUpload from './trainer/MemberTransformationUpload'
+import MemberDietView from './trainer/MemberDietView'
 import { Link } from 'react-router-dom'
 import '../styles/trainer.css'
 import { computeStats, buildInsightPrompt, callGeminiInsight } from '@trainer-log/shared/lib/memberInsights'
@@ -1707,7 +1708,7 @@ export default function TrainerApp() {
   const [aiStatus, setAiStatus] = useState('')
   const [showPreview, setShowPreview] = useState(false)
   const [showSend, setShowSend] = useState(false)
-  const VALID_RTABS = ['write','attendance','health','holds','personal','insight']
+  const VALID_RTABS = ['write','attendance','health','holds','personal','diet','insight']
   const [rtab, setRtab] = useState('write')
   // rtab setter — 유효하지 않은 값은 'write'로 강제
   const safeSetRtab = (t) => setRtab(VALID_RTABS.includes(t) ? t : 'write')
@@ -1858,8 +1859,8 @@ export default function TrainerApp() {
 
   // Feature gates
   const DEFAULT_FEATURE_GATES = {
-    free: { ai_journal:false, history_tab:true, revenue_tab:false, settlement:false, weekly_report:false, ai_insight:false, risk_analysis:false, push_notif:false, schedule_tab:true, member_limit:5 },
-    paid: { ai_journal:true,  history_tab:true, revenue_tab:true,  settlement:true,  weekly_report:true,  ai_insight:true,  risk_analysis:true,  push_notif:true,  schedule_tab:true, member_limit:9999 },
+    free: { ai_journal:false, history_tab:true, revenue_tab:false, settlement:false, weekly_report:false, ai_insight:false, risk_analysis:false, push_notif:false, schedule_tab:true, diet_view:true, member_limit:5 },
+    paid: { ai_journal:true,  history_tab:true, revenue_tab:true,  settlement:true,  weekly_report:true,  ai_insight:true,  risk_analysis:true,  push_notif:true,  schedule_tab:true, diet_view:true, member_limit:9999 },
   }
   const [featureGates, setFeatureGates] = useState(DEFAULT_FEATURE_GATES)
   const [isPaid, setIsPaid] = useState(false)
@@ -5708,6 +5709,7 @@ export default function TrainerApp() {
               { key:'health',     label:'⚖️ 건강기록' },
               { key:'holds',      label:'⏸ 정지기록' },
               { key:'personal',   label:'🏃 개인운동' },
+              ...(canUse('diet_view') ? [{ key:'diet', label:'🥗 식단' }] : []),
               { key:'insight',    label:'🤖 AI 분석'  },
             ].map(({ key, label }) => (
               <button
@@ -5958,8 +5960,13 @@ export default function TrainerApp() {
             )
           })()}
 
+          {/* 식단 조회 (읽기 전용) — admin feature gate diet_view */}
+          {rtab === 'diet' && canUse('diet_view') && (
+            <MemberDietView memberId={currentMemberId} />
+          )}
+
           {/* write 탭 — rtab가 null/undefined/알 수 없는 값이면 여기가 fallback */}
-          {(rtab === 'write' || !['write','attendance','health','holds','personal','insight'].includes(rtab ?? '')) && (
+          {(rtab === 'write' || !['write','attendance','health','holds','personal','diet','insight'].includes(rtab ?? '')) && (
             <div>
               <div className="section-label">1단계 — 수업 브리핑 입력</div>
               <div className="card">

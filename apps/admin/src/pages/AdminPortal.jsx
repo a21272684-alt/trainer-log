@@ -77,6 +77,7 @@ const FEATURE_DEFS = [
   { key: 'risk_analysis', icon: '⚠️', label: '이탈위험 분석', desc: '회원별 이탈 위험 점수 자동 계산' },
   { key: 'push_notif', icon: '🔔', label: 'Web Push 알림', desc: '브라우저 종료 후에도 수업 전 알림 발송' },
   { key: 'schedule_tab', icon: '📅', label: '시간표 탭', desc: '주간 24시간 수업 일정 블록 관리' },
+  { key: 'diet_view', icon: '🥗', label: '회원 식단 조회', desc: '회원이 기록한 식단을 트레이너가 열람 (읽기 전용)' },
 ]
 
 const DEFAULT_FEATURE_GATES = {
@@ -84,12 +85,14 @@ const DEFAULT_FEATURE_GATES = {
     ai_journal: false, history_tab: true, revenue_tab: false,
     settlement: false, weekly_report: false, ai_insight: false,
     risk_analysis: false, push_notif: false, schedule_tab: true,
+    diet_view: true,
     member_limit: 5,
   },
   paid: {
     ai_journal: true, history_tab: true, revenue_tab: true,
     settlement: true, weekly_report: true, ai_insight: true,
     risk_analysis: true, push_notif: true, schedule_tab: true,
+    diet_view: true,
     member_limit: 9999,
   },
 }
