@@ -989,7 +989,8 @@ export default function Landing() {
             box-shadow:0 2px 12px rgba(0,0,0,0.05);
             display:flex;flex-direction:column;
           }
-          .ld-mq-photo{width:100%;height:240px;object-fit:cover;display:block;flex-shrink:0}
+          /* object-position center top: 인물 후기 사진에서 얼굴(위쪽) 우선 보존 (잘림 방지) */
+          .ld-mq-photo{width:100%;height:240px;object-fit:cover;object-position:center top;display:block;flex-shrink:0}
           .ld-mq-photo-fallback{
             width:100%;height:240px;flex-shrink:0;
             background:linear-gradient(135deg,#c8f135,#84cc16);
