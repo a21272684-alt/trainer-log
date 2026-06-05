@@ -280,6 +280,7 @@ function ReviewCard({ r, ariaHidden }) {
       {/* 상단 큰 배너 이미지 — 사진 있으면 img, 없으면 이니셜 그라데이션 폴백 */}
       {r.photo
         ? <img src={r.photo} alt={r.name} className="ld-mq-photo"
+            style={{ objectPosition: r.photo_position === 'center' ? 'center center' : r.photo_position === 'bottom' ? 'center bottom' : 'center top' }}
             onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex' }}
           />
         : null

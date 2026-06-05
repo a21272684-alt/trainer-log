@@ -66,6 +66,9 @@ const PORTAL_TABS = {
 
 const DEFAULT_TAB = { trainer: 'list', member: 'status', community: 'posts', crm: 'permissions', landing: 'hero' }
 
+// 후기 사진 표시 위치 → object-position 값 (얼굴 잘림 조절)
+const posCss = (p) => p === 'center' ? 'center center' : p === 'bottom' ? 'center bottom' : 'center top'
+
 // ── 기능 게이트 정의 ─────────────────────────────────────────
 const FEATURE_DEFS = [
   { key: 'ai_journal', icon: '🤖', label: 'AI 수업일지 생성', desc: '음성·텍스트 → AI 분석 → 수업일지 자동 완성' },
@@ -2996,7 +2999,7 @@ export default function AdminPortal() {
               {/* 사진 미리보기 — 랜딩 카드와 동일한 가로 배너 형태 */}
               <div style={{ marginBottom: '14px' }}>
                 {d.photo
-                  ? <img src={d.photo} alt="preview" style={{ width: '100%', height: '160px', borderRadius: '10px', objectFit: 'cover', border: '1px solid var(--border)', display: 'block' }} onError={e => { e.target.style.display = 'none' }} />
+                  ? <img src={d.photo} alt="preview" style={{ width: '100%', height: '160px', borderRadius: '10px', objectFit: 'cover', objectPosition: posCss(d.photo_position), border: '1px solid var(--border)', display: 'block' }} onError={e => { e.target.style.display = 'none' }} />
                   : <div style={{ width: '100%', height: '160px', borderRadius: '10px', background: 'linear-gradient(135deg,#c8f135,#84cc16)', color: '#1a2e05', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '40px' }}>{d.initial || d.name?.[0] || '?'}</div>
                 }
                 <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '6px', textAlign: 'center' }}>
@@ -3049,6 +3052,27 @@ export default function AdminPortal() {
                   <button type="button" className="btn btn-sm" style={{ marginTop: '8px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }} onClick={() => upd({ photo: '' })}>사진 제거</button>
                 )}
               </div>
+
+              {/* 사진 위치 — 얼굴이 잘릴 때 보일 부분 선택 (위 미리보기로 확인) */}
+              {d.photo && (
+                <div className="form-group">
+                  <label>사진 표시 위치 <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>(얼굴이 잘리면 조절하세요)</span></label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {[['top', '상단'], ['center', '중앙'], ['bottom', '하단']].map(([val, label]) => {
+                      const cur = d.photo_position || 'top'
+                      const on = cur === val
+                      return (
+                        <button key={val} type="button" onClick={() => upd({ photo_position: val })}
+                          style={{ flex: 1, padding: '9px 0', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 700, fontFamily: 'inherit',
+                            background: on ? '#c8f135' : 'var(--surface)', color: on ? '#1a2e05' : 'var(--text-muted)',
+                            border: `1px solid ${on ? '#c8f135' : 'var(--border)'}` }}>
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* ② URL 직접 입력 (선택, 보조) */}
               <div className="form-group">
