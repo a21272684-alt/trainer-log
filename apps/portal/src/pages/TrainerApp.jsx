@@ -1885,12 +1885,63 @@ export default function TrainerApp() {
   // 외부 Gemini API 로 녹음 전송 없음 → 별도 동의 불필요.
 
 
-  // 스케줄 + 알림 설정 localStorage 동기화 — 3개 effect → 1개로 통합
+  // 스케줄/알림 서버 동기화 (065).
+  //   - 첫 로드: 서버 데이터 우선. 서버 비어있고 로컬에만 있으면 → 자동 업로드(마이그레이션).
+  //   - 변경: localStorage 즉시(오프라인 캐시) + 서버 debounced upsert.
+  const [scheduleLoaded, setScheduleLoaded] = useState(false)
+
+  useEffect(() => {
+    if (!trainer?.id) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { data, error } = await supabase
+          .from('trainer_schedules').select('*').eq('trainer_id', trainer.id).maybeSingle()
+        if (cancelled) return
+        if (error) { console.warn('[schedule load]', error.message); setScheduleLoaded(true); return }
+        if (data) {
+          // 서버 우선 — state + localStorage 캐시 갱신
+          const srvBlocks = Array.isArray(data.blocks) ? data.blocks : []
+          setBlocks(srvBlocks)
+          setNotifEnabled(!!data.notif_enabled)
+          setNotifMinutes(Number(data.notif_minutes) || 30)
+          localStorage.setItem('tl_sch', JSON.stringify(srvBlocks))
+          localStorage.setItem('tl_notif_enabled', String(!!data.notif_enabled))
+          localStorage.setItem('tl_notif_minutes', String(Number(data.notif_minutes) || 30))
+        } else {
+          // 서버 비어있음 → 로컬에만 데이터 있으면 자동 마이그레이션 업로드
+          const localBlocks = JSON.parse(localStorage.getItem('tl_sch') || '[]')
+          if (localBlocks.length > 0 || localStorage.getItem('tl_notif_enabled') !== null) {
+            await supabase.from('trainer_schedules').upsert({
+              trainer_id: trainer.id, blocks: localBlocks,
+              notif_enabled: notifEnabled, notif_minutes: notifMinutes,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'trainer_id' })
+          }
+        }
+      } catch (e) { console.warn('[schedule load] 예외:', e?.message) }
+      if (!cancelled) setScheduleLoaded(true)
+    })()
+    return () => { cancelled = true }
+  }, [trainer?.id])
+
+  // 변경 시: localStorage 즉시 + 서버 debounced. 최초 로드 끝나기 전엔 서버 저장 X (덮어쓰기 방지).
   useEffect(() => {
     localStorage.setItem('tl_sch', JSON.stringify(blocks))
     localStorage.setItem('tl_notif_enabled', notifEnabled)
     localStorage.setItem('tl_notif_minutes', notifMinutes)
-  }, [blocks, notifEnabled, notifMinutes])
+    if (!scheduleLoaded || !trainer?.id) return
+    const t = setTimeout(() => {
+      supabase.from('trainer_schedules').upsert({
+        trainer_id: trainer.id, blocks,
+        notif_enabled: notifEnabled, notif_minutes: notifMinutes,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'trainer_id' }).then(({ error }) => {
+        if (error) console.warn('[schedule sync] 실패:', error.message)
+      })
+    }, 700)
+    return () => clearTimeout(t)
+  }, [blocks, notifEnabled, notifMinutes, scheduleLoaded, trainer?.id])
 
   // 알림 체크 인터벌 (30초마다)
   useEffect(() => {
