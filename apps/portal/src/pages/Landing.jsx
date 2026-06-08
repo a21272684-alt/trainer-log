@@ -949,9 +949,10 @@ export default function Landing() {
             )
           }
           if (n === 0) return null
-          // 3개 이상 → 무한 marquee. 한 세트가 넓은 화면도 채우도록 카드 수 보강 후 2벌 복제.
-          const reps = Math.max(1, Math.ceil(6 / n))
-          const oneSet = Array.from({ length: reps }, () => reviews).flat()
+          // 3개 이상 → 무한 marquee. 한 세트(reviews)를 정확히 1바퀴 돌고 다시 시작.
+          // (예전엔 reps 보강으로 한 사이클에 같은 사람이 즉시 반복돼 어색 → 보강 제거)
+          // 2벌 복제는 keyframe(-50%) 끊김 없는 루프 유지를 위해 필수.
+          const oneSet = reviews
           const loopCards = [...oneSet, ...oneSet]
           return (
             /* full-bleed marquee 뷰포트 — 좌우 끝 페이드 마스크 */
@@ -979,13 +980,13 @@ export default function Landing() {
           }
           .ld-mq-track{
             display:flex;width:max-content;
-            animation:ldMarquee 28s linear infinite;
+            animation:ldMarquee 40s linear infinite;
             will-change:transform;
           }
           .ld-mq:hover .ld-mq-track{animation-play-state:paused}
           .ld-mq-track.ld-mq-paused{animation-play-state:paused}
           .ld-mq-card{
-            flex:0 0 auto;width:340px;margin-right:16px;box-sizing:border-box;
+            flex:0 0 auto;width:340px;margin-right:28px;box-sizing:border-box;
             background:#fff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;
             box-shadow:0 2px 12px rgba(0,0,0,0.05);
             display:flex;flex-direction:column;
@@ -1001,7 +1002,7 @@ export default function Landing() {
           .ld-mq-body{padding:20px 22px 22px;display:flex;flex-direction:column;flex:1}
           @keyframes ldMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
           @media (max-width:880px){
-            .ld-mq-track{animation-duration:45s}   /* 모바일은 더 느리게 */
+            .ld-mq-track{animation-duration:55s}   /* 모바일은 더 느리게 */
             .ld-mq-card{width:300px}
             .ld-mq-photo,.ld-mq-photo-fallback{height:210px}
           }
