@@ -332,6 +332,55 @@ function ReviewCard({ r, ariaHidden }) {
   )
 }
 
+// 후기 carousel — 한 번에 1장씩 자동 슬라이드. 4.8s 간격(적당한 속도), hover/tap 일시정지.
+// 마지막 카드 다음 첫 카드 복제로 끊김 없는 무한 루프(transition off + idx 0 점프).
+function ReviewCarousel({ reviews, paused, onToggle }) {
+  const n = reviews.length
+  const [idx, setIdx] = useState(0)
+  const [noTrans, setNoTrans] = useState(false)
+
+  useEffect(() => {
+    if (paused) return
+    const t = setInterval(() => setIdx(i => i + 1), 4800)
+    return () => clearInterval(t)
+  }, [paused])
+
+  // idx === n 도달 → 트랜지션 후 0으로 무전환 점프(자연스러운 wrap)
+  useEffect(() => {
+    if (idx !== n) return
+    const t = setTimeout(() => {
+      setNoTrans(true)
+      setIdx(0)
+      requestAnimationFrame(() => requestAnimationFrame(() => setNoTrans(false)))
+    }, 680)
+    return () => clearTimeout(t)
+  }, [idx, n])
+
+  const slides = [...reviews, reviews[0]]
+  const activeDot = idx % n
+
+  return (
+    <div className="ld-cr" onClick={onToggle} role="region" aria-label="트레이너 후기">
+      <div className="ld-cr-vp">
+        <div className="ld-cr-track"
+          style={{ transform: `translateX(${-idx * 100}%)`,
+            transition: noTrans ? 'none' : 'transform .6s cubic-bezier(.22,1,.36,1)' }}>
+          {slides.map((r, i) => (
+            <div className="ld-cr-slot" key={i}>
+              <ReviewCard r={r} ariaHidden={i === n} />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="ld-cr-dots" aria-hidden="true">
+        {reviews.map((_, i) => (
+          <span key={i} className={'ld-cr-dot' + (activeDot === i ? ' on' : '')} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // 숫자 카운트업 (ex. "98%" → 0%…98%)
 function CountUp({ value }) {
   const [ref, inView] = useInView(0.5)
@@ -921,7 +970,7 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── 트레이너 후기 (RESULTS) — 무한 가로 marquee ── */}
+      {/* ── 트레이너 후기 (RESULTS) — 한 장씩 자동 슬라이드 carousel ── */}
       <section style={{background:'transparent',padding:'80px 0',overflow:'hidden'}}>
         <div style={{maxWidth:'860px',margin:'0 auto',padding:'0 24px'}}>
           <FadeUp>
@@ -930,85 +979,58 @@ export default function Landing() {
               <h2 style={{fontSize:'clamp(22px,4vw,32px)',fontWeight:800,color:'#0f172a',letterSpacing:'-1px',margin:'0 0 10px',lineHeight:1.3}}>
                 이미 검증된 트레이너들의 선택
               </h2>
-              <p style={{fontSize:'14px',color:'#64748b',margin:0}}>오운을 쓰고 달라진 점들 · <span style={{color:'#94a3b8'}}>카드 위에 올리거나(모바일은 탭) 멈출 수 있어요</span></p>
+              <p style={{fontSize:'14px',color:'#64748b',margin:0}}>오운을 쓰고 달라진 점들 · <span style={{color:'#94a3b8'}}>카드를 탭하면 멈춰요</span></p>
             </div>
           </FadeUp>
         </div>
 
         {(() => {
-          // DB 로드 완료 전엔 기본 placeholder 후기를 그리지 않는다 (flash 방지). 높이만 잡아 점프 방지.
-          if (!reviewsLoaded) return <div style={{minHeight:'360px'}} aria-hidden="true" />
+          if (!reviewsLoaded) return <div style={{minHeight:'420px'}} aria-hidden="true" />
           const n = reviews.length
-          // 후기 3개 미만 → 가운데 정렬 정적 표시 (복제·치우침 없음)
-          if (n > 0 && n < 3) {
+          if (n === 0) return null
+          // 1장: 정적 가운데 (자동 슬라이드 불필요)
+          if (n === 1) {
             return (
-              <div style={{maxWidth:'860px',margin:'0 auto',padding:'0 24px',
-                display:'flex',justifyContent:'center',flexWrap:'wrap',gap:'16px'}}>
-                {reviews.map((r, i) => <ReviewCard key={i} r={r} />)}
+              <div style={{display:'flex',justifyContent:'center',padding:'0 24px'}}>
+                <ReviewCard r={reviews[0]} />
               </div>
             )
           }
-          if (n === 0) return null
-          // 3개 이상 → 무한 marquee. 한 세트(reviews)를 정확히 1바퀴 돌고 다시 시작.
-          // (예전엔 reps 보강으로 한 사이클에 같은 사람이 즉시 반복돼 어색 → 보강 제거)
-          // 2벌 복제는 keyframe(-50%) 끊김 없는 루프 유지를 위해 필수.
-          const oneSet = reviews
-          const loopCards = [...oneSet, ...oneSet]
-          return (
-            /* full-bleed marquee 뷰포트 — 좌우 끝 페이드 마스크 */
-            <div
-              className="ld-mq"
-              onClick={() => setReviewsPaused(p => !p)}
-              role="list"
-              aria-label="트레이너 후기"
-            >
-              <div className={`ld-mq-track${reviewsPaused ? ' ld-mq-paused' : ''}`}>
-                {/* 2벌 복제 → translateX -50% 로 끊김 없는 무한 루프 */}
-                {loopCards.map((r, i) => (
-                  <ReviewCard key={i} r={r} ariaHidden={i >= oneSet.length} />
-                ))}
-              </div>
-            </div>
-          )
+          // 2장 이상: carousel (한 번에 한 장)
+          return <ReviewCarousel reviews={reviews} paused={reviewsPaused} onToggle={() => setReviewsPaused(p => !p)} />
         })()}
 
         <style>{`
-          .ld-mq{
-            position:relative;width:100%;overflow:hidden;cursor:pointer;
-            -webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);
-            mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);
-          }
-          .ld-mq-track{
-            display:flex;width:max-content;
-            animation:ldMarquee 40s linear infinite;
-            will-change:transform;
-          }
-          .ld-mq:hover .ld-mq-track{animation-play-state:paused}
-          .ld-mq-track.ld-mq-paused{animation-play-state:paused}
+          /* ── 후기 카드 (ReviewCard) 공통 스타일 — carousel 안 정렬용 ── */
           .ld-mq-card{
-            flex:0 0 auto;width:340px;margin-right:28px;box-sizing:border-box;
+            width:100%;max-width:520px;box-sizing:border-box;
             background:#fff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;
-            box-shadow:0 2px 12px rgba(0,0,0,0.05);
+            box-shadow:0 4px 18px rgba(0,0,0,0.08);
             display:flex;flex-direction:column;
           }
-          /* object-position center top: 인물 후기 사진에서 얼굴(위쪽) 우선 보존 (잘림 방지) */
-          .ld-mq-photo{width:100%;height:240px;object-fit:cover;object-position:center top;display:block;flex-shrink:0}
+          .ld-mq-photo{width:100%;height:280px;object-fit:cover;object-position:center top;display:block;flex-shrink:0}
           .ld-mq-photo-fallback{
-            width:100%;height:240px;flex-shrink:0;
+            width:100%;height:280px;flex-shrink:0;
             background:linear-gradient(135deg,#c8f135,#84cc16);
             align-items:center;justify-content:center;
-            font-weight:900;font-size:64px;color:#1a2e05;
+            font-weight:900;font-size:72px;color:#1a2e05;
           }
-          .ld-mq-body{padding:20px 22px 22px;display:flex;flex-direction:column;flex:1}
-          @keyframes ldMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+          .ld-mq-body{padding:22px 24px 24px;display:flex;flex-direction:column;flex:1}
+
+          /* ── carousel ── */
+          .ld-cr{position:relative;width:100%;cursor:pointer}
+          .ld-cr-vp{width:min(520px,88vw);margin:0 auto;overflow:hidden;border-radius:18px}
+          .ld-cr-track{display:flex;width:100%;will-change:transform}
+          .ld-cr-slot{flex:0 0 100%;display:flex;justify-content:center;padding:4px}
+          .ld-cr-dots{display:flex;justify-content:center;gap:8px;margin-top:20px}
+          .ld-cr-dot{width:8px;height:8px;border-radius:50%;background:#cbd5e1;transition:background .25s,transform .25s}
+          .ld-cr-dot.on{background:#84cc16;transform:scale(1.4)}
+
           @media (max-width:880px){
-            .ld-mq-track{animation-duration:55s}   /* 모바일은 더 느리게 */
-            .ld-mq-card{width:300px}
-            .ld-mq-photo,.ld-mq-photo-fallback{height:210px}
+            .ld-mq-photo,.ld-mq-photo-fallback{height:240px}
           }
           @media (prefers-reduced-motion:reduce){
-            .ld-mq{overflow-x:auto;-webkit-overflow-scrolling:touch}
-            .ld-mq-track{animation:none}
+            .ld-cr-track{transition:none !important}
           }
         `}</style>
       </section>
