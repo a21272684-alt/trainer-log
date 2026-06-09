@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>오운 OG 카드 (1200×630)</title>
+<style>
+  :root{--lime:#c8f135;--ink:#0f172a}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:#000;display:flex;justify-content:center;align-items:center;min-height:100vh;
+    font-family:-apple-system,'Segoe UI','Malgun Gothic',sans-serif}
+
+  /* OG/Twitter 카드 표준 1200x630 */
+  .card{
+    width:1200px;height:630px;
+    transform:scale(.62);transform-origin:center center;
+    position:relative;overflow:hidden;color:#fff;
+    background:linear-gradient(160deg,#0b1220 0%,#16233b 55%,#0b1220 100%);
+    display:flex;flex-direction:column;justify-content:space-between;
+    padding:64px 80px;
+  }
+  .glow{position:absolute;border-radius:50%;pointer-events:none}
+  .g1{top:-120px;right:-90px;width:420px;height:420px;
+    background:radial-gradient(circle,rgba(200,241,53,.30),transparent 70%)}
+  .g2{bottom:-150px;left:-120px;width:400px;height:400px;
+    background:radial-gradient(circle,rgba(200,241,53,.14),transparent 70%)}
+
+  .row{position:relative;display:flex;align-items:center;gap:18px}
+  .logo{font-size:64px;font-weight:900;letter-spacing:-2px;display:flex;align-items:center;gap:2px}
+  .logo .chip{background:var(--lime);color:var(--ink);padding:0 18px;border-radius:14px;margin-left:4px}
+
+  .badge{position:relative;font-size:24px;font-weight:800;letter-spacing:6px;
+    color:var(--lime);border:2px solid rgba(200,241,53,.5);border-radius:100px;padding:10px 24px;align-self:flex-start}
+
+  .head{position:relative;font-size:78px;font-weight:900;line-height:1.18;letter-spacing:-3px}
+  .head .hl{color:var(--lime)}
+
+  .feats{position:relative;display:flex;gap:18px;flex-wrap:wrap}
+  .feat{font-size:24px;font-weight:700;color:#dde6f0;background:rgba(255,255,255,.06);
+    border:1px solid rgba(200,241,53,.25);border-radius:100px;padding:11px 22px}
+
+  .foot{position:relative;display:flex;justify-content:space-between;align-items:flex-end}
+  .foot .tagline{font-size:26px;color:#cfd7e0;font-weight:600}
+  .foot .url{font-size:28px;color:var(--lime);font-weight:800;font-family:'DM Mono',monospace}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="glow g1"></div>
+    <div class="glow g2"></div>
+
+    <div class="row">
+      <div class="logo">오<span class="chip">운</span></div>
+      <div class="badge">1인 강사 올인원</div>
+    </div>
+
+    <div class="head">AI가 일지를 쓰고,<br><span class="hl">트레이너</span>를 알린다</div>
+
+    <div class="feats">
+      <div class="feat">🤖 AI 수업일지</div>
+      <div class="feat">👥 회원·결제 관리</div>
+      <div class="feat">🪪 트레이너 공개 프로필</div>
+    </div>
+
+    <div class="foot">
+      <div class="tagline">1인 강사를 위한 도구</div>
+      <div class="url">ownapp.kr</div>
+    </div>
+  </div>
+</body>
+</html>
