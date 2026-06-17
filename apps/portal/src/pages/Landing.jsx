@@ -332,50 +332,39 @@ function ReviewCard({ r, ariaHidden }) {
   )
 }
 
-// 후기 carousel — 한 번에 1장씩 자동 슬라이드. 4.8s 간격(적당한 속도), hover/tap 일시정지.
-// 마지막 카드 다음 첫 카드 복제로 끊김 없는 무한 루프(transition off + idx 0 점프).
-function ReviewCarousel({ reviews, paused, onToggle }) {
-  const n = reviews.length
-  const [idx, setIdx] = useState(0)
-  const [noTrans, setNoTrans] = useState(false)
+// 후기 marquee — 등록된 N개 카드를 가로로 한 줄(복제 X)로 흘려보내고,
+// 트랙 전체가 viewport 를 빠져나가면 처음부터 다시 시작.
+// 한 트랙에 카드 복제가 없으므로 한 사이클 안에서 동일인이 동시 노출되는 일은 절대 없음.
+// 한 사이클 끝 ↔ 다음 사이클 시작 사이에 viewport 폭만큼의 빈 간격이 자연스럽게 생김.
+function ReviewMarquee({ reviews, paused, onToggle }) {
+  const trackRef = useRef(null)
+  const [dur, setDur] = useState(30) // 초 단위, 마운트 후 트랙/viewport 폭에 비례해 동적 계산
 
   useEffect(() => {
-    if (paused) return
-    const t = setInterval(() => setIdx(i => i + 1), 4800)
-    return () => clearInterval(t)
-  }, [paused])
-
-  // idx === n 도달 → 트랜지션 후 0으로 무전환 점프(자연스러운 wrap)
-  useEffect(() => {
-    if (idx !== n) return
-    const t = setTimeout(() => {
-      setNoTrans(true)
-      setIdx(0)
-      requestAnimationFrame(() => requestAnimationFrame(() => setNoTrans(false)))
-    }, 680)
-    return () => clearTimeout(t)
-  }, [idx, n])
-
-  const slides = [...reviews, reviews[0]]
-  const activeDot = idx % n
+    const el = trackRef.current
+    if (!el) return
+    const compute = () => {
+      const trackW = el.scrollWidth
+      const viewW  = window.innerWidth
+      const speed  = 130 // px/sec — 카드 한 장(≈520px) 4초 통과 기준
+      setDur((trackW + viewW) / speed)
+    }
+    compute()
+    window.addEventListener('resize', compute)
+    return () => window.removeEventListener('resize', compute)
+  }, [reviews.length])
 
   return (
-    <div className="ld-cr" onClick={onToggle} role="region" aria-label="트레이너 후기">
-      <div className="ld-cr-vp">
-        <div className="ld-cr-track"
-          style={{ transform: `translateX(${-idx * 100}%)`,
-            transition: noTrans ? 'none' : 'transform .6s cubic-bezier(.22,1,.36,1)' }}>
-          {slides.map((r, i) => (
-            <div className="ld-cr-slot" key={i}>
-              <ReviewCard r={r} ariaHidden={i === n} />
+    <div className="ld-mq" onClick={onToggle} role="region" aria-label="트레이너 후기">
+      <div className="ld-mq-vp">
+        <div ref={trackRef} className="ld-mq-track"
+          style={{ animationDuration: `${dur}s`, animationPlayState: paused ? 'paused' : 'running' }}>
+          {reviews.map((r, i) => (
+            <div className="ld-mq-slot" key={i}>
+              <ReviewCard r={r} />
             </div>
           ))}
         </div>
-      </div>
-      <div className="ld-cr-dots" aria-hidden="true">
-        {reviews.map((_, i) => (
-          <span key={i} className={'ld-cr-dot' + (activeDot === i ? ' on' : '')} />
-        ))}
       </div>
     </div>
   )
@@ -970,7 +959,7 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── 트레이너 후기 (RESULTS) — 한 장씩 자동 슬라이드 carousel ── */}
+      {/* ── 트레이너 후기 (RESULTS) — 등록 갯수만 가로 marquee, 한 사이클 후 반복 ── */}
       <section style={{background:'transparent',padding:'80px 0',overflow:'hidden'}}>
         <div style={{maxWidth:'860px',margin:'0 auto',padding:'0 24px'}}>
           <FadeUp>
@@ -988,7 +977,7 @@ export default function Landing() {
           if (!reviewsLoaded) return <div style={{minHeight:'420px'}} aria-hidden="true" />
           const n = reviews.length
           if (n === 0) return null
-          // 1장: 정적 가운데 (자동 슬라이드 불필요)
+          // 1장: 정적 가운데 (흐름 불필요)
           if (n === 1) {
             return (
               <div style={{display:'flex',justifyContent:'center',padding:'0 24px'}}>
@@ -996,14 +985,14 @@ export default function Landing() {
               </div>
             )
           }
-          // 2장 이상: carousel (한 번에 한 장)
-          return <ReviewCarousel reviews={reviews} paused={reviewsPaused} onToggle={() => setReviewsPaused(p => !p)} />
+          // 2장 이상: marquee (등록 갯수만, 한 사이클 끝나면 처음부터 반복)
+          return <ReviewMarquee reviews={reviews} paused={reviewsPaused} onToggle={() => setReviewsPaused(p => !p)} />
         })()}
 
         <style>{`
-          /* ── 후기 카드 (ReviewCard) 공통 스타일 — carousel 안 정렬용 ── */
+          /* ── 후기 카드 (ReviewCard) 공통 스타일 — marquee slot 안 정렬용 ── */
           .ld-mq-card{
-            width:100%;max-width:520px;box-sizing:border-box;
+            width:min(520px,88vw);box-sizing:border-box;
             background:#fff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;
             box-shadow:0 4px 18px rgba(0,0,0,0.08);
             display:flex;flex-direction:column;
@@ -1017,20 +1006,26 @@ export default function Landing() {
           }
           .ld-mq-body{padding:22px 24px 24px;display:flex;flex-direction:column;flex:1}
 
-          /* ── carousel ── */
-          .ld-cr{position:relative;width:100%;cursor:pointer}
-          .ld-cr-vp{width:min(520px,88vw);margin:0 auto;overflow:hidden;border-radius:18px}
-          .ld-cr-track{display:flex;width:100%;will-change:transform}
-          .ld-cr-slot{flex:0 0 100%;display:flex;justify-content:center;padding:4px}
-          .ld-cr-dots{display:flex;justify-content:center;gap:8px;margin-top:20px}
-          .ld-cr-dot{width:8px;height:8px;border-radius:50%;background:#cbd5e1;transition:background .25s,transform .25s}
-          .ld-cr-dot.on{background:#84cc16;transform:scale(1.4)}
+          /* ── marquee ── */
+          .ld-mq{position:relative;width:100%;cursor:pointer;overflow:hidden}
+          .ld-mq-vp{width:100%;overflow:hidden}
+          .ld-mq-track{
+            display:flex;gap:24px;width:max-content;padding:4px 0;
+            animation: ld-mq-scroll linear infinite;
+            will-change:transform;
+          }
+          .ld-mq-slot{flex:0 0 auto;display:flex}
+
+          @keyframes ld-mq-scroll {
+            from { transform: translateX(100vw); }
+            to   { transform: translateX(-100%); }
+          }
 
           @media (max-width:880px){
             .ld-mq-photo,.ld-mq-photo-fallback{height:240px}
           }
           @media (prefers-reduced-motion:reduce){
-            .ld-cr-track{transition:none !important}
+            .ld-mq-track{animation:none}
           }
         `}</style>
       </section>
