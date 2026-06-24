@@ -1022,10 +1022,11 @@ export default function AdminPortal() {
   }
   const addSubscription = async () => {
     try {
-      await supabase.from('subscriptions').insert({
+      const { error } = await supabase.from('subscriptions').insert({
         trainer_id: subForm.trainer_id, plan: subForm.plan, payment_method: subForm.payment_method,
         amount: parseInt(subForm.amount) || 0, paid_at: subForm.paid_at, valid_until: subForm.valid_until, memo: subForm.memo.trim()
       })
+      if (error) throw error
       await loadAll(); setSubModal(false); showToast('✓ 결제가 추가됐어요')
     } catch (e) { showToast('오류: ' + e.message) }
   }
