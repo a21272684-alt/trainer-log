@@ -2765,17 +2765,22 @@ export default function TrainerApp() {
   }
   async function toggleAttendance(dateStr) {
     const existing = attendanceDates.find(a => a.attended_date === dateStr)
-    if (existing) {
-      // 차감됐던 노쇼를 지우면 세션 복원
-      if (existing.session_deducted && currentMember) {
-        await supabase.from('members').update({ done_sessions: Math.max(0, (currentMember.done_sessions||0) - 1) }).eq('id', currentMember.id)
-        await loadMembers()
+    try {
+      if (existing) {
+        // 차감됐던 노쇼를 지우면 세션 복원
+        if (existing.session_deducted && currentMember) {
+          const { error: mErr } = await supabase.from('members').update({ done_sessions: Math.max(0, (currentMember.done_sessions||0) - 1) }).eq('id', currentMember.id)
+          if (mErr) throw mErr
+          await loadMembers()
+        }
+        const { error } = await supabase.from('attendance').delete().eq('id', existing.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('attendance').insert({ trainer_id: trainer.id, member_id: currentMemberId, attended_date: dateStr, status: 'attended' })
+        if (error) throw error
       }
-      await supabase.from('attendance').delete().eq('id', existing.id)
-    } else {
-      await supabase.from('attendance').insert({ trainer_id: trainer.id, member_id: currentMemberId, attended_date: dateStr, status: 'attended' })
-    }
-    await loadAttendance(currentMemberId)
+      await loadAttendance(currentMemberId)
+    } catch (e) { showToast('출석 처리 실패: ' + e.message) }
   }
   // 노쇼/사전취소 기록 (정책에 따라 세션 차감)
   async function recordAttendanceStatus(dateStr, status) {
@@ -2786,16 +2791,20 @@ export default function TrainerApp() {
       if (existing) {
         // 상태 변경: 이전 차감 여부와 새 차감 여부 차이만큼 세션 보정
         const prevDeducted = !!existing.session_deducted
-        await supabase.from('attendance').update({ status, session_deducted: deduct }).eq('id', existing.id)
+        const { error: uErr } = await supabase.from('attendance').update({ status, session_deducted: deduct }).eq('id', existing.id)
+        if (uErr) throw uErr
         if (prevDeducted !== deduct && currentMember) {
           const delta = deduct ? 1 : -1
-          await supabase.from('members').update({ done_sessions: Math.max(0, (currentMember.done_sessions||0) + delta) }).eq('id', currentMember.id)
+          const { error: mErr } = await supabase.from('members').update({ done_sessions: Math.max(0, (currentMember.done_sessions||0) + delta) }).eq('id', currentMember.id)
+          if (mErr) throw mErr
           await loadMembers()
         }
       } else {
-        await supabase.from('attendance').insert({ trainer_id: trainer.id, member_id: currentMemberId, attended_date: dateStr, status, session_deducted: deduct })
+        const { error: iErr } = await supabase.from('attendance').insert({ trainer_id: trainer.id, member_id: currentMemberId, attended_date: dateStr, status, session_deducted: deduct })
+        if (iErr) throw iErr
         if (deduct && currentMember) {
-          await supabase.from('members').update({ done_sessions: (currentMember.done_sessions||0) + 1 }).eq('id', currentMember.id)
+          const { error: mErr } = await supabase.from('members').update({ done_sessions: (currentMember.done_sessions||0) + 1 }).eq('id', currentMember.id)
+          if (mErr) throw mErr
           await loadMembers()
         }
       }
