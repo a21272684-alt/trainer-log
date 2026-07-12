@@ -3197,7 +3197,17 @@ export default function TrainerApp() {
             showToast(`영상 파일이 너무 커요 (현재 ${sizeMB.toFixed(1)}MB / 최대 ${MAX_VIDEO_SIZE_MB}MB). 화질을 낮춰 찍거나 30초 이상으로 찍어 트리머에서 잘라주세요`)
             continue
           }
-          const blobUrl = URL.createObjectURL(file)
+          // Android Chrome 은 File 참조를 시간 경과 후 무효화할 수 있음
+          // (ERR_UPLOAD_FILE_CHANGED → 발송 시 "Failed to fetch"). 사진이
+          // 선택 즉시 압축·복사되는 것과 동일하게, 영상도 지금 메모리로 복사.
+          let videoBlob
+          try {
+            videoBlob = new Blob([await file.arrayBuffer()], { type: file.type || 'video/mp4' })
+          } catch (readErr) {
+            showToast(`${file.name} 읽기 실패: ${readErr.message}. 다시 첨부해주세요`)
+            continue
+          }
+          const blobUrl = URL.createObjectURL(videoBlob)
           results.push({
             id: Date.now() + Math.random(),
             name: file.name,
@@ -3205,7 +3215,7 @@ export default function TrainerApp() {
             dataUrl: blobUrl,
             sizeKB: Math.round(file.size / 1024),
             isVideo: true,
-            blob: file,
+            blob: videoBlob,
           })
         }
       } else {
@@ -3410,11 +3420,23 @@ export default function TrainerApp() {
         const ext  = mf.type.includes('webm') ? 'webm' : mf.isVideo ? 'mp4' : 'webp'
         const path = `${trainer.id}/${reportId}/${mf.id}.${ext}`
         console.log('[sendKakao] 스토리지 업로드 시도:', path, '| size:', blob.size, 'bytes')
-        const { error: upErr } = await supabase.storage
-          .from('session-media')
-          .upload(path, blob, { contentType: mf.type, upsert: false })
+        // 네트워크 순단(헬스장 약한 와이파이 등) 대비 1회 자동 재시도.
+        // path 가 업로드마다 유니크해서 재시도로 인한 중복 위험 없음.
+        let upErr = null
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const { error } = await supabase.storage
+            .from('session-media')
+            .upload(path, blob, { contentType: mf.type, upsert: false })
+          upErr = error
+          if (!upErr) break
+          console.warn(`[sendKakao] 업로드 실패 (시도 ${attempt+1}/2):`, path, upErr.message)
+          if (attempt === 0) await new Promise(r => setTimeout(r, 1200))
+        }
         if (upErr) {
-          throw new Error(`미디어 업로드 실패 (${path}): ${upErr.message}`)
+          const friendly = /failed to fetch|network|load failed/i.test(upErr.message || '')
+            ? `네트워크가 불안정해 미디어 전송에 실패했어요. 와이파이 연결을 확인하고, 그래도 안 되면 미디어를 삭제 후 다시 첨부해서 발송해주세요. (${mf.name || path})`
+            : `미디어 업로드 실패 (${path}): ${upErr.message}`
+          throw new Error(friendly)
         }
         uploadedMediaPaths.push(path)  // C-002: 후속 단계 실패 시 롤백 대상
         const { data: { publicUrl } } = supabase.storage.from('session-media').getPublicUrl(path)
