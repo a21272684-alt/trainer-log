@@ -1626,7 +1626,10 @@ function RiskPanel({ member }) {
 
 const COLORS=[{id:'green',bg:'#c8f135',tx:'#1a3300'},{id:'blue',bg:'#60a5fa',tx:'#1e3a5f'},{id:'purple',bg:'#a78bfa',tx:'#2e1065'},{id:'coral',bg:'#fb923c',tx:'#431407'},{id:'pink',bg:'#f472b6',tx:'#500724'},{id:'teal',bg:'#2dd4bf',tx:'#134e4a'},{id:'yellow',bg:'#facc15',tx:'#422006'},{id:'gray',bg:'#94a3b8',tx:'#1e293b'}]
 const DAYS=['월','화','수','목','금','토','일']
-const SH=0,EH=24,SMIN=5,SPX=4
+// 시간표 슬롯: 5분 단위, 슬롯당 4px. 표시 시간대는 그리드에서 동적 계산.
+const SMIN=5,SPX=4
+// 기본 표시 시간대 — 오전 8시 ~ 오후 6시. 범위 밖 블록이 있으면 그만큼 확장(에브리타임식).
+const SCH_DEFAULT_SH=8, SCH_DEFAULT_EH=18
 
 // ── 스크롤 애니메이션 헬퍼 ─────────────────────────────────────
 function useInView(threshold = 0.12) {
@@ -3682,8 +3685,6 @@ export default function TrainerApp() {
   // 되돌려 날짜가 하루 밀린 문자열로 저장/조회됐음 → 웹↔모바일 요일 밀림 버그.
   // getFullYear/Month/Date 로 로컬 캘린더 날짜를 직접 뽑아 어느 기기에서든 동일 표기.
   const dStr = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-  const tToSlot = t => { const[h,m]=t.split(':').map(Number); return(h-SH)*60/SMIN+m/SMIN }
-  const slotToT = s => { const tot=SH*60+s*SMIN; return String(Math.floor(tot/60)).padStart(2,'0')+':'+String(tot%60).padStart(2,'0') }
 
   // 모달 열기 — initialBlock 으로 add/edit 분기. 모달 자체는 ScheduleModal 이 관리.
   function openAddBlock(ds, start, end) {
@@ -3745,7 +3746,6 @@ export default function TrainerApp() {
   // === RENDER SCHEDULE GRID ===
   function renderScheduleGrid() {
     const todayStr = dStr(new Date())
-    const totalSlots = (EH-SH)*60/SMIN; const totalPx = totalSlots*SPX
 
     // 평일(월~금, 원래 요일 index 0~4) 은 항상 표시.
     // 주말(토=5, 일=6) 은 해당 날짜에 일정이 있을 때만 컬럼 노출 (에브리타임 방식).
@@ -3753,6 +3753,28 @@ export default function TrainerApp() {
     const cols = getWeekDates()
       .map((d, idx) => ({ d, idx, label: DAYS[idx], ds: dStr(d) }))
       .filter(({ idx, ds }) => idx < 5 || (blocksByDate[ds] || []).length > 0)
+
+    // 표시 시간대: 기본 8~18시. 이 주에 범위를 벗어난 블록이 있으면 그만큼만 확장.
+    // → 평소엔 한 화면에 들어오고, 이른/늦은 일정이 있을 때만 세로로 늘어남(에브리타임식).
+    let dispSH = SCH_DEFAULT_SH, dispEH = SCH_DEFAULT_EH
+    for (const { ds } of cols) {
+      for (const b of (blocksByDate[ds] || [])) {
+        const startH = parseInt((b.start || '').split(':')[0], 10)
+        const [endH, endM] = (b.end || '').split(':').map(Number)
+        if (Number.isFinite(startH) && startH < dispSH) dispSH = startH
+        const endCeil = endM > 0 ? endH + 1 : endH   // 끝이 정각이 아니면 다음 시각까지 노출
+        if (Number.isFinite(endCeil) && endCeil > dispEH) dispEH = endCeil
+      }
+    }
+    dispSH = Math.max(0, dispSH)
+    dispEH = Math.min(24, dispEH)
+    if (dispEH <= dispSH) dispEH = Math.min(24, dispSH + 1)
+
+    // 표시 시작 시각(dispSH) 기준 슬롯 ↔ 시각 변환 (범위가 동적이라 그리드 내부에 정의).
+    const tToSlot = t => { const [h,m] = t.split(':').map(Number); return (h-dispSH)*60/SMIN + m/SMIN }
+    const slotToT = s => { const tot = dispSH*60 + s*SMIN; return String(Math.floor(tot/60)).padStart(2,'0')+':'+String(tot%60).padStart(2,'0') }
+
+    const totalSlots = (dispEH-dispSH)*60/SMIN; const totalPx = totalSlots*SPX
 
     const nDays = cols.length
     // 5일(평일만) → 모바일 한 화면에 꽉 채움(가로 스크롤 X).
@@ -3774,7 +3796,7 @@ export default function TrainerApp() {
           <div className="sg-tc" style={{height:totalPx+'px',position:'relative'}}>
             {Array.from({length:totalSlots+1}).map((_,s) => {
               const min=s*SMIN
-              if (min%60===0) { const h=SH+min/60; return <div key={s} className="sg-tl" style={{top:s*SPX+'px'}}>{h}:00</div> }
+              if (min%60===0) { const h=dispSH+min/60; return <div key={s} className="sg-tl" style={{top:s*SPX+'px'}}>{h}:00</div> }
               return null
             })}
           </div>
