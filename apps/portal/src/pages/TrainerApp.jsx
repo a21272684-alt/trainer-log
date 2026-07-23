@@ -3677,7 +3677,11 @@ export default function TrainerApp() {
     const mon = new Date(now); mon.setDate(now.getDate()-(day===0?6:day-1)+weekOff*7)
     return Array.from({length:7},(_,i) => { const d = new Date(mon); d.setDate(mon.getDate()+i); return d })
   }
-  const dStr = d => d.toISOString().split('T')[0]
+  // 로컬 캘린더 날짜를 그대로 문자열화 (타임존 무관).
+  // 과거엔 d.toISOString() 을 썼는데, KST(UTC+9) 는 로컬 자정을 전날 15:00 UTC 로
+  // 되돌려 날짜가 하루 밀린 문자열로 저장/조회됐음 → 웹↔모바일 요일 밀림 버그.
+  // getFullYear/Month/Date 로 로컬 캘린더 날짜를 직접 뽑아 어느 기기에서든 동일 표기.
+  const dStr = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
   const tToSlot = t => { const[h,m]=t.split(':').map(Number); return(h-SH)*60/SMIN+m/SMIN }
   const slotToT = s => { const tot=SH*60+s*SMIN; return String(Math.floor(tot/60)).padStart(2,'0')+':'+String(tot%60).padStart(2,'0') }
 
