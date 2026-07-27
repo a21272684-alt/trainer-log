@@ -3777,17 +3777,14 @@ export default function TrainerApp() {
     const totalSlots = (dispEH-dispSH)*60/SMIN; const totalPx = totalSlots*SPX
 
     const nDays = cols.length
-    // 5일(평일만) → 모바일 한 화면에 꽉 채움(가로 스크롤 X).
-    // 6~7일(주말 일정 존재) → 기존처럼 minmax(88px)+minWidth 로 가로 스크롤 허용.
-    const fit = nDays <= 5
-    const colTrack     = fit ? 'minmax(0, 1fr)' : 'minmax(88px, 1fr)'
-    const gridMinWidth = fit ? '100%' : `${48 + nDays * 88}px`
+    // 표시 요일 수(5~7)와 무관하게 항상 화면 폭에 맞춰 압축 — 월~일도 가로 스크롤
+    // 없이 한 화면에(에브리타임식). 가로 스크롤 컨테이너가 없어 세로 스와이프도 매끄러움.
+    // 좁아진 컬럼의 텍스트 밀도는 .sg-fit CSS 로 조정.
 
     return (
-      // fit 모드: sg-wrap 미세 가로 스크롤 차단 (서브픽셀 반올림 대비 이중 안전).
-      <div className="sg-wrap" style={fit ? { overflowX: 'hidden' } : undefined}>
-        {/* sg-fit: CSS 의 .sg-th/.sg-dc min-width:88px 를 0 으로 풀어 minmax(0,1fr) 실작동 */}
-        <div className={`sg${fit ? ' sg-fit' : ''}`} style={{display:'grid',gridTemplateColumns:`48px repeat(${nDays}, ${colTrack})`,minWidth:gridMinWidth}}>
+      <div className="sg-wrap" style={{ overflowX: 'hidden' }}>
+        {/* sg-fit: .sg-th/.sg-dc 의 min-width 를 풀어 minmax(0,1fr) 가 실제로 압축되게 함 */}
+        <div className="sg sg-fit" style={{display:'grid',gridTemplateColumns:`44px repeat(${nDays}, minmax(0, 1fr))`,minWidth:'100%'}}>
           <div className="sg-th-e" style={{height:'36px'}}></div>
           {cols.map(({ d, idx, label }) => {
             const isToday = dStr(d)===todayStr

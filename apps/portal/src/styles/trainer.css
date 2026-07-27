@@ -234,7 +234,7 @@
   position: sticky;
   left: 0;
   z-index: 4;
-  min-width: 48px;
+  min-width: 44px;
 }
 /* 요일 헤더 열 — 최소 너비 보장으로 모바일에서 3~4일 노출 */
 .sg-th {
@@ -260,7 +260,7 @@
   z-index: 3;
   background: var(--surface2);
   border-right: 1px solid var(--border);
-  min-width: 48px;
+  min-width: 44px;
 }
 .sg-tl {
   font-size: 9px;
@@ -290,6 +290,11 @@
    6~7일(주말 일정 존재) 일 때는 .sg-fit 미적용 → 기존 88px + 가로 스크롤 유지. */
 .sg-fit .sg-th,
 .sg-fit .sg-dc { min-width: 0; }
+/* 압축된 좁은 컬럼(7일 기준 ~46px)에서 텍스트가 넘치지 않도록 밀도 조정 */
+.sg-fit .sg-th { padding: 7px 2px; font-size: 9.5px; }
+.sg-fit .sg-th .d { font-size: 13px; }
+.sg-fit .sg-blk { left: 1px; right: 1px; padding: 4px 4px; }
+.sg-fit .sg-blk .bt { font-size: 8.5px; }
 
 /* 이벤트 블록 — Fat-finger 터치 영역 확보 */
 .sg-blk {
