@@ -3745,7 +3745,9 @@ export default function TrainerApp() {
 
   // === RENDER SCHEDULE GRID ===
   function renderScheduleGrid() {
-    const todayStr = dStr(new Date())
+    const _now = new Date()
+    const todayStr = dStr(_now)
+    const nowMin = _now.getHours()*60 + _now.getMinutes()   // 현재 시각선용 (오늘 열)
 
     // 평일(월~금, 원래 요일 index 0~4) 은 항상 표시.
     // 주말(토=5, 일=6) 은 해당 날짜에 일정이 있을 때만 컬럼 노출 (에브리타임 방식).
@@ -3799,16 +3801,21 @@ export default function TrainerApp() {
           </div>
           {cols.map(({ ds }) => {
             const dayBlocks = blocksByDate[ds] || []
+            const isToday = ds===todayStr
+            const nowTop = ((nowMin - dispSH*60)/SMIN)*SPX
+            const showNow = isToday && nowMin >= dispSH*60 && nowMin <= dispEH*60
             return (
-              <div key={ds} className="sg-dc" style={{height:totalPx+'px'}} onClick={e => {
+              <div key={ds} className={'sg-dc'+(isToday?' today':'')} style={{height:totalPx+'px'}} onClick={e => {
                 const rect = e.currentTarget.getBoundingClientRect(); const y = e.clientY-rect.top
                 const slot = Math.round(y/SPX); const maxSlot = totalSlots
                 openAddBlock(ds, slotToT(Math.max(0,slot)), slotToT(Math.min(slot+12,maxSlot)))
               }}>
+                {showNow && <div className="sg-now" style={{top:nowTop+'px'}}><span className="sg-now-dot"></span></div>}
                 {Array.from({length:totalSlots}).map((_,s) => {
                   const min=s*SMIN
-                  if (min%60===0) return <div key={s} className="sg-hl" style={{top:s*SPX+'px',borderTop:'1px solid var(--border)'}}></div>
-                  if (min%30===0) return <div key={s} className="sg-hl" style={{top:s*SPX+'px',borderTop:'1px dashed rgba(255,255,255,0.04)'}}></div>
+                  // 정시선: 또렷한 옅은 회색 / 30분선: 흰 배경에 보이는 아주 옅은 실선(기존 흰색 dashed 는 안 보였음)
+                  if (min%60===0) return <div key={s} className="sg-hl" style={{top:s*SPX+'px',borderTop:'1px solid #D9DDCF'}}></div>
+                  if (min%30===0) return <div key={s} className="sg-hl" style={{top:s*SPX+'px',borderTop:'1px solid rgba(17,24,39,0.045)'}}></div>
                   return null
                 })}
                 {dayBlocks.map(b => {

@@ -252,6 +252,11 @@
 .sg-th.today { color: var(--accent-text); }
 .sg-th .d { font-size: 14px; font-weight: 700; color: var(--text); display: block; margin-bottom: 1px; }
 .sg-th.today .d { color: var(--accent-text); }
+/* 오늘 요일 헤더 — 라임 언더라인으로 강조 */
+.sg-th.today .d::after {
+  content: ''; display: block; width: 16px; height: 2px; border-radius: 2px;
+  background: var(--accent-dim); margin: 2px auto 0;
+}
 
 /* 시간 레이블 열 — sticky left */
 .sg-tc {
@@ -263,13 +268,14 @@
   min-width: 44px;
 }
 .sg-tl {
-  font-size: 9px;
-  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
   text-align: right;
   padding-right: 5px;
   font-family: 'DM Mono', monospace;
   position: absolute;
-  top: -6px;
+  top: -7px;
   right: 0;
   white-space: nowrap;
 }
@@ -282,7 +288,13 @@
 }
 .sg-dc:last-child { border-right: none; }
 .sg-dc:hover { background: rgba(200,241,53,0.07); }
+/* 오늘 열 — 옅은 라임 배경으로 강조 (hover 시 살짝 진하게) */
+.sg-dc.today { background: rgba(200,241,53,0.10); }
+.sg-dc.today:hover { background: rgba(200,241,53,0.16); }
 .sg-hl { position: absolute; left: 0; right: 0; pointer-events: none; }
+/* 현재 시각선 (오늘 열) — 에브리타임식 얇은 빨간 선 */
+.sg-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--danger); z-index: 5; pointer-events: none; }
+.sg-now-dot { position: absolute; left: -1px; top: -2px; width: 6px; height: 6px; border-radius: 50%; background: var(--danger); }
 
 /* 평일만(<=5일) 표시 모드 — min-width 88px 해제해 컬럼을 화면 폭에 균등 분배.
    인라인 gridTemplateColumns 의 minmax(0,1fr) 가 실제로 작동하게 됨.
