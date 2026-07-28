@@ -5827,13 +5827,13 @@ export default function TrainerApp() {
           </div>
           <div className="rtab-row">
             {[
-              { key:'write',      label:'📝 수업일지' },
-              { key:'attendance', label:'📅 출석부'   },
-              { key:'health',     label:'⚖️ 건강기록' },
-              { key:'holds',      label:'⏸ 정지기록' },
-              { key:'personal',   label:'🏃 개인운동' },
-              ...(canUse('diet_view') ? [{ key:'diet', label:'🥗 식단' }] : []),
-              { key:'insight',    label:'🤖 AI 분석'  },
+              { key:'write',      label:'일지' },
+              { key:'attendance', label:'출석' },
+              { key:'health',     label:'건강' },
+              { key:'holds',      label:'정지' },
+              { key:'personal',   label:'운동' },
+              ...(canUse('diet_view') ? [{ key:'diet', label:'식단' }] : []),
+              { key:'insight',    label:'AI'   },
             ].map(({ key, label }) => (
               <button
                 key={key}
