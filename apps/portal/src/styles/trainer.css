@@ -95,44 +95,38 @@
   display: flex;
   gap: 0;
   margin-bottom: 0;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scroll-snap-type: x mandatory;
+  /* 짧은 라벨로 7개를 화면 폭에 균등 분배 — 가로 스크롤 없음(전부 한눈에) */
   /* sticky 헤더 */
   position: sticky;
   top: 0;
   z-index: 10;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-  /* 스크롤바 숨김 */
-  scrollbar-width: none;
 }
-.rtab-row::-webkit-scrollbar { display: none; }
 .rtab-btn {
-  flex-shrink: 0;
-  scroll-snap-align: start;
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 12px 16px;
+  justify-content: center;
+  padding: 12px 4px;
   min-height: 44px;
   border: none;
-  border-bottom: 2.5px solid transparent;
+  border-bottom: 2px solid transparent;
   background: transparent;
-  color: var(--text-dim);
-  font-size: 12.5px;
+  color: var(--text-muted);
+  font-size: 13.5px;
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
   transition: color 0.15s, border-color 0.15s;
 }
-.rtab-btn:hover { color: var(--text-muted); }
+.rtab-btn:hover { color: var(--text); }
 .rtab-btn.active {
   color: var(--text);
   font-weight: 700;
-  border-bottom-color: #60a5fa;
+  border-bottom-color: var(--accent-dim);
 }
 
 /* ── Exercise blocks ── */
