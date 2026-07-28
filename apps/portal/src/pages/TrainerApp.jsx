@@ -1733,6 +1733,10 @@ export default function TrainerApp() {
   // Settings tab — leaderboard
   const [leaderboard, setLeaderboard] = useState(null)
   const [lbLoading, setLbLoading] = useState(false)
+  // 설정 탭 개편 — 무거운 섹션(플랜/리더보드/열람률)은 접이식 행(기본 닫힘)
+  const [setPlanOpen,  setSetPlanOpen]  = useState(false)
+  const [setLbOpen,    setSetLbOpen]    = useState(false)
+  const [setReadOpen,  setSetReadOpen]  = useState(false)
 
   // Settings tab — 플랜 안내
   const [planGuideVisible, setPlanGuideVisible] = useState(true)
@@ -5302,7 +5306,7 @@ export default function TrainerApp() {
                 <div style={{fontSize:'11px',padding:'4px 10px',borderRadius:'20px',
                   background:'linear-gradient(135deg,rgba(167,139,250,0.2),rgba(251,191,36,0.18))',
                   color:'#fbbf24',border:'1px solid rgba(251,191,36,0.4)',fontWeight:700,flexShrink:0}}>
-                  👑 Premium
+                  Premium
                 </div>
               ) : (
                 <div style={{fontSize:'11px',padding:'4px 10px',borderRadius:'20px',
@@ -5319,7 +5323,7 @@ export default function TrainerApp() {
                 style={{flex:1,padding:'8px',borderRadius:'8px',border:'1px solid var(--border)',
                   background:'var(--surface2)',color:'var(--text-muted)',fontSize:'12px',fontWeight:500,
                   cursor:'pointer',fontFamily:'inherit',opacity:profileUploading?0.6:1}}>
-                {profileUploading ? '업로드 중…' : trainer?.profile_photo_url ? '📷 사진 변경' : '📷 사진 등록'}
+                {profileUploading ? '업로드 중…' : trainer?.profile_photo_url ? '사진 변경' : '사진 등록'}
               </button>
               {trainer?.profile_photo_url && (
                 <button onClick={removeProfilePhoto}
@@ -5372,11 +5376,19 @@ export default function TrainerApp() {
             ]
             const sourcePlans = (Array.isArray(plansList) && plansList.length > 0) ? plansList : fallbackPlans
             const visiblePlans = sourcePlans.filter(p => p.enabled !== false)
+            const curPlanName = visiblePlans.find(p => p.current)?.name || (isPaid ? 'Premium' : 'Free')
             return (
               <div style={{ marginBottom: '20px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em', marginBottom: '10px' }}>
-                  💎 플랜 안내
-                </div>
+                <div className="section-label">플랜</div>
+                <div className="rev-rows">
+                  <div className="rev-sec">
+                    <button className={'rev-row'+(setPlanOpen?' open':'')} onClick={()=>setSetPlanOpen(o=>!o)}>
+                      <span className="rev-row-ic"><svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L4.6 9.1l5.8-.8z"/></svg></span>
+                      <span className="rev-row-t"><span className="rev-row-l">{curPlanName} 이용 중</span><span className="rev-row-s">플랜 안내 보기</span></span>
+                      <span className="rev-row-chev">›</span>
+                    </button>
+                    {setPlanOpen && (
+                    <div className="rev-body">
                 <div style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
@@ -5426,26 +5438,39 @@ export default function TrainerApp() {
                   style={{
                     width: '100%', marginTop: '12px',
                     padding: '12px',
-                    borderRadius: '10px', border: 'none',
-                    background: 'linear-gradient(135deg,#a78bfa 0%,#818cf8 100%)',
-                    color: '#fff', fontSize: '13px', fontWeight: 700,
+                    borderRadius: '10px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface2)',
+                    color: 'var(--text-muted)', fontSize: '13px', fontWeight: 600,
                     cursor: 'pointer', fontFamily: 'inherit',
                     letterSpacing: '-0.2px',
-                    boxShadow: '0 2px 12px rgba(167,139,250,0.35)',
                   }}
                 >
-                  ✨ 프리미엄 플랜 이용문의
+                  프리미엄 플랜 이용문의
                 </button>
+                    </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )
           })()}
 
-          {/* ════════════════════════════════════
-               🏆 이번 주 일지 발송 리더보드
-          ════════════════════════════════════ */}
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
-            <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',letterSpacing:'0.08em'}}>🏆 이번 주 일지 발송 리더보드</div>
-            <button onClick={loadLeaderboard} style={{fontSize:'11px',color:'var(--text-dim)',background:'none',border:'none',cursor:'pointer',padding:'2px 6px'}}>↻ 새로고침</button>
+          {/* 활동 통계 — 리더보드 · 열람률 (접이식) */}
+          <div className="section-label">활동 통계</div>
+          <div className="rev-rows" style={{marginBottom:'20px'}}>
+
+          {/* ── 리더보드 ── */}
+          <div className="rev-sec">
+          <button className={'rev-row'+(setLbOpen?' open':'')} onClick={()=>setSetLbOpen(o=>!o)}>
+            <span className="rev-row-ic"><svg viewBox="0 0 24 24"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0zM7 6H4.5v1A2.5 2.5 0 0 0 7 9.5M17 6h2.5v1A2.5 2.5 0 0 1 17 9.5"/></svg></span>
+            <span className="rev-row-t"><span className="rev-row-l">주간 리더보드</span><span className="rev-row-s">전체 트레이너 일지 발송 순위</span></span>
+            <span className="rev-row-chev">›</span>
+          </button>
+          {setLbOpen && (
+          <div className="rev-body">
+          <div style={{display:'flex',justifyContent:'flex-end',marginBottom:'8px'}}>
+            <button onClick={loadLeaderboard} style={{fontSize:'11px',color:'var(--text-dim)',background:'none',border:'none',cursor:'pointer',padding:'2px 6px'}}>새로고침</button>
           </div>
           {/* 이름 공개 동의 토글 (opt-in) */}
           {!lbLoading && leaderboard && (
@@ -5499,14 +5524,20 @@ export default function TrainerApp() {
           {!lbLoading && !leaderboard && (
             <div style={{textAlign:'center',padding:'20px',color:'var(--text-dim)',fontSize:'12px'}}>데이터를 불러올 수 없어요</div>
           )}
+          </div>
+          )}
+          </div>
 
-          {/* 섹션 구분선 */}
-          <div style={{margin:'28px 0',height:'1px',background:'var(--border)'}} />
-
-          {/* ════════════════════════════════════
-               📊 이번 주 전체 일지 열람률
-          ════════════════════════════════════ */}
-          <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',letterSpacing:'0.08em',marginBottom:'10px'}}>📊 이번 주 전체 일지 열람률</div>
+          {/* ── 일지 열람률 ── */}
+          <div className="rev-sec">
+          <button className={'rev-row'+(setReadOpen?' open':'')} onClick={()=>setSetReadOpen(o=>!o)}>
+            <span className="rev-row-ic"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.5"/></svg></span>
+            <span className="rev-row-t"><span className="rev-row-l">일지 열람률</span><span className="rev-row-s">이번 주 · 전체 합산</span></span>
+            {!lbLoading && leaderboard && <span style={{fontSize:'13px',fontWeight:700,color:'var(--accent-text)',fontFamily:"'DM Mono',monospace",marginRight:'6px'}}>{leaderboard.overallRate}%</span>}
+            <span className="rev-row-chev">›</span>
+          </button>
+          {setReadOpen && (
+          <div className="rev-body">
           {lbLoading && <div style={{textAlign:'center',padding:'16px',color:'var(--text-dim)',fontSize:'12px'}}>불러오는 중...</div>}
           {!lbLoading && leaderboard && (
             <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'14px',padding:'20px'}}>
@@ -5530,12 +5561,14 @@ export default function TrainerApp() {
           {!lbLoading && !leaderboard && (
             <div style={{textAlign:'center',padding:'20px',color:'var(--text-dim)',fontSize:'12px'}}>데이터를 불러올 수 없어요</div>
           )}
-
-          {/* ── 센터 연동 ── */}
-          <div style={{margin:'28px 0 0',height:'1px',background:'var(--border)'}} />
-          <div style={{marginTop:'24px',marginBottom:'8px',fontSize:'12px',fontWeight:700,color:'var(--text-muted)',letterSpacing:'0.08em'}}>
-            🏢 센터 연동
           </div>
+          )}
+          </div>
+
+          </div>
+
+          {/* ── 소속 센터 ── */}
+          <div className="section-label">소속 센터</div>
 
           {/* 상태 A: 이미 승인된 센터 소속 */}
           {trainer?.gym_id && trainer?.approval_status !== 'pending' && (
@@ -5631,40 +5664,22 @@ export default function TrainerApp() {
             </div>
           )}
 
-          {/* ── Danger Zone ── */}
-          <div style={{marginTop:'40px'}}>
-            {/* 구분선 */}
-            <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'14px'}}>
-              <div style={{flex:1,height:'1px',background:'rgba(239,68,68,0.2)'}} />
-              <span style={{fontSize:'10px',fontWeight:700,color:'#f87171',letterSpacing:'0.10em',whiteSpace:'nowrap'}}>
-                DANGER ZONE
-              </span>
-              <div style={{flex:1,height:'1px',background:'rgba(239,68,68,0.2)'}} />
-            </div>
-            <div style={{background:'rgba(239,68,68,0.04)',border:'1px solid rgba(239,68,68,0.18)',borderRadius:'14px',padding:'14px 16px'}}>
-              <div style={{fontSize:'11px',color:'var(--text-dim)',marginBottom:'12px',lineHeight:1.6}}>
-                아래 버튼은 계정에 영향을 줍니다. 신중하게 진행해 주세요.
-              </div>
-              <button
+          {/* ── 계정 ── */}
+          <div className="section-label" style={{marginTop:'28px'}}>계정</div>
+          <div className="rev-rows">
+            <div className="rev-sec">
+              <button className="rev-row"
                 onClick={async () => {
                   if (!window.confirm('정말 로그아웃 하시겠습니까?')) return
                   await supabase.auth.signOut()
                   setAuthUser(null); setTrainer(null)
                   setMembers([]); setLogs([])
                   setScreen('landing')
-                }}
-                style={{
-                  width:'100%',padding:'13px',borderRadius:'10px',
-                  border:'1px solid rgba(239,68,68,0.35)',
-                  background:'rgba(239,68,68,0.07)',
-                  color:'#ef4444',fontSize:'14px',fontWeight:700,
-                  cursor:'pointer',fontFamily:'inherit',
-                  transition:'background 0.15s',
-                }}
-                onMouseEnter={e=>e.currentTarget.style.background='rgba(239,68,68,0.13)'}
-                onMouseLeave={e=>e.currentTarget.style.background='rgba(239,68,68,0.07)'}
-              >
-                로그아웃
+                }}>
+                <span className="rev-row-ic" style={{background:'rgba(239,68,68,0.08)',color:'#dc2626'}}>
+                  <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+                </span>
+                <span className="rev-row-t"><span className="rev-row-l" style={{color:'#dc2626'}}>로그아웃</span></span>
               </button>
             </div>
           </div>
