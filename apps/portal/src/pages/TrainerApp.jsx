@@ -1743,7 +1743,6 @@ export default function TrainerApp() {
   //   — 1:1 문의 탭이 카카오 채널 외부 우회로 전환되어 내부 state 불필요
 
   // Revenue tab — tooltip
-  const [revTooltip, setRevTooltip] = useState(null)
   // Revenue tab — 회원별 결제 검색
   const [revMemberSearch, setRevMemberSearch] = useState('')
 
@@ -1840,6 +1839,10 @@ export default function TrainerApp() {
   // Settings modal
   const [settingsModal, setSettingsModal] = useState(false)
   const [weeklyReportOpen, setWeeklyReportOpen] = useState(false)
+  // 매출관리 개편 — 무거운 섹션은 접이식 행으로(기본 닫힘). 열 때만 마운트 = 스캔성 ↑ + 초기 로드 ↓
+  const [revSettlementOpen, setRevSettlementOpen] = useState(false)
+  const [revPaymentsOpen,   setRevPaymentsOpen]   = useState(false)
+  const [revMemberPayOpen,  setRevMemberPayOpen]  = useState(false)
   const [aiUsage, setAiUsage] = useState(null)   // { plan, limit, used, remaining, blocked }
   const [showLimitModal, setShowLimitModal] = useState(false)
   const [centralApiKey, setCentralApiKey] = useState('')  // 중앙화된 Gemini API 키
@@ -3978,184 +3981,153 @@ export default function TrainerApp() {
             onMouseEnter={e=>{e.currentTarget.style.background='var(--surface2)';e.currentTarget.style.color='var(--text)'}}
             onMouseLeave={e=>{e.currentTarget.style.background='var(--surface)';e.currentTarget.style.color='var(--text-muted)'}}
           >
-            <span style={{fontSize:'13px'}}>🔄</span> 새로고침
+            새로고침
           </button>
         </div>
-        <div style={{marginBottom:'14px'}}>
-          {(() => {
-            const REV_ITEMS = [
-              [weekRevenue,  '이번 주 소진된 매출',    weekLogs.length+'회 수업',          'var(--accent)', '이번 주 월요일 00:00부터 오늘까지 발송된 수업일지 수 × 각 회원의 세션 단가를 합산한 금액이에요.'],
-              [monthRevenue, '이번 달 소진된 매출',    monthLogs.length+'회 수업',          'var(--accent)', '이번 달 1일부터 오늘까지 발송된 수업일지 수 × 각 회원의 세션 단가를 합산한 금액이에요.'],
-              [projectedMonth,'이번 달 예상 소진 매출',dayOfMonth+'/'+daysInMonth+'일 기준','#facc15',       '이번 달 소진 매출 ÷ 오늘까지 경과 일수 × 이번 달 총 일수로 계산해요. 현재 수업 페이스가 유지된다고 가정한 예상치예요.'],
-              [remainRevenue,'미진행 세션 잔존가치',   '남은 세션 기준',                    '#60a5fa',       '전체 회원의 (총 세션 수 − 완료 세션 수) × 세션 단가를 합산한 금액이에요. 아직 진행하지 않은 세션의 이론적 가치예요.'],
-            ]
-            return (
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
-                {REV_ITEMS.map(([v,label,sub,c,tip],i)=>(
-                  <div key={i} className="card" style={{marginBottom:0,padding:'14px',position:'relative'}}>
-                    <div style={{display:'flex',alignItems:'center',gap:'4px',marginBottom:'6px'}}>
-                      <span style={{fontSize:'10px',color:'var(--text-dim)',flex:1,lineHeight:1.4}}>{label}</span>
-                      <button
-                        onClick={()=>setRevTooltip(revTooltip===i?null:i)}
-                        style={{flexShrink:0,width:'15px',height:'15px',borderRadius:'50%',
-                          border:'1px solid var(--border)',background:'var(--surface2)',
-                          color:'var(--text-dim)',fontSize:'8px',cursor:'pointer',
-                          display:'flex',alignItems:'center',justifyContent:'center',
-                          padding:0,fontFamily:'inherit',lineHeight:1}}>?</button>
-                    </div>
-                    {revTooltip===i && (
-                      <div style={{position:'absolute',top:'100%',left:0,right:0,zIndex:20,
-                        background:'#1a1a1a',border:'1px solid var(--border)',borderRadius:'10px',
-                        padding:'10px 12px 10px 12px',marginTop:'4px',
-                        fontSize:'11px',color:'var(--text-muted)',lineHeight:'1.7',
-                        boxShadow:'0 8px 24px rgba(0,0,0,0.6)'}}>
-                        {tip}
-                        <button onClick={()=>setRevTooltip(null)}
-                          style={{position:'absolute',top:'7px',right:'9px',background:'none',
-                            border:'none',color:'var(--text-dim)',cursor:'pointer',fontSize:'13px',lineHeight:1,padding:0}}>×</button>
-                      </div>
-                    )}
-                    <div style={{fontSize:'20px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:c}}>{v.toLocaleString()}원</div>
-                    <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'3px'}}>{sub}</div>
-                  </div>
-                ))}
-              </div>
-            )
-          })()}
+        {/* 현황 — 테두리 없는 조용한 타일 2×2 (한 카드 안 구분선) */}
+        <div className="card rev-tiles" style={{marginBottom:'14px',padding:0,overflow:'hidden'}}>
+          <div className="rev-tile"><div className="rl">이번 주 소진</div><div className="rv">{weekRevenue.toLocaleString()}원</div></div>
+          <div className="rev-tile"><div className="rl">이번 달 소진</div><div className="rv">{monthRevenue.toLocaleString()}원</div></div>
+          <div className="rev-tile"><div className="rl">이번 달 예상</div><div className="rv">{projectedMonth.toLocaleString()}원</div></div>
+          <div className="rev-tile"><div className="rl">잔존 가치</div><div className="rv">{remainRevenue.toLocaleString()}원</div></div>
         </div>
 
-        {/* 주간 리포트 — 접기/펼치기 */}
-        {canUse('weekly_report') ? (
-          <>
-            <button
-              onClick={() => setWeeklyReportOpen(o => !o)}
-              style={{
-                display:'flex', alignItems:'center', justifyContent:'space-between',
-                width:'100%', background:'var(--surface2)', border:'1px solid var(--border)',
-                borderRadius:'10px', padding:'12px 14px', cursor:'pointer',
-                fontFamily:'inherit', marginBottom: weeklyReportOpen ? '10px' : '16px',
-                transition:'background 0.15s',
-              }}
-            >
-              <span style={{fontSize:'13px', fontWeight:700, color:'var(--text)'}}>📋 주간 리포트</span>
-              <span style={{fontSize:'16px', color:'var(--text-muted)', lineHeight:1}}>
-                {weeklyReportOpen ? '▲' : '▼'}
-              </span>
-            </button>
-            {weeklyReportOpen && (
-              <div style={{marginBottom:'16px'}}>
-                <WeeklyReportPanel gymId={trainer?.gym_id} apiKey={centralApiKey} />
-              </div>
-            )}
-          </>
-        ) : (
-          <div style={{background:'rgba(255,255,255,0.03)',border:'1px dashed rgba(255,255,255,0.12)',borderRadius:'10px',padding:'14px 16px',marginBottom:'16px',display:'flex',alignItems:'center',gap:'10px',opacity:0.7}}>
-            <span style={{fontSize:'20px'}}>🔒</span>
-            <div>
-              <div style={{fontSize:'13px',fontWeight:700}}>주간 AI 리포트</div>
-              <div style={{fontSize:'11px',color:'var(--text-dim)'}}>유료 플랜에서 이용 가능해요.</div>
-            </div>
-          </div>
-        )}
+        {/* 분석 · 내역 — 한 카드 안 접이식 행 (기본 닫힘, 스캔성 ↑) */}
+        <div className="section-label">분석 · 내역</div>
+        <div className="rev-rows" style={{marginBottom:'16px'}}>
 
-        {canUse('settlement') ? (
-          <>
-            <div className="section-label">정산 분석</div>
-            <SettlementBreakdown trainerId={trainer?.id} showToast={showToast} members={members} />
-          </>
-        ) : (
-          <div style={{background:'rgba(255,255,255,0.03)',border:'1px dashed rgba(255,255,255,0.12)',borderRadius:'10px',padding:'14px 16px',marginBottom:'16px',display:'flex',alignItems:'center',gap:'10px',opacity:0.7}}>
-            <span style={{fontSize:'20px'}}>🔒</span>
-            <div>
-              <div style={{fontSize:'13px',fontWeight:700}}>정산 분석</div>
-              <div style={{fontSize:'11px',color:'var(--text-dim)'}}>유료 플랜에서 이용 가능해요.</div>
-            </div>
-          </div>
-        )}
-
-        <div className="section-label">통합 매출 내역</div>
-        <RevenuePaymentList trainerId={trainer?.id} members={members} refreshKey={revenueRefreshKey} />
-
-        {/* 회원별 결제 관리 */}
-        <div style={{marginTop:'24px',marginBottom:'12px'}}>
-          {/* 헤더 행: 섹션명 + 상품 관리 버튼 */}
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
-            <div className="section-label" style={{margin:0}}>회원별 결제 관리</div>
-            <button
-              onClick={()=>setProductManageModal(true)}
-              style={{
-                padding:'8px 16px',borderRadius:'10px',border:'none',
-                background:'linear-gradient(135deg,#60a5fa,#818cf8)',
-                color:'#fff',fontSize:'12px',fontWeight:700,
-                cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap',
-                boxShadow:'0 2px 8px rgba(96,165,250,0.35)',
-              }}>
-              🗂 상품 관리
-            </button>
-          </div>
-          {/* 검색창 */}
-          <div style={{position:'relative',marginBottom:'10px'}}>
-            <span style={{position:'absolute',left:'12px',top:'50%',transform:'translateY(-50%)',fontSize:'14px',pointerEvents:'none'}}>🔍</span>
-            <input
-              type="text"
-              value={revMemberSearch}
-              onChange={e=>setRevMemberSearch(e.target.value)}
-              placeholder="회원 이름 검색..."
-              style={{width:'100%',padding:'10px 36px 10px 36px',borderRadius:'10px',
-                border:'1px solid var(--border)',background:'var(--surface)',
-                color:'var(--text)',fontSize:'13px',fontFamily:'inherit',boxSizing:'border-box'}}
-            />
-            {revMemberSearch && (
-              <button onClick={()=>setRevMemberSearch('')}
-                style={{position:'absolute',right:'10px',top:'50%',transform:'translateY(-50%)',
-                  background:'none',border:'none',color:'var(--text-dim)',cursor:'pointer',fontSize:'16px',lineHeight:1,padding:0}}>
-                ×
+          {/* 주간 리포트 */}
+          <div className="rev-sec">
+            {canUse('weekly_report') ? (
+              <button className={'rev-row'+(weeklyReportOpen?' open':'')} onClick={()=>setWeeklyReportOpen(o=>!o)}>
+                <span className="rev-row-ic"><svg viewBox="0 0 24 24"><path d="M4 19V5m0 14h16M8 15l3-4 3 2 4-6"/></svg></span>
+                <span className="rev-row-t"><span className="rev-row-l">주간 리포트</span><span className="rev-row-s">AI 요약</span></span>
+                <span className="rev-row-chev">›</span>
               </button>
+            ) : (
+              <div className="rev-row" style={{cursor:'default'}}>
+                <span className="rev-row-ic"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+                <span className="rev-row-t"><span className="rev-row-l">주간 리포트</span><span className="rev-row-s">유료 플랜 전용</span></span>
+              </div>
+            )}
+            {canUse('weekly_report') && weeklyReportOpen && (
+              <div className="rev-body"><WeeklyReportPanel gymId={trainer?.gym_id} apiKey={centralApiKey} /></div>
             )}
           </div>
-          {/* 회원 카드 목록 */}
-          {!revMemberSearch.trim() ? (
-            <div style={{textAlign:'center',padding:'24px 0',color:'var(--text-dim)',fontSize:'13px'}}>
-              <div style={{fontSize:'28px',marginBottom:'8px'}}>🔍</div>
-              회원 이름을 검색하면 결제 정보가 표시돼요
-            </div>
-          ) : (() => {
-            const q = revMemberSearch.trim().toLowerCase()
-            const filtered = members.filter(m => m.name.toLowerCase().includes(q))
-            if (!filtered.length) return (
-              <div style={{textAlign:'center',padding:'20px 0',color:'var(--text-dim)',fontSize:'13px'}}>
-                <div style={{fontSize:'24px',marginBottom:'6px'}}>😅</div>
-                '{revMemberSearch}' 회원을 찾을 수 없어요
+
+          {/* 정산 분석 */}
+          <div className="rev-sec">
+            {canUse('settlement') ? (
+              <button className={'rev-row'+(revSettlementOpen?' open':'')} onClick={()=>setRevSettlementOpen(o=>!o)}>
+                <span className="rev-row-ic"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+                <span className="rev-row-t"><span className="rev-row-l">정산 분석</span></span>
+                <span className="rev-row-chev">›</span>
+              </button>
+            ) : (
+              <div className="rev-row" style={{cursor:'default'}}>
+                <span className="rev-row-ic"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+                <span className="rev-row-t"><span className="rev-row-l">정산 분석</span><span className="rev-row-s">유료 플랜 전용</span></span>
               </div>
-            )
-            return filtered.map(m => {
-              const mLogs = logs.filter(l => l.member_id === m.id)
-              const mWeekLogs = mLogs.filter(l => new Date(l.created_at) >= weekStart)
-              const mMonthLogs = mLogs.filter(l => new Date(l.created_at) >= monthStart)
-              const price = m.session_price || 0
-              const weekBlocks = blocks.filter(b => b.type==='lesson' && b.memberId===m.id && !b.cancelled && new Date(b.date+'T00:00:00')>=weekStart && new Date(b.date+'T00:00:00')<=now)
-              const attendRate = weekBlocks.length>0 ? Math.round((mWeekLogs.length/weekBlocks.length)*100) : null
-              const cancelledBlocks = blocks.filter(b => b.memberId===m.id && b.cancelled)
-              const remain = m.total_sessions - m.done_sessions
-              const pct = m.total_sessions>0 ? Math.round((m.done_sessions/m.total_sessions)*100) : 0
-              const cached = revenueByMember[m.id]
-              return (
-                <MemberRevenueCard key={m.id} m={m} mWeekLogs={mWeekLogs} mMonthLogs={mMonthLogs}
-                  attendRate={attendRate} cancelledBlocks={cancelledBlocks}
-                  remain={remain} pct={pct} price={price}
-                  dayOfMonth={dayOfMonth} daysInMonth={daysInMonth}
-                  confirmed={cached ? cached.confirmed : null}
-                  recentPays={cached ? cached.recentPays : []}
-                  onOpenPayment={()=>{
-                    setCurrentMemberId(m.id)
-                    setPaymentTab('pay')
-                    setPaymentForm({productId:'',memo:'',taxIncluded:false,paymentMethod:'card',paymentMethodMemo:''})
-                    loadPayments(m.id)
-                    setPaymentModal(true)
-                  }} />
-              )
-            })
-          })()}
+            )}
+            {canUse('settlement') && revSettlementOpen && (
+              <div className="rev-body"><SettlementBreakdown trainerId={trainer?.id} showToast={showToast} members={members} /></div>
+            )}
+          </div>
+
+          {/* 통합 매출 내역 */}
+          <div className="rev-sec">
+            <button className={'rev-row'+(revPaymentsOpen?' open':'')} onClick={()=>setRevPaymentsOpen(o=>!o)}>
+              <span className="rev-row-ic"><svg viewBox="0 0 24 24"><path d="M3 7h18M3 12h18M3 17h18"/></svg></span>
+              <span className="rev-row-t"><span className="rev-row-l">통합 매출 내역</span><span className="rev-row-s">전체 결제 로그</span></span>
+              <span className="rev-row-chev">›</span>
+            </button>
+            {revPaymentsOpen && (
+              <div className="rev-body"><RevenuePaymentList trainerId={trainer?.id} members={members} refreshKey={revenueRefreshKey} /></div>
+            )}
+          </div>
+
+          {/* 회원별 결제 관리 */}
+          <div className="rev-sec">
+            <button className={'rev-row'+(revMemberPayOpen?' open':'')} onClick={()=>setRevMemberPayOpen(o=>!o)}>
+              <span className="rev-row-ic"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M16 11l2 2 4-4"/></svg></span>
+              <span className="rev-row-t"><span className="rev-row-l">회원별 결제 관리</span><span className="rev-row-s">회원 검색 · 결제 등록</span></span>
+              <span className="rev-row-chev">›</span>
+            </button>
+            {revMemberPayOpen && (
+              <div className="rev-body">
+                {/* 상품 관리 — 보조 버튼 */}
+                <div style={{display:'flex',justifyContent:'flex-end',marginBottom:'10px'}}>
+                  <button onClick={()=>setProductManageModal(true)}
+                    style={{padding:'7px 14px',borderRadius:'9px',border:'1px solid var(--border)',
+                      background:'var(--surface2)',color:'var(--text-muted)',fontSize:'12px',fontWeight:600,
+                      cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
+                    상품 관리
+                  </button>
+                </div>
+                {/* 검색창 */}
+                <div style={{position:'relative',marginBottom:'10px'}}>
+                  <input
+                    type="text"
+                    value={revMemberSearch}
+                    onChange={e=>setRevMemberSearch(e.target.value)}
+                    placeholder="회원 이름 검색..."
+                    style={{width:'100%',padding:'10px 34px 10px 14px',borderRadius:'10px',
+                      border:'1px solid var(--border)',background:'var(--surface)',
+                      color:'var(--text)',fontSize:'13px',fontFamily:'inherit',boxSizing:'border-box'}}
+                  />
+                  {revMemberSearch && (
+                    <button onClick={()=>setRevMemberSearch('')}
+                      style={{position:'absolute',right:'10px',top:'50%',transform:'translateY(-50%)',
+                        background:'none',border:'none',color:'var(--text-dim)',cursor:'pointer',fontSize:'16px',lineHeight:1,padding:0}}>
+                      ×
+                    </button>
+                  )}
+                </div>
+                {/* 회원 카드 목록 */}
+                {!revMemberSearch.trim() ? (
+                  <div style={{textAlign:'center',padding:'20px 0',color:'var(--text-dim)',fontSize:'13px'}}>
+                    회원 이름을 검색하면 결제 정보가 표시돼요
+                  </div>
+                ) : (() => {
+                  const q = revMemberSearch.trim().toLowerCase()
+                  const filtered = members.filter(m => m.name.toLowerCase().includes(q))
+                  if (!filtered.length) return (
+                    <div style={{textAlign:'center',padding:'18px 0',color:'var(--text-dim)',fontSize:'13px'}}>
+                      '{revMemberSearch}' 회원을 찾을 수 없어요
+                    </div>
+                  )
+                  return filtered.map(m => {
+                    const mLogs = logs.filter(l => l.member_id === m.id)
+                    const mWeekLogs = mLogs.filter(l => new Date(l.created_at) >= weekStart)
+                    const mMonthLogs = mLogs.filter(l => new Date(l.created_at) >= monthStart)
+                    const price = m.session_price || 0
+                    const weekBlocks = blocks.filter(b => b.type==='lesson' && b.memberId===m.id && !b.cancelled && new Date(b.date+'T00:00:00')>=weekStart && new Date(b.date+'T00:00:00')<=now)
+                    const attendRate = weekBlocks.length>0 ? Math.round((mWeekLogs.length/weekBlocks.length)*100) : null
+                    const cancelledBlocks = blocks.filter(b => b.memberId===m.id && b.cancelled)
+                    const remain = m.total_sessions - m.done_sessions
+                    const pct = m.total_sessions>0 ? Math.round((m.done_sessions/m.total_sessions)*100) : 0
+                    const cached = revenueByMember[m.id]
+                    return (
+                      <MemberRevenueCard key={m.id} m={m} mWeekLogs={mWeekLogs} mMonthLogs={mMonthLogs}
+                        attendRate={attendRate} cancelledBlocks={cancelledBlocks}
+                        remain={remain} pct={pct} price={price}
+                        dayOfMonth={dayOfMonth} daysInMonth={daysInMonth}
+                        confirmed={cached ? cached.confirmed : null}
+                        recentPays={cached ? cached.recentPays : []}
+                        onOpenPayment={()=>{
+                          setCurrentMemberId(m.id)
+                          setPaymentTab('pay')
+                          setPaymentForm({productId:'',memo:'',taxIncluded:false,paymentMethod:'card',paymentMethodMemo:''})
+                          loadPayments(m.id)
+                          setPaymentModal(true)
+                        }} />
+                    )
+                  })
+                })()}
+              </div>
+            )}
+          </div>
+
         </div>
       </div>
     )
