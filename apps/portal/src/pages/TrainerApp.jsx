@@ -1631,6 +1631,13 @@ const SMIN=5,SPX=4
 // 기본 표시 시간대 — 오전 8시 ~ 오후 6시. 범위 밖 블록이 있으면 그만큼 확장(에브리타임식).
 const SCH_DEFAULT_SH=8, SCH_DEFAULT_EH=18
 
+// 알림(Web Notification) 지원 여부 — iOS Safari 일반 탭은 window.Notification 이 아예 없음
+// (iOS 는 홈 화면에 추가한 PWA/standalone 에서만 웹 푸시 지원). 가드 없이 Notification.permission
+// 에 접근하면 ReferenceError 로 핸들러/렌더가 죽어 토글이 "반응 안 함"으로 보임.
+const NOTIF_SUPPORTED = typeof window !== 'undefined' && 'Notification' in window
+const IS_IOS = typeof navigator !== 'undefined' && /iP(hone|ad|od)/.test(navigator.userAgent || '')
+function notifPerm() { return NOTIF_SUPPORTED ? Notification.permission : 'unsupported' }
+
 // ── 스크롤 애니메이션 헬퍼 ─────────────────────────────────────
 function useInView(threshold = 0.12) {
   const ref = useRef(null)
@@ -1957,7 +1964,7 @@ export default function TrainerApp() {
   useEffect(() => {
     if (!notifEnabled) return
     async function checkAndNotify() {
-      if (Notification.permission !== 'granted') return
+      if (notifPerm() !== 'granted') return
       const now = new Date()
       // SW registration 가져오기 (백그라운드 알림 지원)
       const swReg = 'serviceWorker' in navigator ? await navigator.serviceWorker.ready.catch(() => null) : null
@@ -1992,7 +1999,12 @@ export default function TrainerApp() {
   }, [notifEnabled, notifMinutes, blocks, members])
 
   async function requestNotifPermission() {
-    if (!('Notification' in window)) { showToast('이 브라우저는 알림을 지원하지 않아요'); return }
+    if (!NOTIF_SUPPORTED) {
+      showToast(IS_IOS
+        ? '아이폰은 Safari 공유 → "홈 화면에 추가" 후 그 아이콘으로 열면 알림을 켤 수 있어요'
+        : '이 브라우저는 알림을 지원하지 않아요')
+      return
+    }
     const perm = await Notification.requestPermission()
     if (perm === 'granted') {
       setNotifEnabled(true)
@@ -2008,7 +2020,8 @@ export default function TrainerApp() {
   }
   async function toggleNotif(on) {
     if (on) {
-      if (Notification.permission === 'granted') { setNotifEnabled(true); showToast('✓ 알림 켜짐') }
+      if (!NOTIF_SUPPORTED) { await requestNotifPermission(); return }  // iOS 안내 토스트
+      if (notifPerm() === 'granted') { setNotifEnabled(true); showToast('✓ 알림 켜짐') }
       else await requestNotifPermission()
     } else {
       setNotifEnabled(false); showToast('알림 꺼짐')
@@ -3722,7 +3735,7 @@ export default function TrainerApp() {
       : [...prev, next])
     setEditingBlock(null)
     showToast(block.id ? '✓ 수정됐어요!' : '✓ 스케쥴 추가됐어요!')
-    if (notifEnabled && Notification.permission === 'granted' && trainer?.id && import.meta.env.VITE_VAPID_PUBLIC_KEY) {
+    if (notifEnabled && notifPerm() === 'granted' && trainer?.id && import.meta.env.VITE_VAPID_PUBLIC_KEY) {
       try {
         const memberName = next.type === 'lesson'
           ? (members.find(m => m.id === next.memberId)?.name || '회원')
@@ -5220,6 +5233,13 @@ export default function TrainerApp() {
               <div>
                 <div style={{fontSize:'13px',fontWeight:500}}>알림 사용</div>
                 <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'2px'}}>일정 시작 전 미리 알림을 받아요</div>
+                {!NOTIF_SUPPORTED && (
+                  <div style={{fontSize:'11px',color:'var(--danger)',marginTop:'4px',lineHeight:1.5,maxWidth:'220px'}}>
+                    {IS_IOS
+                      ? '아이폰은 Safari 공유 → "홈 화면에 추가" 후 그 아이콘으로 열어야 알림을 켤 수 있어요'
+                      : '이 브라우저는 알림을 지원하지 않아요'}
+                  </div>
+                )}
               </div>
               <div onClick={()=>toggleNotif(!notifEnabled)}
                 style={{width:'44px',height:'24px',borderRadius:'12px',cursor:'pointer',transition:'background 0.2s',position:'relative',flexShrink:0,
@@ -5249,7 +5269,7 @@ export default function TrainerApp() {
                     <span style={{fontSize:'12px',color:'var(--text-muted)'}}>분</span>
                   </div>
                 </div>
-                {Notification.permission !== 'granted' && (
+                {NOTIF_SUPPORTED && notifPerm() !== 'granted' && (
                   <div style={{fontSize:'12px',color:'var(--danger)'}}>
                     ⚠️ 브라우저 알림 권한이 필요해요.
                     <span style={{color:'var(--accent)',cursor:'pointer',marginLeft:'6px'}} onClick={requestNotifPermission}>권한 요청 →</span>
