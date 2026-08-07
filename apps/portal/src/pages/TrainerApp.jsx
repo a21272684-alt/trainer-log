@@ -2207,16 +2207,18 @@ export default function TrainerApp() {
 
   async function loadFeatureGates(trainerId) {
     try {
-      // 구독 상태 확인
+      // 구독 상태 확인 — 활성 구독(valid_until > now)이 하나라도 있으면 유료.
+      // maybeSingle 은 활성 구독 2개+ (갱신/재결제로 겹칠 때) 에서 에러 → 유료인데
+      // 무료로 처리되는 버그가 있었음. limit(1) + 배열 존재 여부로 판정해 방지.
       const now = new Date().toISOString()
-      const { data: sub, error: subErr } = await supabase
+      const { data: subs, error: subErr } = await supabase
         .from('subscriptions')
         .select('id')
         .eq('trainer_id', trainerId)
         .gt('valid_until', now)
-        .maybeSingle()
+        .limit(1)
       if (subErr) { console.warn('[loadFeatureGates] 구독 조회 실패:', subErr.message) }
-      else setIsPaid(!!sub)
+      else setIsPaid(Array.isArray(subs) && subs.length > 0)
       // 관리자가 설정한 feature gates 불러오기
       const { data: fg, error: fgErr } = await supabase.from('app_settings').select('value').eq('key', 'feature_gates').maybeSingle()
       if (fgErr) { console.warn('[loadFeatureGates] 게이트 설정 조회 실패:', fgErr.message) }
