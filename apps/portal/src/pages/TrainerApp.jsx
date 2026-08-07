@@ -5828,23 +5828,45 @@ export default function TrainerApp() {
       {/* RECORD */}
       {activePage === 'page-record' && currentMember && (
         <div className="page-t">
-<div className="record-header"><button className="back-btn" onClick={()=>{setActivePage('page-members');setTab('members')}}>←</button>
-            <div style={{flex:1}}><div style={{fontSize:'15px',fontWeight:700}}>{currentMember.name}</div><div style={{fontSize:'12px',color:'var(--text-muted)'}}>📱 {currentMember.phone}{currentMember.lesson_purpose?' · '+currentMember.lesson_purpose:''}</div></div>
-            <div style={{display:'flex',gap:'6px',flexShrink:0}}>
-              {/* members.suspended 컬럼 부재 — 정지 상태 표시 라벨 제거, 정지 등록 진입점만 유지 */}
-              <button className="btn btn-sm" style={{fontSize:'12px',whiteSpace:'nowrap',background:'var(--surface2)',border:'1px solid var(--border)',color:'var(--text-muted)'}}
-                onClick={()=>{setHoldForm({startDate:'',endDate:'',productId:'',reason:'',photoFile:null,photoPreview:''});loadHolds(currentMemberId);setHoldModal(true)}}>
-                ⏸ 정지
-              </button>
+<div className="record-header">
+            <button className="back-btn" onClick={()=>{setActivePage('page-members');setTab('members')}}>←</button>
+            <div style={{width:'40px',height:'40px',borderRadius:'50%',background:'var(--accent)',color:'#1a2e05',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:'17px',flexShrink:0}}>
+              {currentMember.name?.[0] || '회'}
             </div>
-          </div>
-          <div className="card" style={{marginBottom:'14px'}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'8px'}}>
-              <span style={{fontSize:'13px',fontWeight:500}}>세션 현황</span>
-              <span className="pill">{currentMember.done_sessions}회 완료 · {currentMember.total_sessions-currentMember.done_sessions}회 남음</span>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:'16px',fontWeight:800,letterSpacing:'-0.3px'}}>{currentMember.name}</div>
+              <div style={{display:'flex',gap:'5px',marginTop:'4px',flexWrap:'wrap'}}>
+                {currentMember.lesson_purpose && <span className="mchip">{currentMember.lesson_purpose}</span>}
+                {currentMember.phone && <span className="mchip">{currentMember.phone}</span>}
+              </div>
             </div>
-            <div className="session-bar-bg"><div className={`session-bar-fill${(currentMember.total_sessions-currentMember.done_sessions)<=3?' low':''}`} style={{width:(currentMember.total_sessions>0?Math.round((currentMember.done_sessions/currentMember.total_sessions)*100):0)+'%'}}></div></div>
+            {/* members.suspended 컬럼 부재 — 정지 등록 진입점만 유지 */}
+            <button className="btn btn-sm" style={{fontSize:'12px',whiteSpace:'nowrap',background:'var(--surface2)',border:'1px solid var(--border)',color:'var(--text-muted)',flexShrink:0}}
+              onClick={()=>{setHoldForm({startDate:'',endDate:'',productId:'',reason:'',photoFile:null,photoPreview:''});loadHolds(currentMemberId);setHoldModal(true)}}>
+              정지
+            </button>
           </div>
+          {/* 한눈 요약 — 상세 열자마자 회원 상태 파악 (남은 세션 · 진행률 · 마지막 수업) */}
+          {(() => {
+            const total = currentMember.total_sessions || 0
+            const done = currentMember.done_sessions || 0
+            const remain = total - done
+            const pct = total > 0 ? Math.round(done / total * 100) : 0
+            const mLogs = logs.filter(l => l.member_id === currentMember.id)
+            let lastTxt = '없음'
+            if (mLogs.length) {
+              const last = Math.max(...mLogs.map(l => new Date(l.created_at).getTime()))
+              const days = Math.floor((Date.now() - last) / 86400000)
+              lastTxt = days <= 0 ? '오늘' : days + '일 전'
+            }
+            return (
+              <div className="msum">
+                <div className="mt"><div className={'mv' + (remain <= 3 ? ' warn' : ' g')}>{remain}</div><div className="ml">남은 세션</div></div>
+                <div className="mt"><div className="mv">{pct}%</div><div className="ml">진행률</div></div>
+                <div className="mt"><div className="mv" style={{fontSize:'15px'}}>{lastTxt}</div><div className="ml">마지막 수업</div></div>
+              </div>
+            )
+          })()}
           <div className="rtab-row">
             {[
               { key:'write',      label:'일지' },
