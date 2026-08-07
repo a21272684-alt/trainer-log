@@ -1883,16 +1883,26 @@ export default function TrainerApp() {
   const [notifEnabled, setNotifEnabled] = useState(() => localStorage.getItem('tl_notif_enabled') === 'true')
   const [notifMinutes, setNotifMinutes] = useState(() => parseInt(localStorage.getItem('tl_notif_minutes')||'30'))
 
-  // Feature gates
+  // Feature gates — 3단계(free/pro/premium). 저장값이 구버전 2단계(free/paid)면 normGates 가 흡수.
   const DEFAULT_FEATURE_GATES = {
-    free: { ai_journal:false, history_tab:true, revenue_tab:false, settlement:false, weekly_report:false, ai_insight:false, risk_analysis:false, push_notif:false, schedule_tab:true, diet_view:true, member_limit:5 },
-    paid: { ai_journal:true,  history_tab:true, revenue_tab:true,  settlement:true,  weekly_report:true,  ai_insight:true,  risk_analysis:true,  push_notif:true,  schedule_tab:true, diet_view:true, member_limit:9999 },
+    free:    { ai_journal:false, history_tab:true, revenue_tab:false, settlement:false, weekly_report:false, ai_insight:false, risk_analysis:false, push_notif:false, schedule_tab:true, diet_view:true, member_limit:5 },
+    pro:     { ai_journal:true,  history_tab:true, revenue_tab:true,  settlement:false, weekly_report:true,  ai_insight:false, risk_analysis:true,  push_notif:false, schedule_tab:true, diet_view:true, member_limit:9999 },
+    premium: { ai_journal:true,  history_tab:true, revenue_tab:true,  settlement:true,  weekly_report:true,  ai_insight:true,  risk_analysis:true,  push_notif:true,  schedule_tab:true, diet_view:true, member_limit:9999 },
+  }
+  // 저장된 feature_gates 정규화: pro/premium 이 없으면(구버전) 옛 paid 로 채워 하위호환.
+  function normGates(g) {
+    if (!g || !g.free) return DEFAULT_FEATURE_GATES
+    return {
+      free:    g.free,
+      pro:     g.pro     || g.paid || DEFAULT_FEATURE_GATES.pro,
+      premium: g.premium || g.paid || DEFAULT_FEATURE_GATES.premium,
+    }
   }
   const [featureGates, setFeatureGates] = useState(DEFAULT_FEATURE_GATES)
-  const [isPaid, setIsPaid] = useState(false)
+  const [tier, setTier] = useState('free')   // 'free' | 'pro' | 'premium'
+  const isPaid = tier !== 'free'             // 페이월/뱃지 표시용 (구독 있으면 true)
   function canUse(key) {
-    const plan = isPaid ? 'paid' : 'free'
-    return featureGates[plan]?.[key] !== false
+    return featureGates[tier]?.[key] !== false
   }
 
   // Login / OAuth
@@ -2207,22 +2217,31 @@ export default function TrainerApp() {
 
   async function loadFeatureGates(trainerId) {
     try {
-      // 구독 상태 확인 — 활성 구독(valid_until > now)이 하나라도 있으면 유료.
-      // maybeSingle 은 활성 구독 2개+ (갱신/재결제로 겹칠 때) 에서 에러 → 유료인데
-      // 무료로 처리되는 버그가 있었음. limit(1) + 배열 존재 여부로 판정해 방지.
+      // 활성 구독의 plan → 티어 판정. 활성 구독이 여럿이면 가장 늦게 끝나는 것 기준.
+      // (maybeSingle 은 2개+ 에서 에러 → 유료인데 무료 처리 버그였음. 최신 valid_until 1건.)
       const now = new Date().toISOString()
       const { data: subs, error: subErr } = await supabase
         .from('subscriptions')
-        .select('id')
+        .select('plan, valid_until')
         .eq('trainer_id', trainerId)
         .gt('valid_until', now)
+        .order('valid_until', { ascending: false })
         .limit(1)
       if (subErr) { console.warn('[loadFeatureGates] 구독 조회 실패:', subErr.message) }
-      else setIsPaid(Array.isArray(subs) && subs.length > 0)
-      // 관리자가 설정한 feature gates 불러오기
+      else {
+        const active = Array.isArray(subs) && subs.length > 0 ? subs[0] : null
+        if (!active) setTier('free')
+        else {
+          const p = String(active.plan || '').toLowerCase()
+          // premium/pro 만 명시 인식. 그 외 옛/알 수 없는 유료 플랜(basic·business·paid 등)은
+          // 기존 유료 회원 보호를 위해 premium(전체 개방)으로 매핑 — 절대 강등 X.
+          setTier(p === 'pro' ? 'pro' : 'premium')
+        }
+      }
+      // 관리자가 설정한 feature gates 불러오기 (구버전 2단계면 normGates 가 3단계로 흡수)
       const { data: fg, error: fgErr } = await supabase.from('app_settings').select('value').eq('key', 'feature_gates').maybeSingle()
       if (fgErr) { console.warn('[loadFeatureGates] 게이트 설정 조회 실패:', fgErr.message) }
-      else if (fg?.value?.free && fg?.value?.paid) setFeatureGates(fg.value)
+      else if (fg?.value?.free) setFeatureGates(normGates(fg.value))
     } catch(e) { console.warn('[loadFeatureGates] 오류:', e.message) }
   }
 

@@ -96,13 +96,29 @@ const DEFAULT_FEATURE_GATES = {
     diet_view: true,
     member_limit: 5,
   },
-  paid: {
+  pro: {
+    ai_journal: true, history_tab: true, revenue_tab: true,
+    settlement: false, weekly_report: true, ai_insight: false,
+    risk_analysis: true, push_notif: false, schedule_tab: true,
+    diet_view: true,
+    member_limit: 9999,
+  },
+  premium: {
     ai_journal: true, history_tab: true, revenue_tab: true,
     settlement: true, weekly_report: true, ai_insight: true,
     risk_analysis: true, push_notif: true, schedule_tab: true,
     diet_view: true,
     member_limit: 9999,
   },
+}
+// 저장된 게이트 정규화: 구버전 2단계(free/paid) → 3단계로 흡수(pro/premium 없으면 paid 로)
+function normGates(g) {
+  if (!g || !g.free) return DEFAULT_FEATURE_GATES
+  return {
+    free:    g.free,
+    pro:     g.pro     || g.paid || DEFAULT_FEATURE_GATES.pro,
+    premium: g.premium || g.paid || DEFAULT_FEATURE_GATES.premium,
+  }
 }
 
 // ── 랜딩 2단계 네비 ──────────────────────────────────────────
@@ -345,7 +361,7 @@ export default function AdminPortal() {
   const [logPeriod, setLogPeriod] = useState('day')
   const [subModal, setSubModal] = useState(false)
   const [trainerModal, setTrainerModal] = useState(null)
-  const [subForm, setSubForm] = useState({ trainer_id: '', plan: 'basic', amount: '', payment_method: '카카오페이', paid_at: '', valid_until: '', memo: '' })
+  const [subForm, setSubForm] = useState({ trainer_id: '', plan: 'pro', amount: '', payment_method: '카카오페이', paid_at: '', valid_until: '', memo: '' })
 
   // 트레이너 사전 등록 (화이트리스트)
   const [trainerRegModal, setTrainerRegModal] = useState(false)
@@ -533,7 +549,7 @@ export default function AdminPortal() {
         // 도메인 분리 설정 (string/object 양형 호환 파싱)
         const fGatesRaw = settings.data.find(r => r.key === 'feature_gates')
         const fGatesParsed = parseSettingValue(fGatesRaw?.value)
-        if (fGatesParsed?.free && fGatesParsed?.paid) setFeatureGates(fGatesParsed)
+        if (fGatesParsed?.free) setFeatureGates(normGates(fGatesParsed))
 
         const apiKeyRow = settings.data.find(r => r.key === 'gemini_api_key')
         const apiKeyParsed = parseSettingValue(apiKeyRow?.value)
@@ -2645,15 +2661,16 @@ export default function AdminPortal() {
               {/* 기능 토글 테이블 */}
               <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: '20px' }}>
                 {/* 헤더 */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 90px 90px', gap: 0, background: 'rgba(255,255,255,0.04)', padding: '10px 18px', fontSize: '11px', fontWeight: 700, color: 'var(--text-dim)', borderBottom: '1px solid var(--border)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.1fr 64px 64px 64px', gap: 0, background: 'rgba(255,255,255,0.04)', padding: '10px 18px', fontSize: '11px', fontWeight: 700, color: 'var(--text-dim)', borderBottom: '1px solid var(--border)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                   <div>기능</div>
                   <div>설명</div>
                   <div style={{ textAlign: 'center' }}>무료</div>
-                  <div style={{ textAlign: 'center' }}>유료</div>
+                  <div style={{ textAlign: 'center' }}>Pro</div>
+                  <div style={{ textAlign: 'center' }}>Premium</div>
                 </div>
                 {FEATURE_DEFS.map((fd, i) => (
                   <div key={fd.key} style={{
-                    display: 'grid', gridTemplateColumns: '1fr 1fr 90px 90px', gap: 0,
+                    display: 'grid', gridTemplateColumns: '1fr 1.1fr 64px 64px 64px', gap: 0,
                     padding: '13px 18px', alignItems: 'center',
                     borderBottom: i < FEATURE_DEFS.length - 1 ? '1px solid var(--border)' : 'none',
                     background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
@@ -2663,7 +2680,7 @@ export default function AdminPortal() {
                       {fd.label}
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--text-dim)', paddingRight: '12px' }}>{fd.desc}</div>
-                    {['free', 'paid'].map(plan => {
+                    {['free', 'pro', 'premium'].map(plan => {
                       const isOn = !!featureGates[plan]?.[fd.key]
                       return (
                         <div key={plan} style={{ textAlign: 'center' }}>
@@ -2683,8 +2700,8 @@ export default function AdminPortal() {
               {/* 회원 수 제한 */}
               <div className="card">
                 <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '14px' }}>👥 관리 가능한 최대 회원 수</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                  {[{ plan: 'free', label: '무료 플랜' }, { plan: 'paid', label: '유료 플랜' }].map(({ plan, label }) => (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+                  {[{ plan: 'free', label: '무료' }, { plan: 'pro', label: 'Pro' }, { plan: 'premium', label: 'Premium' }].map(({ plan, label }) => (
                     <div key={plan}>
                       <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '6px' }}>{label}</div>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -2710,8 +2727,8 @@ export default function AdminPortal() {
               {/* 현재 설정 미리보기 */}
               <div className="card" style={{ marginTop: '20px' }}>
                 <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '12px' }}>📋 현재 설정 요약</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                  {[{ plan: 'free', label: '무료', color: '#9ca3af' }, { plan: 'paid', label: '유료', color: 'var(--accent)' }].map(({ plan, label, color }) => (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                  {[{ plan: 'free', label: '무료', color: '#9ca3af' }, { plan: 'pro', label: 'Pro', color: '#60a5fa' }, { plan: 'premium', label: 'Premium', color: 'var(--accent)' }].map(({ plan, label, color }) => (
                     <div key={plan} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '14px' }}>
                       <div style={{ fontWeight: 700, color, marginBottom: '10px', fontSize: '13px' }}>{label} 플랜</div>
                       {FEATURE_DEFS.map(fd => {
@@ -3391,7 +3408,7 @@ export default function AdminPortal() {
           <div className="form-group">
             <label>플랜</label>
             <select value={subForm.plan} onChange={e => setSubForm({ ...subForm, plan: e.target.value })}>
-              <option value="basic">Basic</option><option value="pro">Pro</option><option value="business">Business</option>
+              <option value="pro">Pro</option><option value="premium">Premium</option>
             </select>
           </div>
           <div className="form-group">
