@@ -90,6 +90,21 @@
   font-weight:600; background:rgba(200,241,53,0.2); color:var(--accent-text);
   border:1px solid rgba(200,241,53,0.42);
 }
+/* 회원 상세 — 헤더 메타 칩 + 한눈 요약 3타일 */
+.mchip {
+  font-size:10.5px; font-weight:600; padding:2px 9px; border-radius:20px;
+  background:var(--surface2); color:var(--text-muted); border:1px solid var(--border); white-space:nowrap;
+}
+.msum {
+  display:grid; grid-template-columns:1fr 1fr 1fr; margin-bottom:14px;
+  background:var(--surface); border:1px solid var(--border); border-radius:13px; overflow:hidden;
+}
+.msum .mt { padding:12px 8px; text-align:center; }
+.msum .mt + .mt { border-left:1px solid var(--border); }
+.msum .mv { font-size:19px; font-weight:800; font-family:'DM Mono',monospace; letter-spacing:-0.5px; color:var(--text); line-height:1.1; }
+.msum .mv.g { color:var(--accent-text); }
+.msum .mv.warn { color:var(--danger); }
+.msum .ml { font-size:10.5px; color:var(--text-muted); margin-top:4px; }
 /* 서브탭 네비게이션 — sticky + 가로 스크롤 */
 .rtab-row {
   display: flex;
