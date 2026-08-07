@@ -5966,9 +5966,9 @@ export default function TrainerApp() {
                     const bg = isAttended ? 'var(--accent)' : isNoshow ? 'rgba(239,68,68,0.85)' : isCancelled ? 'rgba(148,163,184,0.35)' : isToday ? 'rgba(200,241,53,0.12)' : 'var(--surface2)'
                     const fg = isAttended ? '#0f0f0f' : isNoshow ? '#fff' : isToday ? 'var(--accent)' : isFuture ? 'var(--text-dim)' : 'var(--text)'
                     return (
-                      <div key={day} onClick={()=>!isFuture&&toggleAttendance(dateStr)}
-                        title={isNoshow?'노쇼':isCancelled?'취소':''}
-                        style={{aspectRatio:'1',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'8px',fontSize:'13px',fontWeight:(isAttended||isNoshow)?700:400,cursor:isFuture?'default':'pointer',
+                      <div key={day}
+                        title={isNoshow?'노쇼':isCancelled?'취소':isAttended?'출석':''}
+                        style={{aspectRatio:'1',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'8px',fontSize:'13px',fontWeight:(isAttended||isNoshow)?700:400,cursor:'default',
                           background:bg, color:fg,
                           border:isToday&&!isAttended&&!isNoshow&&!isCancelled?'1px solid rgba(200,241,53,0.4)':'1px solid transparent',
                           opacity:isFuture?0.4:1}}>
@@ -5976,6 +5976,10 @@ export default function TrainerApp() {
                       </div>
                     )
                   })}
+                </div>
+                {/* 달력은 조회 전용 — 실수 클릭 방지. 출석은 회원 목록 버튼으로만 */}
+                <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'9px',lineHeight:1.5,textAlign:'center'}}>
+                  달력은 조회용이에요. 출석 체크는 <b style={{color:'var(--text-muted)'}}>회원 목록의 출석 버튼</b>으로 해주세요.
                 </div>
                 {/* 노쇼/취소 기록 + 정책 */}
                 <div style={{marginTop:'14px',display:'flex',gap:'8px',alignItems:'center'}}>
