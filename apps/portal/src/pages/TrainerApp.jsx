@@ -1638,6 +1638,11 @@ const NOTIF_SUPPORTED = typeof window !== 'undefined' && 'Notification' in windo
 const IS_IOS = typeof navigator !== 'undefined' && /iP(hone|ad|od)/.test(navigator.userAgent || '')
 function notifPerm() { return NOTIF_SUPPORTED ? Notification.permission : 'unsupported' }
 
+// 로컬 캘린더 날짜 YYYY-MM-DD (toISOString 은 UTC 라 KST 새벽에 하루 밀림 — 출석 날짜용)
+function localDateStr(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+}
+
 // ── 스크롤 애니메이션 헬퍼 ─────────────────────────────────────
 function useInView(threshold = 0.12) {
   const ref = useRef(null)
@@ -2799,8 +2804,14 @@ export default function TrainerApp() {
         const { error } = await supabase.from('attendance').delete().eq('id', existing.id)
         if (error) throw error
       } else {
-        const { error } = await supabase.from('attendance').insert({ trainer_id: trainer.id, member_id: currentMemberId, attended_date: dateStr, status: 'attended' })
+        // 출석 = 세션 차감(단일 주체). session_deducted=true 로 기록 후 세션 -1.
+        const { error } = await supabase.from('attendance').insert({ trainer_id: trainer.id, member_id: currentMemberId, attended_date: dateStr, status: 'attended', session_deducted: true })
         if (error) throw error
+        if (currentMember) {
+          const { error: mErr } = await supabase.from('members').update({ done_sessions: (currentMember.done_sessions||0) + 1 }).eq('id', currentMember.id)
+          if (mErr) throw mErr
+          await loadMembers()
+        }
       }
       await loadAttendance(currentMemberId)
     } catch (e) { showToast('출석 처리 실패: ' + e.message) }
@@ -2840,7 +2851,7 @@ export default function TrainerApp() {
   // 오늘 출석한 회원 ID 목록 로드 (회원 리스트 퀵 액션용)
   async function loadTodayAttendance() {
     if (!trainer?.id) return
-    const todayStr = new Date().toISOString().slice(0, 10)
+    const todayStr = localDateStr()
     const { data } = await supabase
       .from('attendance')
       .select('member_id')
@@ -2850,25 +2861,43 @@ export default function TrainerApp() {
   }
 
   // 회원 카드에서 오늘 출석 즉시 토글 (별도 페이지 이동 없음)
+  // 출석 = 세션 차감(단일 주체): 등록 시 세션 -1, 취소 시 차감분 복원.
   async function quickToggleToday(e, memberId) {
     e.stopPropagation()
-    const todayStr = new Date().toISOString().slice(0, 10)
-    if (todayAttendSet.has(memberId)) {
-      // 취소
-      const { data: existing } = await supabase
-        .from('attendance').select('id')
-        .eq('member_id', memberId).eq('attended_date', todayStr).maybeSingle()
-      if (existing) await supabase.from('attendance').delete().eq('id', existing.id)
-      setTodayAttendSet(prev => { const next = new Set(prev); next.delete(memberId); return next })
-      showToast('출석 취소됐어요')
-    } else {
-      // 등록
-      const { error } = await supabase.from('attendance')
-        .insert({ trainer_id: trainer.id, member_id: memberId, attended_date: todayStr })
-      if (!error) {
+    const todayStr = localDateStr()   // 로컬 날짜 (UTC 밀림 방지)
+    const mem = members.find(m => m.id === memberId)
+    try {
+      if (todayAttendSet.has(memberId)) {
+        // 취소 — 차감됐던 세션 복원
+        const { data: existing } = await supabase
+          .from('attendance').select('id, session_deducted')
+          .eq('member_id', memberId).eq('attended_date', todayStr).maybeSingle()
+        if (existing) {
+          const { error: delErr } = await supabase.from('attendance').delete().eq('id', existing.id)
+          if (delErr) throw delErr
+          if (existing.session_deducted && mem) {
+            const { error: mErr } = await supabase.from('members').update({ done_sessions: Math.max(0, (mem.done_sessions||0) - 1) }).eq('id', memberId)
+            if (mErr) throw mErr
+            await loadMembers()
+          }
+        }
+        setTodayAttendSet(prev => { const next = new Set(prev); next.delete(memberId); return next })
+        showToast('출석 취소 — 세션 1회 복원')
+      } else {
+        // 등록 — 세션 -1
+        const { error } = await supabase.from('attendance')
+          .insert({ trainer_id: trainer.id, member_id: memberId, attended_date: todayStr, status: 'attended', session_deducted: true })
+        if (error) throw error
+        if (mem) {
+          const { error: mErr } = await supabase.from('members').update({ done_sessions: (mem.done_sessions||0) + 1 }).eq('id', memberId)
+          if (mErr) throw mErr
+          await loadMembers()
+        }
         setTodayAttendSet(prev => new Set([...prev, memberId]))
-        showToast('✓ 오늘 출석 완료!')
+        showToast('✓ 오늘 출석 — 세션 1회 차감')
       }
+    } catch (err) {
+      showToast('출석 처리 실패: ' + err.message)
     }
   }
   useEffect(() => { if (rtab === 'attendance' && currentMemberId) loadAttendance(currentMemberId) }, [rtab, attendanceMonth, currentMemberId])
@@ -3526,10 +3555,23 @@ export default function TrainerApp() {
       const { error: logErr } = await supabase.from('logs').insert(insertData)
       if (logErr) throw new Error('일지 저장 실패: ' + logErr.message)
 
-      const { error: memErr } = await supabase.from('members')
-        .update({ done_sessions: m.done_sessions + 1 })
-        .eq('id', currentMemberId)
-      if (memErr) console.warn('[sendKakao] 세션 카운트 업데이트 실패:', memErr.message)
+      // 출석 = 세션 차감(단일 주체). 일지 발송 = 그날 자동 출석 처리 → 이중차감 방지.
+      //   · 그날 출석 없음 → 출석 생성 + 세션 -1
+      //   · 옛 출석행(차감 안 됨) → 차감 처리로 승격 + 세션 -1
+      //   · 이미 차감된 출석 있음 → 아무것도 안 함(이중차감 방지)
+      try {
+        const today = localDateStr()
+        const { data: todayAtt } = await supabase.from('attendance')
+          .select('id, session_deducted')
+          .eq('member_id', currentMemberId).eq('attended_date', today).maybeSingle()
+        if (!todayAtt) {
+          await supabase.from('attendance').insert({ trainer_id: trainer.id, member_id: currentMemberId, attended_date: today, status: 'attended', session_deducted: true })
+          await supabase.from('members').update({ done_sessions: m.done_sessions + 1 }).eq('id', currentMemberId)
+        } else if (!todayAtt.session_deducted) {
+          await supabase.from('attendance').update({ session_deducted: true }).eq('id', todayAtt.id)
+          await supabase.from('members').update({ done_sessions: m.done_sessions + 1 }).eq('id', currentMemberId)
+        }
+      } catch (attE) { console.warn('[sendKakao] 출석 연동 실패:', attE?.message) }
 
       await loadMembers(); await loadLogs()
       showToast('📱 회원 앱으로 일지가 전송되었습니다.')
