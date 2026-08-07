@@ -6181,11 +6181,11 @@ export default function TrainerApp() {
                       borderRadius: '12px',
                       border: isListening
                         ? '1.5px solid rgba(239,68,68,0.55)'
-                        : '1.5px solid rgba(59,130,246,0.45)',
+                        : '1.5px solid rgba(132,204,22,0.5)',
                       background: isListening
                         ? 'rgba(239,68,68,0.10)'
-                        : 'rgba(59,130,246,0.12)',
-                      color: isListening ? '#f87171' : '#60a5fa',
+                        : 'rgba(200,241,53,0.14)',
+                      color: isListening ? '#f87171' : 'var(--accent-text)',
                       fontSize: '14px',
                       fontWeight: 700,
                       fontFamily: 'inherit',
@@ -6198,13 +6198,13 @@ export default function TrainerApp() {
                       minHeight: '52px',
                     }}
                   >
-                    <span style={{
-                      fontSize: '20px',
-                      display: 'inline-block',
+                    <svg viewBox="0 0 24 24" style={{
+                      width: '19px', height: '19px', flexShrink: 0,
+                      stroke: 'currentColor', fill: 'none', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round',
                       animation: isListening ? 'pulse 1s ease-in-out infinite' : 'none',
                     }}>
-                      🤖
-                    </span>
+                      <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3" />
+                    </svg>
                     <span>
                       {isListening ? 'AI가 듣고 있어요 — 탭하면 중지' : 'AI 음성으로 일지 쓰기'}
                     </span>
@@ -6254,7 +6254,9 @@ export default function TrainerApp() {
                     transition: 'all 0.2s',
                   }}
                 >
-                  <span>🖼️</span>
+                  <svg viewBox="0 0 24 24" style={{width:'15px',height:'15px',flexShrink:0,stroke:'currentColor',fill:'none',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'}}>
+                    <rect x="3" y="4" width="18" height="14" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="M21 15l-5-5L5 18"/>
+                  </svg>
                   <span>
                     {mediaFiles.length >= 5
                       ? '미디어 최대 5개 첨부됨'
@@ -6327,7 +6329,7 @@ export default function TrainerApp() {
                   }}
                 />
                 <div style={{fontSize:'11px',color:'var(--text-dim)',marginBottom: mediaFiles.length ? '10px' : '16px',paddingLeft:'2px'}}>
-                  ✦ 수업 후 1분간 핵심만 간단히 말하거나 입력하세요. AI가 전문 일지로 변환해 드려요.
+                  수업 후 1분간 핵심만 간단히 말하거나 입력하세요. AI가 전문 일지로 변환해 드려요.
                 </div>
 
                 {/* 썸네일 프리뷰 — 가로 스크롤 */}
@@ -6373,7 +6375,7 @@ export default function TrainerApp() {
                           padding:'2px 5px',borderRadius:'4px',
                           backdropFilter:'blur(4px)',
                         }}>
-                          {f.isVideo ? '🎬 ' : ''}{f.sizeKB}KB
+                          {f.isVideo ? '동영상 · ' : ''}{f.sizeKB}KB
                         </div>
                         {/* 삭제 버튼 */}
                         <button
@@ -6400,18 +6402,18 @@ export default function TrainerApp() {
                   <span style={{fontSize:'11px',color:'var(--text-dim)'}}>AI 해석 관점</span>
                   <div style={{flex:1,height:'1px',background:'var(--border)'}}></div>
                 </div>
-                {/* 칩 버튼 6개 */}
+                {/* 칩 버튼 6개 — 색은 라임 하나로 통일(선택된 것만 강조), 이모지 제거 */}
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'10px'}}>
                   {[
-                    { value:'rehab',       label:'🩹 재활·부상 케어',  activeColor:'#f9a8d4', activeBg:'rgba(249,168,212,0.15)', activeBorder:'rgba(249,168,212,0.5)', paid:false },
-                    { value:'motivation',  label:'💪 동기부여·심리',   activeColor:'#86efac', activeBg:'rgba(134,239,172,0.15)', activeBorder:'rgba(134,239,172,0.5)', paid:false },
-                    { value:'performance', label:'🏆 퍼포먼스·기술',   activeColor:'#fcd34d', activeBg:'rgba(252,211,77,0.15)',  activeBorder:'rgba(252,211,77,0.5)',  paid:true  },
-                    { value:'diet',        label:'🥗 다이어트·체성분', activeColor:'#c4b5fd', activeBg:'rgba(196,181,253,0.15)', activeBorder:'rgba(196,181,253,0.5)', paid:true  },
-                    { value:'ak',          label:'🧠 AK·응용근신경학', activeColor:'#a5b4fc', activeBg:'rgba(165,180,252,0.15)', activeBorder:'rgba(165,180,252,0.5)', paid:true  },
-                    { value:'complex',     label:'🌀 복잡계',          activeColor:'#67e8f9', activeBg:'rgba(103,232,249,0.15)', activeBorder:'rgba(103,232,249,0.5)', paid:true  },
+                    { value:'rehab',       label:'재활·부상 케어',  paid:false },
+                    { value:'motivation',  label:'동기부여·심리',   paid:false },
+                    { value:'performance', label:'퍼포먼스·기술',   paid:true  },
+                    { value:'diet',        label:'다이어트·체성분', paid:true  },
+                    { value:'ak',          label:'AK·응용근신경학', paid:true  },
+                    { value:'complex',     label:'복잡계',          paid:true  },
                   ].map(chip => {
                     const isActive = (perspectiveChip || 'rehab') === chip.value
-                    const showCrown = chip.paid && !isPaid
+                    const showLock = chip.paid && !isPaid
                     return (
                       <button
                         key={chip.value}
@@ -6423,11 +6425,11 @@ export default function TrainerApp() {
                           gap:'4px',
                           padding:'10px 8px',
                           borderRadius:'10px',
-                          border: isActive ? `1.5px solid ${chip.activeBorder}` : '1.5px solid var(--border)',
-                          background: isActive ? chip.activeBg : 'transparent',
-                          color: isActive ? chip.activeColor : 'var(--text-muted)',
+                          border: isActive ? '1.5px solid rgba(132,204,22,0.5)' : '1.5px solid var(--border)',
+                          background: isActive ? 'rgba(200,241,53,0.14)' : 'transparent',
+                          color: isActive ? 'var(--accent-text)' : 'var(--text-muted)',
                           fontSize:'12px',
-                          fontWeight: isActive ? 700 : 400,
+                          fontWeight: isActive ? 700 : 500,
                           cursor:'pointer',
                           transition:'all 0.15s',
                           lineHeight:1.3,
@@ -6436,7 +6438,11 @@ export default function TrainerApp() {
                         }}
                       >
                         <span>{chip.label}</span>
-                        {showCrown && <span style={{fontSize:'11px',marginLeft:'2px'}}>👑</span>}
+                        {showLock && (
+                          <svg viewBox="0 0 24 24" style={{width:'12px',height:'12px',stroke:'currentColor',fill:'none',strokeWidth:2,flexShrink:0,opacity:0.65}}>
+                            <rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+                          </svg>
+                        )}
                       </button>
                     )
                   })}
