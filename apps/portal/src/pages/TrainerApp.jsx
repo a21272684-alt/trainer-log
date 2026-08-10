@@ -2189,14 +2189,11 @@ export default function TrainerApp() {
         return
       }
       const status = stat?.status || 'none'
-      if (status === 'pending') {
-        setSignupInfo(stat)
-        setScreen('pending')
-        return
-      }
-      if (status === 'rejected') {
-        setSignupInfo(stat)
-        setScreen('rejected')
+      // 070 자율가입 전환: 대기(pending)/거부(rejected) 화면 제거 → 등록 화면으로
+      // 라우팅. 사용자가 이름·약관 동의 후 제출하면 RPC 가 트레이너를 즉시 생성.
+      if (status === 'pending' || status === 'rejected') {
+        setRegName(au.user_metadata?.full_name || au.user_metadata?.name || au.email?.split('@')[0] || '')
+        setScreen('reg')
         return
       }
       if (status === 'already_trainer') {
@@ -2264,9 +2261,8 @@ export default function TrainerApp() {
     if (!agreedTerms || !agreedPrivacy) { showToast('이용약관 및 개인정보처리방침에 동의해주세요'); return }
     if (!authUser) { showToast('먼저 소셜 로그인을 해주세요'); setScreen('login'); return }
     try {
-      // Phase D-4.1 (053) — 화이트리스트 전환:
-      // 직접 trainers INSERT → admin 승인 대기열 (trainer_signup_requests) 에 pending row 생성.
-      // admin 승인 후에야 trainers 행이 생기고 다음 로그인 시 (a) 분기로 매핑됨.
+      // 070 — 자율가입: trainer_create_signup_request 가 trainers 행을 즉시 생성(자동 승인).
+      // 반환 status='approved'(신규 생성) 또는 'already_trainer'. 둘 다 바로 앱 진입.
       const { data: result, error: reqErr } = await supabase.rpc('trainer_create_signup_request', {
         p_email: authUser.email ?? '',
         p_name:  regName,
@@ -2276,22 +2272,14 @@ export default function TrainerApp() {
         throw new Error(reqErr.message || reqErr.code || JSON.stringify(reqErr))
       }
       const status = result?.status
-      if (status === 'already_trainer') {
-        // race: 사이에 admin 이 사전등록 등으로 trainer 만들어준 경우 → resolve 재시도
-        const retry = await supabase.rpc('trainer_resolve_or_create', { p_email: authUser.email ?? null })
-        if (retry.data && retry.data.id) { await _loginWithRecord(retry.data); return }
+      if (status === 'approved' || status === 'already_trainer') {
+        // 생성된 트레이너 로드 → 앱 진입 (resolve 분기 (a) 매칭)
+        const r = await supabase.rpc('trainer_resolve_or_create', { p_email: authUser.email ?? null })
+        if (r.data && r.data.id) { await _loginWithRecord(r.data); return }
         showToast('계정 매핑 오류가 발생했어요. 다시 로그인해주세요.')
         return
       }
-      if (status === 'rejected') {
-        setSignupInfo(result)
-        setScreen('rejected')
-        return
-      }
-      // pending (신규 또는 기존)
-      setSignupInfo({ status: 'pending', name: regName, email: authUser.email })
-      setScreen('pending')
-      showToast('✓ 가입 요청이 접수됐어요. 관리자 승인을 기다려주세요.')
+      showToast('가입 처리 상태를 확인할 수 없어요: ' + (status || 'unknown'))
     } catch(e) {
       console.error('[register] catch:', e)
       const msg = e.message || JSON.stringify(e)
