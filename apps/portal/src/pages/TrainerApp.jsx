@@ -1872,7 +1872,10 @@ export default function TrainerApp() {
 
   // Schedule
   const [weekOff, setWeekOff] = useState(0)
-  const [blocks, setBlocks] = useState(() => JSON.parse(localStorage.getItem('tl_sch')||'[]'))
+  // 계정별 격리: 전역 localStorage 로 초기화하지 않는다(서버가 SoT).
+  // 버그 이력: 전역 'tl_sch' 초기화 → 같은 브라우저 계정 전환 시 이전 계정 시간표가 잔존하고,
+  //   서버 빈 계정에 그 데이터를 업로드해 교차오염. → trainer.id 별 캐시 + 서버 우선으로 전환.
+  const [blocks, setBlocks] = useState([])
   // 모달 form state 는 ScheduleModal 컴포넌트 내부에서 관리.
   // 부모는 "어떤 block 을 편집할지" 만 보유 — null = 모달 닫힘 / 객체 = 모달 열림.
   const [editingBlock, setEditingBlock] = useState(null)
@@ -1885,8 +1888,8 @@ export default function TrainerApp() {
   }, [blocks])
 
   // Notifications
-  const [notifEnabled, setNotifEnabled] = useState(() => localStorage.getItem('tl_notif_enabled') === 'true')
-  const [notifMinutes, setNotifMinutes] = useState(() => parseInt(localStorage.getItem('tl_notif_minutes')||'30'))
+  const [notifEnabled, setNotifEnabled] = useState(false)   // 서버(trainer_schedules)에서 계정별 로드
+  const [notifMinutes, setNotifMinutes] = useState(30)
 
   // Feature gates — 3단계(free/pro/premium). 저장값이 구버전 2단계(free/paid)면 normGates 가 흡수.
   const DEFAULT_FEATURE_GATES = {
@@ -1930,6 +1933,23 @@ export default function TrainerApp() {
   useEffect(() => {
     if (!trainer?.id) return
     let cancelled = false
+    // 계정 전환 시 이전 계정 로드완료 플래그 초기화 → 새 계정 로드 완료 전 서버 저장 방지
+    setScheduleLoaded(false)
+
+    const cacheKey   = `tl_sch_${trainer.id}`
+    const enKey      = `tl_notif_enabled_${trainer.id}`
+    const minKey     = `tl_notif_minutes_${trainer.id}`
+
+    // 레거시 전역 캐시 제거 — 계정 전환 시 잔존/오염 방지 (일회성 정리)
+    localStorage.removeItem('tl_sch')
+    localStorage.removeItem('tl_notif_enabled')
+    localStorage.removeItem('tl_notif_minutes')
+
+    // 1) 계정별 로컬 캐시로 즉시 표시(오프라인 캐시). 없으면 빈 값 → 타 계정 데이터 노출 없음.
+    setBlocks(JSON.parse(localStorage.getItem(cacheKey) || '[]'))
+    setNotifEnabled(localStorage.getItem(enKey) === 'true')
+    setNotifMinutes(parseInt(localStorage.getItem(minKey) || '30'))
+
     ;(async () => {
       try {
         const { data, error } = await supabase
@@ -1937,24 +1957,21 @@ export default function TrainerApp() {
         if (cancelled) return
         if (error) { console.warn('[schedule load]', error.message); setScheduleLoaded(true); return }
         if (data) {
-          // 서버 우선 — state + localStorage 캐시 갱신
+          // 서버 우선 — state + 계정별 캐시 갱신
           const srvBlocks = Array.isArray(data.blocks) ? data.blocks : []
           setBlocks(srvBlocks)
           setNotifEnabled(!!data.notif_enabled)
           setNotifMinutes(Number(data.notif_minutes) || 30)
-          localStorage.setItem('tl_sch', JSON.stringify(srvBlocks))
-          localStorage.setItem('tl_notif_enabled', String(!!data.notif_enabled))
-          localStorage.setItem('tl_notif_minutes', String(Number(data.notif_minutes) || 30))
+          localStorage.setItem(cacheKey, JSON.stringify(srvBlocks))
+          localStorage.setItem(enKey, String(!!data.notif_enabled))
+          localStorage.setItem(minKey, String(Number(data.notif_minutes) || 30))
         } else {
-          // 서버 비어있음 → 로컬에만 데이터 있으면 자동 마이그레이션 업로드
-          const localBlocks = JSON.parse(localStorage.getItem('tl_sch') || '[]')
-          if (localBlocks.length > 0 || localStorage.getItem('tl_notif_enabled') !== null) {
-            await supabase.from('trainer_schedules').upsert({
-              trainer_id: trainer.id, blocks: localBlocks,
-              notif_enabled: notifEnabled, notif_minutes: notifMinutes,
-              updated_at: new Date().toISOString(),
-            }, { onConflict: 'trainer_id' })
-          }
+          // 이 계정 서버 스케줄 없음 → 빈 상태(신규 트레이너).
+          // 절대 다른 계정 데이터를 업로드하지 않는다(교차오염 원인 제거).
+          setBlocks([])
+          setNotifEnabled(false)
+          setNotifMinutes(30)
+          localStorage.removeItem(cacheKey)
         }
       } catch (e) { console.warn('[schedule load] 예외:', e?.message) }
       if (!cancelled) setScheduleLoaded(true)
@@ -1964,10 +1981,11 @@ export default function TrainerApp() {
 
   // 변경 시: localStorage 즉시 + 서버 debounced. 최초 로드 끝나기 전엔 서버 저장 X (덮어쓰기 방지).
   useEffect(() => {
-    localStorage.setItem('tl_sch', JSON.stringify(blocks))
-    localStorage.setItem('tl_notif_enabled', notifEnabled)
-    localStorage.setItem('tl_notif_minutes', notifMinutes)
-    if (!scheduleLoaded || !trainer?.id) return
+    if (!trainer?.id) return   // 로그인 전엔 어떤 계정 캐시에도 쓰지 않는다
+    localStorage.setItem(`tl_sch_${trainer.id}`, JSON.stringify(blocks))
+    localStorage.setItem(`tl_notif_enabled_${trainer.id}`, String(notifEnabled))
+    localStorage.setItem(`tl_notif_minutes_${trainer.id}`, String(notifMinutes))
+    if (!scheduleLoaded) return
     const t = setTimeout(() => {
       supabase.from('trainer_schedules').upsert({
         trainer_id: trainer.id, blocks,
