@@ -4904,6 +4904,70 @@ export default function TrainerApp() {
               })()}
             </button>
           </div>
+
+          {/* ── 웰컴 체크리스트 (콜드스타트 first-run 가이드) ──
+              "아직 회원이 없어요" 빈 화면을 대체. 회원·일지가 모두 생기면 자동으로 사라짐.
+              단계는 실제 데이터(회원/일지/열람 여부)로 자동 판정. */}
+          {(members.length === 0 || logs.length === 0) && (() => {
+            const hasMember = members.length > 0
+            const hasLog    = logs.length > 0
+            const hasRead   = logs.some(l => l.read_at)
+            const steps = [
+              { done: hasMember, now: !hasMember,             t: '첫 회원 추가하기',      s: '이름·연락처만 있으면 30초' },
+              { done: hasLog,    now: hasMember && !hasLog,   t: '첫 수업일지 작성·발송', s: '녹음 올리면 AI가 일지를 완성해요' },
+              { done: hasRead,   now: false,                  t: '회원이 리포트 확인',    s: '카톡 링크만 누르면 열람 (앱 설치 불필요)' },
+            ]
+            const doneCount = steps.filter(s => s.done).length
+            const btnStyle = { marginTop:'8px', padding:'8px 16px', borderRadius:'9px', border:'none',
+              background:'var(--accent)', color:'#0f0f0f', fontSize:'12px', fontWeight:800, cursor:'pointer', fontFamily:'inherit' }
+            return (
+              <div style={{background:'var(--surface)', border:'1px solid var(--accent)',
+                borderRadius:'14px', padding:'16px 16px 8px', marginBottom:'12px'}}>
+                <div style={{fontSize:'15px',fontWeight:800,color:'var(--text)',letterSpacing:'-0.3px'}}>
+                  환영해요, {trainer?.name || ''} 트레이너님 👋
+                </div>
+                <div style={{fontSize:'12px',color:'var(--text-muted)',marginTop:'3px'}}>
+                  3분이면 첫 회원에게 리포트를 보낼 수 있어요.
+                </div>
+                <div style={{display:'flex',justifyContent:'space-between',fontSize:'11px',fontWeight:600,color:'var(--text-dim)',margin:'13px 0 5px'}}>
+                  <span>시작 준비</span><span>{doneCount} / 3 완료</span>
+                </div>
+                <div style={{height:'5px',borderRadius:'3px',background:'var(--surface2)',overflow:'hidden',marginBottom:'4px'}}>
+                  <div style={{height:'100%',width:`${(doneCount/3)*100}%`,background:'var(--accent)',borderRadius:'3px',transition:'width .3s'}}/>
+                </div>
+                {steps.map((st,i) => (
+                  <div key={i} style={{display:'flex',alignItems:'flex-start',gap:'10px',padding:'10px 0',
+                    borderTop: i===0 ? 'none' : '1px solid var(--border)'}}>
+                    <div style={{width:'20px',height:'20px',borderRadius:'50%',flexShrink:0,marginTop:'1px',
+                      display:'flex',alignItems:'center',justifyContent:'center',fontSize:'11px',fontWeight:800,
+                      background: st.done ? 'var(--accent)' : st.now ? 'var(--text)' : 'var(--surface2)',
+                      color:      st.done ? '#0f0f0f'      : st.now ? 'var(--surface)' : 'var(--text-dim)',
+                      boxShadow:  st.now ? '0 0 0 3px rgba(200,241,53,0.3)' : 'none'}}>
+                      {st.done ? '✓' : i+1}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:'13px',fontWeight:700,
+                        color: st.done ? 'var(--text-dim)' : 'var(--text)',
+                        textDecoration: st.done ? 'line-through' : 'none'}}>{st.t}</div>
+                      <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'1px'}}>{st.s}</div>
+                      {st.now && i===0 && (
+                        <button style={btnStyle} onClick={()=>{
+                          setAddForm({name:'',kakao_phone:'',phone:'',birthdate:'',address:'',email:'',special_notes:'',purpose:'체형교정',visit_source:'',visit_source_memo:'',total:'',done:'0',price:'',memo:''})
+                          setActivePage('page-add-member')
+                        }}>지금 첫 회원 추가하기</button>
+                      )}
+                      {st.now && i===1 && (
+                        <button style={btnStyle} onClick={()=> members[0] && openRecord(members[0].id)}>
+                          첫 수업일지 쓰기 →
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+
           {members.length > 0 && (() => {
             // 상태 계산
             function getStatus(m) {
@@ -5226,7 +5290,7 @@ export default function TrainerApp() {
               </>
             )
           })()}
-          {!members.length && <div className="empty"><div style={{fontSize:'36px',marginBottom:'12px'}}>👥</div><p>아직 회원이 없어요.<br/>위에서 첫 회원을 추가해보세요!</p></div>}
+          {/* 회원 0명 빈 상태는 위 웰컴 체크리스트가 대체 */}
         </div>
       )}
 
