@@ -4287,10 +4287,10 @@ export default function TrainerApp() {
               border:'1px solid rgba(200,241,53,0.52)',borderRadius:'16px',padding:'24px',marginBottom:'12px'}}>
               <div style={{fontSize:'12px',fontWeight:700,color:'#4d7c0f',letterSpacing:'0.08em',marginBottom:'10px'}}>✦ AI POWERED</div>
               <div style={{fontSize:'15px',fontWeight:800,marginBottom:'10px',lineHeight:1.4,color:'#111827'}}>
-                녹음 파일 하나로<br/>수업일지 완성 + 카카오 발송
+                녹음 파일 하나로<br/>수업일지 완성 + 회원앱 발송
               </div>
               <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
-                {['녹음 업로드','AI 분석','일지 생성','카카오 발송'].map((s,i)=>(
+                {['녹음 업로드','AI 분석','일지 생성','회원앱 발송'].map((s,i)=>(
                   <span key={i} style={{fontSize:'11px',padding:'4px 10px',borderRadius:'6px',
                     background:'rgba(200,241,53,0.38)',color:'#4d7c0f',fontWeight:600}}>
                     {i+1}. {s}
@@ -4517,7 +4517,7 @@ export default function TrainerApp() {
                 {/* 전환 유도 */}
                 <div style={{background:'linear-gradient(135deg,#f0fcd4,#ecfccb)',
                   border:'1px solid rgba(132,204,22,0.45)',borderRadius:'13px',padding:'14px',textAlign:'center',marginBottom:'12px'}}>
-                  <div style={{fontSize:'13px',fontWeight:850,color:'#4d7c0f'}}>이게 회원에게 카톡으로 전송돼요</div>
+                  <div style={{fontSize:'13px',fontWeight:850,color:'#4d7c0f'}}>이게 회원 앱으로 전송돼요</div>
                   <div style={{fontSize:'11.5px',color:'#6B7280',marginTop:'4px',lineHeight:1.55}}>
                     방금 30초 걸렸어요. 이제 진짜 내 회원에게 보내볼까요?
                   </div>
@@ -4915,7 +4915,7 @@ export default function TrainerApp() {
             const steps = [
               { done: hasMember, now: !hasMember,             t: '첫 회원 추가하기',      s: '이름·연락처만 있으면 30초' },
               { done: hasLog,    now: hasMember && !hasLog,   t: '첫 수업일지 작성·발송', s: '녹음 올리면 AI가 일지를 완성해요' },
-              { done: hasRead,   now: false,                  t: '회원이 리포트 확인',    s: '카톡 링크만 누르면 열람 (앱 설치 불필요)' },
+              { done: hasRead,   now: false,                  t: '회원이 리포트 확인',    s: '회원 앱에서 바로 열람 (앱 설치 불필요)' },
             ]
             const doneCount = steps.filter(s => s.done).length
             const btnStyle = { marginTop:'8px', padding:'8px 16px', borderRadius:'9px', border:'none',
@@ -5680,7 +5680,7 @@ export default function TrainerApp() {
             const fallbackPlans = [
               { id: 'free',    name: 'Free',    price: '무료',         color: '#9ca3af', highlight: false, current: !isPaid, badge: null,        enabled: true, features: ['회원 5명', 'AI 일지 월 20회', '식단 기록', '기본 통계'] },
               { id: 'pro',     name: 'Pro',     price: '₩9,900/월',   color: '#60a5fa', highlight: false, current: false,  badge: '출시 예정',   enabled: true, features: ['회원 무제한', 'AI 일지 무제한', '주간 리포트 AI', '매출 분석'] },
-              { id: 'premium', name: 'Premium', price: '₩19,900/월',  color: '#c8f135', highlight: true,  current: isPaid, badge: '출시 예정',   enabled: true, features: ['Pro 전체 포함', '루틴 마켓 무제한', '카카오 자동 발송', '우선 지원'] },
+              { id: 'premium', name: 'Premium', price: '₩19,900/월',  color: '#c8f135', highlight: true,  current: isPaid, badge: '출시 예정',   enabled: true, features: ['Pro 전체 포함', '루틴 마켓 무제한', '회원 앱 자동 발송', '우선 지원'] },
             ]
             const sourcePlans = (Array.isArray(plansList) && plansList.length > 0) ? plansList : fallbackPlans
             const visiblePlans = sourcePlans.filter(p => p.enabled !== false)

@@ -135,7 +135,7 @@ const LANDING_TABS = {
     { id: 'solutions', label: '솔루션' },
     { id: 'ai_highlight', label: 'AI 하이라이트' },
     { id: 'reviews', label: '트레이너 후기' },
-    { id: 'kakao', label: '카카오 메시지' },
+    { id: 'kakao', label: '회원 반응' },
     { id: 'targets', label: '타겟 분기' },
     { id: 'members', label: '회원 포털 기능' },
     { id: 'plans', label: '요금제' },
@@ -171,7 +171,7 @@ const DEFAULT_LANDING_KAKAO = [
 ]
 const DEFAULT_LANDING_FAQS = [
   { q: 'AI 수업일지를 만들려면 별도 비용이 드나요?', a: '크레딧 방식으로 운영돼요. 가입 시 기본 크레딧이 지급되며, 크레딧 1개로 AI 수업일지를 1회 생성할 수 있어요. 추가 크레딧은 합리적인 가격으로 충전할 수 있어요.' },
-  { q: '회원이 별도로 앱을 설치해야 하나요?', a: '아니요. 회원은 트레이너가 카카오톡으로 보내는 링크를 클릭하기만 하면 돼요. 앱 설치 없이 브라우저에서 바로 수업 리포트를 확인할 수 있어요.' },
+  { q: '회원이 별도로 앱을 설치해야 하나요?', a: '아니요. 회원은 회원 앱에서 바로 수업 리포트를 확인할 수 있어요. 앱 설치 없이 브라우저로 접속하면 되고, 홈 화면에 추가(PWA)하면 앱처럼 사용할 수 있어요.' },
   { q: '트레이너 여러 명이 함께 쓸 수 있나요?', a: '현재는 트레이너 개인 계정 단위로 운영돼요. 각 트레이너가 개별 계정을 만들어 사용하면 됩니다.' },
   { q: '기존에 쓰던 데이터를 옮겨올 수 있나요?', a: '현재는 직접 입력 방식만 지원해요. 데이터 마이그레이션 기능은 Pro 플랜과 함께 제공될 예정이에요.' },
   { q: '스마트폰에서도 잘 되나요?', a: '네. 모바일 브라우저에 최적화되어 있어요. 홈 화면에 추가(PWA)하면 앱처럼 사용할 수 있고, 수업 전 푸시 알림도 받을 수 있어요.' },
@@ -181,14 +181,14 @@ const DEFAULT_LANDING_FAQS = [
 const DEFAULT_PLANS = [
   { id: 'free', name: 'Free', price: '무료', color: '#9ca3af', highlight: false, current: true, badge: null, enabled: true, features: ['회원 5명', 'AI 일지 월 20회', '식단 기록', '기본 통계'] },
   { id: 'pro', name: 'Pro', price: '₩9,900/월', color: '#60a5fa', highlight: false, current: false, badge: '출시 예정', enabled: true, features: ['회원 무제한', 'AI 일지 무제한', '주간 리포트 AI', '매출 분석'] },
-  { id: 'premium', name: 'Premium', price: '₩19,900/월', color: '#c8f135', highlight: true, current: false, badge: '출시 예정', enabled: true, features: ['Pro 전체 포함', '루틴 마켓 무제한', '카카오 자동 발송', '우선 지원'] },
+  { id: 'premium', name: 'Premium', price: '₩19,900/월', color: '#c8f135', highlight: true, current: false, badge: '출시 예정', enabled: true, features: ['Pro 전체 포함', '루틴 마켓 무제한', '회원 앱 자동 발송', '우선 지원'] },
 ]
 
 const DEFAULT_LANDING_AI_HIGHLIGHT = {
   badge: 'AI POWERED',
   headline: '수업 후 녹음 파일만 올리면\n수업일지가 완성됩니다',
-  desc: 'Gemini AI가 음성을 분석해 운동 종목·세트·느낀점을 자동으로 일지로 변환해요.\n완성된 일지는 카카오톡으로 회원에게 즉시 전달됩니다.',
-  steps: '녹음 업로드,AI 분석,일지 완성,카카오 발송',
+  desc: 'Gemini AI가 음성을 분석해 운동 종목·세트·느낀점을 자동으로 일지로 변환해요.\n완성된 일지는 회원 앱으로 회원에게 즉시 전달됩니다.',
+  steps: '녹음 업로드,AI 분석,일지 완성,회원앱 발송',
 }
 
 const DEFAULT_LANDING_HERO = {
@@ -205,7 +205,7 @@ const DEFAULT_LANDING_PROBLEMS = [
   { icon: '📉', title: '이번 달 매출이 얼마인지 바로 답할 수 있나요?', desc: '엑셀도, 메모장도, 카카오톡도 다 따로따로. 세션 단가 × 잔여 횟수 계산을 머릿속으로 하고 계신다면, 이미 시간을 낭비하고 있는 거예요.' },
 ]
 const DEFAULT_LANDING_SOLUTIONS = [
-  { icon: '✦', tag: 'AI 수업일지', title: '녹음만 올리면 일지가 완성돼요', desc: 'AI가 수업 내용을 분석해 운동 종목·세트·피드백을 완성된 일지로 만들어줘요. 회원에게는 카카오톡으로 바로 발송.' },
+  { icon: '✦', tag: 'AI 수업일지', title: '녹음만 올리면 일지가 완성돼요', desc: 'AI가 수업 내용을 분석해 운동 종목·세트·피드백을 완성된 일지로 만들어줘요. 회원에게는 회원 앱으로 바로 발송.' },
   { icon: '🔔', tag: '이탈위험 감지', title: '이탈 징후를 미리 알려줘요', desc: '출석률·건강기록·수업 평점을 분석해 이탈위험 회원을 자동으로 감지해요. 연락 타이밍을 놓치지 마세요.' },
   { icon: '📊', tag: '매출 자동 분석', title: '매출이 실시간으로 계산돼요', desc: '결제를 등록하면 세션 단가·잔존가치·월 매출이 자동으로 집계돼요. 고용형태별 세금 계산도 지원해요.' },
 ]
@@ -260,7 +260,7 @@ const DEFAULT_LANDING_CRM_ROADMAP = [
 
 const DEFAULT_LANDING_COMPARISON = [
   { feature: 'AI 수업일지 작성', legacy: '수기 메모 · 10~30분', ours: 'AI 자동 생성 · 3분' },
-  { feature: '회원 리포트 발송', legacy: '별도 없음', ours: '카카오톡 자동 발송' },
+  { feature: '회원 리포트 발송', legacy: '별도 없음', ours: '회원 앱 자동 발송' },
   { feature: '이탈 회원 감지', legacy: '감 또는 직접 연락', ours: 'AI 이탈위험 자동 알림' },
   { feature: '매출 계산', legacy: '엑셀·메모장 수기 집계', ours: '결제 등록 시 자동 집계' },
   { feature: '건강 기록 추적', legacy: '없음', ours: '체중·수면·체성분 추적' },
@@ -268,7 +268,7 @@ const DEFAULT_LANDING_COMPARISON = [
   { feature: '시작 비용', legacy: '유료 구독 필요', ours: '0원 (무료 플랜)' },
 ]
 const DEFAULT_LANDING_PLANS_LANDING = [
-  { name: '무료 플랜', price: '0원', period: '영구 무료', highlight: false, tag: null, features: ['AI 수업일지 월 20회', '회원 관리 (최대 20명)', '수업 리포트 카카오 발송', '체중·건강 기록', '주간 스케줄', '매출 기본 분석'], cta: '무료로 시작하기', ctaLink: '/trainer', note: '결제 수단 등록 불필요' },
+  { name: '무료 플랜', price: '0원', period: '영구 무료', highlight: false, tag: null, features: ['AI 수업일지 월 20회', '회원 관리 (최대 20명)', '수업 리포트 회원 앱 발송', '체중·건강 기록', '주간 스케줄', '매출 기본 분석'], cta: '무료로 시작하기', ctaLink: '/trainer', note: '결제 수단 등록 불필요' },
   { name: 'Pro 플랜', price: '준비 중', period: '출시 예정', highlight: true, tag: '곧 출시', features: ['AI 수업일지 무제한', '회원 관리 무제한', '이탈위험 자동 감지', '고용형태별 세금 계산', '주간 센터 리포트', '우선 고객 지원'], cta: '출시 알림 받기', ctaLink: 'mailto:support@trainerlog.app?subject=Pro 플랜 출시 알림 신청', note: '얼리어답터 할인 예정' },
 ]
 
@@ -2040,7 +2040,7 @@ export default function AdminPortal() {
           {page === 'landing' && landingSite === 'main' && subTab === 'kakao' && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                <div className="section-title" style={{ margin: 0 }}>카카오 메시지</div>
+                <div className="section-title" style={{ margin: 0 }}>회원 반응</div>
                 <button className="btn btn-primary btn-sm" onClick={() => openLandingEdit('kakao', -1, { from: '회원', text: '', time: '오후 0:00' })}>+ 추가</button>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -2194,9 +2194,9 @@ export default function AdminPortal() {
                   className="input"
                   value={landingAiHighlight.steps || ''}
                   onChange={e => setLandingAiHighlight(h => ({ ...h, steps: e.target.value }))}
-                  placeholder="녹음 업로드,AI 분석,일지 완성,카카오 발송"
+                  placeholder="녹음 업로드,AI 분석,일지 완성,회원앱 발송"
                 />
-                <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '4px' }}>예: 녹음 업로드,AI 분석,일지 완성,카카오 발송</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '4px' }}>예: 녹음 업로드,AI 분석,일지 완성,회원앱 발송</div>
               </div>
 
               {/* 미리보기 */}
