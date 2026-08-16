@@ -42,7 +42,7 @@ const SOLUTIONS = [
   {
     icon: '✦',
     title: '녹음만 올리면 일지가 완성돼요',
-    desc: 'AI가 수업 내용을 분석해 운동 종목·세트·피드백을 완성된 일지로 만들어줘요. 회원에게는 카카오톡으로 바로 발송.',
+    desc: 'AI가 수업 내용을 분석해 운동 종목·세트·피드백을 완성된 일지로 만들어줘요. 회원에게는 회원 앱으로 바로 발송.',
     tag: 'AI 수업일지',
   },
   {
@@ -159,7 +159,7 @@ const PLANS = [
     features: [
       'AI 수업일지 월 20회',
       '회원 관리 (최대 20명)',
-      '수업 리포트 카카오 발송',
+      '수업 리포트 회원 앱 발송',
       '체중·건강 기록',
       '주간 스케줄',
       '매출 기본 분석',
@@ -191,7 +191,7 @@ const PLANS = [
 
 const COMPARISON = [
   { feature: 'AI 수업일지 작성',  legacy: '수기 메모 · 10~30분',      ours: 'AI 자동 생성 · 3분' },
-  { feature: '회원 리포트 발송',  legacy: '별도 없음',                 ours: '카카오톡 자동 발송' },
+  { feature: '회원 리포트 발송',  legacy: '별도 없음',                 ours: '회원 앱 자동 발송' },
   { feature: '이탈 회원 감지',    legacy: '감 또는 직접 연락',          ours: 'AI 이탈위험 자동 알림' },
   { feature: '매출 계산',         legacy: '엑셀·메모장 수기 집계',      ours: '결제 등록 시 자동 집계' },
   { feature: '건강 기록 추적',    legacy: '없음',                      ours: '체중·수면·체성분 추적' },
@@ -206,7 +206,7 @@ const FAQS = [
   },
   {
     q: '회원이 별도로 앱을 설치해야 하나요?',
-    a: '아니요. 회원은 트레이너가 카카오톡으로 보내는 링크를 클릭하기만 하면 돼요. 앱 설치 없이 브라우저에서 바로 수업 리포트를 확인할 수 있어요.',
+    a: '아니요. 회원은 회원 앱에서 바로 수업 리포트를 확인할 수 있어요. 앱 설치 없이 브라우저로 접속하면 되고, 홈 화면에 추가(PWA)하면 앱처럼 사용할 수 있어요.',
   },
   {
     q: '트레이너 여러 명이 함께 쓸 수 있나요?',
@@ -425,8 +425,8 @@ export default function Landing() {
   const [aiHighlight,    setAiHighlight]    = useState({
     badge: 'AI POWERED',
     headline: '수업 후 녹음 파일만 올리면\n수업일지가 완성됩니다',
-    desc: 'Gemini AI가 음성을 분석해 운동 종목·세트·느낀점을 자동으로 일지로 변환해요.\n완성된 일지는 카카오톡으로 회원에게 즉시 전달됩니다.',
-    steps: '녹음 업로드,AI 분석,일지 완성,카카오 발송',
+    desc: 'Gemini AI가 음성을 분석해 운동 종목·세트·느낀점을 자동으로 일지로 변환해요.\n완성된 일지는 회원 앱으로 회원에게 즉시 전달됩니다.',
+    steps: '녹음 업로드,AI 분석,일지 완성,회원앱 발송',
   })
 
   useEffect(() => {
@@ -920,7 +920,7 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── 회원 카카오톡 반응 ── */}
+      {/* ── 회원 반응 (리포트 수신 후) ── */}
       <section style={{background:'#fff',padding:'80px 24px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
