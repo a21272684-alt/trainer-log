@@ -1681,7 +1681,12 @@ function SlideCard({ children, delay = 0 }) {
 
 export default function TrainerApp() {
   const showToast = useToast()
-  const [screen, setScreen] = useState('landing') // landing, login, reg, pending, rejected, app
+  // 초기 진입 = 'login'. 마케팅 랜딩(portal '/')이 이미 소개를 담당하므로
+  // /trainer 진입 시 앱 내부 인트로('landing')를 강제로 다시 보여주지 않는다(중복 인트로 제거).
+  // 'landing' 화면 자체는 보존 — 로그인 화면의 "앱 소개 보기" 링크로 여전히 접근 가능.
+  const [screen, setScreen] = useState('login') // login, landing, demo, reg, pending, rejected, app
+  // 샘플 체험 모드(고정 샘플) 진행 단계. AI 실호출/크레딧 차감 없음 — 미리 만들어둔 결과를 보여준다.
+  const [demoStep, setDemoStep] = useState('input') // 'input' | 'loading' | 'result'
   // 가입 요청 상태 (053 마이그레이션 화이트리스트). pending/rejected 화면에 사용.
   const [signupInfo, setSignupInfo] = useState(null) // { status, reason?, name?, requested_at? }
   const [trainer, setTrainer] = useState(null)
@@ -2308,7 +2313,7 @@ export default function TrainerApp() {
       }
       if (event === 'SIGNED_OUT') {
         isAuthenticatedRef.current = false
-        setAuthUser(null); setTrainer(null); setMembers([]); setLogs([]); setScreen('landing')
+        setAuthUser(null); setTrainer(null); setMembers([]); setLogs([]); setScreen('login')
       }
     })
     return () => subscription.unsubscribe()
@@ -4319,6 +4324,22 @@ export default function TrainerApp() {
               <div style={{fontSize:'13px',color:'#6B7280'}}>트레이너 전용 앱에 오신 것을 환영해요</div>
             </div>
 
+            {/* 콜드스타트 — 회원가입/로그인 없이 샘플 체험 (고정 샘플, 비용·크레딧 0).
+                아하 모먼트를 로그인 앞으로 당겨 체험 후 자연스럽게 가입으로 연결. */}
+            <button onClick={()=>{ setDemoStep('input'); setScreen('demo') }} style={{
+              display:'flex',alignItems:'center',justifyContent:'center',gap:8,width:'100%',
+              padding:'14px 20px',borderRadius:'11px',border:'none',
+              background:'#c8f135',color:'#111',fontSize:'14px',fontWeight:800,
+              cursor:'pointer',fontFamily:'inherit',
+              boxShadow:'0 4px 18px rgba(200,241,53,0.42)'}}>
+              ✦ 회원가입 없이 60초 체험하기
+            </button>
+            <div style={{display:'flex',alignItems:'center',gap:'10px',margin:'16px 0 8px'}}>
+              <div style={{flex:1,height:'1px',background:'#F3F4F6'}}/>
+              <span style={{fontSize:'11px',color:'#9CA3AF',fontWeight:500,flexShrink:0}}>이미 계정이 있으신가요?</span>
+              <div style={{flex:1,height:'1px',background:'#F3F4F6'}}/>
+            </div>
+
             <div style={{display:'flex',flexDirection:'column',gap:'10px',marginTop:'8px'}}>
               {/* Google */}
               <button onClick={signInWithGoogle} style={{
@@ -4373,6 +4394,158 @@ export default function TrainerApp() {
             <span style={{fontSize:'12px',color:'#9CA3AF',cursor:'pointer'}}
               onClick={()=>setScreen('landing')}>앱 소개 보기</span>
           </div>
+        </div>
+      </div>
+    )
+  }
+
+  // === DEMO SCREEN (샘플 체험 모드 — 고정 샘플, AI 실호출/크레딧 차감 없음) ===
+  if (screen === 'demo') {
+    const SAMPLE = {
+      member: '김하늘', session: '5 / 10회차',
+      brief: '오늘 스쿼트 3세트 진행했고 무게 중심이 안정적이었어요. 마지막에 코어 활성화 드릴 추가했는데 저번보다 자세가 확실히 좋아졌습니다.',
+      exercise: { name:'바벨 스쿼트', detail:'3세트 · 10회 (RIR 1)', note:'💪 무게 중심을 단단히 유지하며 안정적인 자세를 보여주셨습니다.' },
+      comment: '하늘님, 오늘 5회차 수업도 정말 수고 많으셨어요 😊 무게 중심이 흔들리지 않아 동작 퍼포먼스가 한층 향상된 것을 느낄 수 있었습니다 👍',
+      goals: ['엉덩이 근육 수축감을 더 명확히 느끼도록 지도', '웜업에 코어 활성화 드릴 추가'],
+    }
+    return (
+      <div className="login-wrap">
+        <style>{`
+          @keyframes ownSpin{to{transform:rotate(360deg)}}
+          .own-spin{animation:ownSpin .9s linear infinite}
+          @media (prefers-reduced-motion:reduce){.own-spin{animation:none}}
+        `}</style>
+        <div style={{width:'100%',maxWidth:'420px'}}>
+          <div style={{background:'#fff',border:'1px solid #E1E4D9',borderRadius:'22px',
+            padding:'28px 26px',boxShadow:'0 8px 40px rgba(0,0,0,0.08),0 1px 4px rgba(0,0,0,0.04)'}}>
+
+            {/* 헤더 */}
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'18px'}}>
+              <div style={{fontSize:'18px',fontWeight:900,letterSpacing:'-0.5px',color:'#111'}}>
+                오<span style={{background:'#c8f135',color:'#111',padding:'1px 7px',borderRadius:'5px',marginLeft:'2px'}}>운</span>
+              </div>
+              <span style={{fontSize:'11px',fontWeight:700,color:'#4d7c0f',
+                background:'rgba(200,241,53,0.22)',border:'1px solid rgba(132,204,22,0.4)',
+                borderRadius:'20px',padding:'4px 11px'}}>체험 모드 · 샘플 회원</span>
+            </div>
+
+            {/* ── STEP: 입력 ── */}
+            {demoStep === 'input' && (
+              <div>
+                <div style={{fontSize:'18px',fontWeight:850,color:'#111',letterSpacing:'-0.4px',lineHeight:1.35,marginBottom:'6px'}}>
+                  회원 등록 없이<br/>지금 60초로 만들어보세요
+                </div>
+                <div style={{fontSize:'12.5px',color:'#6B7280',lineHeight:1.6,marginBottom:'18px'}}>
+                  아래는 샘플 회원 <strong style={{color:'#111'}}>'{SAMPLE.member}'</strong>의 오늘 수업이에요.
+                  브리핑이 미리 입력돼 있으니 버튼만 눌러보세요.
+                </div>
+
+                {/* 샘플 회원 */}
+                <div style={{display:'flex',alignItems:'center',gap:'10px',background:'#f9fafb',
+                  border:'1px solid #E1E4D9',borderRadius:'12px',padding:'11px 13px',marginBottom:'10px'}}>
+                  <div style={{width:'34px',height:'34px',borderRadius:'50%',background:'rgba(200,241,53,0.28)',
+                    display:'flex',alignItems:'center',justifyContent:'center',fontSize:'16px'}}>🙂</div>
+                  <div>
+                    <div style={{fontSize:'13.5px',fontWeight:800,color:'#111'}}>
+                      {SAMPLE.member}
+                      <span style={{fontSize:'9.5px',fontWeight:700,color:'#4d7c0f',background:'rgba(200,241,53,0.28)',
+                        borderRadius:'8px',padding:'1px 7px',marginLeft:'6px'}}>샘플</span>
+                    </div>
+                    <div style={{fontSize:'11px',color:'#94A3B8',marginTop:'1px'}}>체형교정 · {SAMPLE.session}</div>
+                  </div>
+                </div>
+
+                {/* 브리핑 (미리 입력) */}
+                <div style={{fontSize:'11px',fontWeight:700,color:'#475569',marginBottom:'5px'}}>🎙 수업 브리핑</div>
+                <div style={{background:'#eef4ff',border:'1px solid #dbe7ff',borderRadius:'11px',
+                  padding:'12px',fontSize:'12px',color:'#1e3a8a',lineHeight:1.65,marginBottom:'16px'}}>
+                  "{SAMPLE.brief}"
+                </div>
+
+                <button onClick={()=>{ setDemoStep('loading'); setTimeout(()=>setDemoStep('result'), 1700) }}
+                  style={{width:'100%',padding:'14px',borderRadius:'12px',border:'none',
+                    background:'#c8f135',color:'#111',fontSize:'14px',fontWeight:800,cursor:'pointer',
+                    fontFamily:'inherit',boxShadow:'0 4px 18px rgba(200,241,53,0.42)'}}>
+                  ✦ AI로 일지 만들기
+                </button>
+                <div style={{textAlign:'center',fontSize:'11px',color:'#9CA3AF',marginTop:'10px'}}>
+                  체험은 크레딧이 차감되지 않아요
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP: 분석 중 ── */}
+            {demoStep === 'loading' && (
+              <div style={{padding:'34px 8px 30px',textAlign:'center'}}>
+                <div className="own-spin" style={{width:'44px',height:'44px',margin:'0 auto 20px',
+                  borderRadius:'50%',border:'4px solid #eef2f7',borderTopColor:'#84cc16'}}/>
+                <div style={{fontSize:'15px',fontWeight:800,color:'#111',marginBottom:'6px'}}>
+                  AI가 일지를 작성하고 있어요…
+                </div>
+                <div style={{fontSize:'12px',color:'#94A3B8',lineHeight:1.6}}>
+                  브리핑을 분석해 운동·세트·코멘트·다음 목표를<br/>완성된 수업일지로 정리하는 중입니다.
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP: 완성 결과 ── */}
+            {demoStep === 'result' && (
+              <div>
+                {/* 완성된 수업일지 카드 */}
+                <div style={{border:'1px solid #E1E4D9',borderRadius:'14px',padding:'14px 15px',marginBottom:'14px'}}>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'8px'}}>
+                    <div style={{fontSize:'12.5px',fontWeight:800,color:'#111'}}>📋 수업일지 · {SAMPLE.member}</div>
+                    <div style={{fontSize:'11px',color:'#16a34a',fontWeight:700}}>{SAMPLE.session} · ⭐ 5</div>
+                  </div>
+
+                  <div style={{fontSize:'11.5px',fontWeight:800,color:'#111',marginBottom:'4px'}}>🐂 오늘의 운동</div>
+                  <div style={{background:'#f8fafc',borderRadius:'9px',padding:'9px 10px',marginBottom:'11px'}}>
+                    <div style={{fontSize:'11.5px',fontWeight:700,color:'#111'}}>{SAMPLE.exercise.name}</div>
+                    <div style={{fontSize:'10.5px',color:'#64748b',marginTop:'2px'}}>{SAMPLE.exercise.detail}</div>
+                    <div style={{fontSize:'10.5px',color:'#64748b',marginTop:'4px',lineHeight:1.55}}>{SAMPLE.exercise.note}</div>
+                  </div>
+
+                  <div style={{fontSize:'11.5px',fontWeight:800,color:'#111',marginBottom:'4px'}}>💬 트레이너 코멘트</div>
+                  <div style={{fontSize:'10.5px',color:'#64748b',lineHeight:1.65,marginBottom:'11px'}}>{SAMPLE.comment}</div>
+
+                  <div style={{fontSize:'11.5px',fontWeight:800,color:'#111',marginBottom:'4px'}}>🎯 다음 수업 목표</div>
+                  <div style={{fontSize:'10.5px',color:'#64748b',lineHeight:1.7}}>
+                    {SAMPLE.goals.map((g,i)=>(<div key={i}>· {g}</div>))}
+                  </div>
+                </div>
+
+                {/* 전환 유도 */}
+                <div style={{background:'linear-gradient(135deg,#f0fcd4,#ecfccb)',
+                  border:'1px solid rgba(132,204,22,0.45)',borderRadius:'13px',padding:'14px',textAlign:'center',marginBottom:'12px'}}>
+                  <div style={{fontSize:'13px',fontWeight:850,color:'#4d7c0f'}}>이게 회원에게 카톡으로 전송돼요</div>
+                  <div style={{fontSize:'11.5px',color:'#6B7280',marginTop:'4px',lineHeight:1.55}}>
+                    방금 30초 걸렸어요. 이제 진짜 내 회원에게 보내볼까요?
+                  </div>
+                </div>
+
+                <button onClick={signInWithGoogle}
+                  style={{width:'100%',padding:'14px',borderRadius:'12px',border:'none',
+                    background:'#c8f135',color:'#111',fontSize:'14px',fontWeight:800,cursor:'pointer',
+                    fontFamily:'inherit',boxShadow:'0 4px 18px rgba(200,241,53,0.42)'}}>
+                  구글로 시작하고 내 회원에게 보내기 →
+                </button>
+                <div style={{display:'flex',justifyContent:'center',gap:'16px',marginTop:'14px'}}>
+                  <span style={{fontSize:'12px',color:'#6B7280',cursor:'pointer',fontWeight:600}}
+                    onClick={()=>setDemoStep('input')}>↺ 다시 체험</span>
+                  <span style={{fontSize:'12px',color:'#9CA3AF',cursor:'pointer'}}
+                    onClick={()=>setScreen('login')}>로그인으로</span>
+                </div>
+              </div>
+            )}
+
+          </div>
+
+          {demoStep === 'input' && (
+            <div style={{textAlign:'center',marginTop:'14px'}}>
+              <span style={{fontSize:'12px',color:'#9CA3AF',cursor:'pointer'}}
+                onClick={()=>setScreen('login')}>← 로그인으로</span>
+            </div>
+          )}
         </div>
       </div>
     )
@@ -4569,7 +4742,7 @@ export default function TrainerApp() {
             소속 센터 대표님께 문의해 복직 처리를 요청하세요.
           </div>
           <button
-            onClick={async () => { await supabase.auth.signOut(); setTrainer(null); setScreen('landing') }}
+            onClick={async () => { await supabase.auth.signOut(); setTrainer(null); setScreen('login') }}
             style={{
               width: '100%', padding: '12px', borderRadius: '10px',
               background: '#f3f4f6', border: '1px solid #E1E4D9',
@@ -5745,7 +5918,7 @@ export default function TrainerApp() {
                   await supabase.auth.signOut()
                   setAuthUser(null); setTrainer(null)
                   setMembers([]); setLogs([])
-                  setScreen('landing')
+                  setScreen('login')
                 }}>
                 <span className="rev-row-ic" style={{background:'rgba(239,68,68,0.08)',color:'#dc2626'}}>
                   <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
