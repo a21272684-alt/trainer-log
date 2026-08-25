@@ -1,4 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="오운">
-  <rect width="512" height="512" rx="112" fill="#c8f135"/>
-  <text x="256" y="356" font-family="'Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',sans-serif" font-size="300" font-weight="900" text-anchor="middle" fill="#111111">오</text>
+  <rect width="512" height="512" rx="112" fill="#161616"/>
+  <g fill="#c8f135" transform="translate(256 176) scale(0.5) translate(-256 -256)">
+    <rect x="186" y="238" width="140" height="36" rx="18"/>
+    <rect x="150" y="196" width="36" height="120" rx="14"/>
+    <rect x="116" y="216" width="34" height="80" rx="14"/>
+    <rect x="94" y="232" width="22" height="48" rx="10"/>
+    <rect x="326" y="196" width="36" height="120" rx="14"/>
+    <rect x="362" y="216" width="34" height="80" rx="14"/>
+    <rect x="396" y="232" width="22" height="48" rx="10"/>
+  </g>
+  <text x="256" y="398" text-anchor="middle" fill="#c8f135" font-family="'Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',sans-serif" font-weight="900" font-size="190" letter-spacing="-8">오운</text>
 </svg>
