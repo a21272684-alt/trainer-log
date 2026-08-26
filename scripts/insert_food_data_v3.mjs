@@ -5,7 +5,8 @@
  */
 
 const SUPABASE_URL = 'https://udnyilxwskgkofbvvzfy.supabase.co'
-const SERVICE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkbnlpbHh3c2tna29mYnZ2emZ5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTQ3ODc4NSwiZXhwIjoyMDkxMDU0Nzg1fQ.-Omuj_MmhH7ShJY73vhCWWONFEVl5LkRrWIiEzG2iRM'
+const SERVICE_KEY  = process.env.SUPABASE_SERVICE_KEY
+if (!SERVICE_KEY) { console.error('❌ SUPABASE_SERVICE_KEY 환경변수가 필요합니다 (하드코딩 금지).'); process.exit(1) }
 
 // [식품명, 카테고리, 칼로리, 단백질, 지방, 탄수화물, 식이섬유, 나트륨(mg), 당류] — 100g 기준
 const RAW = [
