@@ -20,6 +20,19 @@ const num = v => Number(v) || 0
 const kcalOf = r => num(r.calories_per_g) * num(r.amount_g)
 const gOf    = (r, k) => num(r[k]) * num(r.amount_g)
 
+// 데이터 출처 배지 (식약처 / AI추정 / 직접입력)
+function srcBadge(r) {
+  const src = r?.source || (r?.ai_recognized ? 'ai' : null)
+  const map = {
+    db:     { label: '식약처',   bg: '#ECFDF5', color: '#059669' },
+    ai:     { label: 'AI추정',   bg: '#FFFBEB', color: '#B45309' },
+    manual: { label: '직접입력', bg: '#F3F4F6', color: '#6B7280' },
+  }
+  const s = src && map[src]
+  if (!s) return null
+  return <span style={{ fontSize: 9, background: s.bg, color: s.color, borderRadius: 4, padding: '1px 5px', fontWeight: 700, marginLeft: 4, whiteSpace: 'nowrap' }}>{s.label}</span>
+}
+
 export default function MemberDietView({ memberId }) {
   const [loading, setLoading] = useState(true)
   const [logs, setLogs] = useState([])
@@ -87,7 +100,7 @@ export default function MemberDietView({ memberId }) {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>
                             {r.food_name} <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{Math.round(num(r.amount_g))}g</span>
-                            {r.ai_recognized && <span style={{ fontSize: 9, color: 'var(--accent)', marginLeft: 4 }}>AI</span>}
+                            {srcBadge(r)}
                           </div>
                         </div>
                         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', flexShrink: 0 }}>{Math.round(kcalOf(r))} kcal</div>
