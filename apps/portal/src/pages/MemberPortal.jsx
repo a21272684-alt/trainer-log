@@ -21,6 +21,19 @@ Chart.register(...registerables)
 const MUSCLE_GROUPS = ['가슴','등','어깨','이두','삼두','하체','코어','유산소','전신']
 const MUSCLE_COLOR = {'가슴':'#ef4444','등':'#3b82f6','어깨':'#8b5cf6','이두':'#f97316','삼두':'#06b6d4','하체':'#22c55e','코어':'#eab308','유산소':'#ec4899','전신':'#6b7280'}
 
+// C-2: 식단 데이터 출처 배지 (식약처 / AI추정 / 직접입력)
+function foodSourceBadge(item) {
+  const src = item?.source || (item?.ai_recognized ? 'ai' : null)
+  const map = {
+    db:     { label: '식약처',   bg: '#ECFDF5', color: '#059669' },
+    ai:     { label: 'AI추정',   bg: '#FFFBEB', color: '#B45309' },
+    manual: { label: '직접입력', bg: '#F3F4F6', color: '#6B7280' },
+  }
+  const s = src && map[src]
+  if (!s) return null
+  return <span style={{ fontSize: '9px', background: s.bg, color: s.color, borderRadius: '4px', padding: '1px 5px', fontWeight: 700, whiteSpace: 'nowrap' }}>{s.label}</span>
+}
+
 function MuscleDiagram({ primary = [], secondary = [] }) {
   if (!primary.length && !secondary.length) return null
   const c = (m) => {
@@ -176,6 +189,7 @@ export default function MemberPortal() {
     calPerG: '', proteinPerG: '', carbsPerG: '', fatPerG: '',
     fiberPerG: '', sodiumPerG: '', sugarPerG: '',
     photoFile: null, photoPreview: '', aiLoading: false, aiConfidence: '',
+    source: 'manual', // C-2: 'db'(식약처) | 'ai'(AI인식) | 'manual'(직접입력)
   }
   const [foodForm, setFoodForm] = useState(INITIAL_FOOD_FORM)
   const foodPhotoInputRef = useRef(null)
@@ -527,9 +541,31 @@ export default function MemberPortal() {
             sodiumPerG: result.sodium_per_g   != null ? String(Number(result.sodium_per_g).toFixed(6))   : '',
             sugarPerG:  result.sugar_per_g    != null ? String(Number(result.sugar_per_g).toFixed(6))    : '',
             aiConfidence: result.confidence,
+            source: 'ai',
             aiLoading: false,
           }))
           showToast('✓ 음식을 인식했어요! 내용을 확인해주세요')
+          // C-1: AI 인식 결과를 food_master 와 매칭 → 정확 일치면 식약처 공식값으로 보정, 아니면 후보 노출
+          try {
+            const qname = (result.food_name || '').trim()
+            if (qname.length >= 2) {
+              const { data: matches } = await supabase
+                .from('food_master')
+                .select('id,food_name,food_category,calories_per_g,protein_per_g,carbs_per_g,fat_per_g,fiber_per_g,sodium_per_g,sugar_per_g')
+                .ilike('food_name', `%${qname}%`)
+                .limit(8)
+              if (matches?.length) {
+                const exact = matches.find(m => (m.food_name || '').trim() === qname)
+                if (exact) {
+                  selectFoodSuggestion(exact)
+                  showToast('✓ 식약처 공식 데이터로 보정했어요')
+                } else {
+                  setFoodSuggestions(matches)
+                  setShowFoodSuggestions(true)
+                }
+              }
+            }
+          } catch { /* 매칭 실패는 무시 — AI 추정값 유지 */ }
         } catch (err) {
           showToast('인식 실패: ' + err.message)
           setFoodForm(p => ({ ...p, aiLoading: false }))
@@ -548,7 +584,7 @@ export default function MemberPortal() {
   }
 
   function onFoodNameChange(val) {
-    setFoodForm(p => ({ ...p, name: val }))
+    setFoodForm(p => ({ ...p, name: val, source: 'manual' }))
     clearTimeout(foodSearchTimer.current)
     if (val.trim().length < 2) { setFoodSuggestions([]); setShowFoodSuggestions(false); return }
     foodSearchTimer.current = setTimeout(async () => {
@@ -565,6 +601,7 @@ export default function MemberPortal() {
   function selectFoodSuggestion(item) {
     setFoodForm(p => ({
       ...p,
+      source:     'db',
       name:       item.food_name,
       calPerG:    item.calories_per_g != null ? String(item.calories_per_g) : p.calPerG,
       proteinPerG:item.protein_per_g  != null ? String(item.protein_per_g)  : p.proteinPerG,
@@ -622,6 +659,7 @@ export default function MemberPortal() {
         sugar_per_g:    parseFloat(foodForm.sugarPerG)   || null,
         photo_url,
         ai_recognized: !!foodForm.aiConfidence,
+        source: foodForm.source || (foodForm.aiConfidence ? 'ai' : 'manual'),
       }
       const { error } = await supabase.from('diet_logs').insert(row)
       if (error) throw error
@@ -2024,9 +2062,9 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                           <img src={item.photo_url} alt={item.food_name} crossOrigin="anonymous" style={{width:'48px',height:'48px',objectFit:'cover',borderRadius:'10px',flexShrink:0}} />
                         )}
                         <div style={{flex:1,minWidth:0}}>
-                          <div style={{display:'flex',alignItems:'center',gap:'4px',marginBottom:'3px'}}>
+                          <div style={{display:'flex',alignItems:'center',gap:'4px',marginBottom:'3px',flexWrap:'wrap'}}>
                             <span style={{fontSize:'13px',fontWeight:600,color:'#111'}}>{item.food_name}</span>
-                            {item.ai_recognized && <span style={{fontSize:'9px',background:'#F0FDF4',color:'#059669',borderRadius:'4px',padding:'1px 5px',fontWeight:700}}>AI</span>}
+                            {foodSourceBadge(item)}
                           </div>
                           <div style={{fontSize:'11px',color:'var(--m-text-dim)'}}>{item.amount_g}g</div>
                           {(cal || prot || carb || fat) && (
