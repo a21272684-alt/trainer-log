@@ -298,18 +298,9 @@ export default function MemberPortal() {
   const isAuthenticatedRef = useRef(false)
   useEffect(() => {
     // 중앙 Gemini API 키 로드 (앱 마운트 시 1회)
-    supabase.from('app_settings')
-      .select('value')
-      .eq('key', 'gemini_api_key')
-      .single()
-      .then(({ data }) => {
-        if (data?.value) {
-          // JSONB 컬럼 특성상 이중따옴표 제거 필수
-          const centralKey = String(data.value).replace(/^"|"$/g, '')
-          if (centralKey) setTrainerApiKey(centralKey)
-        }
-      })
-      .catch(e => console.warn('[app_settings] Gemini 키 로드 실패:', e.message))
+    // 중앙 Gemini 키는 서버(gemini-proxy 엣지함수)에만 둠 → 클라이언트는 키를 읽지 않음.
+    // sentinel 전달 시 callGeminiMultipart 가 프록시 경유로 라우팅됨.
+    setTrainerApiKey('__proxy__')
 
     // Bug 4 (Member) — Supabase v2 의 SIGNED_IN 은 token refresh / 탭 활성화 시점에도
     // 다시 발화됨. ref 가드 없으면 다른 인터넷 창에서 돌아올 때마다 환영 toast 가
