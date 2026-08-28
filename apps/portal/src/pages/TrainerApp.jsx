@@ -2146,17 +2146,15 @@ export default function TrainerApp() {
 
   // 중앙 Gemini API 키 + 긴급문의 링크 로드 (앱 마운트 시 1회)
   useEffect(() => {
-    supabase.from('app_settings').select('key, value').in('key', ['gemini_api_key', 'urgent_inquiry_url'])
+    // 중앙 Gemini 키는 서버(gemini-proxy)에만 → 클라는 sentinel 만. urgent_inquiry_url 만 로드.
+    setCentralApiKey('__proxy__')
+    supabase.from('app_settings').select('key, value').eq('key', 'urgent_inquiry_url')
       .then(({ data, error }) => {
-        // B-006 fix: silent fail 방지 — 에러 시 console 에 명시
         if (error) {
           console.warn('[app_settings] 로드 실패:', error.message)
           return
         }
-        if (!data) return
-        const apiKeyRow = data.find(r => r.key === 'gemini_api_key')
-        if (apiKeyRow?.value) setCentralApiKey(String(apiKeyRow.value).replace(/^"|"$/g, ''))
-        const urgentRow = data.find(r => r.key === 'urgent_inquiry_url')
+        const urgentRow = data?.find(r => r.key === 'urgent_inquiry_url')
         if (urgentRow?.value) setUrgentInquiryUrl(String(urgentRow.value).replace(/^"|"$/g, ''))
       })
       .catch(e => console.warn('[app_settings] catch:', e.message))

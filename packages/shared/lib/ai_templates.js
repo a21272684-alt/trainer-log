@@ -19,11 +19,52 @@
  * ─────────────────────────────────────────────────────────────
  */
 
+import { supabase } from './supabase'
+
 // ══════════════════════════════════════════════════════════════
 // 0. 공통 Gemini API 호출
 // ══════════════════════════════════════════════════════════════
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
+const PROXY_SENTINEL = '__proxy__'  // 중앙 키(서버 보관) 사용 신호
+
+// BYO 키(CRM gym owner 등 본인 키 보유) — Gemini 직접 호출
+async function callGeminiDirect(apiKey, model, contents, generationConfig, timeoutMs) {
+  const controller = new AbortController()
+  const tid = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const body = { contents }
+    if (generationConfig) body.generationConfig = generationConfig
+    const res = await fetch(`${GEMINI_BASE}/${model}:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    })
+    const data = await res.json()
+    if (!res.ok || data.error) throw new Error(data.error?.message || 'Gemini API 오류')
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+    if (!text?.trim()) throw new Error('AI 응답이 비어 있습니다')
+    return text
+  } finally {
+    clearTimeout(tid)
+  }
+}
+
+// 중앙 키 — gemini-proxy 엣지함수 경유(키는 서버에만). 로그인 세션 토큰으로 호출.
+async function callGeminiViaProxy(model, contents, generationConfig, timeoutMs) {
+  const invokePromise = supabase.functions.invoke('gemini-proxy', {
+    body: generationConfig ? { model, contents, generationConfig } : { model, contents },
+  })
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('AI 응답이 지연되어 요청을 종료했습니다. 다시 시도해주세요')), timeoutMs))
+  const { data, error } = await Promise.race([invokePromise, timeoutPromise])
+  if (error) throw new Error(error.message || 'AI 호출 오류')
+  if (data?.error) throw new Error(data.error.message || 'Gemini API 오류')
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
+  if (!text?.trim()) throw new Error('AI 응답이 비어 있습니다')
+  return text
+}
 
 /**
  * 텍스트 전용 Gemini 호출
@@ -37,27 +78,11 @@ const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
  */
 export async function callGemini(apiKey, model, prompt, opts = {}) {
   const { timeoutMs = 30000, generationConfig } = opts
-  const controller = new AbortController()
-  const tid = setTimeout(() => controller.abort(), timeoutMs)
-
-  try {
-    const body = { contents: [{ parts: [{ text: prompt }] }] }
-    if (generationConfig) body.generationConfig = generationConfig
-
-    const res = await fetch(`${GEMINI_BASE}/${model}:generateContent?key=${apiKey}`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(body),
-      signal:  controller.signal,
-    })
-    const data = await res.json()
-    if (!res.ok || data.error) throw new Error(data.error?.message || 'Gemini API 오류')
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text
-    if (!text?.trim()) throw new Error('AI 응답이 비어 있습니다')
-    return text
-  } finally {
-    clearTimeout(tid)
-  }
+  const contents = [{ parts: [{ text: prompt }] }]
+  // BYO 키(CRM 등)면 직접 호출, 아니면(중앙키) 프록시 경유
+  if (apiKey && apiKey !== PROXY_SENTINEL)
+    return callGeminiDirect(apiKey, model, contents, generationConfig, timeoutMs)
+  return callGeminiViaProxy(model, contents, generationConfig, timeoutMs)
 }
 
 /**
@@ -70,26 +95,14 @@ export async function callGemini(apiKey, model, prompt, opts = {}) {
  */
 export async function callGeminiMultipart(apiKey, model, parts, opts = {}) {
   const { timeoutMs = 45000 } = opts
-  const controller = new AbortController()
-  const tid = setTimeout(() => controller.abort(), timeoutMs)
-
+  const contents = [{ parts }]
   try {
-    const res = await fetch(`${GEMINI_BASE}/${model}:generateContent?key=${apiKey}`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ contents: [{ parts }] }),
-      signal:  controller.signal,
-    })
-    const data = await res.json()
-    if (!res.ok || data.error) throw new Error(data.error?.message || 'Gemini API 오류')
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text
-    if (!text?.trim()) throw new Error('AI 응답이 비어 있습니다')
-    return text
+    if (apiKey && apiKey !== PROXY_SENTINEL)
+      return await callGeminiDirect(apiKey, model, contents, undefined, timeoutMs)
+    return await callGeminiViaProxy(model, contents, undefined, timeoutMs)
   } catch (e) {
     if (e.name === 'AbortError') throw new Error('AI 응답이 지연되어 요청을 종료했습니다. 다시 시도해주세요')
     throw e
-  } finally {
-    clearTimeout(tid)
   }
 }
 
