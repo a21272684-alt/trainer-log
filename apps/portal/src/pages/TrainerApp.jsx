@@ -1785,6 +1785,7 @@ export default function TrainerApp() {
   const [revenueRefreshKey, setRevenueRefreshKey] = useState(0)
   // 회원별 누적/최근 결제 캐시 (N+1 방지를 위해 단일 배치 쿼리로 채움)
   const [revenueByMember, setRevenueByMember] = useState({}) // { [memberId]: { confirmed:number, recentPays: row[] } }
+  const [revAttendance,   setRevAttendance]   = useState([]) // 이번 달 출결(session_deducted) — 소진 계산용
   // 상품 등록/취소 연타 방어용 가드
   const [paymentBusy, setPaymentBusy] = useState(false)
 
@@ -2570,6 +2571,22 @@ export default function TrainerApp() {
     }
   }
   useEffect(() => { if (tab === 'revenue' && trainer) loadMonthPayments(payMonthStr) }, [tab, payMonthStr])
+
+  // 소진 계산용 — 이번 달 출결(session_deducted=true) 로드. 일지발송(자동출석)+수기출석+노쇼차감 모두 포함.
+  useEffect(() => {
+    if (tab !== 'revenue' || !trainer) return
+    const n = new Date()
+    const from = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-01`
+    supabase.from('attendance')
+      .select('member_id, attended_date')
+      .eq('trainer_id', trainer.id)
+      .eq('session_deducted', true)
+      .gte('attended_date', from)
+      .then(({ data, error }) => {
+        if (error) { console.warn('[revAttendance] 로드 실패:', error.message); return }
+        setRevAttendance(data || [])
+      })
+  }, [tab, trainer, revenueRefreshKey])
 
   // 매출 탭에서 회원별 누적/최근 결제를 단일 배치 쿼리로 채워둠 (N+1 방지)
   useEffect(() => {
@@ -3988,12 +4005,13 @@ export default function TrainerApp() {
     const now = new Date()
     const weekStart = new Date(now); weekStart.setDate(now.getDate()-(now.getDay()||7)+1); weekStart.setHours(0,0,0,0)
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    const weekLogs = logs.filter(l => new Date(l.created_at) >= weekStart)
-    const monthLogs = logs.filter(l => new Date(l.created_at) >= monthStart)
     const remainRevenue = members.reduce((s,m) => s+(m.session_price||0)*(m.total_sessions-m.done_sessions), 0)
-    // P0 perf fix: 외부 memberById useMemo (members 변경 시만 재생성) 활용 → O(N×M) → O(N).
-    const weekRevenue = weekLogs.reduce((s,l) => s + (memberById.get(l.member_id)?.session_price || 0), 0)
-    const monthRevenue = monthLogs.reduce((s,l) => s + (memberById.get(l.member_id)?.session_price || 0), 0)
+    // 소진 = 출결(session_deducted) 기준 → 일지발송(자동출석)·수기출석·노쇼차감 모두 반영.
+    //   (기존엔 logs 만 세서 수기 출석 차감이 소진에 누락됐음)
+    const attDate = d => new Date(d + 'T00:00:00')
+    const weekAtt = revAttendance.filter(a => attDate(a.attended_date) >= weekStart)
+    const weekRevenue  = weekAtt.reduce((s,a) => s + (memberById.get(a.member_id)?.session_price || 0), 0)
+    const monthRevenue = revAttendance.reduce((s,a) => s + (memberById.get(a.member_id)?.session_price || 0), 0)
     const dayOfMonth = now.getDate()
     const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate()
     const projectedMonth = dayOfMonth>0 ? Math.round(monthRevenue/dayOfMonth*daysInMonth) : 0
