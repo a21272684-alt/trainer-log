@@ -964,7 +964,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
     const FEATURES = [
       { icon:'📋', title:'수업일지 열람', desc:'트레이너가 작성한 수업일지를 열람하고 PDF로 저장해요' },
       { icon:'⚖️', title:'체중·건강 추적', desc:'공복/저녁 체중, 수면을 기록하고 14일 추이를 확인해요' },
-      { icon:'🏃', title:'개인운동 일지', desc:'60+ 종목 자동완성, 세트·볼륨 계산, 근육 다이어그램 제공' },
+      { icon:'🏃', title:'개인운동 일지', desc:'60+ 종목 자동완성, 세트·볼륨 계산, 운동 동작 일러스트' },
     ]
     return (
       <div style={{background:'#F7F8F4',color:'#111827',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden'}}>
@@ -1030,7 +1030,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
             ))}
           </div>
 
-          {/* 근육 다이어그램 배너 */}
+          {/* 운동 동작 일러스트 배너 */}
           <FadeUp delay={100}>
             <div style={{background:'linear-gradient(135deg,#f0fcd4,#ecfccb)',
               border:'1px solid rgba(200,241,53,0.52)',borderRadius:'16px',
@@ -1038,7 +1038,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
               <div style={{flex:1}}>
                 <div style={{fontSize:'11px',fontWeight:700,color:'#4d7c0f',letterSpacing:'0.08em',marginBottom:'8px'}}>PERSONAL WORKOUT</div>
                 <div style={{fontSize:'14px',fontWeight:800,color:'#111827',marginBottom:'8px',lineHeight:1.4}}>
-                  근육 다이어그램으로<br/>오늘 운동 한눈에 확인
+                  운동 동작 일러스트로<br/>오늘 운동 한눈에 확인
                 </div>
                 <div style={{display:'flex',gap:'5px',flexWrap:'wrap'}}>
                   {['가슴','등','어깨','하체','코어'].map((m,i)=>{
@@ -1048,16 +1048,9 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                   })}
                 </div>
               </div>
-              <svg width="48" height="110" viewBox="0 0 80 180" style={{flexShrink:0}}>
-                <circle cx="40" cy="12" r="11" fill="#d1d5db"/>
-                <rect x="35" y="22" width="10" height="8" rx="2" fill="#d1d5db"/>
-                <ellipse cx="21" cy="38" rx="9" ry="8" fill="#8b5cf6"/>
-                <ellipse cx="59" cy="38" rx="9" ry="8" fill="#8b5cf6"/>
-                <path d="M30 32 Q40 37 50 32 L52 65 Q40 69 28 65 Z" fill="#ef4444"/>
-                <rect x="29" y="65" width="22" height="28" rx="3" fill="#eab308"/>
-                <ellipse cx="32" cy="120" rx="11" ry="19" fill="#22c55e"/>
-                <ellipse cx="48" cy="120" rx="11" ry="19" fill="#22c55e"/>
-              </svg>
+              <div style={{flexShrink:0,width:'92px',height:'92px',borderRadius:'14px',background:'#fff',border:'1px solid rgba(200,241,53,0.5)',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
+                <img src="/exercises/bench-press.svg" alt="운동 동작 일러스트" loading="lazy" style={{width:'86%',height:'86%',objectFit:'contain'}} />
+              </div>
             </div>
           </FadeUp>
 
