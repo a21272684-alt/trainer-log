@@ -6,6 +6,7 @@ import TermsAgreementModal from '@trainer-log/shared/components/common/TermsAgre
 import InAppBrowserBanner from '@trainer-log/shared/components/common/InAppBrowserBanner'
 import LoginNoticeModal from '@trainer-log/shared/components/common/LoginNoticeModal'
 import { EXERCISE_DB } from '../lib/exercises'
+import { exerciseIllustration } from '../lib/exerciseIllustrations'
 import { Link } from 'react-router-dom'
 import { Chart, registerables } from 'chart.js'
 import { callGeminiMultipart, buildFoodVisionParts, parseFoodVisionResult } from '@trainer-log/shared/lib/ai_templates'
@@ -34,63 +35,13 @@ function foodSourceBadge(item) {
   return <span style={{ fontSize: '9px', background: s.bg, color: s.color, borderRadius: '4px', padding: '1px 5px', fontWeight: 700, whiteSpace: 'nowrap' }}>{s.label}</span>
 }
 
-function MuscleDiagram({ primary = [], secondary = [] }) {
-  if (!primary.length && !secondary.length) return null
-  const c = (m) => {
-    if (primary.includes(m)) return MUSCLE_COLOR[m] || '#888'
-    if (secondary.includes(m)) return (MUSCLE_COLOR[m] || '#888') + '55'
-    return '#e5e7eb'
-  }
+// 운동 동작 일러스트 썸네일 (everkinetic, /exercises/<slug>.svg). 매칭 없으면 렌더 안 함.
+function ExerciseThumb({ name, size = 56 }) {
+  const src = exerciseIllustration(name)
+  if (!src) return null
   return (
-    <div style={{display:'flex',justifyContent:'center',gap:'20px',margin:'8px 0 12px',padding:'10px',background:'#f5f5f5',borderRadius:'12px'}}>
-      <div style={{textAlign:'center'}}>
-        <div style={{fontSize:'10px',color:'#aaa',marginBottom:'4px'}}>앞면</div>
-        <svg width="80" height="180" viewBox="0 0 80 180">
-          <circle cx="40" cy="12" r="11" fill="#d1d5db"/>
-          <rect x="35" y="22" width="10" height="8" rx="2" fill="#d1d5db"/>
-          <ellipse cx="21" cy="38" rx="9" ry="8" fill={c('어깨')}/>
-          <ellipse cx="59" cy="38" rx="9" ry="8" fill={c('어깨')}/>
-          <path d="M30 32 Q40 37 50 32 L52 65 Q40 69 28 65 Z" fill={c('가슴')}/>
-          <rect x="29" y="65" width="22" height="28" rx="3" fill={c('코어')}/>
-          <ellipse cx="15" cy="57" rx="6" ry="14" fill={c('이두')}/>
-          <ellipse cx="65" cy="57" rx="6" ry="14" fill={c('이두')}/>
-          <ellipse cx="14" cy="80" rx="5" ry="11" fill="#d1d5db"/>
-          <ellipse cx="66" cy="80" rx="5" ry="11" fill="#d1d5db"/>
-          <ellipse cx="32" cy="120" rx="11" ry="19" fill={c('하체')}/>
-          <ellipse cx="48" cy="120" rx="11" ry="19" fill={c('하체')}/>
-          <ellipse cx="31" cy="154" rx="8" ry="14" fill={c('하체')} opacity="0.7"/>
-          <ellipse cx="49" cy="154" rx="8" ry="14" fill={c('하체')} opacity="0.7"/>
-        </svg>
-      </div>
-      <div style={{textAlign:'center'}}>
-        <div style={{fontSize:'10px',color:'#aaa',marginBottom:'4px'}}>뒷면</div>
-        <svg width="80" height="180" viewBox="0 0 80 180">
-          <circle cx="40" cy="12" r="11" fill="#d1d5db"/>
-          <rect x="35" y="22" width="10" height="8" rx="2" fill="#d1d5db"/>
-          <ellipse cx="21" cy="38" rx="9" ry="8" fill={c('어깨')}/>
-          <ellipse cx="59" cy="38" rx="9" ry="8" fill={c('어깨')}/>
-          <path d="M28 32 Q40 37 52 32 L54 65 Q40 70 26 65 Z" fill={c('등')}/>
-          <rect x="29" y="65" width="22" height="14" rx="3" fill={c('등')} opacity="0.6"/>
-          <rect x="29" y="80" width="22" height="13" rx="3" fill={c('코어')} opacity="0.5"/>
-          <ellipse cx="15" cy="57" rx="6" ry="14" fill={c('삼두')}/>
-          <ellipse cx="65" cy="57" rx="6" ry="14" fill={c('삼두')}/>
-          <ellipse cx="14" cy="80" rx="5" ry="11" fill="#d1d5db"/>
-          <ellipse cx="66" cy="80" rx="5" ry="11" fill="#d1d5db"/>
-          <ellipse cx="32" cy="120" rx="11" ry="19" fill={c('하체')}/>
-          <ellipse cx="48" cy="120" rx="11" ry="19" fill={c('하체')}/>
-          <ellipse cx="31" cy="154" rx="8" ry="14" fill={c('하체')} opacity="0.7"/>
-          <ellipse cx="49" cy="154" rx="8" ry="14" fill={c('하체')} opacity="0.7"/>
-        </svg>
-      </div>
-      <div style={{display:'flex',flexDirection:'column',justifyContent:'center',gap:'4px'}}>
-        {[...primary.map(m=>({m,type:'주동근'})),...secondary.map(m=>({m,type:'보조근'}))].map(({m,type})=>(
-          <div key={m+type} style={{display:'flex',alignItems:'center',gap:'5px'}}>
-            <div style={{width:'8px',height:'8px',borderRadius:'50%',background:MUSCLE_COLOR[m]||'#888',opacity:type==='보조근'?0.5:1,flexShrink:0}}></div>
-            <span style={{fontSize:'10px',color:'#555',lineHeight:1}}>{m}</span>
-            <span style={{fontSize:'9px',color:'#aaa'}}>{type==='주동근'?'●':'○'}</span>
-          </div>
-        ))}
-      </div>
+    <div style={{flexShrink:0,width:size,height:size,borderRadius:'10px',background:'#f4f6f0',border:'1px solid #eef0ea',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
+      <img src={src} alt={`${name} 동작`} loading="lazy" style={{width:'88%',height:'88%',objectFit:'contain'}} />
     </div>
   )
 }
@@ -2393,14 +2344,6 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
               const exList = s.exercises || []
               const vol = s.total_volume || 0
               const dateStr = new Date(s.workout_date+'T00:00:00').toLocaleDateString('ko-KR',{month:'short',day:'numeric',weekday:'short'})
-              const allPrimary = [...new Set(exList.flatMap(e => {
-                const dbEx = EXERCISE_DB.find(d => d.name === e.name)
-                return dbEx ? dbEx.primary : (e.muscle_group ? [e.muscle_group] : [])
-              }))]
-              const allSecondary = [...new Set(exList.flatMap(e => {
-                const dbEx = EXERCISE_DB.find(d => d.name === e.name)
-                return dbEx ? dbEx.secondary : []
-              }).filter(m => !allPrimary.includes(m)))]
               const muscles = [...new Set(exList.map(e=>e.muscle_group).filter(Boolean))]
               return (
                 <div key={s.id} style={{background:'#fff',borderRadius:'16px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)',marginBottom:'12px',padding:'14px 16px',cursor:'pointer',border:'1px solid #f0f0f0'}} onClick={()=>setWorkoutDetailId(isOpen?null:s.id)}>
@@ -2422,26 +2365,28 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                   </div>
                   {isOpen && (
                     <div style={{marginTop:'14px',borderTop:'1px solid #F0FDF4',paddingTop:'14px'}} onClick={e=>e.stopPropagation()}>
-                      <MuscleDiagram primary={allPrimary} secondary={allSecondary} />
                       {exList.map((ex,ei)=>{
                         const exVol = ex.sets.reduce((s,set)=>s+((parseFloat(set.weight)||0)*(parseInt(set.reps)||0)),0)
                         const dbEx = EXERCISE_DB.find(d => d.name === ex.name)
                         return (
-                          <div key={ei} style={{marginBottom:'12px'}}>
-                            <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'}}>
-                              <span style={{fontSize:'13px',fontWeight:700,color:'#111'}}>{ex.name}</span>
-                              {ex.muscle_group && <span style={{fontSize:'10px',padding:'2px 8px',borderRadius:'6px',background:(MUSCLE_COLOR[ex.muscle_group]||'#6b7280')+'22',color:MUSCLE_COLOR[ex.muscle_group]||'#6b7280',border:`1px solid ${(MUSCLE_COLOR[ex.muscle_group]||'#6b7280')}44`,fontWeight:600}}>{ex.muscle_group}</span>}
-                              {dbEx && <span style={{fontSize:'10px',color:'#aaa'}}>장비: {dbEx.eq}</span>}
-                              <span style={{fontSize:'11px',color:'#10B981',fontWeight:600,marginLeft:'auto'}}>볼륨 {Math.round(exVol)}kg</span>
-                            </div>
-                            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(90px,1fr))',gap:'6px'}}>
-                              {ex.sets.map((set,si)=>(
-                                <div key={si} style={{background:'#F0FDF4',borderRadius:'10px',padding:'8px',fontSize:'12px',textAlign:'center',border:'1px solid #A7F3D0'}}>
-                                  <div style={{color:'#10B981',fontSize:'10px',fontWeight:700,marginBottom:'3px'}}>{si+1}세트</div>
-                                  <div style={{fontWeight:700,fontFamily:"'DM Mono',monospace",color:'#111'}}>{set.weight||'—'}kg × {set.reps||'—'}회</div>
-                                  {set.rest_sec && <div style={{color:'#6b7280',fontSize:'10px',marginTop:'2px'}}>휴식 {set.rest_sec}초</div>}
-                                </div>
-                              ))}
+                          <div key={ei} style={{marginBottom:'12px',display:'flex',gap:'10px',alignItems:'flex-start'}}>
+                            <ExerciseThumb name={ex.name} />
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'}}>
+                                <span style={{fontSize:'13px',fontWeight:700,color:'#111'}}>{ex.name}</span>
+                                {ex.muscle_group && <span style={{fontSize:'10px',padding:'2px 8px',borderRadius:'6px',background:(MUSCLE_COLOR[ex.muscle_group]||'#6b7280')+'22',color:MUSCLE_COLOR[ex.muscle_group]||'#6b7280',border:`1px solid ${(MUSCLE_COLOR[ex.muscle_group]||'#6b7280')}44`,fontWeight:600}}>{ex.muscle_group}</span>}
+                                {dbEx && <span style={{fontSize:'10px',color:'#aaa'}}>장비: {dbEx.eq}</span>}
+                                <span style={{fontSize:'11px',color:'#10B981',fontWeight:600,marginLeft:'auto'}}>볼륨 {Math.round(exVol)}kg</span>
+                              </div>
+                              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(90px,1fr))',gap:'6px'}}>
+                                {ex.sets.map((set,si)=>(
+                                  <div key={si} style={{background:'#F0FDF4',borderRadius:'10px',padding:'8px',fontSize:'12px',textAlign:'center',border:'1px solid #A7F3D0'}}>
+                                    <div style={{color:'#10B981',fontSize:'10px',fontWeight:700,marginBottom:'3px'}}>{si+1}세트</div>
+                                    <div style={{fontWeight:700,fontFamily:"'DM Mono',monospace",color:'#111'}}>{set.weight||'—'}kg × {set.reps||'—'}회</div>
+                                    {set.rest_sec && <div style={{color:'#6b7280',fontSize:'10px',marginTop:'2px'}}>휴식 {set.rest_sec}초</div>}
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           </div>
                         )
@@ -2456,6 +2401,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                 </div>
               )
             })}
+            <div style={{textAlign:'center',fontSize:'10px',color:'#c4c9c0',marginTop:'18px',lineHeight:1.5}}>운동 동작 일러스트: everkinetic · CC BY-SA 4.0</div>
           </div>
         )
       })()}
@@ -2514,8 +2460,12 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                   </button>
                 ))}
               </div>
-              {/* 근육 다이어그램 (운동 선택 시) */}
-              {dbEx && <MuscleDiagram primary={dbEx.primary} secondary={dbEx.secondary} />}
+              {/* 운동 동작 일러스트 (운동 선택 시) */}
+              {dbEx && exerciseIllustration(dbEx.name) && (
+                <div style={{display:'flex',justifyContent:'center',margin:'6px 0 10px'}}>
+                  <ExerciseThumb name={dbEx.name} size={76} />
+                </div>
+              )}
               {/* 세트 그리드 */}
               <div style={{display:'grid',gridTemplateColumns:'32px 1fr 1fr 1fr 24px',gap:'4px',marginBottom:'4px',alignItems:'center'}}>
                 <span style={{fontSize:'10px',color:'#aaa',textAlign:'center'}}>세트</span>
