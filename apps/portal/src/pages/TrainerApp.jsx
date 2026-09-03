@@ -15,6 +15,8 @@ import MemberTransformationUpload from './trainer/MemberTransformationUpload'
 import MemberDietView from './trainer/MemberDietView'
 import AttendancePolicyEditor from './trainer/AttendancePolicyEditor'
 import { Link } from 'react-router-dom'
+import { EXERCISE_DB } from '../lib/exercises'
+import { exerciseIllustration } from '../lib/exerciseIllustrations'
 import '../styles/trainer.css'
 import { computeStats, buildInsightPrompt, callGeminiInsight } from '@trainer-log/shared/lib/memberInsights'
 import { computeRiskScore, getRiskLevel, RISK_LEVELS } from '@trainer-log/shared/lib/churnRisk'
@@ -30,6 +32,17 @@ import {
   callGemini,
   buildSessionLogPrompt,
 } from '@trainer-log/shared/lib/ai_templates'
+
+// 운동 동작 일러스트 썸네일 (밝은 박스 — 다크 테마에서도 보이게). 매칭 없으면 렌더 안 함.
+function ExThumb({ name, size = 46 }) {
+  const src = exerciseIllustration(name)
+  if (!src) return null
+  return (
+    <div style={{flexShrink:0,width:size,height:size,borderRadius:'9px',background:'#f4f6f0',border:'1px solid #e6e8e0',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
+      <img src={src} alt={`${name} 동작`} loading="lazy" style={{width:'88%',height:'88%',objectFit:'contain'}} />
+    </div>
+  )
+}
 
 // 통합 매출 내역 (revenue 탭용)
 function RevenuePaymentList({ trainerId, members, refreshKey }) {
@@ -6788,7 +6801,10 @@ export default function TrainerApp() {
                 {exercises.map(ex => (
                   <div key={ex.id} className="ex-block">
                     <div className="ex-block-header">
-                      <span className="ex-block-name">{ex.name}</span>
+                      <div style={{display:'flex',alignItems:'center',gap:'9px',minWidth:0}}>
+                        <ExThumb name={ex.name} size={40} />
+                        <span className="ex-block-name">{ex.name}</span>
+                      </div>
                       <div className="ex-block-actions">
                         <button className="btn btn-ghost btn-sm" onClick={()=>editExercise(ex.id)} style={{fontSize:'11px',padding:'4px 10px'}}>수정</button>
                         <button className="ex-set-remove" onClick={()=>setExercises(exercises.filter(e=>e.id!==ex.id))} style={{fontSize:'16px',marginLeft:'4px'}}>×</button>
@@ -7992,7 +8008,42 @@ export default function TrainerApp() {
 
       {/* EXERCISE MODAL */}
       <Modal open={exModal} onClose={()=>setExModal(false)} title={editingExId?'운동 수정':'운동 종목 추가'} maxWidth="400px">
-        <div className="form-group"><label>운동 종목명</label><input type="text" value={exName} onChange={e=>setExName(e.target.value)} placeholder="예: 벤치프레스" /></div>
+        <div className="form-group">
+          <label>운동 종목명</label>
+          <input type="text" value={exName} onChange={e=>setExName(e.target.value)} placeholder="예: 벤치프레스" />
+          {/* 자동완성 — 목록에서 고르면 회원 일지에 동작 그림이 표시됨 */}
+          {(() => {
+            const q = (exName || '').trim()
+            if (!q) return null
+            const nq = q.replace(/\s/g, '')
+            const matched = exerciseIllustration(q)
+            const exact = EXERCISE_DB.some(e => e.name === q)
+            const sugg = exact ? [] : EXERCISE_DB.filter(e => e.name.replace(/\s/g, '').includes(nq)).slice(0, 6)
+            return (
+              <>
+                {matched && (
+                  <div style={{display:'flex',alignItems:'center',gap:'8px',marginTop:'8px',fontSize:'12px',color:'var(--text-muted)'}}>
+                    <ExThumb name={q} size={40} />
+                    <span>✓ 이 동작 그림이 회원 일지에 표시돼요</span>
+                  </div>
+                )}
+                {!matched && sugg.length > 0 && (
+                  <div style={{marginTop:'8px'}}>
+                    <div style={{fontSize:'11px',color:'var(--text-dim)',marginBottom:'6px'}}>이 중에서 고르면 동작 그림이 붙어요</div>
+                    <div style={{display:'flex',flexWrap:'wrap',gap:'6px'}}>
+                      {sugg.map(e => (
+                        <button key={e.name} type="button" onClick={()=>setExName(e.name)}
+                          style={{display:'flex',alignItems:'center',gap:'6px',padding:'4px 10px 4px 4px',borderRadius:'20px',border:'1px solid var(--border)',background:'var(--surface2)',color:'var(--text-muted)',fontSize:'12px',cursor:'pointer',fontFamily:'inherit'}}>
+                          <ExThumb name={e.name} size={26} />{e.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )
+          })()}
+        </div>
         <div className="section-label" style={{marginTop:0}}>세트 기록</div>
         {newSets.map((s,i)=>(
           <div key={i} className="ex-set-item">

@@ -82,15 +82,25 @@ const NAME_TO_SLUG = {
   // 매칭 없음(그림 생략): '박스 점프'
 }
 
+// 공백 제거 + 소문자화(라틴) — 띄어쓰기 차이를 흡수한 정규화 키
+const normalize = (s) => String(s || '').replace(/\s+/g, '').toLowerCase()
+
+// 정규화 인덱스: "레터럴레이즈" → slug (트레이너가 "레터럴 레이즈"/"레터럴레이즈" 아무렇게 쳐도 매칭)
+const NORM_TO_SLUG = {}
+for (const [name, slug] of Object.entries(NAME_TO_SLUG)) NORM_TO_SLUG[normalize(name)] = slug
+
 /**
  * 종목명으로 동작 일러스트 URL 반환 (없으면 null).
- * 공백/버전 표기 차이를 흡수하기 위해 정확 일치 → trim 일치 순으로 시도.
- * @param {string} name 종목명 (EXERCISE_DB.name)
+ * 정확 일치 → trim 일치 → 공백무시 정규화 일치 순으로 시도.
+ * (트레이너 입력은 자유 텍스트라 띄어쓰기 차이가 흔함)
+ * @param {string} name 종목명 (EXERCISE_DB.name 또는 자유 입력)
  * @returns {string|null} `/exercises/<slug>.svg` 또는 null
  */
 export function exerciseIllustration(name) {
   if (!name) return null
-  const slug = NAME_TO_SLUG[name] || NAME_TO_SLUG[String(name).trim()]
+  const slug = NAME_TO_SLUG[name]
+    || NAME_TO_SLUG[String(name).trim()]
+    || NORM_TO_SLUG[normalize(name)]
   return slug ? `/exercises/${slug}.svg` : null
 }
 
