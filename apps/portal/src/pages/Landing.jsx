@@ -16,7 +16,7 @@ const TRAINER_FEATURES = [
 const MEMBER_FEATURES = [
   { icon: '📋', title: '수업일지 열람', desc: 'PDF 저장·복사로 내 성장 기록을 언제든 꺼내볼 수 있어요' },
   { icon: '⚖️', title: '체중·건강 추적', desc: '공복/저녁 체중, 수면 레벨을 기록하고 14일 추이를 확인' },
-  { icon: '🏃', title: '개인운동 일지', desc: '60+ 종목 자동완성, 세트·볼륨 계산, 앞뒤 근육 다이어그램' },
+  { icon: '🏃', title: '개인운동 일지', desc: '60+ 종목 자동완성, 세트·볼륨 계산, 운동 동작 일러스트' },
   { icon: '🤝', title: '회원 커뮤니티', desc: '같은 센터 회원들과 운동 일상을 사진·이모지로 공유' },
 ]
 
@@ -1577,10 +1577,14 @@ export default function Landing() {
             })
           })()}
         </div>
-        <div style={{display:'flex',justifyContent:'center',gap:'20px',marginBottom:'16px'}}>
+        <div style={{display:'flex',justifyContent:'center',gap:'20px',marginBottom:'14px'}}>
           <Link to="/terms" style={{fontSize:'11px',color:'#64748b',textDecoration:'none'}}>이용약관</Link>
           <Link to="/privacy" style={{fontSize:'11px',color:'#64748b',textDecoration:'none'}}>개인정보처리방침</Link>
           <Link to="/refund" style={{fontSize:'11px',color:'#64748b',textDecoration:'none'}}>환불정책</Link>
+        </div>
+        <div style={{fontSize:'11px',color:'#475569',lineHeight:1.7,marginBottom:'12px'}}>
+          이루스케일즈 · 대표 윤준현<br/>
+          문의 <a href="https://pf.kakao.com/_ownapp" target="_blank" rel="noopener noreferrer" style={{color:'#64748b',textDecoration:'none',fontWeight:600}}>카카오톡 @ownapp</a>
         </div>
         <div style={{fontSize:'11px',color:'#1e293b',fontFamily:"'DM Mono',monospace"}}>v2.0 · 오운</div>
       </footer>
