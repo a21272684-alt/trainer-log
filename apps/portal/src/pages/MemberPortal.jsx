@@ -1471,6 +1471,32 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                       {l.content}
                     </div>
 
+                    {/* 운동 데이터 — 종목별 동작 그림 (헬스장부식) */}
+                    {(() => {
+                      const rawExs = l.workout_session?.exercises || l.exercises_data
+                      const list = Array.isArray(rawExs) ? rawExs : []
+                      if (!list.length) return null
+                      return (
+                        <div style={{padding:'0 16px 4px'}}>
+                          <div style={{fontSize:'12px',fontWeight:700,color:'#6B7280',marginBottom:'10px'}}>💪 오늘의 운동</div>
+                          {list.map((ex, ei) => (
+                            <div key={ei} style={{display:'flex',gap:'10px',alignItems:'flex-start',marginBottom:'12px'}}>
+                              <ExerciseThumb name={ex.name} size={52} />
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontSize:'13px',fontWeight:700,color:'#111',marginBottom:'5px'}}>{ex.name}</div>
+                                <div style={{display:'flex',flexWrap:'wrap',gap:'5px'}}>
+                                  {(Array.isArray(ex.sets)?ex.sets:[]).map((set,si)=>{
+                                    const label = [set.weight?`${set.weight}kg`:null, set.reps?`${set.reps}회`:null].filter(Boolean).join(' × ') || '-'
+                                    return <span key={si} style={{fontSize:'11px',padding:'3px 8px',borderRadius:'8px',background:'#F0FDF4',border:'1px solid #A7F3D0',color:'#111',fontWeight:600,fontVariantNumeric:'tabular-nums'}}>{label}</span>
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })()}
+
                     {/* 미디어 영역 */}
                     {mediaArray.length > 0 && (
                       <div style={{padding:'0 16px 16px'}}>
