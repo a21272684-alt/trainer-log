@@ -3848,6 +3848,47 @@ export default function TrainerApp() {
   // showToast 는 외부 hook 결과라 안정적이라 가정. trainer.id / notif* / members 는 deps.
   }, [notifEnabled, notifMinutes, trainer?.id, members])
 
+  // 반복(여러 회) 추가 — spec(회원·요일·시간·기간)으로 세션 여러 개를 한 번에 생성.
+  // 생성 로직은 ScheduleModal.repeatDates 와 동일해야 함(base=실제 이번 주 월요일, 지난 날짜 skip).
+  const handleSaveManyBlocks = useCallback(async (spec) => {
+    const { memberId, weekdays, start, end, color, memo, unit, count } = spec
+    const mon = new Date(); mon.setHours(0,0,0,0)
+    mon.setDate(mon.getDate() - ((mon.getDay()+6)%7))   // 이번 주 월요일
+    const today = new Date(); today.setHours(0,0,0,0)
+    const wds = [...weekdays].sort((a,b)=>a-b)
+    const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+    const dates = []
+    if (unit === 'weeks') {
+      for (let w=0; w<count; w++) for (const wd of wds) {
+        const d = new Date(mon); d.setDate(mon.getDate()+wd+w*7)
+        if (d >= today) dates.push(d)
+      }
+    } else { // 'count' — 미래로 정확히 count 개
+      for (let w=0; w<120 && dates.length<count; w++) for (const wd of wds) {
+        const d = new Date(mon); d.setDate(mon.getDate()+wd+w*7)
+        if (d >= today) { dates.push(d); if (dates.length>=count) break }
+      }
+    }
+    if (!dates.length) { showToast('추가할 세션이 없어요 (요일·기간 확인)'); return }
+    const base = Date.now()
+    const newBlocks = dates.map((d,i) => ({
+      id: `${base}_${i}_${Math.random().toString(36).slice(2,6)}`,
+      date: fmt(d), start, end, type: 'lesson', color, memo: memo || '', memberId, title: null,
+    }))
+    // 같은 날짜·시작시간에 이미 세션이 있으면(겹침 가능) 안내
+    const keys = new Set(blocks.filter(b=>!b.cancelled).map(b=>`${b.date}_${b.start}`))
+    const dup = newBlocks.filter(nb => keys.has(`${nb.date}_${nb.start}`)).length
+    setBlocks(prev => [...prev, ...newBlocks])
+    setEditingBlock(null)
+    showToast(`✓ ${newBlocks.length}개 세션이 추가됐어요!${dup ? ` · 같은 시간대 ${dup}개 겹칠 수 있어요` : ''}`)
+    if (notifEnabled && notifPerm() === 'granted' && trainer?.id && import.meta.env.VITE_VAPID_PUBLIC_KEY) {
+      const memberName = members.find(m => m.id === memberId)?.name || '회원'
+      for (const b of newBlocks) {
+        try { await scheduleNotification(trainer.id, b, memberName, notifMinutes) } catch(e) {}
+      }
+    }
+  }, [blocks, notifEnabled, notifMinutes, trainer?.id, members])
+
   const handleDeleteBlock = useCallback(async (id) => {
     // U-014: 실수 클릭 방지 — confirm 추가
     if (!window.confirm('정말 삭제할까요? 일정과 알림 예약 모두 사라지며 복구할 수 없습니다.')) return
@@ -8097,6 +8138,7 @@ export default function TrainerApp() {
         colors={COLORS}
         onClose={closeScheduleModal}
         onSave={handleSaveBlock}
+        onSaveMany={handleSaveManyBlocks}
         onDelete={handleDeleteBlock}
         onCancelLesson={handleCancelLesson}
       />
