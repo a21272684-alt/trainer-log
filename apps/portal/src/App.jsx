@@ -8,6 +8,7 @@ import Report from './pages/Report'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 import Refund from './pages/Refund'
+import AccountDeletion from './pages/AccountDeletion'
 import ComingSoon from './pages/ComingSoon'
 
 // ⚠️ Phase D-4 베타 출시 정책 (Path B):
@@ -64,6 +65,7 @@ export default function App() {
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/refund" element={<Refund />} />
+          <Route path="/account-deletion" element={<AccountDeletion />} />
         </Routes>
       </ToastProvider>
     </BrowserRouter>
