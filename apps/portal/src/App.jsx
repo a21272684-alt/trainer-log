@@ -10,6 +10,7 @@ import Privacy from './pages/Privacy'
 import Refund from './pages/Refund'
 import AccountDeletion from './pages/AccountDeletion'
 import ComingSoon from './pages/ComingSoon'
+import { initNativeAuthListener } from './lib/nativeAuth'
 
 // ⚠️ Phase D-4 베타 출시 정책 (Path B):
 // CRM / Community 는 코드는 완성 상태이나 운영(prod) 배포엔 미공개.
@@ -21,6 +22,9 @@ const CommunityPortal = lazy(() => import('./pages/CommunityPortal'))
 const PublicProfile = lazy(() => import('./pages/trainer/PublicProfile'))
 
 export default function App() {
+  // 네이티브 앱(Capacitor)에서만 OAuth 딥링크 복귀 리스너를 1회 등록. 웹에선 no-op.
+  useEffect(() => { initNativeAuthListener() }, [])
+
   return (
     <BrowserRouter>
       <ToastProvider>

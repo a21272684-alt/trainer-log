@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@trainer-log/shared/lib/supabase'
+import { signInWithProvider } from '../lib/nativeAuth'
 import { useToast } from '@trainer-log/shared/components/common/Toast'
 import Modal from '@trainer-log/shared/components/common/Modal'
 import TermsAgreementModal from '@trainer-log/shared/components/common/TermsAgreementModal'
@@ -188,20 +189,16 @@ export default function MemberPortal() {
   const today = () => new Date().toISOString().split('T')[0]
   const formatDate = (str) => new Date(str+'T00:00:00').toLocaleDateString('ko-KR',{month:'short',day:'numeric'})
 
-  /* ── OAuth 로그인 ────────────────────────────────────────── */
+  /* ── OAuth 로그인 ──────────────────────────────────────────
+     웹: 현재 origin+/member 로 redirect. 네이티브 앱: 시스템 브라우저+딥링크
+     복귀(구글 임베디드 웹뷰 차단 회피). 분기는 signInWithProvider 가 담당. */
   async function signInWithGoogle() {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin + '/member' },
-    })
-    if (error) showToast('구글 로그인 오류: ' + error.message)
+    try { await signInWithProvider('google', '/member') }
+    catch (e) { showToast('구글 로그인 오류: ' + (e?.message || e)) }
   }
   async function signInWithKakao() {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'kakao',
-      options: { redirectTo: window.location.origin + '/member' },
-    })
-    if (error) showToast('카카오 로그인 오류: ' + error.message)
+    try { await signInWithProvider('kakao', '/member') }
+    catch (e) { showToast('카카오 로그인 오류: ' + (e?.message || e)) }
   }
 
   async function handleAuthUser(au) {
