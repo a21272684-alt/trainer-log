@@ -10,5 +10,14 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
   )
 }
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
+// flowType 'pkce' — 네이티브 앱(Capacitor) 딥링크 OAuth 에서 exchangeCodeForSession 에 필요.
+// 웹에서도 detectSessionInUrl 이 ?code= 를 자동 교환하므로 기존 로그인 흐름과 호환된다.
+export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    flowType: 'pkce',
+    detectSessionInUrl: true,
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+})
 export const GEMINI_MODEL = 'gemini-2.5-flash-lite'

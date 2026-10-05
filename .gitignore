@@ -8,3 +8,12 @@ dist
 
 # 생성물 — md 파일이 SoT, PDF 는 scripts/md_to_pdf.py 로 재생성 가능
 docs/*.pdf
+
+# Capacitor iOS 빌드 산출물 (Mac 에서 `npx cap add ios` 로 생성)
+# ios/App/App 소스는 커밋 가능하나, Pods/빌드 캐시는 제외.
+apps/portal/ios/App/Pods/
+apps/portal/ios/App/build/
+apps/portal/ios/App/App/public/
+apps/portal/ios/.gitkeep
+DerivedData/
+*.xcuserstate

@@ -3,6 +3,7 @@ import ScheduleModal from '../components/ScheduleModal'
 import { compressImage as sharedCompressImage } from '@trainer-log/shared/lib/imageCompress'
 import { cleanupMemberStorage, removeStorageOnError, cleanupOldSessionMedia } from '@trainer-log/shared/lib/storageCleanup'
 import { supabase, GEMINI_MODEL } from '@trainer-log/shared/lib/supabase'
+import { signInWithProvider } from '../lib/nativeAuth'
 import { subscribeToPush, scheduleNotification, deleteScheduledNotification } from '../lib/push'
 import { useToast } from '@trainer-log/shared/components/common/Toast'
 import Modal from '@trainer-log/shared/components/common/Modal'
@@ -2174,20 +2175,16 @@ export default function TrainerApp() {
       .catch(e => console.warn('[app_settings] catch:', e.message))
   }, [])
 
-  /* ── OAuth 로그인 ────────────────────────────────────────── */
+  /* ── OAuth 로그인 ──────────────────────────────────────────
+     웹: 현재 origin+/trainer 로 redirect. 네이티브 앱: 시스템 브라우저+딥링크
+     복귀(구글 임베디드 웹뷰 차단 회피). 분기는 signInWithProvider 가 담당. */
   async function signInWithGoogle() {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin + '/trainer' },
-    })
-    if (error) showToast('구글 로그인 오류: ' + error.message)
+    try { await signInWithProvider('google', '/trainer') }
+    catch (e) { showToast('구글 로그인 오류: ' + (e?.message || e)) }
   }
   async function signInWithKakao() {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'kakao',
-      options: { redirectTo: window.location.origin + '/trainer' },
-    })
-    if (error) showToast('카카오 로그인 오류: ' + error.message)
+    try { await signInWithProvider('kakao', '/trainer') }
+    catch (e) { showToast('카카오 로그인 오류: ' + (e?.message || e)) }
   }
 
   async function handleAuthUser(au) {

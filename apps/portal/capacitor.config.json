@@ -1,0 +1,13 @@
+{
+  "appId": "kr.ownapp.app",
+  "appName": "오운",
+  "webDir": "dist",
+  "server": {
+    "url": "https://ownapp.kr",
+    "cleartext": false
+  },
+  "ios": {
+    "contentInset": "always",
+    "limitsNavigationsToAppBoundDomains": false
+  }
+}
