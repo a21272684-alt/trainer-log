@@ -3,7 +3,7 @@ import ScheduleModal from '../components/ScheduleModal'
 import { compressImage as sharedCompressImage } from '@trainer-log/shared/lib/imageCompress'
 import { cleanupMemberStorage, removeStorageOnError, cleanupOldSessionMedia } from '@trainer-log/shared/lib/storageCleanup'
 import { supabase, GEMINI_MODEL } from '@trainer-log/shared/lib/supabase'
-import { signInWithProvider } from '../lib/nativeAuth'
+import { signInWithProvider, isNativeApp, signInWithApple as appleSignIn } from '../lib/nativeAuth'
 import { subscribeToPush, scheduleNotification, deleteScheduledNotification } from '../lib/push'
 import { useToast } from '@trainer-log/shared/components/common/Toast'
 import Modal from '@trainer-log/shared/components/common/Modal'
@@ -2185,6 +2185,11 @@ export default function TrainerApp() {
   async function signInWithKakao() {
     try { await signInWithProvider('kakao', '/trainer') }
     catch (e) { showToast('카카오 로그인 오류: ' + (e?.message || e)) }
+  }
+  // Apple 로그인 — iOS 네이티브 앱에서만(버튼도 isNativeApp() 일 때만 노출). 심사 4.8 대응.
+  async function signInWithApple() {
+    try { await appleSignIn() }
+    catch (e) { showToast('Apple 로그인 오류: ' + (e?.message || e)) }
   }
 
   async function handleAuthUser(au) {
@@ -4440,6 +4445,19 @@ export default function TrainerApp() {
                 </svg>
                 Google로 로그인
               </button>
+              {/* Apple — iOS 네이티브 앱에서만 노출(App Store 심사 4.8: 소셜로그인 쓰면 Apple 로그인 필수) */}
+              {isNativeApp() && (
+                <button onClick={signInWithApple} style={{
+                  display:'flex',alignItems:'center',justifyContent:'center',gap:8,
+                  width:'100%',padding:'13px 20px',borderRadius:'10px',
+                  border:'none',background:'#000',color:'#fff',
+                  fontSize:'14px',fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                  <svg width="15" height="18" viewBox="0 0 24 24" fill="#fff" style={{flexShrink:0}}>
+                    <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+                  </svg>
+                  Apple로 로그인
+                </button>
+              )}
               {/* Kakao OAuth — 2026-05-11 비활성화
                   카카오 디벨로퍼스 앱 등록 + Supabase Provider 연동 + 이메일 동의 검수가
                   완료되지 않아 현재 카카오 로그인 시도 시 에러 발생. 베타 운영 단계에서는

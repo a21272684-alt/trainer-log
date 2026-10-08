@@ -47,6 +47,41 @@ export async function signInWithProvider(provider, webRedirectPath = '/') {
   if (error) throw error
 }
 
+/* ── Apple 로그인 (네이티브 전용) ──────────────────────────────
+   애플 심사 가이드 4.8: 구글/카카오 같은 소셜 로그인을 제공하면 "Apple 로그인"도
+   반드시 함께 제공해야 함. iOS 네이티브 Sign in with Apple → Supabase signInWithIdToken.
+   웹에선 호출하지 않음(버튼도 isNativeApp() 일 때만 노출). */
+function randomNonce(len = 32) {
+  const arr = new Uint8Array(len)
+  crypto.getRandomValues(arr)
+  return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('')
+}
+async function sha256hex(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str))
+  return Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, '0')).join('')
+}
+
+export async function signInWithApple() {
+  const { SignInWithApple } = await import('@capacitor-community/apple-sign-in')
+  // Apple 에는 '해시된' nonce 를, Supabase 에는 '원본' nonce 를 전달해 토큰 변조를 막는다.
+  const rawNonce = randomNonce()
+  const hashedNonce = await sha256hex(rawNonce)
+  const res = await SignInWithApple.authorize({
+    clientId: 'kr.ownapp.app',        // iOS 네이티브는 앱 Bundle ID 를 식별자로 사용
+    redirectURI: 'https://ownapp.kr', // 네이티브에선 미사용이나 옵션 타입상 필요
+    scopes: 'name email',
+    nonce: hashedNonce,
+  })
+  const token = res?.response?.identityToken
+  if (!token) throw new Error('Apple 인증 토큰을 받지 못했습니다.')
+  const { error } = await supabase.auth.signInWithIdToken({
+    provider: 'apple',
+    token,
+    nonce: rawNonce,
+  })
+  if (error) throw error
+}
+
 let _listenerBound = false
 
 /**
