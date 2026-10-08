@@ -76,7 +76,7 @@ function FallbackTerms() {
 
       <div style={S.section}>
         <h2 style={S.h2}>제3조 (계정 및 인증)</h2>
-        <p style={S.p}>① 이용자는 <strong>Google 계정을 통한 OAuth 인증</strong>으로 서비스에 가입할 수 있습니다. (Kakao OAuth 는 정식 출시 시 추가 제공 예정)</p>
+        <p style={S.p}>① 이용자는 <strong>Google 계정을 통한 OAuth 인증</strong>(iOS 앱에서는 <strong>Apple 로그인</strong> 포함)으로 서비스에 가입할 수 있습니다. (Kakao OAuth 는 정식 출시 시 추가 제공 예정)</p>
         <p style={S.p}>② 이용자는 본인 계정의 보안을 직접 유지할 책임이 있으며, 계정의 양도·대여·공유는 금지됩니다.</p>
         <p style={S.p}>③ 회사는 본인 확인 절차에 필요한 최소한의 정보만 OAuth 제공자로부터 수집합니다(상세 내용은 개인정보 처리방침 참조).</p>
       </div>
