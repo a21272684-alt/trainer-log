@@ -1218,6 +1218,11 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
             💬 1:1 문의
           </button>
           <button className="m-logout-btn" onClick={logout}>로그아웃</button>
+          {/* 계정 삭제 — 앱 내 영구 삭제 페이지로 이동 (App Store 5.1.1 v / Google Play) */}
+          <a href="/account-deletion"
+            style={{ fontSize:'11px', color:'#9CA3AF', textDecoration:'underline', whiteSpace:'nowrap' }}>
+            계정 삭제
+          </a>
         </div>
       </div>
 
