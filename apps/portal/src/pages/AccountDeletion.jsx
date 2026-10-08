@@ -1,9 +1,11 @@
-// 계정 및 데이터 삭제 요청 안내 페이지 (/account-deletion)
-// Google Play "계정 삭제 URL" 요구사항 충족:
+// 계정 및 데이터 삭제 페이지 (/account-deletion)
+// Google Play "계정 삭제 URL" + App Store 심사 5.1.1(v) 요구사항 충족:
 //  - 스토어에 표시되는 앱/개발자 이름 기재
-//  - 계정 삭제 요청 단계 명시
+//  - 로그인 상태면 앱 안에서 바로 "계정 영구 삭제" 가능(delete_my_account RPC)
 //  - 삭제/보관되는 데이터 유형 및 보관 기간 지정
 // 정책 페이지(Terms/Privacy/Refund)와 동일한 비주얼.
+import { useState, useEffect } from 'react'
+import { supabase } from '@trainer-log/shared/lib/supabase'
 
 const S = {
   wrap: { background: '#f8fafc', minHeight: '100vh', fontFamily: "'Noto Sans KR', sans-serif", color: '#0f172a' },
@@ -26,9 +28,44 @@ const S = {
   highlight: { background: '#fefce8', border: '1px solid #fde68a', borderRadius: '8px', padding: '14px 18px', fontSize: '13px', color: '#92400e', marginBottom: '16px', lineHeight: 1.7 },
   a: { color: '#2563eb', fontWeight: 600, textDecoration: 'none' },
   footer: { marginTop: '48px', paddingTop: '24px', borderTop: '1px solid #e2e8f0', fontSize: '13px', color: '#94a3b8', textAlign: 'center' },
+  danger: { background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '22px 24px', marginBottom: '40px' },
+  dangerH: { fontSize: '17px', fontWeight: 800, color: '#b91c1c', margin: '0 0 8px' },
+  dangerP: { fontSize: '13px', lineHeight: 1.75, color: '#7f1d1d', margin: '0 0 14px' },
+  delBtn: { display: 'inline-block', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '9px', padding: '11px 20px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
+  delBtnDisabled: { background: '#fca5a5', cursor: 'not-allowed' },
+  cancelBtn: { background: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: '9px', padding: '11px 20px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginRight: '8px' },
+  confirmInput: { width: '100%', maxWidth: '240px', padding: '10px 12px', border: '1px solid #fca5a5', borderRadius: '8px', fontSize: '14px', fontFamily: 'inherit', marginBottom: '12px', boxSizing: 'border-box' },
+  errText: { color: '#b91c1c', fontSize: '13px', fontWeight: 600, marginTop: '10px' },
+  okText: { color: '#047857', fontSize: '14px', fontWeight: 700, marginTop: '4px' },
 }
 
 export default function AccountDeletion() {
+  const [email, setEmail] = useState(null)   // 로그인 이메일 (null = 비로그인)
+  const [step, setStep] = useState('idle')    // idle | confirm | done
+  const [confirmText, setConfirmText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user) setEmail(data.user.email || '(이메일 없음)')
+    }).catch(() => {})
+  }, [])
+
+  async function handleDelete() {
+    setBusy(true); setErr('')
+    try {
+      const { error } = await supabase.rpc('delete_my_account')
+      if (error) throw error
+      await supabase.auth.signOut()
+      setStep('done')
+      setTimeout(() => { window.location.href = '/' }, 3000)
+    } catch (e) {
+      setErr('삭제 중 오류가 발생했습니다: ' + (e?.message || e))
+      setBusy(false)
+    }
+  }
+
   return (
     <div style={S.wrap}>
       <nav style={S.nav}>
@@ -44,6 +81,56 @@ export default function AccountDeletion() {
           <h1 style={S.title}>계정 및 데이터 삭제</h1>
           <p style={S.meta}>앱: 오운 · 운영: 이루스케일즈(대표 윤준현) · 최종 업데이트: 2026년 9월</p>
         </div>
+
+        {/* 로그인 상태면 앱 안에서 바로 삭제 (App Store 5.1.1 v / Google Play) */}
+        {email && (
+          <div style={S.danger}>
+            <h2 style={S.dangerH}>⚠️ 내 계정 영구 삭제</h2>
+            {step === 'done' ? (
+              <p style={S.okText}>계정이 삭제되었습니다. 잠시 후 홈으로 이동합니다…</p>
+            ) : (
+              <>
+                <p style={S.dangerP}>
+                  현재 <strong>{email}</strong> 로 로그인되어 있습니다. 아래에서 계정과 관련 데이터를
+                  <strong> 영구적으로 삭제</strong>할 수 있습니다. 삭제된 데이터는 복구할 수 없으며,
+                  일부 정보는 아래 4번의 법정 보관 기간 동안만 분리 보관 후 파기됩니다.
+                </p>
+                {step === 'idle' && (
+                  <button style={S.delBtn} onClick={() => { setErr(''); setStep('confirm') }}>
+                    계정 삭제하기
+                  </button>
+                )}
+                {step === 'confirm' && (
+                  <div>
+                    <p style={S.dangerP}>
+                      확인을 위해 아래 칸에 <strong>삭제</strong> 를 입력한 뒤 버튼을 누르세요.
+                    </p>
+                    <input
+                      style={S.confirmInput}
+                      value={confirmText}
+                      onChange={e => setConfirmText(e.target.value)}
+                      placeholder="삭제"
+                      aria-label="삭제 확인 입력"
+                    />
+                    <div>
+                      <button
+                        style={S.cancelBtn}
+                        onClick={() => { setStep('idle'); setConfirmText('') }}
+                        disabled={busy}
+                      >취소</button>
+                      <button
+                        style={{ ...S.delBtn, ...((confirmText !== '삭제' || busy) ? S.delBtnDisabled : {}) }}
+                        onClick={handleDelete}
+                        disabled={confirmText !== '삭제' || busy}
+                      >{busy ? '삭제 중…' : '영구 삭제'}</button>
+                    </div>
+                  </div>
+                )}
+                {err && <p style={S.errText}>{err}</p>}
+              </>
+            )}
+          </div>
+        )}
 
         <div style={S.section}>
           <h2 style={S.h2}>1. 안내</h2>
