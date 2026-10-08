@@ -71,6 +71,8 @@ Xcode → `App` 타겟 → **General / Signing & Capabilities**
 - **Display Name**: 오운
 - **Team**: 오운 Apple Developer 팀 선택 (→ "저장소 접근 / 애플 계정" 참고)
 - **Signing**: Automatically manage signing 체크
+- **Capability 추가 (★Apple 로그인 필수)**: **Signing & Capabilities** 탭 → **`+ Capability`** →
+  **Sign in with Apple** 추가. (자동 서명이라 App ID 에도 자동 등록됨)
 
 **Info.plist 권한 문구**(사진/카메라/마이크 기능 대비 — 심사 통과 위해 한글 설명 권장):
 - `NSPhotoLibraryUsageDescription` = 식단·운동 사진을 첨부하기 위해 사진 보관함에 접근합니다.
@@ -98,6 +100,17 @@ kr.ownapp.app://oauth-callback
 ```
 > 이게 없으면 Supabase 가 딥링크로 돌려보내지 않아 로그인이 실패한다.
 > 카카오 개발자 콘솔은 이미 Supabase 콜백을 가리키므로 **추가 변경 불필요**(웹 OAuth 기준).
+
+### B-1b. Supabase — Apple provider 활성화 (★Apple 로그인 필수)
+Supabase → **Authentication → Sign In / Providers → Apple** → **Enable** →
+**Authorized Client IDs** 에 Bundle ID 추가:
+```
+kr.ownapp.app
+```
+> 네이티브 Sign in with Apple 은 앱이 Bundle ID 로 서명된 토큰을 주고 Supabase 가
+> 이 Client ID 목록과 대조한다. **네이티브 전용이라 Services ID/.p8 Secret 은 불필요.**
+> (웹 브라우저에서도 Apple 로그인을 켜려면 그때 Services ID + Secret 이 추가로 필요하지만,
+> 현재 Apple 버튼은 iOS 앱에서만 노출하므로 생략.)
 
 ### B-2. Apple Developer / App Store Connect
 1. **App ID 등록**: developer.apple.com → Certificates, Identifiers & Profiles →
