@@ -135,26 +135,27 @@ export default function AccountDeletion() {
         <div style={S.section}>
           <h2 style={S.h2}>1. 안내</h2>
           <p style={S.p}>
-            본 페이지는 <strong>오운</strong>(운영: 이루스케일즈) 서비스의 회원이 자신의 계정과
-            관련 데이터의 삭제를 요청하는 방법을 안내합니다. 삭제를 요청하시면 아래에 명시된 데이터가
-            파기되며, 법령상 보관 의무가 있는 일부 정보는 정해진 기간 동안 보관 후 파기됩니다.
+            본 페이지는 <strong>오운</strong>(운영: 이루스케일즈) 서비스의 이용자가 자신의 계정과
+            관련 데이터를 삭제하는 방법을 안내합니다. 로그인한 상태라면 위의 <strong>“계정 삭제”</strong> 로
+            앱에서 직접 즉시 삭제할 수 있으며, 삭제 시 아래 3번의 데이터가 <strong>영구 파기</strong>됩니다.
           </p>
         </div>
 
         <div style={S.section}>
-          <h2 style={S.h2}>2. 삭제 요청 방법</h2>
-          <p style={S.p}>아래 채널로 <strong>가입한 이메일 주소</strong>와 함께 “계정 삭제 요청”을 보내주세요. 본인 확인 후 처리됩니다.</p>
-          <ol style={S.ol}>
-            <li style={S.li}>
-              카카오톡 채널 <strong>@ownapp</strong>
-              (<a href="https://pf.kakao.com/_ownapp" target="_blank" rel="noopener noreferrer" style={S.a}>https://pf.kakao.com/_ownapp</a>)
-              에 접속하거나, 앱 내 <strong>“1:1 문의”</strong> 버튼을 누릅니다.
-            </li>
-            <li style={S.li}>“<strong>계정 삭제 요청</strong>”과 함께 <strong>가입 이메일 주소</strong>를 남깁니다.</li>
-            <li style={S.li}>본인 확인 절차를 거친 뒤, 아래 데이터가 삭제됩니다.</li>
-          </ol>
+          <h2 style={S.h2}>2. 삭제 방법</h2>
+          <p style={S.p}>
+            <strong>① 앱에서 직접 삭제 (권장)</strong> — 로그인 후 본 페이지 상단의 <strong>“계정 삭제”</strong> 버튼으로
+            본인 계정과 데이터를 즉시 영구 삭제할 수 있습니다.
+            (트레이너: <strong>설정 → 계정 → 계정 삭제</strong> / 회원: 상단 <strong>“계정 삭제”</strong>)
+          </p>
+          <p style={S.p}>
+            <strong>② 문의로 요청</strong> — 로그인이 어려운 경우, 카카오톡 채널 <strong>@ownapp</strong>
+            (<a href="https://pf.kakao.com/_ownapp" target="_blank" rel="noopener noreferrer" style={S.a}>https://pf.kakao.com/_ownapp</a>)
+            또는 앱 내 <strong>“1:1 문의”</strong>로 가입 이메일 주소와 함께 “계정 삭제 요청”을 보내주세요. 본인 확인 후 처리됩니다.
+          </p>
           <div style={S.info}>
-            처리 소요: 요청 접수 및 본인 확인 후 <strong>영업일 기준 최대 5일 이내</strong>에 삭제 처리됩니다.
+            앱에서 직접 삭제 시 <strong>즉시</strong> 처리되며, 문의를 통한 요청은 본인 확인 후
+            <strong> 영업일 기준 최대 5일 이내</strong>에 처리됩니다.
           </div>
         </div>
 
@@ -173,16 +174,13 @@ export default function AccountDeletion() {
         <div style={S.section}>
           <h2 style={S.h2}>4. 보관되는 정보 및 기간</h2>
           <p style={S.p}>
-            원칙적으로 삭제 요청 시 위 데이터는 지체 없이 파기됩니다. 다만 관련 법령에 따라 일정 기간
-            보관이 필요한 정보는 아래 기간 동안 보관한 뒤 파기합니다.
+            현재 본 서비스는 결제 기능(PG)을 도입하지 않은 단계로, 계정 삭제 시 위 데이터는
+            <strong> 지체 없이 전부 파기</strong>되며 별도로 보관하는 정보는 없습니다.
           </p>
-          <ul style={S.ul}>
-            <li style={S.li}>계약 또는 청약철회 등에 관한 기록: 5년 (전자상거래법)</li>
-            <li style={S.li}>대금 결제 및 재화 등의 공급에 관한 기록: 5년 (전자상거래법)</li>
-            <li style={S.li}>소비자 불만 또는 분쟁 처리에 관한 기록: 3년 (전자상거래법)</li>
-          </ul>
           <div style={S.highlight}>
-            위 법정 보관 정보는 <strong>보관 목적으로만</strong> 분리 저장되며, 보관 기간이 지나면 복구 불가능한 방식으로 파기됩니다.
+            향후 결제 기능 도입 시에는 「전자상거래 등에서의 소비자보호에 관한 법률」 등 관련 법령에 따라
+            거래·결제 기록을 법정 기간(예: 5년) 동안 분리 보관한 뒤 파기하게 되며, 정책 시행 전
+            본 페이지와 개인정보 처리방침에 반영하여 사전 공지합니다.
           </div>
         </div>
 
