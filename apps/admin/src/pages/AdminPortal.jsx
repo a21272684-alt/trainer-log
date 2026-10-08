@@ -1038,9 +1038,16 @@ export default function AdminPortal() {
   }
   const addSubscription = async () => {
     try {
-      const { error } = await supabase.from('subscriptions').insert({
-        trainer_id: subForm.trainer_id, plan: subForm.plan, payment_method: subForm.payment_method,
-        amount: parseInt(subForm.amount) || 0, paid_at: subForm.paid_at, valid_until: subForm.valid_until, memo: subForm.memo.trim()
+      // anon 직접 INSERT 는 RLS 차단 → _admin_assert 가드 SECURITY DEFINER RPC 경유 (마이그 077)
+      const { error } = await supabase.rpc('admin_add_subscription', {
+        p_admin_token: ADMIN_TOKEN,
+        p_trainer_id: subForm.trainer_id,
+        p_plan: subForm.plan,
+        p_payment_method: subForm.payment_method,
+        p_amount: parseInt(subForm.amount) || 0,
+        p_paid_at: subForm.paid_at || null,
+        p_valid_until: subForm.valid_until || null,
+        p_memo: subForm.memo.trim(),
       })
       if (error) throw error
       await loadAll(); setSubModal(false); showToast('✓ 결제가 추가됐어요')
