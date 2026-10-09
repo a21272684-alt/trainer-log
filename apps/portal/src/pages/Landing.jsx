@@ -1584,7 +1584,7 @@ export default function Landing() {
         </div>
         <div style={{fontSize:'11px',color:'#475569',lineHeight:1.7,marginBottom:'12px'}}>
           이루스케일즈 · 대표 윤준현<br/>
-          문의 <a href="https://pf.kakao.com/_ownapp" target="_blank" rel="noopener noreferrer" style={{color:'#64748b',textDecoration:'none',fontWeight:600}}>카카오톡 @ownapp</a>
+          문의 <a href="https://pf.kakao.com/_ZGTKX" target="_blank" rel="noopener noreferrer" style={{color:'#64748b',textDecoration:'none',fontWeight:600}}>카카오톡 @ownapp</a>
         </div>
         <div style={{fontSize:'11px',color:'#1e293b',fontFamily:"'DM Mono',monospace"}}>v2.0 · 오운</div>
       </footer>

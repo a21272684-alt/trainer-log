@@ -150,7 +150,7 @@ export default function AccountDeletion() {
           </p>
           <p style={S.p}>
             <strong>② 문의로 요청</strong> — 로그인이 어려운 경우, 카카오톡 채널 <strong>@ownapp</strong>
-            (<a href="https://pf.kakao.com/_ownapp" target="_blank" rel="noopener noreferrer" style={S.a}>https://pf.kakao.com/_ownapp</a>)
+            (<a href="https://pf.kakao.com/_ZGTKX" target="_blank" rel="noopener noreferrer" style={S.a}>https://pf.kakao.com/_ZGTKX</a>)
             또는 앱 내 <strong>“1:1 문의”</strong>로 가입 이메일 주소와 함께 “계정 삭제 요청”을 보내주세요. 본인 확인 후 처리됩니다.
           </p>
           <div style={S.info}>

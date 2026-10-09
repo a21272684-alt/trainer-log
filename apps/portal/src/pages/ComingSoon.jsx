@@ -76,7 +76,7 @@ export default function ComingSoon({ title = '곧 출시 예정', emoji = '🚧'
               fontSize: '13px', fontWeight: 700, textDecoration: 'none',
             }}>← 홈으로</Link>
             <a
-              href="https://pf.kakao.com/_ownapp"
+              href="https://pf.kakao.com/_ZGTKX"
               target="_blank"
               rel="noopener noreferrer"
               style={{

@@ -218,7 +218,7 @@ function FallbackPrivacy() {
           <li style={S.li}>처리 정지 요청</li>
           <li style={S.li}>회원 탈퇴 및 계정 삭제 요청</li>
         </ul>
-        <p style={S.p}>계정 삭제는 <strong>앱 내 “계정 삭제” 기능</strong>(로그인 후 트레이너: 설정 → 계정 / 회원: 상단 “계정 삭제”, 또는 계정 삭제 페이지)으로 직접 즉시 처리할 수 있습니다. 그 밖의 권리 행사 또는 로그인이 어려운 경우의 요청은 카카오톡 채널 <strong>@ownapp</strong> (<a href="https://pf.kakao.com/_ownapp" target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', fontWeight: 600 }}>https://pf.kakao.com/_ownapp</a>) 을 통해 신청할 수 있으며, 회사는 본인 확인 후 지체 없이 조치합니다.</p>
+        <p style={S.p}>계정 삭제는 <strong>앱 내 “계정 삭제” 기능</strong>(로그인 후 트레이너: 설정 → 계정 / 회원: 상단 “계정 삭제”, 또는 계정 삭제 페이지)으로 직접 즉시 처리할 수 있습니다. 그 밖의 권리 행사 또는 로그인이 어려운 경우의 요청은 카카오톡 채널 <strong>@ownapp</strong> (<a href="https://pf.kakao.com/_ZGTKX" target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', fontWeight: 600 }}>https://pf.kakao.com/_ZGTKX</a>) 을 통해 신청할 수 있으며, 회사는 본인 확인 후 지체 없이 조치합니다.</p>
       </div>
 
       <div style={S.section}>
@@ -248,7 +248,7 @@ function FallbackPrivacy() {
         <ul style={S.ul}>
           <li style={S.li}><strong>상호</strong>: 이루스케일즈</li>
           <li style={S.li}><strong>개인정보 보호책임자</strong>: 윤준현 (대표)</li>
-          <li style={S.li}><strong>문의 채널</strong>: 카카오톡 채널 <strong>@ownapp</strong> (<a href="https://pf.kakao.com/_ownapp" target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', fontWeight: 600 }}>https://pf.kakao.com/_ownapp</a>) — 서비스 내 "1:1 문의" 버튼 또는 푸터 링크</li>
+          <li style={S.li}><strong>문의 채널</strong>: 카카오톡 채널 <strong>@ownapp</strong> (<a href="https://pf.kakao.com/_ZGTKX" target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', fontWeight: 600 }}>https://pf.kakao.com/_ZGTKX</a>) — 서비스 내 "1:1 문의" 버튼 또는 푸터 링크</li>
           <li style={S.li}><strong>응답 시한</strong>: 영업일 기준 3일 이내 1차 회신, 처리 완료까지 최대 30일</li>
         </ul>
         <p style={S.p}>이용자는 개인정보 침해로 인한 구제를 받기 위해 다음의 외부 기관에도 직접 신청할 수 있습니다.</p>
