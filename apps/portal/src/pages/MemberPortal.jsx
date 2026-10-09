@@ -205,6 +205,11 @@ export default function MemberPortal() {
     try { await appleSignIn() }
     catch (e) { showToast('Apple 로그인 오류: ' + (e?.message || e)) }
   }
+  // 계정 삭제 — 오탭 방지 2차 경고 후 영구 삭제 페이지로 이동
+  function confirmDeleteAccount() {
+    if (!window.confirm('계정을 삭제하시겠어요?\n\n계정과 모든 기록(수업일지·체중·운동·식단 등)이 영구 삭제되며 복구할 수 없습니다.')) return
+    window.location.href = '/account-deletion'
+  }
 
   async function handleAuthUser(au) {
     setAuthUser(au)
@@ -1213,11 +1218,6 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
             💬 1:1 문의
           </button>
           <button className="m-logout-btn" onClick={logout}>로그아웃</button>
-          {/* 계정 삭제 — 앱 내 영구 삭제 페이지로 이동 (App Store 5.1.1 v / Google Play) */}
-          <a href="/account-deletion"
-            style={{ fontSize:'11px', color:'#9CA3AF', textDecoration:'underline', whiteSpace:'nowrap' }}>
-            계정 삭제
-          </a>
         </div>
       </div>
 
@@ -2548,6 +2548,14 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
         ))}
       </Modal>
 
+      {/* 계정 삭제 — 상단바에서 분리, 맨 아래 작고 조용하게 + 탭 시 2차 경고 (오탭 방지) */}
+      <div style={{textAlign:'center',padding:'18px 0 10px'}}>
+        <button type="button" onClick={confirmDeleteAccount}
+          style={{background:'none',border:'none',color:'#b8bdb4',fontSize:'11.5px',fontWeight:600,
+            textDecoration:'underline',cursor:'pointer',fontFamily:'inherit'}}>
+          계정 삭제
+        </button>
+      </div>
     </div>
   )
 }
