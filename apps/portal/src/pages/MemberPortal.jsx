@@ -1111,11 +1111,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                   Apple로 로그인
                 </button>
               )}
-              {/* Kakao OAuth — 2026-05-11 비활성화
-                  카카오 디벨로퍼스 앱 등록 + Supabase Provider 연동 + 이메일 동의 검수가
-                  완료되지 않아 현재 카카오 로그인 시도 시 에러 발생. 베타 운영 단계에서는
-                  Google OAuth 만으로 충분. 정식 출시 단계(Phase E) 에서 카카오 디벨로퍼스
-                  설정 후 아래 블록 주석만 해제하면 복원됨. signInWithKakao 함수는 보존.
+              {/* Kakao — 2026-10 재활성화 (비즈앱 전환 + 이메일 필수동의 + Supabase Kakao provider 연동 완료) */}
               <button onClick={signInWithKakao} style={{
                 display:'flex',alignItems:'center',justifyContent:'center',gap:10,
                 width:'100%',padding:'13px 20px',borderRadius:'10px',
@@ -1128,7 +1124,6 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                 </svg>
                 카카오로 로그인
               </button>
-              */}
             </div>
 
             <div style={{textAlign:'center',marginTop:'16px'}}>
