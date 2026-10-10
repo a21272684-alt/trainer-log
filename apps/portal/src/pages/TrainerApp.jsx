@@ -2191,6 +2191,11 @@ export default function TrainerApp() {
     try { await appleSignIn() }
     catch (e) { showToast('Apple 로그인 오류: ' + (e?.message || e)) }
   }
+  // 계정 삭제 — 오탭 방지 2차 경고 후 영구 삭제 페이지로 이동
+  function confirmDeleteAccount() {
+    if (!window.confirm('계정을 삭제하시겠어요?\n\n계정과 모든 데이터(회원·일지·매출 등)가 영구 삭제되며 복구할 수 없습니다.')) return
+    window.location.href = '/account-deletion'
+  }
 
   async function handleAuthUser(au) {
     setAuthUser(au)
@@ -5740,6 +5745,14 @@ export default function TrainerApp() {
                 </button>
               )}
             </div>
+            {/* 계정 삭제 — 프로필 박스 하단, 작고 조용하게 + 탭 시 2차 경고 (오탭 방지). 로그아웃과 분리됨 */}
+            <div style={{marginTop:'13px',paddingTop:'12px',borderTop:'1px dashed var(--border)',textAlign:'center'}}>
+              <button type="button" onClick={confirmDeleteAccount}
+                style={{background:'none',border:'none',color:'var(--text-dim)',fontSize:'12px',fontWeight:600,
+                  textDecoration:'underline',cursor:'pointer',fontFamily:'inherit'}}>
+                계정 삭제
+              </button>
+            </div>
           </div>
 
           {/* dev 전용 — 공개 프로필 관리 (배포 앱엔 미노출, 공개 시점은 사용자 통제) */}
@@ -6086,14 +6099,6 @@ export default function TrainerApp() {
                   <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
                 </span>
                 <span className="rev-row-t"><span className="rev-row-l" style={{color:'#dc2626'}}>로그아웃</span></span>
-              </button>
-              {/* 계정 삭제 — 앱 내 영구 삭제 페이지로 이동 (App Store 5.1.1 v / Google Play) */}
-              <button className="rev-row"
-                onClick={() => { window.location.href = '/account-deletion' }}>
-                <span className="rev-row-ic" style={{background:'rgba(239,68,68,0.08)',color:'#dc2626'}}>
-                  <svg viewBox="0 0 24 24"><path d="M3 6h18M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                </span>
-                <span className="rev-row-t"><span className="rev-row-l" style={{color:'#dc2626'}}>계정 삭제</span></span>
               </button>
             </div>
           </div>
