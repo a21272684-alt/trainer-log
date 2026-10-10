@@ -10,8 +10,10 @@ create table if not exists push_subscriptions (
 );
 
 alter table push_subscriptions enable row level security;
+-- 2026-10-10 수정: trainers.id ≠ auth.uid() (auth_id 가 auth.uid()). 050/051 패턴과 일치시킴.
 create policy "trainer_push_sub" on push_subscriptions
-  using (trainer_id = auth.uid()) with check (trainer_id = auth.uid());
+  using (trainer_id in (select id from trainers where auth_id = auth.uid()))
+  with check (trainer_id in (select id from trainers where auth_id = auth.uid()));
 
 -- Web Push: 발송 예약 테이블
 create table if not exists scheduled_notifications (
@@ -27,8 +29,22 @@ create table if not exists scheduled_notifications (
 );
 
 alter table scheduled_notifications enable row level security;
+-- 2026-10-10 수정: trainers.id ≠ auth.uid() (auth_id 가 auth.uid()). 050/051 패턴과 일치시킴.
 create policy "trainer_scheduled_notif" on scheduled_notifications
-  using (trainer_id = auth.uid()) with check (trainer_id = auth.uid());
+  using (trainer_id in (select id from trainers where auth_id = auth.uid()))
+  with check (trainer_id in (select id from trainers where auth_id = auth.uid()));
+
+-- 발송 완료 7일 경과 알림 자동 삭제 (cron: oun_cleanup_scheduled_no... 이 호출)
+create or replace function cleanup_scheduled_notifications_sent_older_than_7d()
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  delete from scheduled_notifications
+  where sent = true
+    and scheduled_at < now() - interval '7 days';
+$$;
 
 -- pg_cron: 1분마다 발송 대상 체크 (Supabase Dashboard > Database > Extensions > pg_cron 활성화 필요)
 -- select cron.schedule('send-push-notifications', '* * * * *',
