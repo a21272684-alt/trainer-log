@@ -5663,7 +5663,8 @@ export default function TrainerApp() {
               </div>
             </div>
           )}
-          {canUse('push_notif') && <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'10px',padding:'12px 14px',marginBottom:'12px'}}>
+          {/* iOS 앱(WKWebView)에선 웹푸시가 동작하지 않음 → 네이티브 푸시(1.1) 전까지 알림 설정 숨김 */}
+          {canUse('push_notif') && !isNativeApp() && <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'10px',padding:'12px 14px',marginBottom:'12px'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
               <div>
                 <div style={{fontSize:'13px',fontWeight:500}}>알림 사용</div>
@@ -6861,7 +6862,7 @@ export default function TrainerApp() {
                     { value:'diet',        label:'다이어트·체성분', paid:true  },
                     { value:'ak',          label:'AK·응용근신경학', paid:true  },
                     { value:'complex',     label:'복잡계',          paid:true  },
-                  ].map(chip => {
+                  ].filter(chip => !(HIDE_PURCHASE && chip.paid && !isPaid)).map(chip => {
                     const isActive = (perspectiveChip || 'rehab') === chip.value
                     const showLock = chip.paid && !isPaid
                     return (
