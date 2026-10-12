@@ -80,6 +80,20 @@ export async function signInWithApple() {
     nonce: rawNonce,
   })
   if (error) throw error
+
+  // Apple 은 이름을 '최초 승인 때만' 앱에 넘겨주고 ID 토큰엔 넣지 않음 → 받았을 때 user_metadata 에 저장.
+  // (저장 안 하면 가입 화면 이름이 '이메일 가리기' 릴레이 주소 앞부분으로 채워짐)
+  const given = res?.response?.givenName || ''
+  const family = res?.response?.familyName || ''
+  if (given || family) {
+    const korean = /[가-힣]/.test(given + family)
+    const fullName = korean ? `${family}${given}` : [given, family].filter(Boolean).join(' ')
+    try {
+      await supabase.auth.updateUser({ data: { full_name: fullName } })
+    } catch (e) {
+      console.warn('[signInWithApple] 이름 저장 실패:', e?.message || e)
+    }
+  }
 }
 
 let _listenerBound = false
