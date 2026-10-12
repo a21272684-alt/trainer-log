@@ -1883,6 +1883,8 @@ export default function TrainerApp() {
   const [showLimitModal, setShowLimitModal] = useState(false)
   const [centralApiKey, setCentralApiKey] = useState('')  // 중앙화된 Gemini API 키
   const [credits, setCredits] = useState(0)               // 트레이너 크레딧 잔액
+  // 무료 AI 일지 월 횟수 (079). mode:'quota' 면 신규 가입자 월 15회 적용, 'credits' 면 크레딧만 사용.
+  const [aiQuota, setAiQuota] = useState(null)            // { mode, quota, used, remaining, resets_at }
   const [urgentInquiryUrl, setUrgentInquiryUrl] = useState('') // 긴급문의 카카오 오픈채팅 링크
 
   // Schedule
@@ -1926,6 +1928,22 @@ export default function TrainerApp() {
   const isPaid = tier !== 'free'             // 페이월/뱃지 표시용 (구독 있으면 true)
   function canUse(key) {
     return featureGates[tier]?.[key] !== false
+  }
+  // AI 일지 사용 가능 횟수 = 무료 월 잔여(신규 가입자) + 크레딧
+  const aiQuotaLeft = aiQuota?.mode === 'quota' ? Math.max(0, aiQuota.remaining ?? 0) : 0
+  const aiRemaining = aiQuotaLeft + Math.max(0, credits || 0)
+  function fmtResetDate(iso) {
+    if (!iso) return '다음 지급일'
+    const d = new Date(iso)
+    return `${d.getMonth() + 1}월 ${d.getDate()}일`
+  }
+  // 가입 화면 이름 기본값. Apple '이메일 가리기' 릴레이 주소의 앞부분(sj45k62dyj 등)은 이름이 아니므로 비워둠.
+  function defaultRegName(au) {
+    const metaName = au?.user_metadata?.full_name || au?.user_metadata?.name
+    if (metaName) return metaName
+    const email = au?.email || ''
+    if (!email || /@privaterelay\.appleid\.com$/i.test(email)) return ''
+    return email.split('@')[0]
   }
 
   // Login / OAuth
@@ -2234,7 +2252,7 @@ export default function TrainerApp() {
       // 070 자율가입 전환: 대기(pending)/거부(rejected) 화면 제거 → 등록 화면으로
       // 라우팅. 사용자가 이름·약관 동의 후 제출하면 RPC 가 트레이너를 즉시 생성.
       if (status === 'pending' || status === 'rejected') {
-        setRegName(au.user_metadata?.full_name || au.user_metadata?.name || au.email?.split('@')[0] || '')
+        setRegName(defaultRegName(au))
         setScreen('reg')
         return
       }
@@ -2246,7 +2264,7 @@ export default function TrainerApp() {
         return
       }
       // none → 신규 등록 화면
-      setRegName(au.user_metadata?.full_name || au.user_metadata?.name || au.email?.split('@')[0] || '')
+      setRegName(defaultRegName(au))
       setScreen('reg')
     } catch(e) {
       console.error('[handleAuthUser] signup_status catch:', e)
@@ -2284,8 +2302,17 @@ export default function TrainerApp() {
     } catch(e) { console.warn('[loadFeatureGates] 오류:', e.message) }
   }
 
+  async function refreshAiQuota(trainerId) {
+    if (!trainerId) return
+    const { data, error } = await supabase.rpc('ai_journal_status', { p_trainer_id: trainerId })
+    if (error) { console.warn('[refreshAiQuota] 조회 실패:', error.message); return }
+    setAiQuota(data)
+    if (typeof data?.credits === 'number') setCredits(data.credits)
+  }
+
   async function _loginWithRecord(t) {
     setTrainer(t); setCredits(t.credits ?? 0); setScreen('app')
+    refreshAiQuota(t.id)
     showToast('✓ 환영해요, ' + t.name + ' 트레이너님!')
     try {
       const { data: libData, error: libErr } = await supabase.from('workout_routines').select('*')
@@ -3428,8 +3455,12 @@ export default function TrainerApp() {
     const key = centralApiKey
     if (!key) { showToast('AI 서비스 준비 중이에요. 잠시 후 다시 시도해주세요'); return }
 
-    // ── 크레딧 체크 ──────────────────────────────────────────
-    if (credits <= 0) { setShowLimitModal(true); return }
+    // ── 사용 가능 횟수 체크 (무료 월 횟수 → 크레딧 순) ──────────
+    if (aiRemaining <= 0) {
+      if (aiQuota?.mode === 'quota') showToast(`이번 달 무료 AI 일지 ${aiQuota.quota}회를 모두 사용했어요. ${fmtResetDate(aiQuota.resets_at)}에 다시 충전돼요.`)
+      setShowLimitModal(true)
+      return
+    }
     // ─────────────────────────────────────────────────────────
 
     // ── 잔여 수업 체크 ────────────────────────────────────────
@@ -3480,18 +3511,19 @@ export default function TrainerApp() {
 
       showToast('✦ 수업일지 생성 완료!')
 
-      // ── 크레딧 차감 ──────────────────────────────────────
+      // ── 1회 차감 (변환 1회 = 1회, 발송 여부 무관. 무료 월 횟수 → 크레딧 순) ──
       try {
-        const { data: result, error: creditErr } = await supabase.rpc('use_ai_credit', { p_trainer_id: trainer.id })
+        const { data: result, error: creditErr } = await supabase.rpc('ai_journal_consume', { p_trainer_id: trainer.id })
         if (creditErr) {
-          showToast('크레딧 차감에 실패했어요')
-          console.warn('[generateLog] use_ai_credit 오류:', creditErr.message)
-        } else if (result?.success) {
-          setCredits(result.credits)
+          showToast('사용 횟수 차감에 실패했어요')
+          console.warn('[generateLog] ai_journal_consume 오류:', creditErr.message)
+        } else if (result) {
+          if (typeof result.credits === 'number') setCredits(result.credits)
+          setAiQuota(prev => ({ ...(prev || {}), ...result }))
         }
       } catch(e) {
-        showToast('크레딧 차감 중 오류가 발생했어요')
-        console.warn('[generateLog] use_ai_credit catch:', e.message)
+        showToast('사용 횟수 차감 중 오류가 발생했어요')
+        console.warn('[generateLog] ai_journal_consume catch:', e.message)
       }
       // ─────────────────────────────────────────────────────
     } catch(e) {
@@ -4979,8 +5011,8 @@ export default function TrainerApp() {
         <div className="page-t">
           <div style={{display:'flex',gap:'8px',marginBottom:'10px'}}>
             <button className="btn btn-primary" style={{flex:1}} onClick={()=>{
-              const plan = isPaid ? 'paid' : 'free'
-              const limit = featureGates[plan]?.member_limit ?? 9999
+              // 게이트는 free/pro/premium 3단계 — 옛 'paid' 키는 없어서 유료가 항상 무제한으로 떨어지던 것 수정
+              const limit = featureGates[tier]?.member_limit ?? 9999
               if (members.length >= limit) { showToast(`🔒 현재 플랜에서는 최대 ${limit}명까지 등록 가능해요. 플랜 업그레이드 후 이용하세요.`); return }
               setAddForm({name:'',kakao_phone:'',phone:'',birthdate:'',address:'',email:'',special_notes:'',purpose:'체형교정',visit_source:'',visit_source_memo:'',total:'',done:'0',price:'',memo:''});setActivePage('page-add-member')
             }}>+ 회원 추가</button>
@@ -6944,8 +6976,13 @@ export default function TrainerApp() {
               )}
               {/* 크레딧 표시 */}
               {(function CreditBar() {
-                const barColor  = credits <= 3 ? '#f9a8d4' : credits <= 10 ? '#fcd34d' : '#86efac'
-                const label     = credits <= 0
+                const barColor  = aiRemaining <= 3 ? '#f9a8d4' : aiRemaining <= 10 ? '#fcd34d' : '#86efac'
+                const creditTail = credits > 0 ? ` + 크레딧 ${credits}개` : ''
+                const label     = aiQuota?.mode === 'quota'
+                  ? (aiRemaining <= 0
+                      ? `⛔ 이번 달 무료 AI 일지를 모두 썼어요 · ${fmtResetDate(aiQuota.resets_at)} 충전`
+                      : `✦ 무료 AI 일지 ${aiQuotaLeft}/${aiQuota.quota}회 남음${creditTail} · ${fmtResetDate(aiQuota.resets_at)} 충전`)
+                  : credits <= 0
                   ? '⛔ 크레딧이 없어요'
                   : credits <= 3
                   ? `⚠️ 크레딧 ${credits}개 남았어요`
@@ -6978,16 +7015,16 @@ export default function TrainerApp() {
                 /* AI 일지는 "유료 플랜 OR 크레딧 보유" 면 사용 가능.
                    크레딧 1개 = 생성 1회 모델 + Free 플랜도 'AI 일지 월 20회' 제공이므로,
                    크레딧이 있는데 플랜 게이트로 막히던 버그 수정 (생성 함수는 크레딧/월한도로 제어). */
-                (canUse('ai_journal') || credits > 0) ? (
+                (canUse('ai_journal') || aiRemaining > 0 || aiQuota?.mode === 'quota') ? (
                   <button
                     className="btn btn-primary"
                     style={{width:'100%',marginBottom:'10px',
-                      opacity: credits <= 0 || ((currentMember?.total_sessions||0)-(currentMember?.done_sessions||0)) <= 0 ? 0.5 : 1,
-                      cursor: credits <= 0 || ((currentMember?.total_sessions||0)-(currentMember?.done_sessions||0)) <= 0 ? 'not-allowed' : 'pointer'}}
+                      opacity: aiRemaining <= 0 || ((currentMember?.total_sessions||0)-(currentMember?.done_sessions||0)) <= 0 ? 0.5 : 1,
+                      cursor: aiRemaining <= 0 || ((currentMember?.total_sessions||0)-(currentMember?.done_sessions||0)) <= 0 ? 'not-allowed' : 'pointer'}}
                     onClick={generateLog}
                   >
-                    {credits <= 0
-                      ? '🔒 크레딧 부족'
+                    {aiRemaining <= 0
+                      ? (aiQuota?.mode === 'quota' ? '🔒 이번 달 무료 횟수 소진' : '🔒 크레딧 부족')
                       : ((currentMember?.total_sessions||0)-(currentMember?.done_sessions||0)) <= 0
                         ? '🔒 잔여 수업 없음'
                         : '✦ AI 수업일지 생성'}
