@@ -4,6 +4,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <!-- iOS(Safari·iOS 앱 WKWebView)는 글자 16px 미만 입력창에 포커스하면 화면을 자동 확대하고,
+       키보드를 닫아도 확대·스크롤이 원래대로 안 돌아옴(입력창 기본 13px). iOS 에서만 maximum-scale=1 로
+       자동 확대를 막음 — iOS 는 이 값이 있어도 두 손가락 확대는 허용해 접근성 영향 없음.
+       안드로이드는 maximum-scale 이 핀치줌까지 막으므로 적용하지 않음. -->
+  <script>
+    (function () {
+      var ua = navigator.userAgent || ''
+      var isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+      if (!isIOS) return
+      var m = document.querySelector('meta[name="viewport"]')
+      if (m && m.content.indexOf('maximum-scale') === -1) m.setAttribute('content', m.content + ', maximum-scale=1')
+    })()
+  </script>
 
   <!-- Google Search Console 소유권 인증 (Play Console 조직 웹사이트 인증용) -->
   <meta name="google-site-verification" content="eM1cs2A6w1L6ihE82PqfLuknFgPrmnN727C1r0_uVak" />
