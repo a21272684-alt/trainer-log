@@ -1,6 +1,12 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@trainer-log/shared/lib/supabase'
+import { isNativeApp } from '../lib/nativeAuth'
+
+// iOS 앱(Capacitor)에서는 요금제 섹션과 가격·충전 관련 FAQ 를 숨김
+// (인앱결제 없이 심사 통과 조건: 앱 안 구매 유도 금지 — App Store 가이드라인 3.1.1 / 3.1.3(f)).
+const HIDE_PURCHASE = isNativeApp()
+const PURCHASE_FAQ_RE = /가격|요금|충전|구독|결제|유료|\bPro\b|프리미엄|Premium/i
 
 // ── 데이터 ────────────────────────────────────────────────────
 
@@ -1225,7 +1231,8 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── 요금제 ── */}
+      {/* ── 요금제 ── (iOS 앱에선 숨김) */}
+      {!HIDE_PURCHASE && (
       <section style={{background:'transparent',padding:'80px 24px'}}>
         <div style={{maxWidth:'860px',margin:'0 auto'}}>
           <FadeUp>
@@ -1293,6 +1300,7 @@ export default function Landing() {
           </div>
         </div>
       </section>
+      )}
 
       {/* ── FAQ ── */}
       <section style={{background:'transparent',padding:'80px 24px'}}>
@@ -1306,7 +1314,7 @@ export default function Landing() {
             </div>
           </FadeUp>
           <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
-            {faqs.map((faq, i) => (
+            {(HIDE_PURCHASE ? faqs.filter(f => !PURCHASE_FAQ_RE.test(`${f.q || ''} ${f.a || ''}`)) : faqs).map((faq, i) => (
               <FadeUp key={i} delay={i * 60}>
                 <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:'14px',overflow:'hidden',
                   boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>

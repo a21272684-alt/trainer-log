@@ -4,6 +4,11 @@ import { compressImage as sharedCompressImage } from '@trainer-log/shared/lib/im
 import { cleanupMemberStorage, removeStorageOnError, cleanupOldSessionMedia } from '@trainer-log/shared/lib/storageCleanup'
 import { supabase, GEMINI_MODEL } from '@trainer-log/shared/lib/supabase'
 import { signInWithProvider, isNativeApp, signInWithApple as appleSignIn } from '../lib/nativeAuth'
+
+// iOS 앱(Capacitor)에서는 유료 플랜 가격·업그레이드·충전 안내를 숨김.
+// 인앱결제 없이 심사를 통과하려면 앱 안에 구매 기능도, 앱 밖 구매로 유도하는 안내도 없어야 함
+// (App Store 가이드라인 3.1.1 / 3.1.3(f)). 기능 제한 자체는 동일하게 적용되고 안내 문구만 중립화.
+const HIDE_PURCHASE = isNativeApp()
 import { subscribeToPush, scheduleNotification, deleteScheduledNotification } from '../lib/push'
 import { useToast } from '@trainer-log/shared/components/common/Toast'
 import Modal from '@trainer-log/shared/components/common/Modal'
@@ -2999,7 +3004,7 @@ export default function TrainerApp() {
   function showTabFn(t) {
     const TAB_GATE = { history:'history_tab', schedule:'schedule_tab', revenue:'revenue_tab' }
     if (TAB_GATE[t] && !canUse(TAB_GATE[t])) {
-      showToast('🔒 유료 플랜 전용 기능이에요. 플랜 업그레이드 후 이용 가능합니다.')
+      showToast(HIDE_PURCHASE ? '🔒 현재 이용할 수 없는 기능이에요.' : '🔒 유료 플랜 전용 기능이에요. 플랜 업그레이드 후 이용 가능합니다.')
       return
     }
     setTab(t)
@@ -4081,14 +4086,16 @@ export default function TrainerApp() {
           }}>
             <div style={{ fontSize:'44px', marginBottom:'16px' }}>🔒</div>
             <div style={{ fontSize:'17px', fontWeight:800, color:'#f9fafb', marginBottom:'10px', letterSpacing:'-0.3px' }}>
-              프리미엄 전용 기능입니다
+              {HIDE_PURCHASE ? '현재 이용할 수 없는 기능이에요' : '프리미엄 전용 기능입니다'}
             </div>
+            {!HIDE_PURCHASE && (<>
             <div style={{ fontSize:'13px', color:'#9ca3af', lineHeight:1.75, marginBottom:'24px' }}>
               월별 매출 추이와 자동 정산 기능을<br/>사용해보세요!
             </div>
             <div style={{ fontSize:'11px', color:'#6b7280', background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'10px', padding:'10px 16px', lineHeight:1.6 }}>
               💡 설정 → 플랜에서 업그레이드 후 이용할 수 있어요
             </div>
+            </>)}
           </div>
         </div>
       )
@@ -4204,7 +4211,7 @@ export default function TrainerApp() {
                 <span className="rev-row-t"><span className="rev-row-l">주간 리포트</span><span className="rev-row-s">AI 요약</span></span>
                 <span className="rev-row-chev">›</span>
               </button>
-            ) : (
+            ) : HIDE_PURCHASE ? null : (
               <div className="rev-row" style={{cursor:'default'}}>
                 <span className="rev-row-ic"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
                 <span className="rev-row-t"><span className="rev-row-l">주간 리포트</span><span className="rev-row-s">유료 플랜 전용</span></span>
@@ -4223,7 +4230,7 @@ export default function TrainerApp() {
                 <span className="rev-row-t"><span className="rev-row-l">정산 분석</span></span>
                 <span className="rev-row-chev">›</span>
               </button>
-            ) : (
+            ) : HIDE_PURCHASE ? null : (
               <div className="rev-row" style={{cursor:'default'}}>
                 <span className="rev-row-ic"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
                 <span className="rev-row-t"><span className="rev-row-l">정산 분석</span><span className="rev-row-s">유료 플랜 전용</span></span>
@@ -5018,7 +5025,7 @@ export default function TrainerApp() {
             <button className="btn btn-primary" style={{flex:1}} onClick={()=>{
               // 게이트는 free/pro/premium 3단계 — 옛 'paid' 키는 없어서 유료가 항상 무제한으로 떨어지던 것 수정
               const limit = featureGates[tier]?.member_limit ?? 9999
-              if (members.length >= limit) { showToast(`🔒 현재 플랜에서는 최대 ${limit}명까지 등록 가능해요. 플랜 업그레이드 후 이용하세요.`); return }
+              if (members.length >= limit) { showToast(HIDE_PURCHASE ? `🔒 회원은 최대 ${limit}명까지 등록할 수 있어요.` : `🔒 현재 플랜에서는 최대 ${limit}명까지 등록 가능해요. 플랜 업그레이드 후 이용하세요.`); return }
               setAddForm({name:'',kakao_phone:'',phone:'',birthdate:'',address:'',email:'',special_notes:'',purpose:'체형교정',visit_source:'',visit_source_memo:'',total:'',done:'0',price:'',memo:''});setActivePage('page-add-member')
             }}>+ 회원 추가</button>
             <button
@@ -5647,7 +5654,7 @@ export default function TrainerApp() {
           </div>
 
           {/* 알림 설정 */}
-          {!canUse('push_notif') && (
+          {!canUse('push_notif') && !HIDE_PURCHASE && (
             <div style={{background:'rgba(255,255,255,0.03)',border:'1px dashed rgba(255,255,255,0.12)',borderRadius:'10px',padding:'12px 14px',marginBottom:'12px',display:'flex',alignItems:'center',gap:'10px',opacity:0.7}}>
               <span style={{fontSize:'18px'}}>🔒</span>
               <div>
@@ -5750,7 +5757,7 @@ export default function TrainerApp() {
                 <div style={{fontSize:'15px',fontWeight:700}}>{trainer?.name} 트레이너</div>
                 <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'2px'}}>{trainer?.email || '오운 이용 중'}</div>
               </div>
-              {isPaid ? (
+              {HIDE_PURCHASE ? null : isPaid ? (
                 <div style={{fontSize:'11px',padding:'4px 10px',borderRadius:'20px',
                   background:'linear-gradient(135deg,rgba(167,139,250,0.2),rgba(251,191,36,0.18))',
                   color:'#fbbf24',border:'1px solid rgba(251,191,36,0.4)',fontWeight:700,flexShrink:0}}>
@@ -5824,7 +5831,7 @@ export default function TrainerApp() {
           )}
 
           {/* ── 3열 상세 플랜 카드 (관리자 포털과 동기화된 Free / Pro / Premium) ── */}
-          {planGuideVisible === true && (() => {
+          {planGuideVisible === true && !HIDE_PURCHASE && (() => {
             const fallbackPlans = [
               { id: 'free',    name: 'Free',    price: '무료',         color: '#9ca3af', highlight: false, current: !isPaid, badge: null,        enabled: true, features: ['회원 5명', 'AI 일지 월 20회', '식단 기록', '기본 통계'] },
               { id: 'pro',     name: 'Pro',     price: '₩9,900/월',   color: '#60a5fa', highlight: false, current: false,  badge: '출시 예정',   enabled: true, features: ['회원 무제한', 'AI 일지 무제한', '주간 리포트 AI', '매출 분석'] },
@@ -7006,13 +7013,13 @@ export default function TrainerApp() {
                     alignItems:'center',
                   }}>
                     <span style={{fontSize:'13px',fontWeight:600,color:barColor}}>{label}</span>
-                    <button
+                    {!HIDE_PURCHASE && <button
                       onClick={()=>setSettingsModal(true)}
                       style={{background:'none',border:`1px solid ${barColor}66`,borderRadius:'6px',
                         color:barColor,fontSize:'11px',fontWeight:700,padding:'3px 8px',
                         cursor:'pointer',fontFamily:'inherit'}}>
                       충전
-                    </button>
+                    </button>}
                   </div>
                 )
               }())}
@@ -7037,8 +7044,8 @@ export default function TrainerApp() {
                 ) : (
                   <div style={{background:'rgba(255,255,255,0.04)',border:'1px dashed rgba(255,255,255,0.15)',borderRadius:'10px',padding:'18px',textAlign:'center',marginBottom:'10px'}}>
                     <div style={{fontSize:'24px',marginBottom:'6px'}}>🔒</div>
-                    <div style={{fontWeight:700,fontSize:'13px',marginBottom:'4px'}}>유료 플랜 전용 기능</div>
-                    <div style={{fontSize:'12px',color:'var(--text-dim)'}}>AI 수업일지 생성은 유료 플랜에서 이용 가능해요.</div>
+                    <div style={{fontWeight:700,fontSize:'13px',marginBottom:'4px'}}>{HIDE_PURCHASE ? '사용 가능한 AI 일지 횟수가 없어요' : '유료 플랜 전용 기능'}</div>
+                    <div style={{fontSize:'12px',color:'var(--text-dim)'}}>{HIDE_PURCHASE ? '현재 계정에서는 AI 수업일지를 생성할 수 없어요.' : 'AI 수업일지 생성은 유료 플랜에서 이용 가능해요.'}</div>
                   </div>
                 )
               )}
@@ -7079,8 +7086,8 @@ export default function TrainerApp() {
               ) : (
                 <div style={{background:'rgba(255,255,255,0.04)',border:'1px dashed rgba(255,255,255,0.15)',borderRadius:'10px',padding:'16px',textAlign:'center',marginBottom:'10px'}}>
                   <div style={{fontSize:'20px',marginBottom:'6px'}}>🔒</div>
-                  <div style={{fontWeight:700,fontSize:'13px',marginBottom:'4px'}}>유료 플랜 전용</div>
-                  <div style={{fontSize:'12px',color:'var(--text-dim)'}}>AI 회원 인사이트는 유료 플랜에서 이용 가능해요.</div>
+                  <div style={{fontWeight:700,fontSize:'13px',marginBottom:'4px'}}>{HIDE_PURCHASE ? 'AI 회원 인사이트' : '유료 플랜 전용'}</div>
+                  <div style={{fontSize:'12px',color:'var(--text-dim)'}}>{HIDE_PURCHASE ? '현재 이용할 수 없는 기능이에요.' : 'AI 회원 인사이트는 유료 플랜에서 이용 가능해요.'}</div>
                 </div>
               )}
             </div>
@@ -7908,11 +7915,11 @@ export default function TrainerApp() {
               </div>
               <div style={{fontSize:'32px'}}>🎟️</div>
             </div>
-            <div style={{fontSize:'11px',color:'var(--text-muted)',lineHeight:1.6,marginBottom:'12px'}}>
-              크레딧 1개 = AI 수업일지 생성 1회<br/>
-              크레딧이 부족하면 관리자에게 충전을 요청하세요.
+            <div style={{fontSize:'11px',color:'var(--text-muted)',lineHeight:1.6,marginBottom:HIDE_PURCHASE ? 0 : '12px'}}>
+              크레딧 1개 = AI 수업일지 생성 1회
+              {!HIDE_PURCHASE && <><br/>크레딧이 부족하면 관리자에게 충전을 요청하세요.</>}
             </div>
-            <div style={{
+            {!HIDE_PURCHASE && <div style={{
               background:'rgba(200,241,53,0.08)',
               border:'1px solid rgba(200,241,53,0.2)',
               borderRadius:'8px',
@@ -7922,14 +7929,27 @@ export default function TrainerApp() {
               fontWeight:600,
             }}>
               💡 크레딧 충전 문의: 관리자에게 연락해주세요
-            </div>
+            </div>}
           </div>
         </div>
         <button className="btn btn-primary" style={{width:'100%',marginTop:'8px'}} onClick={saveSettings}>닫기</button>
       </Modal>
 
       {/* ── 크레딧 부족 모달 ── */}
-      <Modal open={showLimitModal} onClose={()=>setShowLimitModal(false)} title="크레딧이 부족해요">
+      <Modal open={showLimitModal} onClose={()=>setShowLimitModal(false)} title={HIDE_PURCHASE ? 'AI 일지 횟수를 모두 사용했어요' : '크레딧이 부족해요'}>
+        {HIDE_PURCHASE ? (
+        <div style={{textAlign:'center',padding:'8px 0'}}>
+          <div style={{fontSize:'48px',marginBottom:'12px'}}>📝</div>
+          <div style={{fontSize:'14px',color:'var(--text-dim)',lineHeight:1.7,marginBottom:'16px'}}>
+            {aiQuota?.mode === 'quota'
+              ? <>이번 달 AI 수업일지 {aiQuota.quota}회를 모두 사용했어요.<br/>{fmtResetDate(aiQuota.resets_at)}에 다시 {aiQuota.quota}회가 제공돼요.</>
+              : '현재 사용 가능한 AI 수업일지 횟수가 없어요.'}
+          </div>
+          <button className="btn btn-ghost" style={{width:'100%'}} onClick={()=>setShowLimitModal(false)}>
+            닫기
+          </button>
+        </div>
+        ) : (
         <div style={{textAlign:'center',padding:'8px 0'}}>
           <div style={{fontSize:'48px',marginBottom:'12px'}}>🎟️</div>
           <div style={{fontSize:'15px',fontWeight:700,marginBottom:'8px'}}>
@@ -7953,6 +7973,7 @@ export default function TrainerApp() {
             닫기
           </button>
         </div>
+        )}
       </Modal>
 
 
