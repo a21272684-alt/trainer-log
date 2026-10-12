@@ -4759,7 +4759,12 @@ export default function TrainerApp() {
             )}
             <div style={{textAlign:'center',marginTop:'16px'}}>
               <span style={{fontSize:'13px',color:'#4d7c0f',cursor:'pointer',fontWeight:600}}
-                onClick={()=>setScreen('login')}>← 뒤로</span>
+                onClick={async () => {
+                  // 등록 전 상태라도 세션은 이미 생겨 있음 → 로그아웃까지 해야 다른 계정으로 다시 로그인 가능
+                  // (화면만 바꾸면 앱 재실행 시 저장된 세션으로 등록 화면이 다시 뜸)
+                  await supabase.auth.signOut()
+                  setAuthUser(null); setRegName(''); setScreen('login')
+                }}>← 뒤로</span>
             </div>
           </div>
         </div>
