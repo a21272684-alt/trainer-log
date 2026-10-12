@@ -6862,9 +6862,10 @@ export default function TrainerApp() {
                     { value:'diet',        label:'다이어트·체성분', paid:true  },
                     { value:'ak',          label:'AK·응용근신경학', paid:true  },
                     { value:'complex',     label:'복잡계',          paid:true  },
-                  ].filter(chip => !(HIDE_PURCHASE && chip.paid && !isPaid)).map(chip => {
+                  ].map(chip => {
                     const isActive = (perspectiveChip || 'rehab') === chip.value
-                    const showLock = chip.paid && !isPaid
+                    // iOS 앱에선 유료 표시(자물쇠)만 제거, 칩 6개는 그대로 노출 (3.1.1)
+                    const showLock = chip.paid && !isPaid && !HIDE_PURCHASE
                     return (
                       <button
                         key={chip.value}
