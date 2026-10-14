@@ -3541,9 +3541,18 @@ export default function TrainerApp() {
   }
 
   // === SEND ===
+  // 중복 전송 방지 — 영상 업로드가 길어 버튼을 여러 번 누르면 전송이 동시에 여러 개 돌아
+  // 같은 일지가 두 번 저장되거나(회원이 두 번 받음) 실패한 쪽 영상만 저장소에 남았음(2026-10 확인).
+  // ref 로 즉시 잠그고(state 반영 전 연타도 차단), state 로 버튼을 비활성화한다.
+  const sendingRef = useRef(false)
+  const [sending, setSending] = useState(false)
+
   async function sendKakao() {
     const m = currentMember
     if (!finalContent) { showToast('먼저 수업일지를 생성해주세요'); return }
+    if (sendingRef.current) return
+    sendingRef.current = true
+    setSending(true)
     const reportId = Date.now().toString(36) + Math.random().toString(36).substr(2,5)
     // C-002: 업로드 도중/이후 어디서 실패해도 storage·DB orphan 차단
     //   - uploadedMediaPaths : session-media 에 올라간 path 들 — catch 에서 일괄 remove
@@ -3690,6 +3699,9 @@ export default function TrainerApp() {
         if (typeof setFinalContent === 'function') setFinalContent('')
         if (typeof setExercises === 'function') setExercises([])
         if (typeof setMediaFiles === 'function') setMediaFiles([])
+        // 발송 화면이 닫힌 뒤에 잠금 해제 (1.5초 사이 재전송 방지)
+        sendingRef.current = false
+        setSending(false)
       }, 1500)
     } catch(e) {
       console.error('[sendKakao] 오류:', e)
@@ -3712,6 +3724,9 @@ export default function TrainerApp() {
         console.warn('[sendKakao] workout_sessions 롤백 실패:', rollErr.message)
       }
       showToast('오류: ' + e.message)
+      // 실패 시엔 롤백까지 끝난 뒤 바로 재시도 가능하게 잠금 해제
+      sendingRef.current = false
+      setSending(false)
     }
   }
 
@@ -7054,9 +7069,11 @@ export default function TrainerApp() {
               {showSend && (
                 <div>
                   <div className="section-label">3단계 — 발송</div>
-                  <button className="btn btn-primary" style={{width:'100%',marginBottom:'8px'}} onClick={sendKakao}>
+                  <button className="btn btn-primary" disabled={sending}
+                    style={{width:'100%',marginBottom:'8px',opacity:sending?0.6:1,cursor:sending?'not-allowed':'pointer'}}
+                    onClick={sendKakao}>
                     <span style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px'}}>
-                      📱 회원 앱으로 전송하기
+                      {sending ? '전송 중… 잠시만 기다려주세요' : '📱 회원 앱으로 전송하기'}
                     </span>
                   </button>
                   <div style={{fontSize:'12px',color:'var(--text-dim)',textAlign:'center',marginBottom:'10px'}}>
