@@ -806,3 +806,157 @@ html, body, #root {
   .crm-modal-backdrop, .crm-modal, .crm-modal.shown { transition: opacity 0.12s linear; transform: none; }
   .crm-modal.shake { animation: none; }
 }
+
+/* ── 매출 분석 ───────────────────────────────────────────────── */
+.rev-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.rev-seg button {
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 6px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+.rev-seg button:hover:not(.on) { color: var(--text); }
+.rev-seg button.on {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.rev-scope {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  background: var(--surface3);
+  color: var(--text);
+}
+.rev-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  transition: opacity 0.2s ease;
+}
+.rev-kpis.loading { opacity: 0.5; }
+.rev-kpi { display: flex; flex-direction: column; gap: 6px; }
+.rev-kpi-label { font-size: 12px; color: var(--text-muted); }
+.rev-kpi-value { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+.rev-kpi-sub { font-size: 11px; color: var(--text-muted); }
+
+.rev-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 220px;
+  width: 44px;
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.rev-plot {
+  position: relative;
+  height: 220px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  border-bottom: 1px solid var(--text-dim);
+}
+.rev-grid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed var(--border);
+  pointer-events: none;
+}
+.rev-bar {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.rev-bar span {
+  display: block;
+  width: 72%;
+  max-width: 28px;
+  border-radius: 4px 4px 0 0;
+  background: #6B8E0E;
+  transform-origin: bottom;
+  animation: rev-grow 0.55s cubic-bezier(.22, 1, .36, 1) backwards;
+  transition: background-color 0.15s ease;
+}
+.rev-bar:hover span,
+.rev-bar.hot span,
+.rev-bar:focus-visible span { background: #4D6A00; }
+@keyframes rev-grow {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+.rev-tip {
+  position: absolute;
+  width: 150px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+  animation: crm-rise 0.18s ease backwards;
+  z-index: 2;
+}
+.rev-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.rev-two {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+}
+.rev-card-title { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+.rev-rank {
+  display: grid;
+  grid-template-columns: minmax(80px, 140px) minmax(0, 1fr) 72px 40px;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 0;
+  font-size: 13px;
+}
+.rev-rank-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rev-track { height: 10px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+.rev-fill {
+  height: 100%;
+  background: #6B8E0E;
+  border-radius: 0 4px 4px 0;
+  transform-origin: left;
+  animation: rev-grow-x 0.6s cubic-bezier(.22, 1, .36, 1) backwards;
+}
+@keyframes rev-grow-x {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+.rev-empty { padding: 18px 0; text-align: center; font-size: 12px; color: var(--text-muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .rev-bar span, .rev-fill, .rev-tip { animation: none; }
+}
