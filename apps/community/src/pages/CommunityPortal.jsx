@@ -3,6 +3,9 @@ import { PORTAL_URL } from '../lib/urls'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import { useToast } from '@trainer-log/shared/components/common/Toast'
 import TermsAgreementModal from '@trainer-log/shared/components/common/TermsAgreementModal'
+import ReportSheet from '../components/community/ReportSheet'
+import SanctionBanner from '../components/community/SanctionBanner'
+import { fetchMyStatus, isSuspended, ackSanction, REASON_LABEL } from '../lib/moderation'
 
 /* ═══════════════════════════════════════════════
    Storage 비용 절감용 클라이언트 이미지 압축기
@@ -181,20 +184,78 @@ function StatusBadge({ status }) {
   )
 }
 
+/* ── ReportMenu — 상세 화면 헤더 ⋯ 메뉴 (남의 글에만) ── */
+function ReportMenu({ onReport }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ position: 'relative' }}>
+      <button onClick={() => setOpen(o => !o)} aria-label="더보기 메뉴" aria-expanded={open} style={{
+        background: 'none', border: 'none', fontSize: 20, lineHeight: 1, color: T.text,
+        cursor: 'pointer', padding: '4px 8px', borderRadius: 8, fontFamily: 'inherit',
+      }}>⋯</button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 150 }} />
+          <div style={{
+            position: 'absolute', top: 36, right: 0, zIndex: 151, minWidth: 140,
+            background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.12)', overflow: 'hidden',
+          }}>
+            <button onClick={() => { setOpen(false); onReport() }} style={{
+              display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none',
+              padding: '11px 14px', fontSize: 13, fontWeight: 700, color: T.danger,
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}>🚩 신고하기</button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+/* ── ModerationNotice — 숨김·삭제된 내 글 안내 ── */
+function ModerationNotice({ post }) {
+  if (post.status !== 'hidden' && post.status !== 'removed') return null
+  const reason = REASON_LABEL[post.hidden_reason] || '운영정책 위반'
+  return (
+    <div style={{
+      background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B',
+      borderRadius: 12, padding: '12px 14px', fontSize: 12.5, lineHeight: 1.7, marginBottom: 16,
+    }}>
+      {post.status === 'hidden' ? (
+        <><b>신고가 누적되어 다른 사람에게 보이지 않는 글이에요.</b><br />
+          주요 사유: {reason}<br />
+          운영자가 확인 후 다시 공개하거나 삭제합니다. 내용에 문제가 없다면 카카오톡 채널 @ownapp 으로 알려주세요.</>
+      ) : (
+        <><b>운영정책 위반으로 삭제된 글이에요.</b><br />
+          사유: {reason}. 다른 사람에게는 보이지 않아요.</>
+      )}
+    </div>
+  )
+}
+
 /* ── PostCard ── */
 function PostCard({ post, onClick, myId }) {
   const isClosed = post.status === 'closed'
+  // 숨김·삭제 글은 작성자 본인의 '내 글' 목록에만 나옴
+  const modLabel = post.status === 'hidden' ? '숨김 · 신고 누적'
+    : post.status === 'removed' ? '삭제됨 · 운영정책' : null
   return (
     <div onClick={onClick} style={{
-      background: T.surface, border: `1px solid ${T.border}`,
+      background: T.surface, border: `1px solid ${modLabel ? '#FECACA' : T.border}`,
       borderRadius: 14, padding: '14px 16px', marginBottom: 10,
       cursor: 'pointer', position: 'relative', overflow: 'hidden',
-      boxShadow: T.shadow, opacity: isClosed ? 0.6 : 1,
+      boxShadow: T.shadow, opacity: isClosed || modLabel ? 0.6 : 1,
     }}>
       {isClosed && (
         <div style={{ position: 'absolute', top: 10, right: 10, fontSize: 10,
           fontWeight: 800, color: T.dim, background: T.surface2,
           padding: '2px 7px', borderRadius: 8 }}>마감</div>
+      )}
+      {modLabel && (
+        <div style={{ position: 'absolute', top: 10, right: 10, fontSize: 10,
+          fontWeight: 800, color: '#991B1B', background: '#FEF2F2',
+          padding: '2px 7px', borderRadius: 8 }}>{modLabel}</div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
         <CatBadge cat={post.category} />
@@ -447,6 +508,28 @@ export default function CommunityPortal() {
   // 연락 요청 중복 발송 방어
   const [sendingContact, setSendingContact] = useState(false)
 
+  /* ── 신고·제재 ── */
+  const [myStatus,     setMyStatus]     = useState(null)   // community_user_status row
+  const [reportTarget, setReportTarget] = useState(null)   // 신고할 글
+  const suspended = isSuspended(myStatus)
+
+  async function loadMyStatus(userId) {
+    try { setMyStatus(await fetchMyStatus(userId)) }
+    catch (e) { console.warn('[loadMyStatus]', e.message) }
+  }
+
+  // 정지 중이면 글쓰기·판매·연락 차단 (서버 RLS 로도 막혀 있음)
+  function guardSuspended() {
+    if (!suspended) return false
+    showToast('글쓰기가 제한된 계정이에요. 화면 위 안내를 확인해주세요')
+    return true
+  }
+
+  async function handleAckSanction() {
+    try { await ackSanction(); setMyStatus(s => s && { ...s, last_seen: true }) }
+    catch (e) { showToast('처리하지 못했어요: ' + e.message) }
+  }
+
   /* ── Write post form ── */
   const INIT_WRITE = {
     cat: '', title: '', content: '', videoUrl: '',
@@ -498,7 +581,7 @@ export default function CommunityPortal() {
       const { data, error } = await supabase.from('community_users')
         .select('*').eq('auth_id', gUser.id).maybeSingle()
       if (error) throw error
-      if (data) { setUser(data); setScreen('main') }
+      if (data) { setUser(data); setScreen('main'); loadMyStatus(data.id) }
       else {
         setReg(f => ({ ...f, name: gUser.user_metadata?.full_name || gUser.email?.split('@')[0] || '' }))
         setScreen('register')
@@ -1114,18 +1197,20 @@ export default function CommunityPortal() {
           right={
             isMyPost ? (
               <div style={{ display: 'flex', gap: 8 }}>
-                {!isClosed && (
+                {selPost.status === 'active' && (
                   <Btn variant="ghost" onClick={() => closePost(selPost.id)}
                     style={{ fontSize: 12, padding: '6px 10px' }}>마감</Btn>
                 )}
                 <Btn variant="danger" onClick={() => deletePost(selPost.id)}
                   style={{ fontSize: 12, padding: '6px 10px' }}>삭제</Btn>
               </div>
-            ) : null
+            ) : <ReportMenu onReport={() => setReportTarget(selPost)} />
           }
         />
+        {reportTarget && <ReportSheet post={reportTarget} onClose={() => setReportTarget(null)} />}
 
         <div style={{ maxWidth: 640, margin: '0 auto', padding: '20px 16px' }}>
+          {isMyPost && <ModerationNotice post={selPost} />}
           {/* Header */}
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -1213,7 +1298,7 @@ export default function CommunityPortal() {
                   )}
                 </div>
               ) : (
-                <button onClick={() => setShowContactModal(true)} style={{
+                <button onClick={() => { if (guardSuspended()) return; setShowContactModal(true) }} style={{
                   width: '100%', padding: '14px', borderRadius: 12, border: 'none',
                   background: T.accent, color: '#fff', fontSize: 15, fontWeight: 800,
                   cursor: 'pointer', fontFamily: 'inherit',
@@ -1461,11 +1546,13 @@ export default function CommunityPortal() {
             isSeller ? (
               <Btn variant="danger" onClick={() => deletePost(selMarket.id)}
                 style={{ fontSize: 12, padding: '6px 10px' }}>삭제</Btn>
-            ) : null
+            ) : <ReportMenu onReport={() => setReportTarget(selMarket)} />
           }
         />
+        {reportTarget && <ReportSheet post={reportTarget} onClose={() => setReportTarget(null)} />}
 
         <div style={{ maxWidth: 640, margin: '0 auto', padding: '20px 16px' }}>
+          {isSeller && <ModerationNotice post={selMarket} />}
           {/* Info card */}
           <div style={{ background: T.surface, borderRadius: 14, padding: '16px',
             border: `1px solid ${T.border}`, marginBottom: 14, boxShadow: T.shadow }}>
@@ -1804,6 +1891,9 @@ export default function CommunityPortal() {
       {/* 최초 로그인 1회 약관 동의 모달 (user_metadata.terms_agreed 미설정 시 강제 노출) */}
       <TermsAgreementModal linkBase={PORTAL_URL} />
 
+      {/* 제재 안내 (정지 중 / 경고 미확인) */}
+      <SanctionBanner status={myStatus} onAck={handleAckSanction} />
+
       {/* ── Top bar ── */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 100,
@@ -1819,14 +1909,14 @@ export default function CommunityPortal() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {navTab !== 'my' && navTab !== 'market' && (
-            <button onClick={() => { setPrevNav(navTab); setScreen('write') }} style={{
+            <button onClick={() => { if (guardSuspended()) return; setPrevNav(navTab); setScreen('write') }} style={{
               background: T.accent, border: 'none', color: '#fff', borderRadius: 8,
               padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
               fontFamily: 'inherit',
             }}>+ 글쓰기</button>
           )}
           {navTab === 'market' && (
-            <button onClick={() => setScreen('market_write')} style={{
+            <button onClick={() => { if (guardSuspended()) return; setScreen('market_write') }} style={{
               background: T.accent, border: 'none', color: '#fff', borderRadius: 8,
               padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
               fontFamily: 'inherit',
@@ -1864,7 +1954,7 @@ export default function CommunityPortal() {
             <div style={{ textAlign: 'center', padding: '60px 0' }}>
               <div style={{ fontSize: 36, marginBottom: 12 }}>📭</div>
               <div style={{ fontSize: 14, color: T.muted, marginBottom: 8 }}>아직 게시글이 없습니다</div>
-              <button onClick={() => { setPrevNav(navTab); setScreen('write') }} style={{
+              <button onClick={() => { if (guardSuspended()) return; setPrevNav(navTab); setScreen('write') }} style={{
                 background: T.accent, border: 'none', color: '#fff', borderRadius: 10,
                 padding: '10px 20px', fontSize: 13, fontWeight: 700,
                 cursor: 'pointer', fontFamily: 'inherit',
@@ -1914,7 +2004,7 @@ export default function CommunityPortal() {
             <div style={{ textAlign: 'center', padding: '60px 0' }}>
               <div style={{ fontSize: 36, marginBottom: 12 }}>🏪</div>
               <div style={{ fontSize: 14, color: T.muted, marginBottom: 8 }}>등록된 상품이 없습니다</div>
-              <button onClick={() => setScreen('market_write')} style={{
+              <button onClick={() => { if (guardSuspended()) return; setScreen('market_write') }} style={{
                 background: T.accent, border: 'none', color: '#fff', borderRadius: 10,
                 padding: '10px 20px', fontSize: 13, fontWeight: 700,
                 cursor: 'pointer', fontFamily: 'inherit',
