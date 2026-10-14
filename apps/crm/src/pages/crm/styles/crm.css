@@ -556,3 +556,77 @@ html, body, #root {
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* ── 펼침 패널 (고급 필터 등) ──────────────────────────────────── */
+/* 높이 auto 전환: grid-template-rows 0fr → 1fr. 닫힌 상태도 마운트 유지(입력값 보존) */
+.crm-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(-8px) scale(0.995);
+  transform-origin: top center;
+  margin-bottom: 0;
+  transition:
+    grid-template-rows 0.38s cubic-bezier(.22, 1, .36, 1),
+    opacity 0.26s ease,
+    transform 0.38s cubic-bezier(.22, 1, .36, 1),
+    margin-bottom 0.38s cubic-bezier(.22, 1, .36, 1);
+}
+.crm-collapse.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: none;
+  margin-bottom: 12px;
+}
+.crm-collapse > .crm-collapse-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+/* 열릴 때 항목이 위에서부터 차례로 떠오름 */
+.crm-collapse.open .crm-stagger > * {
+  animation: crm-rise 0.42s cubic-bezier(.22, 1, .36, 1) both;
+}
+.crm-collapse.open .crm-stagger > *:nth-child(1) { animation-delay: 0.04s; }
+.crm-collapse.open .crm-stagger > *:nth-child(2) { animation-delay: 0.07s; }
+.crm-collapse.open .crm-stagger > *:nth-child(3) { animation-delay: 0.10s; }
+.crm-collapse.open .crm-stagger > *:nth-child(4) { animation-delay: 0.13s; }
+.crm-collapse.open .crm-stagger > *:nth-child(5) { animation-delay: 0.16s; }
+.crm-collapse.open .crm-stagger > *:nth-child(6) { animation-delay: 0.19s; }
+.crm-collapse.open .crm-stagger > *:nth-child(7) { animation-delay: 0.22s; }
+.crm-collapse.open .crm-stagger > *:nth-child(n+8) { animation-delay: 0.25s; }
+
+@keyframes crm-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 토글 버튼의 화살표 회전 */
+.crm-chevron {
+  display: inline-block;
+  transition: transform 0.3s cubic-bezier(.22, 1, .36, 1);
+}
+.crm-chevron.open { transform: rotate(180deg); }
+
+/* 범위 입력(시작 ~ 끝): 날짜·숫자 입력이 칸 밖으로 넘치지 않게 */
+.crm-range {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+.crm-range > .input {
+  flex: 1 1 0;
+  min-width: 0;
+  width: auto;
+}
+.crm-range > span {
+  font-size: 12px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crm-collapse,
+  .crm-chevron { transition: none; }
+  .crm-collapse.open .crm-stagger > * { animation: none; }
+}
