@@ -5,6 +5,11 @@ import { useToast } from '../components/CrmToast'
 import Modal from '../components/CrmModal'
 import { computeRiskScore, RISK_LEVELS } from '@trainer-log/shared/lib/churnRisk'
 import { isDurationTicket, calcTicketPeriod, todayStr } from '../lib/ticketDateCalc'
+import MemberFilterPanel from '../components/MemberFilterPanel'
+import {
+  EMPTY_FILTERS, STATUS_CHIPS, memberStatus, matchStatus, matchFilters,
+  filterTags, daysSince,
+} from '../lib/memberFilters'
 
 const mono = { fontFamily: "'DM Mono', monospace" }
 const krw  = n => Number(n||0).toLocaleString() + '원'
@@ -1034,6 +1039,14 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
   const [retentionMap,  setRetentionMap] = useState({})
   const [selected,      setSelected]     = useState(null)
 
+  // ── 고급 필터 · 세그먼트 ──
+  const [filters,       setFilters]      = useState(EMPTY_FILTERS)
+  const [panelOpen,     setPanelOpen]    = useState(false)
+  // { [memberId]: { total_paid, payment_count, last_paid_at, last_attended } }
+  const [statsMap,      setStatsMap]     = useState({})
+  const [segments,      setSegments]     = useState([])
+  const [activeSegId,   setActiveSegId]  = useState(null)
+
   // ── 신규 회원 등록 모달 상태 ──
   const [addModal,  setAddModal]  = useState(false)
   const [addForm,   setAddForm]   = useState({ name: '', phone: '', trainer_id: '', status: 'active', lead_memo: '' })
@@ -1046,8 +1059,60 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
   // 회원 목록 변경·탭 진입 시 risk + retention 병렬 로드
   useEffect(() => {
     loadRiskScores()
-    if (gymId) loadRetention()
+    if (gymId) { loadRetention(); loadStats() }
   }, [localMembers.length, gymId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { if (gymId) loadSegments() }, [gymId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // payments/attendance RLS 는 본인 담당분만 허용 → 센터 전체 집계는 RPC 경유
+  async function loadStats() {
+    const { data, error } = await supabase.rpc('crm_member_stats', { p_gym_id: gymId })
+    if (error) { console.error('[crm_member_stats]', error); return }
+    const map = {}
+    ;(data || []).forEach(r => { map[r.member_id] = r })
+    setStatsMap(map)
+  }
+
+  async function loadSegments() {
+    const { data, error } = await supabase.from('crm_segments')
+      .select('id, name, filters').eq('gym_id', gymId).order('created_at')
+    if (error) { console.error('[crm_segments]', error); return }
+    setSegments(data || [])
+  }
+
+  async function saveSegment(name, segFilters) {
+    const { data, error } = await supabase.from('crm_segments')
+      .insert({ gym_id: gymId, name, filters: segFilters, created_by: currentTrainer?.id ?? null })
+      .select('id, name, filters').single()
+    if (error) { alert('세그먼트 저장 실패: ' + error.message); return false }
+    setSegments(prev => [...prev, data])
+    setFilters(segFilters)          // 저장한 조건을 바로 적용
+    setActiveSegId(data.id)
+    return true
+  }
+
+  async function deleteSegment(seg) {
+    if (!confirm(`'${seg.name}' 세그먼트를 삭제할까요?`)) return
+    const { error } = await supabase.from('crm_segments').delete().eq('id', seg.id)
+    if (error) { alert('삭제 실패: ' + error.message); return }
+    setSegments(prev => prev.filter(s => s.id !== seg.id))
+    if (activeSegId === seg.id) setActiveSegId(null)
+  }
+
+  function applySegment(seg) {
+    if (activeSegId === seg.id) { setActiveSegId(null); setFilters(EMPTY_FILTERS); return }
+    setActiveSegId(seg.id)
+    setFilters({ ...EMPTY_FILTERS, ...seg.filters })
+  }
+
+  function applyFilters(next) {
+    setFilters(next)
+    setActiveSegId(null)
+  }
+
+  function removeTag(keys) {
+    applyFilters({ ...filters, ...Object.fromEntries(keys.map(k => [k, EMPTY_FILTERS[k]])) })
+  }
 
   async function loadRiskScores() {
     if (!localMembers.length) return
@@ -1127,33 +1192,64 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
     }
   }
 
+  // 상태 칩(빠른 분류) + 고급 필터 조건을 모두 통과한 회원
+  const statusOf = m => memberStatus(m, statsMap[m.id])
   const filtered = localMembers
-    .filter(m => {
-      const rem  = Math.max(0,(m.total_sessions||0)-(m.done_sessions||0))
-      const risk = riskMap[m.id]
-      const ret  = retentionMap[m.id]
-      // 새 리텐션 필터
-      if (filter === 'lead')    return m.status === 'lead'
-      if (filter === 'expiry')  return ret?.expiry_warning === true
-      if (filter === 'absent')  return ret?.absence_warning === true
-      // 기존 필터 (세션 기반 하위 호환)
-      if (filter === 'active')   return rem > 0
-      if (filter === 'expiring') return rem <= 3 && rem > 0
-      if (filter === 'risk')     return risk && (risk.risk_level==='risk'||risk.risk_level==='critical')
-      if (filter === 'expired')  return rem === 0
-      return true
-    })
+    .filter(m => matchStatus(statusOf(m), filter))
+    .filter(m => matchFilters(m, statsMap[m.id], riskMap[m.id], filters))
     .filter(m => !search || m.name.includes(search) || (m.phone||'').includes(search))
     .sort((a,b) => (riskMap[b.id]?.risk_score??-1) - (riskMap[a.id]?.risk_score??-1))
 
-  // 리텐션 뱃지 카운트 (필터 칩 숫자 표시용)
-  const expiryCnt = localMembers.filter(m => retentionMap[m.id]?.expiry_warning).length
-  const absentCnt = localMembers.filter(m => retentionMap[m.id]?.absence_warning).length
-  const leadCnt   = localMembers.filter(m => m.status === 'lead').length
+  const statusCounts = useMemo(() => {
+    const c = { all: localMembers.length, active: 0, expiring: 0, expired: 0, none: 0 }
+    localMembers.forEach(m => {
+      const st = memberStatus(m, statsMap[m.id])
+      c[st]++
+      if (st === 'expiring') c.active++
+    })
+    return c
+  }, [localMembers, statsMap])
+
+  const tags     = filterTags(filters, trainers)
+  const purposes = useMemo(
+    () => [...new Set(localMembers.map(m => m.lesson_purpose).filter(Boolean))].sort(),
+    [localMembers])
 
   return (
     <div>
-      {/* ── 필터 바 ── */}
+      {/* ── 상태 칩 + 저장한 세그먼트 ── */}
+      <div className="filter-bar" style={{ flexWrap: 'wrap', gap: '6px' }}>
+        {STATUS_CHIPS.map(([v, l]) => (
+          <button key={v} className={`filter-chip ${filter===v?'active':''}`}
+            onClick={() => setFilter(v)}>
+            {l} <span style={{ ...mono, fontSize: '10px', opacity: 0.7 }}>{statusCounts[v]}</span>
+          </button>
+        ))}
+
+        {segments.length > 0 && (
+          <>
+            <span style={{ width: '1px', height: '20px', background: 'var(--border)',
+              alignSelf: 'center', margin: '0 4px' }} />
+            <span style={{ fontSize: '11px', color: 'var(--text-dim)', alignSelf: 'center' }}>세그먼트</span>
+            {segments.map(seg => (
+              <span key={seg.id} style={{ display: 'inline-flex', alignItems: 'center' }}>
+                <button className={`filter-chip ${activeSegId===seg.id?'active':''}`}
+                  style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
+                  onClick={() => applySegment(seg)}>
+                  {seg.name}
+                </button>
+                <button className="filter-chip" aria-label={`${seg.name} 세그먼트 삭제`}
+                  style={{ borderLeft: 'none', borderTopLeftRadius: 0, borderBottomLeftRadius: 0, padding: '5px 8px' }}
+                  onClick={() => deleteSegment(seg)}>
+                  ×
+                </button>
+              </span>
+            ))}
+          </>
+        )}
+      </div>
+
+      {/* ── 검색 + 고급 필터 토글 ── */}
       <div className="filter-bar" style={{ flexWrap: 'wrap', gap: '6px' }}>
         <div className="search-bar" style={{ maxWidth: '220px' }}>
           <span className="search-icon">🔍</span>
@@ -1161,64 +1257,19 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
             value={search} onChange={e => setSearch(e.target.value)} />
         </div>
 
-        {/* 기본 필터 */}
-        {[
-          ['all',      '전체'],
-          ['active',   '진행 중'],
-          ['expiring', '만료 예정'],
-          ['risk',     '이탈 위험'],
-          ['expired',  '세션 소진'],
-        ].map(([v, l]) => (
-          <button key={v} className={`filter-chip ${filter===v?'active':''}`}
-            onClick={() => setFilter(v)}>{l}</button>
+        <button className={`filter-chip ${panelOpen?'active':''}`}
+          onClick={() => setPanelOpen(o => !o)}>
+          고급 필터{tags.length > 0 ? ` · ${tags.length}` : ''}
+        </button>
+
+        {tags.map(t => (
+          <button key={t.text} className="filter-chip"
+            style={{ borderColor: 'rgba(200,241,53,0.35)', color: 'var(--accent)' }}
+            aria-label={`${t.text} 조건 해제`}
+            onClick={() => removeTag(t.keys)}>
+            {t.text} ×
+          </button>
         ))}
-
-        {/* 구분선 */}
-        <span style={{ width: '1px', height: '20px', background: 'var(--border)',
-          alignSelf: 'center', margin: '0 2px' }} />
-
-        {/* 리텐션 필터 — 해당 회원이 있을 때만 강조 */}
-        <button
-          className={`filter-chip ${filter==='lead'?'active':''}`}
-          onClick={() => setFilter(filter==='lead'?'all':'lead')}
-          style={{ position: 'relative',
-            borderColor: leadCnt > 0 ? 'rgba(167,139,250,0.5)' : undefined,
-            color: filter==='lead' ? undefined : leadCnt > 0 ? 'var(--purple)' : undefined }}>
-          🌱 가망 고객
-          {leadCnt > 0 && (
-            <span style={{ marginLeft: '4px', fontSize: '10px', fontWeight: 700,
-              background: 'var(--purple)', color: '#fff',
-              borderRadius: '20px', padding: '0 5px' }}>{leadCnt}</span>
-          )}
-        </button>
-
-        <button
-          className={`filter-chip ${filter==='expiry'?'active':''}`}
-          onClick={() => setFilter(filter==='expiry'?'all':'expiry')}
-          style={{
-            borderColor: expiryCnt > 0 ? 'rgba(250,204,21,0.5)' : undefined,
-            color: filter==='expiry' ? undefined : expiryCnt > 0 ? 'var(--yellow)' : undefined }}>
-          ⏰ 만료 임박
-          {expiryCnt > 0 && (
-            <span style={{ marginLeft: '4px', fontSize: '10px', fontWeight: 700,
-              background: 'var(--yellow)', color: '#111',
-              borderRadius: '20px', padding: '0 5px' }}>{expiryCnt}</span>
-          )}
-        </button>
-
-        <button
-          className={`filter-chip ${filter==='absent'?'active':''}`}
-          onClick={() => setFilter(filter==='absent'?'all':'absent')}
-          style={{
-            borderColor: absentCnt > 0 ? 'rgba(251,146,60,0.5)' : undefined,
-            color: filter==='absent' ? undefined : absentCnt > 0 ? 'var(--orange)' : undefined }}>
-          😴 장기 미출석
-          {absentCnt > 0 && (
-            <span style={{ marginLeft: '4px', fontSize: '10px', fontWeight: 700,
-              background: 'var(--orange)', color: '#fff',
-              borderRadius: '20px', padding: '0 5px' }}>{absentCnt}</span>
-          )}
-        </button>
 
         <span style={{ marginLeft: 'auto', fontSize: '12px', color: 'var(--text-dim)' }}>
           {filtered.length}명
@@ -1229,6 +1280,16 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
           + 신규 등록
         </button>
       </div>
+
+      {panelOpen && (
+        <MemberFilterPanel
+          filters={filters}
+          trainers={trainers}
+          purposes={purposes}
+          onApply={applyFilters}
+          onSaveSegment={saveSegment}
+        />
+      )}
 
       {/* ── 회원 목록 테이블 ── */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -1246,6 +1307,9 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
                 <th>담당 트레이너</th>
                 <th style={{ textAlign: 'right' }}>세션 현황</th>
                 <th style={{ textAlign: 'right' }}>잔여</th>
+                <th style={{ textAlign: 'right' }}>누적 결제</th>
+                <th>마지막 결제</th>
+                <th>마지막 출석</th>
                 <th>위험도 · 알림</th>
                 <th></th>
               </tr>
@@ -1257,6 +1321,8 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
                 const tName   = trainers.find(t => t.id===m.trainer_id)?.name ?? '—'
                 const ret     = retentionMap[m.id]
                 const isLead  = m.status === 'lead'
+                const stat    = statsMap[m.id]
+                const attDays = daysSince(stat?.last_attended)
 
                 return (
                   <tr key={m.id}>
@@ -1328,6 +1394,17 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
                       color: remain===0?'var(--text-dim)':remain<=3?'var(--orange)':'var(--green)',
                       fontWeight:600 }}>
                       {isLead ? '—' : `${remain}회`}
+                    </td>
+
+                    <td style={{ textAlign:'right', ...mono, fontSize:'12px' }}>
+                      {stat?.total_paid ? krw(stat.total_paid) : '—'}
+                    </td>
+                    <td style={{ ...mono, fontSize:'11px', color:'var(--text-muted)' }}>
+                      {stat?.last_paid_at ? String(stat.last_paid_at).slice(0, 10) : '—'}
+                    </td>
+                    <td style={{ ...mono, fontSize:'11px',
+                      color: attDays == null ? 'var(--text-dim)' : attDays >= 14 ? 'var(--orange)' : 'var(--text-muted)' }}>
+                      {attDays == null ? '—' : attDays === 0 ? '오늘' : `${attDays}일 전`}
                     </td>
 
                     <td><RiskBadge riskRow={riskMap[m.id]} /></td>
