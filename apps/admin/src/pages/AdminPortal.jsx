@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import Modal from '@trainer-log/shared/components/common/Modal'
+import CommunityReportsTab from './CommunityReportsTab'
 import '../styles/admin.css'
 
 // ── 관리자 자격 (Vite 환경변수) ───────────────────────────────
@@ -59,12 +60,12 @@ const PORTAL_TABS = {
   // 자유게시판(free_board) 모더레이션도 제거 — 운영 단순화.
   trainer:   [{ id: 'list', label: '트레이너 목록' }, { id: 'pending', label: '가입 승인 대기' }, { id: 'logs', label: '수업일지' }, { id: 'subs', label: '구독 관리' }, { id: 'plans', label: '플랜 관리' }],
   member:    [{ id: 'status', label: '회원 현황' }, { id: 'notices', label: '공지사항 관리' }],
-  community: [{ id: 'posts', label: '게시글' }, { id: 'users', label: '유저' }, { id: 'contacts', label: '연락 요청' }, { id: 'market', label: '마켓 거래 관리' }],
+  community: [{ id: 'reports', label: '신고함' }, { id: 'posts', label: '게시글' }, { id: 'users', label: '유저' }, { id: 'contacts', label: '연락 요청' }, { id: 'market', label: '마켓 거래 관리' }],
   crm:       [{ id: 'permissions', label: '권한 관리' }],
   // landing 은 아래 LANDING_PORTALS / LANDING_TABS 로 2단계 관리
 }
 
-const DEFAULT_TAB = { trainer: 'list', member: 'status', community: 'posts', crm: 'permissions', landing: 'hero' }
+const DEFAULT_TAB = { trainer: 'list', member: 'status', community: 'reports', crm: 'permissions', landing: 'hero' }
 
 // 후기 사진 세로 포커스(0~100%) → object-position. 옛 photo_position(top/center/bottom) 자동 매핑.
 const reviewFocusY = (r) =>
@@ -1715,6 +1716,8 @@ export default function AdminPortal() {
                 <div className="stat-card"><div className="stat-num" style={{ color: '#4fc3f7' }}>{commContacts.filter(c => c.status === 'pending').length}</div><div className="stat-label">대기 연락</div><div className="stat-sub">수락 {commContacts.filter(c => c.status === 'accepted').length}건</div></div>
                 <div className="stat-card"><div className="stat-num" style={{ color: '#4fc3f7' }}>{commContacts.filter(c => c.status === 'accepted').length}</div><div className="stat-label">매칭 성사</div></div>
               </div>
+
+              {subTab === 'reports' && <CommunityReportsTab showToast={showToast} />}
 
               {subTab === 'posts' && (
                 <div className="card table-wrap">
