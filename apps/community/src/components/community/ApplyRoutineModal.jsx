@@ -14,7 +14,7 @@
 
 import { useState } from 'react'
 import { applyRoutineToMember, getGoalMeta, getLevelMeta } from '../../lib/routineTemplates'
-import { useToast } from '../common/Toast'
+import { useToast } from '@trainer-log/shared/components/common/Toast'
 
 export default function ApplyRoutineModal({
   templateData,

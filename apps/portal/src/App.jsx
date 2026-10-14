@@ -15,10 +15,14 @@ import { initNativeAuthListener, isNativeApp } from './lib/nativeAuth'
 
 // ⚠️ Phase D-4 베타 출시 정책 (Path B):
 // CRM / Community 는 코드는 완성 상태이나 운영(prod) 배포엔 미공개.
-// Community 는 로컬 dev 에서만 실제 CommunityPortal 로 동작시키고(개발용),
-// 운영 빌드(import.meta.env.DEV === false)에선 계속 ComingSoon 으로 가린다.
-// lazy import 라 운영 번들은 별도 chunk 로 분리 → main 번들 크기 영향 최소.
-const CommunityPortal = lazy(() => import('./pages/CommunityPortal'))
+// Community 는 별도 앱(apps/community, community.ownapp.kr)으로 분리됨 — iOS/안드로이드 앱이
+// 이 portal 을 띄우므로, 광고·결제 수익화가 앱 심사에 걸리지 않게 웹 전용으로 떼어냄.
+// /community: dev 는 커뮤니티 dev 서버(3040)로 이동, prod 는 계속 ComingSoon.
+// 공개 시점에 prod 도 community.ownapp.kr 로 보내기 (네이티브 앱에선 외부 브라우저로).
+function CommunityDevRedirect() {
+  useEffect(() => { window.location.replace('http://localhost:3040') }, [])
+  return null
+}
 // dev 전용 — 트레이너 공개 프로필 /t/{handle} (배포엔 미노출, 공개 시점 사용자 통제)
 const PublicProfile = lazy(() => import('./pages/trainer/PublicProfile'))
 
@@ -36,10 +40,10 @@ export default function App() {
           <Route path="/trainer" element={<TrainerApp />} />
           <Route path="/member" element={<MemberPortal />} />
           <Route path="/report" element={<Report />} />
-          {/* dev: 실제 CommunityPortal (개발용) / prod: ComingSoon 으로 가림 */}
+          {/* dev: 커뮤니티 앱(3040)으로 이동 / prod: ComingSoon 으로 가림 */}
           <Route path="/community" element={
             import.meta.env.DEV ? (
-              <Suspense fallback={null}><CommunityPortal /></Suspense>
+              <CommunityDevRedirect />
             ) : (
               <ComingSoon
                 title="커뮤니티 곧 출시 예정"

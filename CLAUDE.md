@@ -1,7 +1,7 @@
 # trainer-log — Claude Code 작업 가이드
 
 ## 프로젝트 개요
-React 19 + Vite 6 **npm workspaces 모노레포**. 3개 앱(`apps/portal`, `apps/crm`, `apps/admin`) + 1개 공유 패키지(`packages/shared`). Supabase 단일 인스턴스. 각 앱이 자체 vite + 자체 의존성 + 다른 포트로 동작. 향후 진짜 별도 git repo 로 분리할 때 각 `apps/<name>/` 폴더를 그대로 잘라 옮기면 됨.
+React 19 + Vite 6 **npm workspaces 모노레포**. 4개 앱(`apps/portal`, `apps/crm`, `apps/admin`, `apps/community`) + 1개 공유 패키지(`packages/shared`). Supabase 단일 인스턴스. 각 앱이 자체 vite + 자체 의존성 + 다른 포트로 동작. 향후 진짜 별도 git repo 로 분리할 때 각 `apps/<name>/` 폴더를 그대로 잘라 옮기면 됨.
 
 분리 진행 계획: `~/.claude/plans/elegant-imagining-rose.md`.
 
@@ -49,9 +49,10 @@ Vite 6 는 보통 `.env` 변경을 감지해 자동 재시작하지만, **worktr
 ```
 trainer-log/
 ├── apps/
-│   ├── portal/  (port 3030, Landing/Trainer/Member/Community/정책 페이지)
+│   ├── portal/  (port 3030, Landing/Trainer/Member/정책 페이지 — iOS/안드로이드 앱이 띄우는 곳)
 │   ├── crm/     (port 3020, GymPortal + 11개 탭 — 헬스장 대표/직원)
-│   └── admin/   (port 3010, AdminPortal — 시스템 관리자)
+│   ├── admin/   (port 3010, AdminPortal — 시스템 관리자)
+│   └── community/ (port 3040, CommunityPortal — 웹 전용, community.ownapp.kr)
 ├── packages/
 │   └── shared/  (lib 6개 + components/common 3개 + global.css)
 ├── supabase/    (migrations + functions, 4번째 repo 후보)
@@ -64,6 +65,7 @@ trainer-log/
 - `npm run dev:portal` — http://localhost:3030
 - `npm run dev:crm` — http://localhost:3020
 - `npm run dev:admin` — http://localhost:3010
+- `npm run dev:community` — http://localhost:3040
 - 3개 동시에 띄워서 각자 별도 앱처럼 검증 가능
 
 **빌드:**
@@ -86,11 +88,13 @@ shared 항목:
 - `styles/global.css`
 
 ## 앱별 라우트 매핑
-**portal (3030):** `/`, `/trainer`, `/member`, `/community`, `/report`, `/terms`, `/privacy`, `/refund`. `/crm` 과 `/gym` 은 `CrmRedirect` 컴포넌트로 dev 시 localhost:3020, prod 시 crm.example.com 으로 이동.
+**portal (3030):** `/`, `/trainer`, `/member`, `/report`, `/terms`, `/privacy`, `/refund`. `/crm` 과 `/gym` 은 `CrmRedirect` 컴포넌트로 dev 시 localhost:3020, prod 시 crm.example.com 으로 이동.
 
 **crm (3020):** 단일 라우트 `/` → GymPortal (OAuth 로그인) → GymOwnerPortal (11 탭).
 
 **admin (3010):** 단일 컴포넌트 AdminPortal (라우터 없음, ID/PW 로그인).
+
+**community (3040):** 단일 라우트 `/` → CommunityPortal (OAuth 로그인). 웹 전용 — 앱(portal)과 분리해 광고·결제 수익화가 앱 심사와 무관. 운영 공개 게이트 = Vercel 환경변수 `VITE_COMMUNITY_OPEN=true` (없으면 ComingSoon). portal `/community` 는 dev=3040 이동, prod=ComingSoon.
 
 ## 분리 작업 진행 상태
 - [x] Step 1: 공유 lib 중복 제거 (churnRisk/memberInsights/gymReport/ai_templates) + Modal/Toast rename
