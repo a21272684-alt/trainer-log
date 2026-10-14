@@ -115,48 +115,19 @@ function OnboardingSetup({ authUser, onComplete, onSwitchAccount }) {
     setError('')
 
     try {
-      // ① gyms 테이블에 새 센터 INSERT
-      const { data: newGym, error: gymErr } = await supabase
-        .from('gyms')
-        .insert({ name: trimName })
-        .select()
-        .single()
-      if (gymErr) throw new Error('센터 생성 실패: ' + gymErr.message)
-
-      // ② trainers 테이블 — 기존 row 있으면 UPDATE, 없으면 INSERT
-      const { data: existing } = await supabase
-        .from('trainers')
-        .select('id')
-        .eq('email', authUser.email)
-        .maybeSingle()
-
-      let trainerRow
-      if (existing) {
-        // 기존 트레이너 계정에 gym_id + name + 대표 승인 상태 업데이트
-        const { data, error: upErr } = await supabase
-          .from('trainers')
-          .update({ gym_id: newGym.id, name: trimOwner, approval_status: 'approved', role: 'owner' })
-          .eq('id', existing.id)
-          .select('*, trainer_ranks(*)')
-          .single()
-        if (upErr) throw new Error('트레이너 연동 실패: ' + upErr.message)
-        trainerRow = data
-      } else {
-        // 신규 트레이너(대표) 계정 생성
-        const { data, error: insErr } = await supabase
-          .from('trainers')
-          .insert({
-            name:            trimOwner,
-            email:           authUser.email,
-            gym_id:          newGym.id,
-            role:            'owner',
-            approval_status: 'approved',
-          })
-          .select('*, trainer_ranks(*)')
-          .single()
-        if (insErr) throw new Error('계정 생성 실패: ' + insErr.message)
-        trainerRow = data
+      // 센터 생성 + 대표 계정 연결을 RPC 하나로 처리 (084).
+      // gyms 는 073 이후 클라이언트 INSERT 정책이 없음 → 직접 INSERT 하지 않는다.
+      const { data, error: rpcErr } = await supabase.rpc('crm_create_gym', {
+        p_gym_name:   trimName,
+        p_owner_name: trimOwner,
+      })
+      if (rpcErr) {
+        const msg = rpcErr.message || ''
+        if (msg.includes('ALREADY_IN_GYM')) throw new Error('이미 다른 센터에 소속된 계정이에요. 해당 센터 대표에게 문의해주세요.')
+        throw new Error('센터 생성 실패: ' + msg)
       }
+      const newGym     = data.gym
+      const trainerRow = { ...data.trainer, trainer_ranks: null }
 
       // ③ 완료 → GymOwnerPortal로 전환
       onComplete(trainerRow, newGym)
