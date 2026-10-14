@@ -10,7 +10,8 @@ import { supabase } from '../../lib/supabase'
    - 사용법: 포털 메인 JSX 최상단에 <TermsAgreementModal /> 한 줄 삽입.
    - DB 스키마 수정 0, 외부 패키지 0 (순수 React + Supabase Auth).
 ═══════════════════════════════════════════════════════════════ */
-export default function TermsAgreementModal() {
+// linkBase: 약관 링크 앞에 붙일 주소. 같은 도메인(portal)이면 생략, 다른 도메인 앱(community)은 메인 주소를 넘김.
+export default function TermsAgreementModal({ linkBase = '' } = {}) {
   // 'idle'   : 사용자/메타데이터 미확인 (모달 미노출)
   // 'open'   : 동의 필요 — 모달 노출
   // 'saving' : 동의 처리 중
@@ -168,7 +169,7 @@ export default function TermsAgreementModal() {
           />
           <span style={{ fontSize: '13px', color: '#1e293b', lineHeight: 1.7 }}>
             <a
-              href="/terms"
+              href={`${linkBase}/terms`}
               target="_blank"
               rel="noopener noreferrer"
               style={{ color: '#10B981', fontWeight: 700, textDecoration: 'underline' }}
@@ -177,7 +178,7 @@ export default function TermsAgreementModal() {
             </a>
             {' 및 '}
             <a
-              href="/privacy"
+              href={`${linkBase}/privacy`}
               target="_blank"
               rel="noopener noreferrer"
               style={{ color: '#10B981', fontWeight: 700, textDecoration: 'underline' }}

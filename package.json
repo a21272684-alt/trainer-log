@@ -11,9 +11,11 @@
     "dev:portal":   "npm --workspace @trainer-log/portal run dev",
     "dev:crm":      "npm --workspace @trainer-log/crm run dev",
     "dev:admin":    "npm --workspace @trainer-log/admin run dev",
+    "dev:community": "npm --workspace @trainer-log/community run dev",
     "build":        "npm run build --workspaces --if-present",
     "build:portal": "npm --workspace @trainer-log/portal run build",
     "build:crm":    "npm --workspace @trainer-log/crm run build",
-    "build:admin":  "npm --workspace @trainer-log/admin run build"
+    "build:admin":  "npm --workspace @trainer-log/admin run build",
+    "build:community": "npm --workspace @trainer-log/community run build"
   }
 }

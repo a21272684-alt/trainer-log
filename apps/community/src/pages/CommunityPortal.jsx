@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { PORTAL_URL } from '../lib/urls'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import { useToast } from '@trainer-log/shared/components/common/Toast'
 import TermsAgreementModal from '@trainer-log/shared/components/common/TermsAgreementModal'
@@ -412,7 +412,6 @@ function Btn({ children, onClick, variant = 'primary', disabled, style: s }) {
 ══════════════════════════════════════════════════════════════ */
 export default function CommunityPortal() {
   const showToast  = useToast()
-  const navigate   = useNavigate()
   const postImgRef = useRef(null)
   const regPhotoRef = useRef(null)
 
@@ -513,7 +512,7 @@ export default function CommunityPortal() {
   async function signInWithGoogle() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options:  { redirectTo: window.location.origin + '/community' },
+      options:  { redirectTo: window.location.origin + '/' },
     })
     if (error) showToast('구글 로그인 오류: ' + error.message)
   }
@@ -521,7 +520,7 @@ export default function CommunityPortal() {
   async function signInWithKakao() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'kakao',
-      options:  { redirectTo: window.location.origin + '/community' },
+      options:  { redirectTo: window.location.origin + '/' },
     })
     if (error) showToast('카카오 로그인 오류: ' + error.message)
   }
@@ -992,7 +991,7 @@ export default function CommunityPortal() {
         </button>
 
         <div style={{ textAlign: 'center', marginTop: 20 }}>
-          <button onClick={() => navigate('/')} style={{
+          <button onClick={() => { window.location.href = PORTAL_URL }} style={{
             background: 'none', border: 'none', color: T.dim,
             fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
           }}>← 홈으로 돌아가기</button>
@@ -1803,7 +1802,7 @@ export default function CommunityPortal() {
     <div style={{ background: T.bg, minHeight: '100vh', paddingBottom: 72 }}>
 
       {/* 최초 로그인 1회 약관 동의 모달 (user_metadata.terms_agreed 미설정 시 강제 노출) */}
-      <TermsAgreementModal />
+      <TermsAgreementModal linkBase={PORTAL_URL} />
 
       {/* ── Top bar ── */}
       <div style={{
