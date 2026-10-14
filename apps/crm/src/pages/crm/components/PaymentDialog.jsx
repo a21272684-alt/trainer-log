@@ -2,11 +2,15 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import Modal from './CrmModal'
 import { useToast } from './CrmToast'
+import { parseISO, addDays, format } from 'date-fns'
 import { isDurationTicket, calcTicketPeriod, todayStr } from '../lib/ticketDateCalc'
 
 // ── 결제 창 ─────────────────────────────────────────────────────
 // 왼쪽: 상품 카드(종류 필터·검색, 상품 설명=이벤트 문구 표시) / 오른쪽: 결제 정보.
 // 저장 규칙은 기존 결제 등록과 동일: 기간권이면 기존 활성 기간권 뒤로 이어붙여 start/end 저장.
+// 단, 대여권(락커)은 회원권 체인과 무관: 오늘부터(연장이면 기존 락커 만료 다음 날부터) 계산하고,
+// 회원권 이어붙이기 계산에서도 대여권 결제는 제외.
+// lockerExtend = { assignment, number } 이면 락커 연장 결제 모드.
 
 const mono = { fontFamily: "'DM Mono', monospace" }
 const won  = n => Number(n || 0).toLocaleString() + '원'
@@ -38,7 +42,7 @@ function priceOf(product, method) {
   return 0   // 지역화폐·페이먼츠앱 → 직접 입력
 }
 
-export default function PaymentDialog({ open, member, gymId, trainers = [], currentTrainer, onClose, onPaid }) {
+export default function PaymentDialog({ open, member, gymId, trainers = [], currentTrainer, onClose, onPaid, lockerExtend = null }) {
   const showToast = useToast()
   const [products, setProducts] = useState([])
   const [loading,  setLoading]  = useState(false)
@@ -54,12 +58,17 @@ export default function PaymentDialog({ open, member, gymId, trainers = [], curr
   const [current,  setCurrent]  = useState(null)      // 진행 중 기간권 (헤더 표시)
   const [error,    setError]    = useState('')
   const [busy,     setBusy]     = useState(false)
+  // 락커
+  const [emptyLockers, setEmptyLockers] = useState([])
+  const [lockerId, setLockerId] = useState('')
+  const [later,    setLater]    = useState(false)
 
   // 열릴 때 초기화 + 상품·진행 중 회원권 로드
   useEffect(() => {
     if (!open || !member) return
-    setCat('전체'); setQuery(''); setSelId(''); setMethod('card'); setAmount('')
+    setCat(lockerExtend ? '대여권' : '전체'); setQuery(''); setSelId(''); setMethod('card'); setAmount('')
     setMemo(''); setStaffId(currentTrainer?.id || ''); setPeriod(null); setError('')
+    setLockerId(''); setLater(false)
     loadProducts(); loadCurrent()
   }, [open, member?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -82,6 +91,15 @@ export default function PaymentDialog({ open, member, gymId, trainers = [], curr
 
   const selected = products.find(p => p.id === selId) || null
   const isTimeBased = isDurationTicket(selected)
+  const isLocker    = selected?.category === '대여권'
+
+  // 대여권을 고르면 빈 락커 목록 (연장 모드는 칸 고정)
+  useEffect(() => {
+    if (!isLocker || lockerExtend) return
+    supabase.rpc('crm_locker_board', { p_gym_id: gymId }).then(({ data }) => {
+      setEmptyLockers((data || []).filter(l => l.status === 'available' && !l.assignment))
+    })
+  }, [isLocker, gymId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 상품·수단 바뀌면 정가로 금액 채움 (할인 시 직접 수정)
   useEffect(() => {
@@ -89,18 +107,28 @@ export default function PaymentDialog({ open, member, gymId, trainers = [], curr
     setAmount(p > 0 ? String(p) : '')
   }, [selId, method]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 기간권이면 기존 활성 기간권 뒤로 이어붙인 기간 계산
+  // 기간 계산
+  //  - 대여권: 오늘부터 (연장이면 기존 락커 만료 다음 날부터) N일
+  //  - 그 외 기간권: 기존 활성 기간권(대여권 제외) 뒤로 이어붙임
   useEffect(() => {
     if (!selected || !isTimeBased) { setPeriod(null); return }
+    if (isLocker) {
+      const start = lockerExtend ? addDays(parseISO(lockerExtend.assignment.end_date), 1) : parseISO(todayStr())
+      const end   = addDays(start, Number(selected.duration_days) - 1)
+      setPeriod({ startDate: format(start, 'yyyy-MM-dd'), endDate: format(end, 'yyyy-MM-dd') })
+      return
+    }
     let alive = true
     setPeriodLoading(true)
     ;(async () => {
       try {
-        const { data } = await supabase.from('payments').select('end_date')
+        const { data } = await supabase.from('payments')
+          .select('end_date, gym_products!payments_gym_product_id_fkey(category)')
           .eq('member_id', member.id).eq('status', 'active')
           .gte('end_date', todayStr()).not('end_date', 'is', null)
-          .order('end_date', { ascending: false }).limit(1)
-        if (alive) setPeriod(calcTicketPeriod(data?.[0]?.end_date ?? null, selected.duration_days))
+          .order('end_date', { ascending: false }).limit(20)
+        const maxEnd = (data || []).find(r => r.gym_products?.category !== '대여권')?.end_date ?? null
+        if (alive) setPeriod(calcTicketPeriod(maxEnd, selected.duration_days))
       } catch {
         if (alive) setPeriod(calcTicketPeriod(null, selected.duration_days))
       } finally {
@@ -129,6 +157,9 @@ export default function PaymentDialog({ open, member, gymId, trainers = [], curr
     if (!selected)  { setError('상품을 선택해주세요.'); return }
     if (!amountNum) { setError('결제 금액을 입력해주세요 (0원 불가).'); return }
     if (isTimeBased && (periodLoading || !period)) { setError('이용 기간을 계산 중이에요. 잠시 후 다시 눌러주세요.'); return }
+    if (isLocker && !lockerExtend && isTimeBased && !lockerId && !later) {
+      setError("락커 칸을 고르거나 '칸은 나중에 배정'을 체크해주세요."); return
+    }
     setBusy(true)
     try {
       const row = {
@@ -144,9 +175,26 @@ export default function PaymentDialog({ open, member, gymId, trainers = [], curr
         paid_at:        new Date().toISOString(),
       }
       if (isTimeBased && period) { row.start_date = period.startDate; row.end_date = period.endDate }
-      const { error } = await supabase.from('payments').insert(row)
+      const { data: paid, error } = await supabase.from('payments').insert(row).select('id').single()
       if (error) throw error
-      showToast?.(`✓ 결제 등록 — ${selected.name} ${won(amountNum)}`)
+
+      // 락커 배정 / 연장 — 실패해도 결제는 이미 저장됨 → 안내만
+      let lockerMsg = ''
+      if (isLocker && isTimeBased && period) {
+        const { error: lkErr } = lockerExtend
+          ? await supabase.rpc('crm_extend_locker', { p_assignment_id: lockerExtend.assignment.id, p_new_end: period.endDate, p_payment_id: paid.id })
+          : lockerId
+            ? await supabase.rpc('crm_assign_locker', { p_locker_id: lockerId, p_member_id: member.id, p_start: period.startDate, p_end: period.endDate, p_payment_id: paid.id })
+            : { error: null }
+        if (lkErr) {
+          alert('결제는 등록됐지만 락커 처리에 실패했어요. 락커 관리에서 다시 배정해주세요.\n' + lkErr.message)
+        } else if (lockerExtend) {
+          lockerMsg = ` · ${lockerExtend.number}번 ~${period.endDate}`
+        } else if (lockerId) {
+          lockerMsg = ` · ${emptyLockers.find(l => l.id === lockerId)?.number}번 배정`
+        }
+      }
+      showToast?.(`✓ 결제 등록 — ${selected.name} ${won(amountNum)}${lockerMsg}`)
       onPaid?.()
       onClose()
     } catch (e) {
@@ -240,6 +288,34 @@ export default function PaymentDialog({ open, member, gymId, trainers = [], curr
               </div>
             )}
 
+            {isLocker && isTimeBased && (
+              lockerExtend ? (
+                <div className="pay-period">
+                  <span>연장할 락커</span><b style={mono}>{lockerExtend.number}번</b>
+                </div>
+              ) : (
+                <div>
+                  <span className="pay-label">락커 칸 선택 · 빈 칸 {emptyLockers.length}개</span>
+                  {emptyLockers.length === 0 ? (
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>빈 칸이 없어요. 결제 후 락커 관리에서 배정할 수 있어요.</div>
+                  ) : (
+                    <div className="lk-pick">
+                      {emptyLockers.map(l => (
+                        <button key={l.id} type="button" className={`lk-pick-btn ${lockerId === l.id ? 'on' : ''}`}
+                          aria-pressed={lockerId === l.id}
+                          onClick={() => { setLockerId(l.id); setLater(false) }}>{l.number}</button>
+                      ))}
+                    </div>
+                  )}
+                  <label className="lk-later">
+                    <input type="checkbox" checked={later}
+                      onChange={e => { setLater(e.target.checked); if (e.target.checked) setLockerId('') }} />
+                    칸은 나중에 배정 (락커 관리에서)
+                  </label>
+                </div>
+              )
+            )}
+
             <div>
               <span className="pay-label">결제 수단</span>
               <div className="pay-methods">
@@ -282,7 +358,10 @@ export default function PaymentDialog({ open, member, gymId, trainers = [], curr
             </div>
             <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '14px' }}
               disabled={busy || !selected || !amountNum} onClick={submit}>
-              {busy ? '등록 중…' : '결제 등록'}
+              {busy ? '등록 중…'
+                : isLocker && lockerExtend ? `결제하고 ${lockerExtend.number}번 연장`
+                : isLocker && lockerId ? `결제하고 ${emptyLockers.find(l => l.id === lockerId)?.number}번 배정`
+                : '결제 등록'}
             </button>
           </div>
         </div>

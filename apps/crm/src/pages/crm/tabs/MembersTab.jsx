@@ -268,11 +268,9 @@ function RiskBadge({ riskRow }) {
 function MemberDetailModal({ member, trainer, gymId, trainers = [], currentTrainer, onMemberStatusChange, onClose, paymentsVersion }) {
   const [tab, setTab] = useState('info')
   const [payments, setPayments] = useState([])
-  const [lockers,  setLockers]  = useState([])
+  const [lockers,  setLockers]  = useState(null)   // 락커 이력 (crm_member_lockers)
   const [riskData, setRiskData] = useState(null)
   const [analyzing, setAnalyzing] = useState(false)
-  const [newLocker, setNewLocker] = useState({ rental_type:'locker', locker_number:'', uniform_size:'', memo:'' })
-  const [showLockerForm, setShowLockerForm] = useState(false)
   // 환불 모달
   const [refundTarget, setRefundTarget] = useState(null)  // 환불 처리할 payment row
   const showToast = useToast()
@@ -298,10 +296,11 @@ function MemberDetailModal({ member, trainer, gymId, trainers = [], currentTrain
     setPayments(data || [])
   }
 
-  // locker_rentals 테이블 미배포(404) — DB 호출 차단, 빈 배열 폴백.
   async function loadLockers() {
-    setLockers([])
+    const { data } = await supabase.rpc('crm_member_lockers', { p_member_id: member.id })
+    setLockers(data || [])
   }
+
 
   // member_risk_scores SELECT 만 유지 (READ 는 RLS 통과). 미존재 시 null 폴백.
   async function loadRisk() {
@@ -335,23 +334,11 @@ function MemberDetailModal({ member, trainer, gymId, trainers = [], currentTrain
     finally { setAnalyzing(false) }
   }
 
-  // addLocker — locker_rentals 테이블 미배포로 INSERT 차단, alert 안내.
-  async function addLocker() {
-    alert('락커 대여 기능은 준비 중입니다.')
-    setShowLockerForm(false)
-    setNewLocker({ rental_type:'locker', locker_number:'', uniform_size:'', memo:'' })
-  }
-
-  // returnItem — locker_rentals 테이블 미배포로 UPDATE 차단, alert 안내.
-  async function returnItem(id) {
-    alert('락커 대여 기능은 준비 중입니다.')
-  }
-
   const TABS = [
     { key:'info',    label:'기본 정보' },
     { key:'payment', label:'결제 내역' },
     { key:'pause',   label:'회원권 정지' },
-    { key:'locker',  label:'대여 현황' },
+    { key:'locker',  label:'락커' },
     { key:'risk',    label:'이탈 위험' },
   ]
 
@@ -499,62 +486,41 @@ function MemberDetailModal({ member, trainer, gymId, trainers = [], currentTrain
         </div>
       )}
 
-      {/* 대여 현황 탭 */}
+      {/* 회원권 정지 탭 */}
       {tab === 'pause' && (
         <MemberPausePanel member={member} payments={payments} onChanged={loadPayments} />
       )}
 
       {tab === 'locker' && (
         <div>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px' }}>
-            <div style={{ fontSize:'12px', color:'var(--text-muted)' }}>락커 · 운동복 대여 현황</div>
-            <button className="btn btn-primary" style={{ padding:'5px 10px', fontSize:'11px' }} onClick={() => setShowLockerForm(v => !v)}>+ 대여 등록</button>
+          <div style={{ fontSize:'12px', color:'var(--text-muted)', marginBottom:'10px', lineHeight: 1.5 }}>
+            락커 배정은 위쪽 <b>결제</b>에서 대여권을 고르면 함께 할 수 있어요. 회수·이동·연장은 락커 관리 탭에서.
           </div>
-          {showLockerForm && (
-            <div className="card" style={{ marginBottom:'12px' }}>
-              <div className="card-title">신규 대여 등록</div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'8px' }}>
-                <div>
-                  <div style={{ fontSize:'11px', color:'var(--text-muted)', marginBottom:'4px' }}>대여 종류</div>
-                  <select className="input" value={newLocker.rental_type} onChange={e => setNewLocker(v=>({...v, rental_type:e.target.value}))}>
-                    <option value="locker">락커</option>
-                    <option value="uniform">운동복</option>
-                  </select>
-                </div>
-                {newLocker.rental_type === 'locker'
-                  ? <div><div style={{ fontSize:'11px', color:'var(--text-muted)', marginBottom:'4px' }}>락커 번호</div>
-                      <input className="input" placeholder="예: A-12" value={newLocker.locker_number} onChange={e => setNewLocker(v=>({...v, locker_number:e.target.value}))} /></div>
-                  : <div><div style={{ fontSize:'11px', color:'var(--text-muted)', marginBottom:'4px' }}>사이즈</div>
-                      <select className="input" value={newLocker.uniform_size} onChange={e => setNewLocker(v=>({...v, uniform_size:e.target.value}))}>
-                        <option value="">선택</option>
-                        {['XS','S','M','L','XL','XXL'].map(s => <option key={s} value={s}>{s}</option>)}
-                      </select></div>
-                }
-              </div>
-              <input className="input" placeholder="메모 (선택)" value={newLocker.memo} onChange={e => setNewLocker(v=>({...v,memo:e.target.value}))} style={{ marginBottom:'8px' }} />
-              <button className="btn btn-primary" style={{ width:'100%', justifyContent:'center' }} onClick={addLocker}>등록</button>
-            </div>
-          )}
-          {lockers.length === 0 ? (
-            <div className="empty-state"><div className="empty-state-icon">🔒</div><div className="empty-state-text">대여 내역이 없어요</div></div>
+          {lockers === null ? (
+            <div className="rev-empty">불러오는 중…</div>
+          ) : lockers.length === 0 ? (
+            <div className="empty-state"><div className="empty-state-icon">🔒</div><div className="empty-state-text">락커 이용 내역이 없어요</div></div>
           ) : (
             <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-              {lockers.map(l => (
-                <div key={l.id} style={{ background:'var(--surface2)', borderRadius:'10px', padding:'12px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                  <div>
-                    <div style={{ fontSize:'13px', fontWeight:600 }}>
-                      {l.rental_type === 'locker' ? `🔒 락커 ${l.locker_number||'—'}` : `👕 운동복 ${l.uniform_size||'—'}`}
+              {lockers.map(l => {
+                const active = !l.returned_at
+                const over   = active && l.end_date < todayStr()
+                return (
+                  <div key={l.id} className="pause-row" style={{ opacity: active ? 1 : 0.6 }}>
+                    <div>
+                      <div style={{ fontWeight:700, fontSize:'13px' }}>
+                        {l.number}번 <span style={{ fontWeight:400, fontSize:'11px', color:'var(--text-muted)' }}>{l.product_name || ''}</span>
+                      </div>
+                      <div style={{ fontSize:'11px', color:'var(--text-muted)', fontFamily:"'DM Mono', monospace", marginTop:'3px' }}>
+                        {l.start_date} ~ {l.end_date}
+                      </div>
                     </div>
-                    <div style={{ fontSize:'11px', color:'var(--text-dim)', marginTop:'2px' }}>
-                      {l.start_date} ~ {l.end_date || '사용 중'}
-                      {l.memo && ` · ${l.memo}`}
-                    </div>
+                    <span className={`lk-badge ${!active ? 's-off' : over ? 's-over' : 's-use'}`}>
+                      {!active ? `회수됨 ${String(l.returned_at).slice(0, 10)}` : over ? '만료·미회수' : '사용 중'}
+                    </span>
                   </div>
-                  {!l.returned_at
-                    ? <button className="btn btn-secondary" style={{ padding:'4px 10px', fontSize:'11px' }} onClick={() => returnItem(l.id)}>반납</button>
-                    : <span style={{ fontSize:'11px', color:'var(--text-dim)' }}>반납 완료</span>}
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

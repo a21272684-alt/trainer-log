@@ -31,6 +31,7 @@ import NotificationsTab    from './tabs/NotificationsTab'
 import ProductsTab         from './tabs/ProductsTab'
 import SettingsTab         from './tabs/SettingsTab'
 import RevenueTab          from './tabs/RevenueTab'
+import LockersTab          from './tabs/LockersTab'
 import AccessDenied        from './components/AccessDenied'
 
 // ── 탭별 필요 권한 매핑 ────────────────────────────────────────────
@@ -40,6 +41,7 @@ import AccessDenied        from './components/AccessDenied'
 const TAB_PERMISSIONS = {
   dashboard:     null,
   members:       null,
+  lockers:       null,
   revenue:       null,                // 범위는 RPC 가 결정: 대표=센터 전체, 직원=본인 매출만
   settlement:    'view_settlement',   // SettingsTab > 직원 권한 관리의 '정산 열람' 키
   products:      'manage_products',   // SettingsTab > 직원 권한 관리의 '상품 관리' 키
@@ -53,6 +55,7 @@ const TAB_PERMISSIONS = {
 const NAV_ITEMS = [
   { key: 'dashboard',     icon: '📊', label: '대시보드' },
   { key: 'members',       icon: '👥', label: '회원 관리' },
+  { key: 'lockers',       icon: '🔐', label: '락커 관리' },
   { key: 'revenue',       icon: '📈', label: '매출 분석' },
   { key: 'settlement',    icon: '💵', label: '센터 정산' },
   { key: 'products',      icon: '📦', label: '상품 관리' },
@@ -120,6 +123,7 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
   const TAB_TITLES = {
     dashboard:     { title: '대시보드',  sub: `${gym.name} 운영 현황` },
     members:       { title: '회원 관리', sub: `전체 ${members.length}명` },
+    lockers:       { title: '락커 관리', sub: '락커 현황 · 배정 · 연장 · 회수' },
     revenue:       { title: '매출 분석', sub: '기간별 순매출 · 상품 · 결제 수단 · 환불' },
     settlement:    { title: '센터 정산', sub: '월별 매출 · 트레이너 정산 · 엑셀 내보내기' },
     products:      { title: '상품 관리',   sub: '센터 판매 상품 등록 및 조회' },
@@ -195,6 +199,7 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
             <>
               {activeTab === 'dashboard'     && <DashboardTab        gym={gym} gymId={gym.id} trainers={trainers} members={members} />}
               {activeTab === 'members'       && <MembersTab          members={members} trainers={trainers} gymId={gym.id} currentTrainer={trainer} />}
+              {activeTab === 'lockers'       && <LockersTab gymId={gym.id} members={members} trainers={trainers} currentTrainer={trainer} />}
               {activeTab === 'revenue'       && <RevenueTab gymId={gym.id} gymName={gym.name} />}
               {activeTab === 'settlement'    && (canAccess('settlement')
                 ? <CenterSettlementTab gymId={gym.id} trainers={trainers} />
