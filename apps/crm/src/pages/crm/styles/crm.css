@@ -960,3 +960,78 @@ html, body, #root {
 @media (prefers-reduced-motion: reduce) {
   .rev-bar span, .rev-fill, .rev-tip { animation: none; }
 }
+
+/* ── 회원권 정지 ─────────────────────────────────────────────── */
+.pause-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #EEF4FF;
+  border: 1px solid #C7D7FE;
+  color: #1D3A8A;
+  animation: crm-rise 0.3s cubic-bezier(.22, 1, .36, 1) backwards;
+}
+.pause-current {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+.pause-error {
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #B42318;
+  background: #FEF3F2;
+  border: 1px solid #F3C4C0;
+}
+.pause-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.pause-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.pause-field > span { font-size: 11px; font-weight: 600; color: var(--text-muted); }
+.pause-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #F7FBEA;
+  border: 1px solid #D9EBA8;
+  animation: crm-rise 0.25s cubic-bezier(.22, 1, .36, 1) backwards;
+}
+.pause-preview-row { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+.pause-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.pause-cancel {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  background: var(--surface);
+  color: #B42318;
+  border: 1px solid #F3C4C0;
+  transition: background-color 0.15s ease;
+}
+.pause-cancel:hover:not(:disabled) { background: #FEF3F2; }
+.pause-cancel:disabled { opacity: 0.5; cursor: default; }

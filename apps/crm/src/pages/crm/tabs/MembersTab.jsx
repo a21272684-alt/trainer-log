@@ -6,6 +6,7 @@ import Modal from '../components/CrmModal'
 import { computeRiskScore, RISK_LEVELS } from '@trainer-log/shared/lib/churnRisk'
 import { isDurationTicket, calcTicketPeriod, todayStr } from '../lib/ticketDateCalc'
 import MemberFilterPanel from '../components/MemberFilterPanel'
+import MemberPausePanel from '../components/MemberPausePanel'
 import {
   EMPTY_FILTERS, STATUS_CHIPS, memberStatus, matchStatus, matchFilters,
   filterTags, daysSince,
@@ -771,6 +772,7 @@ function MemberDetailModal({ member, trainer, gymId, trainers = [], currentTrain
   const TABS = [
     { key:'info',    label:'기본 정보' },
     { key:'payment', label:'결제 내역' },
+    { key:'pause',   label:'회원권 정지' },
     { key:'locker',  label:'대여 현황' },
     { key:'risk',    label:'이탈 위험' },
   ]
@@ -930,6 +932,10 @@ function MemberDetailModal({ member, trainer, gymId, trainers = [], currentTrain
       )}
 
       {/* 대여 현황 탭 */}
+      {tab === 'pause' && (
+        <MemberPausePanel member={member} payments={payments} onChanged={loadPayments} />
+      )}
+
       {tab === 'locker' && (
         <div>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px' }}>
