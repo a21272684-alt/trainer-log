@@ -85,7 +85,10 @@ function SlideCard({ children, delay = 0 }) {
 
 export default function MemberPortal() {
   const showToast = useToast()
-  const [showLanding, setShowLanding] = useState(true)
+  // iOS 앱은 첫 화면(NativeStart)에서 이미 역할을 골라 들어오므로 회원 소개 화면을 건너뜀 (4.2)
+  const [showLanding, setShowLanding] = useState(() => !isNativeApp())
+  // 로그인은 됐지만 트레이너가 등록하지 않은 사용자 → 튕기지 않고 안내 화면 (값 = 로그인 이메일)
+  const [unregistered, setUnregistered] = useState(null)
   const [loggedIn, setLoggedIn] = useState(false)
   const [member, setMember] = useState(null)
   const [tab, setTab] = useState('logs')
@@ -230,10 +233,10 @@ export default function MemberPortal() {
         await _loginWithRecord(row)
         return
       }
-      // 매핑 없음 — 트레이너가 아직 회원 등록 안 함
-      showToast('등록된 회원 정보가 없어요. 트레이너에게 이메일 등록을 요청하세요')
-      await supabase.auth.signOut()
-      setAuthUser(null)
+      // 매핑 없음 — 트레이너가 아직 회원 등록 안 함.
+      // 예전엔 토스트 후 바로 로그아웃 → 사용자는 '로그인이 안 된다'로 인식(심사 2.1(a) 반려 원인).
+      // 이제 로그인 상태를 유지한 채 안내 화면을 보여주고, 트레이너로 시작하거나 다른 계정으로 바꿀 수 있게 함.
+      setUnregistered(au.email || '')
     } catch(e) {
       showToast('오류: ' + e.message)
       await supabase.auth.signOut()
@@ -242,6 +245,7 @@ export default function MemberPortal() {
   }
 
   async function _loginWithRecord(m) {
+    setUnregistered(null)
     setMember(m); setLoggedIn(true)
     showToast('✓ 환영해요, ' + m.name + '님!')
   }
@@ -967,6 +971,61 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
   const goalPct = (member?.start_weight && member?.target_weight && lost && member.start_weight !== member.target_weight) ? Math.min(100, Math.round((lost/(member.start_weight-member.target_weight))*100)) : 0
 
   // === MEMBER LANDING ===
+  // 로그인은 됐지만 트레이너가 등록하지 않은 사용자 안내 (튕기지 않음)
+  if (!loggedIn && unregistered !== null) {
+    const isRelay = /@privaterelay\.appleid\.com$/i.test(unregistered)
+    return (
+      <div className="m-login-wrap">
+        <div style={{width:'100%',maxWidth:'400px'}}>
+          <div className="m-login-card">
+            <div style={{marginBottom:'20px'}}>
+              <div className="m-login-logo">오운</div>
+              <div className="m-login-sub">아직 등록된 회원 정보가 없어요</div>
+            </div>
+
+            <div style={{fontSize:'14px',color:'#374151',lineHeight:1.7,marginBottom:'16px'}}>
+              회원 기능은 <b>담당 트레이너가 회원으로 등록</b>해야 이용할 수 있어요.<br/>
+              트레이너에게 아래 이메일을 알려주세요.
+            </div>
+
+            {unregistered ? (
+              <div style={{background:'#F7F8F3',border:'1px solid #E1E4D9',borderRadius:'10px',padding:'12px 14px',marginBottom:'8px',
+                display:'flex',alignItems:'center',gap:'8px'}}>
+                <span style={{flex:1,fontSize:'13px',fontWeight:600,color:'#111',wordBreak:'break-all'}}>{unregistered}</span>
+                <button onClick={async () => {
+                  try { await navigator.clipboard.writeText(unregistered); showToast('이메일을 복사했어요') }
+                  catch { showToast('복사하지 못했어요. 직접 선택해서 복사해 주세요') }
+                }} style={{flexShrink:0,border:'1px solid #E1E4D9',background:'#fff',borderRadius:'8px',
+                  padding:'5px 10px',fontSize:'12px',fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>복사</button>
+              </div>
+            ) : null}
+            {isRelay && (
+              <div style={{fontSize:'12px',color:'#6B7280',lineHeight:1.6,marginBottom:'8px'}}>
+                Apple의 '이메일 가리기'로 만들어진 주소예요. 이 주소 그대로 트레이너에게 알려주시면 돼요.
+              </div>
+            )}
+
+            <div style={{display:'flex',flexDirection:'column',gap:'10px',marginTop:'18px'}}>
+              <button onClick={() => { window.location.href = '/trainer' }} style={{
+                width:'100%',padding:'13px 20px',borderRadius:'10px',border:'none',background:'#c8f135',color:'#111',
+                fontSize:'14px',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                트레이너라면 — 트레이너로 시작하기
+              </button>
+              <button onClick={async () => {
+                await supabase.auth.signOut()
+                setUnregistered(null); setAuthUser(null)
+              }} style={{
+                width:'100%',padding:'13px 20px',borderRadius:'10px',border:'1px solid #E1E4D9',background:'#fff',color:'#111',
+                fontSize:'14px',fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                다른 계정으로 로그인
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (!loggedIn && showLanding) {
     const FEATURES = [
       { icon:'📋', title:'수업일지 열람', desc:'트레이너가 작성한 수업일지를 열람하고 PDF로 저장해요' },
