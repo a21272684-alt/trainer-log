@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import GymOwnerPortal from './crm/GymOwnerPortal'
+import { ToastProvider as CrmToastProvider } from './crm/components/CrmToast'
 import './crm/styles/crm.css'
 
 /* ── 피처 데이터 ── */
@@ -718,7 +719,9 @@ export default function GymPortal() {
 
   /* ── 진짜 CRM 대시보드 ── */
   if (screen === 'dashboard' && gymInfo) {
+    // CRM 탭들은 CrmToast 의 useToast 를 씀 → 여기서 Provider 마운트 (없으면 showToast 가 undefined)
     return (
+      <CrmToastProvider>
       <GymOwnerPortal
         trainer={gymInfo.trainer}
         gym={gymInfo.gym}
@@ -730,6 +733,7 @@ export default function GymPortal() {
           setScreen('landing')
         }}
       />
+      </CrmToastProvider>
     )
   }
 
