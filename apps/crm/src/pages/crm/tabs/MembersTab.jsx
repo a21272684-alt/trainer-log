@@ -1258,8 +1258,10 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
         </div>
 
         <button className={`filter-chip ${panelOpen?'active':''}`}
+          aria-expanded={panelOpen}
           onClick={() => setPanelOpen(o => !o)}>
           고급 필터{tags.length > 0 ? ` · ${tags.length}` : ''}
+          <span className={`crm-chevron ${panelOpen?'open':''}`} aria-hidden="true" style={{ marginLeft: '4px' }}>▾</span>
         </button>
 
         {tags.map(t => (
@@ -1281,15 +1283,14 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
         </button>
       </div>
 
-      {panelOpen && (
-        <MemberFilterPanel
+      <MemberFilterPanel
+          open={panelOpen}
           filters={filters}
           trainers={trainers}
           purposes={purposes}
           onApply={applyFilters}
           onSaveSegment={saveSegment}
         />
-      )}
 
       {/* ── 회원 목록 테이블 ── */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>

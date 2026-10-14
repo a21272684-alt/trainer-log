@@ -351,11 +351,18 @@ html, body, #root {
   font-size: 13px;
   color: var(--text);
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.2s ease, box-shadow 0.25s ease, background-color 0.2s ease;
 }
 
-.input:focus {
+.input:hover:not(:focus) {
+  border-color: var(--border2);
+}
+
+/* 클릭(포커스) 시 테두리 + 은은한 빛 번짐 */
+.input:focus,
+.crm-select.open .crm-select-trigger {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(200, 241, 53, 0.18);
 }
 
 .input::placeholder {
@@ -556,3 +563,166 @@ html, body, #root {
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* ── 펼침 패널 (고급 필터 등) ──────────────────────────────────── */
+/* 높이 auto 전환: grid-template-rows 0fr → 1fr. 닫힌 상태도 마운트 유지(입력값 보존) */
+.crm-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(-8px) scale(0.995);
+  transform-origin: top center;
+  margin-bottom: 0;
+  transition:
+    grid-template-rows 0.38s cubic-bezier(.22, 1, .36, 1),
+    opacity 0.26s ease,
+    transform 0.38s cubic-bezier(.22, 1, .36, 1),
+    margin-bottom 0.38s cubic-bezier(.22, 1, .36, 1);
+}
+.crm-collapse.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: none;
+  margin-bottom: 12px;
+}
+.crm-collapse > .crm-collapse-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+/* 열릴 때 항목이 위에서부터 차례로 떠오름 */
+.crm-collapse.open .crm-stagger > * {
+  /* backwards: 끝난 뒤 transform 을 남기지 않음 → 칸마다 쌓임 맥락이 생겨
+     위 칸의 드롭다운 목록이 아래 칸에 가려지는 문제 방지 */
+  animation: crm-rise 0.42s cubic-bezier(.22, 1, .36, 1) backwards;
+}
+/* 열린 드롭다운이 있는 칸을 항상 위로 */
+.crm-stagger > *:has(.crm-select.open) {
+  position: relative;
+  z-index: 20;
+}
+.crm-collapse.open .crm-stagger > *:nth-child(1) { animation-delay: 0.04s; }
+.crm-collapse.open .crm-stagger > *:nth-child(2) { animation-delay: 0.07s; }
+.crm-collapse.open .crm-stagger > *:nth-child(3) { animation-delay: 0.10s; }
+.crm-collapse.open .crm-stagger > *:nth-child(4) { animation-delay: 0.13s; }
+.crm-collapse.open .crm-stagger > *:nth-child(5) { animation-delay: 0.16s; }
+.crm-collapse.open .crm-stagger > *:nth-child(6) { animation-delay: 0.19s; }
+.crm-collapse.open .crm-stagger > *:nth-child(7) { animation-delay: 0.22s; }
+.crm-collapse.open .crm-stagger > *:nth-child(n+8) { animation-delay: 0.25s; }
+
+@keyframes crm-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 토글 버튼의 화살표 회전 */
+.crm-chevron {
+  display: inline-block;
+  transition: transform 0.3s cubic-bezier(.22, 1, .36, 1);
+}
+.crm-chevron.open { transform: rotate(180deg); }
+
+/* 범위 입력(시작 ~ 끝): 날짜·숫자 입력이 칸 밖으로 넘치지 않게 */
+.crm-range {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+.crm-range > .input {
+  flex: 1 1 0;
+  min-width: 0;
+  width: auto;
+}
+.crm-range > span {
+  font-size: 12px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crm-collapse,
+  .crm-chevron { transition: none; }
+  .crm-collapse.open .crm-stagger > * { animation: none; }
+}
+
+/* 완전히 펼쳐진 뒤에는 잘림 해제 → 드롭다운 목록이 패널 밖으로 나올 수 있게 */
+.crm-collapse.revealed > .crm-collapse-inner { overflow: visible; }
+
+/* ── CRM 드롭다운 (네이티브 select 대체) ──────────────────────── */
+.crm-select { position: relative; }
+.crm-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+.crm-select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.crm-select-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-6px) scale(0.97);
+  transform-origin: top center;
+  transition:
+    opacity 0.18s ease,
+    transform 0.24s cubic-bezier(.22, 1, .36, 1),
+    visibility 0s linear 0.24s;
+}
+.crm-select.open .crm-select-list {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    opacity 0.18s ease,
+    transform 0.24s cubic-bezier(.22, 1, .36, 1),
+    visibility 0s;
+}
+.crm-select-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 10px;
+  border-radius: 7px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+.crm-select-option.active { background: var(--surface2); }
+.crm-select-option.selected { font-weight: 600; }
+.crm-select-check { color: var(--accent2); font-size: 12px; }
+
+/* 열릴 때 항목이 차례로 */
+.crm-select.open .crm-select-option {
+  animation: crm-rise 0.26s cubic-bezier(.22, 1, .36, 1) backwards;
+}
+.crm-select.open .crm-select-option:nth-child(2) { animation-delay: 0.02s; }
+.crm-select.open .crm-select-option:nth-child(3) { animation-delay: 0.04s; }
+.crm-select.open .crm-select-option:nth-child(4) { animation-delay: 0.06s; }
+.crm-select.open .crm-select-option:nth-child(n+5) { animation-delay: 0.08s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .input,
+  .crm-select-list,
+  .crm-select.open .crm-select-list { transition: none; }
+  .crm-select.open .crm-select-option { animation: none; }
+}
