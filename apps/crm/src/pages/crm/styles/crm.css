@@ -1166,3 +1166,8 @@ html, body, #root {
   .pay-grid { max-height: 50vh; }
   .pay-side { width: auto; }
 }
+
+/* 회원 목록: 줄 전체가 상세 열기 */
+.member-row { cursor: pointer; }
+.member-row:focus-visible td { background: var(--surface2); outline: none; }
+.member-row:focus-visible td:first-child { box-shadow: inset 3px 0 0 var(--accent); }

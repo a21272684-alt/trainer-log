@@ -265,7 +265,7 @@ function RiskBadge({ riskRow }) {
   )
 }
 
-function MemberDetailModal({ member, trainer, gymId, trainers = [], currentTrainer, onMemberStatusChange, onClose, onRequestPayment, paymentsVersion }) {
+function MemberDetailModal({ member, trainer, gymId, trainers = [], currentTrainer, onMemberStatusChange, onClose, paymentsVersion }) {
   const [tab, setTab] = useState('info')
   const [payments, setPayments] = useState([])
   const [lockers,  setLockers]  = useState([])
@@ -395,12 +395,6 @@ function MemberDetailModal({ member, trainer, gymId, trainers = [], currentTrain
       {/* 결제 내역 탭 */}
       {tab === 'payment' && (
         <div>
-          {/* ── 결제하기 → 결제 창(PaymentDialog, MembersTab 에서 띄움) ── */}
-          <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: '12px' }}
-            onClick={() => onRequestPayment?.(member)}>
-            + 결제하기
-          </button>
-
           {/* ── 결제 내역 ── */}
           {payments.length === 0 ? (
             <div className="empty-state">
@@ -895,7 +889,6 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
                 <th>마지막 결제</th>
                 <th>마지막 출석</th>
                 <th>위험도 · 알림</th>
-                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -909,7 +902,10 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
                 const attDays = daysSince(stat?.last_attended)
 
                 return (
-                  <tr key={m.id}>
+                  <tr key={m.id} className="member-row" tabIndex={0}
+                    aria-label={`${m.name} 회원 상세 열기`}
+                    onClick={() => setSelected(m)}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(m) } }}>
                     {/* 회원명 + 상태·리텐션 뱃지 */}
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap',
@@ -993,20 +989,6 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
 
                     <td><RiskBadge riskRow={riskMap[m.id]} /></td>
 
-                    <td>
-                      <div style={{ display:'flex', gap:'6px', justifyContent:'flex-end' }}>
-                        <button className="btn btn-primary"
-                          style={{ padding:'5px 10px', fontSize:'11px' }}
-                          onClick={() => setPayTarget(m)}>
-                          결제
-                        </button>
-                        <button className="btn btn-secondary"
-                          style={{ padding:'5px 10px', fontSize:'11px' }}
-                          onClick={() => setSelected(m)}>
-                          상세
-                        </button>
-                      </div>
-                    </td>
                   </tr>
                 )
               })}
@@ -1016,7 +998,21 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
         )}
       </div>
 
-      <Modal open={!!selected} onClose={() => setSelected(null)} title={selected ? `${selected.name} 회원 상세` : ''} maxWidth="520px">
+      <Modal open={!!selected} onClose={() => setSelected(null)} maxWidth="520px"
+        title={selected ? (
+          <div>
+            <div>{selected.name}</div>
+            <div style={{ fontSize: '11px', fontWeight: 400, color: 'var(--text-muted)', marginTop: '2px' }}>
+              {[selected.phone, `잔여 ${Math.max(0, (selected.total_sessions || 0) - (selected.done_sessions || 0))}회`,
+                statsMap[selected.id]?.last_paid_at ? `마지막 결제 ${String(statsMap[selected.id].last_paid_at).slice(0, 10)}` : null]
+                .filter(Boolean).join(' · ')}
+            </div>
+          </div>
+        ) : ''}
+        headerAction={selected && (
+          <button className="btn btn-primary" style={{ padding: '7px 16px', fontSize: '12px' }}
+            onClick={() => setPayTarget(selected)}>결제</button>
+        )}>
         {selected && (
           <MemberDetailModal
             member={selected}
@@ -1029,7 +1025,6 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
               loadRetention()
             }}
             onClose={() => setSelected(null)}
-            onRequestPayment={m => setPayTarget(m)}
             paymentsVersion={paymentsVersion}
           />
         )}

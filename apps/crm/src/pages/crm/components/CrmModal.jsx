@@ -7,7 +7,7 @@ const EXIT_MS = 180
 // - 입력 중(입력칸을 한 번이라도 수정)이면 바깥 클릭·Esc 로 닫히지 않음 → 창이 흔들리며 안내
 //   닫으려면 ✕ / 취소 버튼처럼 명시적으로 닫아야 함
 // - 바깥에서 시작한 클릭만 "바깥 클릭" 으로 인정 (입력칸에서 드래그하다 바깥에서 놓아도 안 닫힘)
-export default function Modal({ open, onClose, title, children, maxWidth = '520px' }) {
+export default function Modal({ open, onClose, title, children, maxWidth = '520px', headerAction }) {
   const [mounted, setMounted] = useState(open)
   const [shown,   setShown]   = useState(false)
   const [shake,   setShake]   = useState(false)
@@ -15,8 +15,8 @@ export default function Modal({ open, onClose, title, children, maxWidth = '520p
   const dirtyRef     = useRef(false)
   const downOnBackdrop = useRef(false)
   // 부모가 닫으면서 children 을 null 로 바꿔도 닫힘 애니메이션 동안 내용 유지
-  const lastContent  = useRef({ title, children })
-  if (open) lastContent.current = { title, children }
+  const lastContent  = useRef({ title, children, headerAction })
+  if (open) lastContent.current = { title, children, headerAction }
 
   useEffect(() => {
     if (open) {
@@ -50,7 +50,7 @@ export default function Modal({ open, onClose, title, children, maxWidth = '520p
   }) // 매 렌더 최신 onClose 사용
 
   if (!mounted) return null
-  const { title: t, children: c } = open ? { title, children } : lastContent.current
+  const { title: t, children: c, headerAction: ha } = open ? { title, children, headerAction } : lastContent.current
 
   return (
     <div
@@ -72,8 +72,11 @@ export default function Modal({ open, onClose, title, children, maxWidth = '520p
         onChangeCapture={() => { dirtyRef.current = true }}
       >
         <div className="crm-modal-header">
-          <span style={{ fontSize: '15px', fontWeight: 700 }}>{t}</span>
-          <button className="crm-modal-close" aria-label="닫기" onClick={onClose}>✕</button>
+          <div style={{ fontSize: '15px', fontWeight: 700, minWidth: 0 }}>{t}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+            {ha}
+            <button className="crm-modal-close" aria-label="닫기" onClick={onClose}>✕</button>
+          </div>
         </div>
         {hint && (
           <div className="crm-modal-hint" role="status">
