@@ -35,13 +35,22 @@ function stateOf(l, today) {
   return 'use'
 }
 
-function subText(l, st, today) {
+const md = d => d.slice(5).replace('-', '/')
+
+// 칸에 보이는 기간 (시작~만료)
+function periodText(l) {
+  const a = l.assignment
+  return a ? `${md(a.start_date)}~${md(a.end_date)}` : ''
+}
+
+// 기간 아래 상태 (만료 임박·만료만)
+function statusText(l, st, today) {
   if (st === 'empty') return '빈 칸'
   if (st === 'off')   return '사용 불가'
   const left = differenceInCalendarDays(parseISO(l.assignment.end_date), parseISO(today))
   if (st === 'over') return `만료 ${-left}일`
   if (st === 'soon') return left === 0 ? '오늘 만료' : `D-${left}`
-  return `~${l.assignment.end_date.slice(5).replace('-', '/')}`
+  return ''
 }
 
 export default function LockersTab({ gymId, members = [], trainers = [], currentTrainer }) {
@@ -74,7 +83,7 @@ export default function LockersTab({ gymId, members = [], trainers = [], current
 
   const rows = useMemo(() => lockers.map(l => {
     const st = stateOf(l, today)
-    return { ...l, st, sub: subText(l, st, today) }
+    return { ...l, st, period: periodText(l), status: statusText(l, st, today) }
   }), [lockers, today])
 
   const counts = useMemo(() => {
@@ -171,7 +180,8 @@ export default function LockersTab({ gymId, members = [], trainers = [], current
                     <span style={{ ...mono, fontSize: '14px', fontWeight: 700 }}>{r.number}</span>
                     <span className="lk-tile-sub">
                       {r.assignment && <span className="lk-tile-name">{r.assignment.member_name}</span>}
-                      <span style={{ ...mono, fontSize: '10px' }}>{r.sub}</span>
+                      {r.period && <span style={{ ...mono, fontSize: '10px' }}>{r.period}</span>}
+                      {r.status && <span style={{ ...mono, fontSize: '10px', fontWeight: 700 }}>{r.status}</span>}
                     </span>
                   </button>
                 ))}

@@ -1193,7 +1193,7 @@ html, body, #root {
   position: sticky;
   top: 0;
 }
-.lk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 8px; }
+.lk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
 .lk-tile {
   min-height: 74px;
   display: flex;
