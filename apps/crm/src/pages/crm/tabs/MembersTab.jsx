@@ -4,9 +4,10 @@ import { supabase } from '@trainer-log/shared/lib/supabase'
 import { useToast } from '../components/CrmToast'
 import Modal from '../components/CrmModal'
 import { computeRiskScore, RISK_LEVELS } from '@trainer-log/shared/lib/churnRisk'
-import { isDurationTicket, calcTicketPeriod, todayStr } from '../lib/ticketDateCalc'
+import { todayStr } from '../lib/ticketDateCalc'
 import MemberFilterPanel from '../components/MemberFilterPanel'
 import MemberPausePanel from '../components/MemberPausePanel'
+import PaymentDialog from '../components/PaymentDialog'
 import {
   EMPTY_FILTERS, STATUS_CHIPS, memberStatus, matchStatus, matchFilters,
   filterTags, daysSince,
@@ -19,434 +20,8 @@ const krw  = n => Number(n||0).toLocaleString() + '원'
 const REFUND_ROLES = ['owner', 'manager']
 const canRefund = (trainer) => REFUND_ROLES.includes(trainer?.role)
 
-// ── 결제 수단별 상품 가격 추출 ──────────────────────────────────
-function getPriceByMethod(product, method) {
-  if (!product) return 0
-  const pp = product.payment_prices || {}
-  switch (method) {
-    case 'cash':     return Number(product.price_cash  ?? 0)
-    case 'card':     return Number(product.price_card  ?? 0)
-    case 'transfer': return Number(pp.transfer         ?? 0)
-    default:         return 0   // local_currency / payments_app → 직접 입력
-  }
-}
 
-// ── 기간권 뱃지 ───────────────────────────────────────────────
-function TicketTypeBadge({ product }) {
-  if (!product) return null
-  const isPeriod = isDurationTicket(product)
-  return (
-    <span style={{
-      fontSize: '10px', padding: '2px 7px', borderRadius: '4px', fontWeight: 600,
-      background: isPeriod ? 'rgba(96,165,250,0.1)' : 'rgba(251,146,60,0.1)',
-      color:      isPeriod ? 'var(--blue)'           : 'var(--orange)',
-      border:     isPeriod ? '1px solid rgba(96,165,250,0.25)' : '1px solid rgba(251,146,60,0.25)',
-    }}>
-      {isPeriod
-        ? `기간권 ${product.duration_days}일`
-        : product.session_limit ? `횟수권 ${product.session_limit}회` : '기타'}
-    </span>
-  )
-}
 
-// ════════════════════════════════════════════════════════════════
-// NewPaymentSection
-// MemberDetailModal의 결제 탭 내부에 렌더되는 신규 결제 등록 섹션
-// ════════════════════════════════════════════════════════════════
-function NewPaymentSection({ member, gymId, trainers = [], currentTrainer, onPaymentAdded, onMemberStatusChange }) {
-  const showToast = useToast()
-
-  // ── 상품 목록 ──
-  const [gymProducts, setGymProducts]   = useState([])
-  const [prodLoading, setProdLoading]   = useState(false)
-
-  // ── 폼 상태 ──
-  const [open, setOpen] = useState(false)
-  const EMPTY_FORM = {
-    productId: '', paymentMethod: 'card', customAmount: '', memo: '',
-    processed_by: currentTrainer?.id || '',   // 결제 담당자 — 기본값: 현재 로그인 직원
-  }
-  const [form, setForm]               = useState(EMPTY_FORM)
-  const [formError, setFormError]     = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
-
-  // ── 날짜 미리보기 (기간권 한정) ──
-  const [previewDates, setPreviewDates] = useState(null)  // { startDate, endDate }
-  const [dateLoading,  setDateLoading]  = useState(false)
-
-  // ── 상품 로드 ──
-  useEffect(() => {
-    if (gymId && open) loadProducts()
-  }, [gymId, open])
-
-  async function loadProducts() {
-    setProdLoading(true)
-    try {
-      const { data } = await supabase
-        .from('gym_products')
-        .select('*')
-        .eq('gym_id', gymId)
-        .eq('is_active', true)
-        .order('category')
-        .order('name')
-      setGymProducts(data || [])
-    } catch (e) {
-      console.error('[NewPaymentSection] loadProducts:', e)
-    } finally {
-      setProdLoading(false)
-    }
-  }
-
-  // 선택된 상품
-  const selectedProduct = gymProducts.find(p => p.id === form.productId) ?? null
-  const isTimeBased     = isDurationTicket(selectedProduct)
-
-  // ── 상품 변경 → 기간권이면 기존 max(end_date) 조회 후 날짜 미리보기 계산 ──
-  useEffect(() => {
-    if (!selectedProduct || !isTimeBased) {
-      setPreviewDates(null)
-      return
-    }
-    fetchPreviewDates(selectedProduct)
-  }, [form.productId])  // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function fetchPreviewDates(product) {
-    setDateLoading(true)
-    setPreviewDates(null)
-    try {
-      // 이 헬스장의 기간권 상품 ID 목록
-      const durationIds = gymProducts
-        .filter(p => isDurationTicket(p))
-        .map(p => p.id)
-
-      if (!durationIds.length) {
-        // 기존 기간권 없음 → 오늘부터 시작
-        setPreviewDates(calcTicketPeriod(null, product.duration_days))
-        return
-      }
-
-      // 해당 회원의 활성 기간권(end_date >= 오늘) 중 가장 늦은 만료일 조회
-      const { data } = await supabase
-        .from('payments')
-        .select('end_date')
-        .eq('member_id', member.id)
-        .in('gym_product_id', durationIds)
-        .gte('end_date', todayStr())
-        .not('end_date', 'is', null)
-        .order('end_date', { ascending: false })
-        .limit(1)
-
-      const maxEndDate = data?.[0]?.end_date ?? null
-      setPreviewDates(calcTicketPeriod(maxEndDate, product.duration_days))
-    } catch (e) {
-      console.error('[fetchPreviewDates]', e)
-      // 오류 시 오늘부터 시작으로 fallback
-      try { setPreviewDates(calcTicketPeriod(null, product.duration_days)) } catch {}
-    } finally {
-      setDateLoading(false)
-    }
-  }
-
-  // ── 결제 금액 계산 ──
-  function getAmount() {
-    const auto = getPriceByMethod(selectedProduct, form.paymentMethod)
-    if (auto > 0) return auto
-    return Number(form.customAmount) || 0
-  }
-
-  // ── 결제 등록 Submit ──────────────────────────────────────────
-  async function handleSubmit() {
-    if (isSubmitting) return   // ❗중복 클릭 방어
-    setFormError('')
-
-    if (!selectedProduct)       { setFormError('상품을 선택해주세요.'); return }
-    const amount = getAmount()
-    if (!amount)                { setFormError('결제 금액을 확인해주세요 (0원 불가).'); return }
-    if (isTimeBased && dateLoading)
-                                { setFormError('날짜 계산 중입니다. 잠시 후 다시 시도해주세요.'); return }
-    if (isTimeBased && !previewDates)
-                                { setFormError('이용 기간 계산에 실패했습니다. 새로고침 후 재시도해주세요.'); return }
-
-    setIsSubmitting(true)
-    try {
-      const row = {
-        member_id:      member.id,
-        trainer_id:     member.trainer_id   ?? null,
-        gym_product_id: selectedProduct.id,
-        product_name:   selectedProduct.name,
-        session_count:  selectedProduct.session_limit ?? 0,
-        amount,
-        payment_method: form.paymentMethod,
-        memo:           form.memo.trim()    || null,
-        processed_by:   form.processed_by   || null,   // 결제 담당자
-        paid_at:        new Date().toISOString(),
-      }
-      // 기간권이면 start_date / end_date 함께 저장
-      if (isTimeBased && previewDates) {
-        row.start_date = previewDates.startDate
-        row.end_date   = previewDates.endDate
-      }
-
-      const { error } = await supabase.from('payments').insert(row)
-      if (error) throw error
-
-      // 가망 고객(lead)이 첫 결제를 완료하면 즉시 UI에 active 반영
-      if (member.status === 'lead') {
-        onMemberStatusChange?.({ id: member.id, status: 'active' })
-        showToast('✓ 결제 완료 — 가망 고객이 활성 회원으로 전환됐어요')
-      } else {
-        showToast(`✓ 결제 등록 — ${selectedProduct.name}`)
-      }
-
-      setForm(EMPTY_FORM)
-      setPreviewDates(null)
-      setOpen(false)
-      onPaymentAdded()
-    } catch (e) {
-      setFormError('등록 오류: ' + (e.message ?? '알 수 없는 오류'))
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  // 결제 수단 목록 (해당 상품에 가격이 설정된 수단만 표시)
-  const methods = selectedProduct ? [
-    { value: 'cash',          label: '💵 현금',    price: getPriceByMethod(selectedProduct, 'cash')     },
-    { value: 'card',          label: '💳 카드',    price: getPriceByMethod(selectedProduct, 'card')     },
-    { value: 'transfer',      label: '🏦 계좌이체', price: getPriceByMethod(selectedProduct, 'transfer') },
-    { value: 'local_currency',label: '🪙 지역화폐', price: 0 },
-    { value: 'payments_app',  label: '📱 페이먼츠', price: 0 },
-  ] : []
-
-  const needsManualAmount = ['local_currency', 'payments_app'].includes(form.paymentMethod)
-
-  // ── 렌더 ─────────────────────────────────────────────────────
-  return (
-    <div style={{ marginBottom: '12px' }}>
-      {/* 토글 버튼 */}
-      <button
-        onClick={() => { setOpen(v => !v); setFormError(''); setForm(EMPTY_FORM); setPreviewDates(null) }}
-        style={{
-          width: '100%', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer',
-          background: open ? 'rgba(200,241,53,0.08)' : 'var(--surface2)',
-          border: open ? '1px solid rgba(200,241,53,0.3)' : '1px solid var(--border)',
-          color: open ? 'var(--accent)' : 'var(--text-muted)',
-          fontSize: '12px', fontWeight: 600, fontFamily: 'inherit',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          transition: 'all 0.15s',
-        }}
-      >
-        <span>+ 신규 결제 등록</span>
-        <span style={{ fontSize: '14px' }}>{open ? '▲' : '▼'}</span>
-      </button>
-
-      {open && (
-        <div style={{
-          marginTop: '8px', padding: '16px',
-          background: 'var(--surface2)', borderRadius: '10px',
-          border: '1px solid var(--border)',
-          display: 'flex', flexDirection: 'column', gap: '14px',
-        }}>
-
-          {/* ── 상품 선택 ── */}
-          <div>
-            <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600,
-              display: 'block', marginBottom: '6px' }}>상품 선택 *</label>
-            {prodLoading ? (
-              <div style={{ fontSize: '11px', color: 'var(--text-dim)', padding: '6px 0' }}>불러오는 중…</div>
-            ) : gymProducts.length === 0 ? (
-              <div style={{ fontSize: '11px', color: 'var(--text-dim)', padding: '6px 0' }}>
-                등록된 상품이 없어요. 먼저 상품 관리에서 상품을 추가해주세요.
-              </div>
-            ) : (
-              <select className="input" value={form.productId}
-                onChange={e => setForm(f => ({ ...f, productId: e.target.value, customAmount: '' }))}>
-                <option value="">— 상품을 선택하세요 —</option>
-                {gymProducts.map(p => (
-                  <option key={p.id} value={p.id}>
-                    [{p.category}] {p.name}
-                    {p.duration_days ? ` · ${p.duration_days}일` : ''}
-                    {p.session_limit ? ` · ${p.session_limit}회` : ''}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          {/* ── 선택된 상품 정보 + 기간권 미리보기 ── */}
-          {selectedProduct && (
-            <div style={{
-              background: 'var(--surface)', border: '1px solid var(--border)',
-              borderRadius: '8px', padding: '12px',
-              display: 'flex', flexDirection: 'column', gap: '8px',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '13px', fontWeight: 700 }}>{selectedProduct.name}</span>
-                <TicketTypeBadge product={selectedProduct} />
-              </div>
-
-              {/* 기간권 날짜 미리보기 */}
-              {isTimeBased && (
-                <div style={{
-                  background: dateLoading ? 'rgba(96,165,250,0.05)' : 'rgba(96,165,250,0.08)',
-                  border: '1px solid rgba(96,165,250,0.2)',
-                  borderRadius: '6px', padding: '10px 12px',
-                }}>
-                  <div style={{ fontSize: '10px', color: 'var(--blue)', fontWeight: 700,
-                    marginBottom: '4px' }}>📅 자동 계산된 이용 기간</div>
-                  {dateLoading ? (
-                    <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
-                      기존 기간권 확인 중…
-                    </div>
-                  ) : previewDates ? (
-                    <div style={{ ...mono, fontSize: '12px', fontWeight: 600, color: 'var(--blue)' }}>
-                      {previewDates.startDate} ~ {previewDates.endDate}
-                      <span style={{ fontSize: '10px', color: 'var(--text-dim)',
-                        fontWeight: 400, marginLeft: '8px' }}>
-                        ({selectedProduct.duration_days}일)
-                      </span>
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: '11px', color: 'var(--orange)' }}>날짜 계산 실패</div>
-                  )}
-                  {previewDates && (
-                    <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '3px' }}>
-                      기존 활성 기간권이 있으면 그 다음 날부터 자동 이어붙임
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── 결제 수단 ── */}
-          {selectedProduct && (
-            <div>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600,
-                display: 'block', marginBottom: '8px' }}>결제 수단 *</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px' }}>
-                {methods.map(m => {
-                  const isActive = form.paymentMethod === m.value
-                  return (
-                    <button key={m.value} type="button"
-                      onClick={() => setForm(f => ({ ...f, paymentMethod: m.value, customAmount: '' }))}
-                      style={{
-                        display: 'flex', flexDirection: 'column', alignItems: 'center',
-                        gap: '4px', padding: '10px 4px', borderRadius: '8px',
-                        border: isActive ? '2px solid var(--accent)' : '1px solid var(--border)',
-                        background: isActive ? 'rgba(200,241,53,0.1)' : 'var(--surface)',
-                        cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.12s',
-                      }}>
-                      <span style={{ fontSize: '16px', lineHeight: 1 }}>
-                        {m.label.split(' ')[0]}
-                      </span>
-                      <span style={{ fontSize: '9px', fontWeight: 600, whiteSpace: 'pre',
-                        textAlign: 'center', lineHeight: 1.3,
-                        color: isActive ? 'var(--accent)' : 'var(--text-muted)' }}>
-                        {m.label.split(' ').slice(1).join('\n')}
-                      </span>
-                      {m.price > 0 && (
-                        <span style={{ ...mono, fontSize: '8px', color: isActive ? 'var(--accent)' : 'var(--text-dim)' }}>
-                          {m.price.toLocaleString()}
-                        </span>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* ── 금액 (자동 or 직접 입력) ── */}
-          {selectedProduct && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600,
-                minWidth: '60px' }}>결제 금액 *</label>
-              {needsManualAmount ? (
-                <input className="input" type="number" min={0}
-                  placeholder="금액 직접 입력"
-                  value={form.customAmount}
-                  onChange={e => setForm(f => ({ ...f, customAmount: e.target.value }))}
-                  style={{ flex: 1, textAlign: 'right' }} />
-              ) : (
-                <div style={{ ...mono, fontSize: '14px', fontWeight: 700,
-                  color: getAmount() > 0 ? 'var(--accent)' : 'var(--orange)',
-                  flex: 1, textAlign: 'right' }}>
-                  {getAmount() > 0 ? getAmount().toLocaleString() + '원' : '⚠ 가격 미설정'}
-                </div>
-              )}
-              {needsManualAmount && (
-                <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>원</span>
-              )}
-            </div>
-          )}
-
-          {/* ── 메모 ── */}
-          {selectedProduct && (
-            <div>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600,
-                display: 'block', marginBottom: '5px' }}>메모 (선택)</label>
-              <input className="input" placeholder="특이사항, 할인 내용 등"
-                value={form.memo}
-                onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} />
-            </div>
-          )}
-
-          {/* ── 결제 담당자 (필수) ── */}
-          {selectedProduct && (
-            <div>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600,
-                display: 'block', marginBottom: '5px' }}>결제 담당자 *</label>
-              <select className="input" value={form.processed_by}
-                onChange={e => setForm(f => ({ ...f, processed_by: e.target.value }))}>
-                <option value="">— 담당자를 선택하세요 —</option>
-                {trainers.map(t => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}{t.id === currentTrainer?.id ? ' (나)' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* ── 오류 메시지 ── */}
-          {formError && (
-            <div style={{
-              padding: '8px 12px', borderRadius: '7px', fontSize: '12px',
-              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
-              color: 'var(--red)',
-            }}>
-              ⚠️ {formError}
-            </div>
-          )}
-
-          {/* ── 버튼 ── */}
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }}
-              onClick={() => { setOpen(false); setForm(EMPTY_FORM); setPreviewDates(null); setFormError('') }}>
-              취소
-            </button>
-            <button className="btn btn-primary"
-              style={{ flex: 2, justifyContent: 'center',
-                opacity: isSubmitting ? 0.6 : 1,
-                cursor:  isSubmitting ? 'not-allowed' : 'pointer' }}
-              onClick={handleSubmit}
-              disabled={isSubmitting || !selectedProduct}>
-              {isSubmitting
-                ? <><span className="spinner">✦</span> 등록 중…</>
-                : `💳 결제 등록 — ${getAmount() > 0 ? getAmount().toLocaleString() + '원' : '—'}`}
-            </button>
-          </div>
-
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ════════════════════════════════════════════════════════════════
-// RefundModal
-// 기간권 환불 처리 + 후속 기간권 도미노 미리보기
 // ════════════════════════════════════════════════════════════════
 function RefundModal({ payment, memberId, executorRole, onRefunded, onClose }) {
   const showToast = useToast()
@@ -690,7 +265,7 @@ function RiskBadge({ riskRow }) {
   )
 }
 
-function MemberDetailModal({ member, trainer, gymId, trainers = [], currentTrainer, onMemberStatusChange, onClose }) {
+function MemberDetailModal({ member, trainer, gymId, trainers = [], currentTrainer, onMemberStatusChange, onClose, onRequestPayment, paymentsVersion }) {
   const [tab, setTab] = useState('info')
   const [payments, setPayments] = useState([])
   const [lockers,  setLockers]  = useState([])
@@ -710,6 +285,9 @@ function MemberDetailModal({ member, trainer, gymId, trainers = [], currentTrain
     loadLockers()
     loadRisk()
   }, [member.id])
+
+  // 결제 창에서 결제가 끝나면 결제 내역 갱신
+  useEffect(() => { if (paymentsVersion) loadPayments() }, [paymentsVersion]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadPayments() {
     const { data } = await supabase
@@ -817,15 +395,11 @@ function MemberDetailModal({ member, trainer, gymId, trainers = [], currentTrain
       {/* 결제 내역 탭 */}
       {tab === 'payment' && (
         <div>
-          {/* ── 신규 결제 등록 섹션 ── */}
-          <NewPaymentSection
-            member={member}
-            gymId={gymId}
-            trainers={trainers}
-            currentTrainer={currentTrainer}
-            onPaymentAdded={loadPayments}
-            onMemberStatusChange={onMemberStatusChange}
-          />
+          {/* ── 결제하기 → 결제 창(PaymentDialog, MembersTab 에서 띄움) ── */}
+          <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: '12px' }}
+            onClick={() => onRequestPayment?.(member)}>
+            + 결제하기
+          </button>
 
           {/* ── 결제 내역 ── */}
           {payments.length === 0 ? (
@@ -1052,6 +626,9 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
   const [statsMap,      setStatsMap]     = useState({})
   const [segments,      setSegments]     = useState([])
   const [activeSegId,   setActiveSegId]  = useState(null)
+  // 결제 창
+  const [payTarget,     setPayTarget]    = useState(null)
+  const [paymentsVersion, setPaymentsVersion] = useState(0)
 
   // ── 신규 회원 등록 모달 상태 ──
   const [addModal,  setAddModal]  = useState(false)
@@ -1417,11 +994,18 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
                     <td><RiskBadge riskRow={riskMap[m.id]} /></td>
 
                     <td>
-                      <button className="btn btn-secondary"
-                        style={{ padding:'5px 10px', fontSize:'11px' }}
-                        onClick={() => setSelected(m)}>
-                        상세
-                      </button>
+                      <div style={{ display:'flex', gap:'6px', justifyContent:'flex-end' }}>
+                        <button className="btn btn-primary"
+                          style={{ padding:'5px 10px', fontSize:'11px' }}
+                          onClick={() => setPayTarget(m)}>
+                          결제
+                        </button>
+                        <button className="btn btn-secondary"
+                          style={{ padding:'5px 10px', fontSize:'11px' }}
+                          onClick={() => setSelected(m)}>
+                          상세
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -1445,9 +1029,22 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
               loadRetention()
             }}
             onClose={() => setSelected(null)}
+            onRequestPayment={m => setPayTarget(m)}
+            paymentsVersion={paymentsVersion}
           />
         )}
       </Modal>
+
+      {/* ── 결제 창 (목록 · 회원 상세 공용) ── */}
+      <PaymentDialog
+        open={!!payTarget}
+        member={payTarget}
+        gymId={gymId}
+        trainers={trainers}
+        currentTrainer={currentTrainer}
+        onClose={() => setPayTarget(null)}
+        onPaid={() => { setPaymentsVersion(v => v + 1); if (gymId) loadStats() }}
+      />
 
       {/* ── 신규 회원 등록 모달 ── */}
       <Modal open={addModal} onClose={() => setAddModal(false)} title="신규 회원 등록" maxWidth="400px">

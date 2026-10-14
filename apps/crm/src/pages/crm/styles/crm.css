@@ -1035,3 +1035,134 @@ html, body, #root {
 }
 .pause-cancel:hover:not(:disabled) { background: #FEF3F2; }
 .pause-cancel:disabled { opacity: 0.5; cursor: default; }
+
+/* ── 결제 창 ─────────────────────────────────────────────────── */
+.pay-dialog {
+  display: flex;
+  margin: -20px;              /* 모달 본문 여백 상쇄 → 두 칸이 가장자리까지 */
+  height: min(72vh, 660px);
+}
+.pay-products {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+}
+.pay-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.pay-grid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 18px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+  align-content: start;
+}
+.pay-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+.pay-card:hover { border-color: var(--text-dim); transform: translateY(-1px); }
+.pay-card.on {
+  border-color: #7FA313;
+  box-shadow: 0 0 0 3px rgba(200, 241, 53, 0.35);
+}
+.pay-badge {
+  align-self: flex-start;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 5px;
+  border: 1px solid;
+}
+.pay-card-name { font-size: 13px; font-weight: 700; line-height: 1.3; }
+.pay-card-desc {
+  font-size: 11px;
+  line-height: 1.35;
+  color: #9A3412;
+  background: #FFF4E5;
+  border-radius: 6px;
+  padding: 4px 7px;
+}
+.pay-kv { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.pay-kv > span { background: var(--surface2); border-radius: 6px; padding: 4px 7px; font-size: 11px; font-weight: 700; }
+.pay-kv b { display: block; font-size: 9px; font-weight: 500; color: var(--text-muted); }
+.pay-price {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-top: 1px solid var(--border);
+  padding-top: 7px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.pay-side {
+  width: 320px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.pay-side-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.pay-side-foot { padding: 14px 18px; border-top: 1px solid var(--border); background: var(--surface); }
+.pay-label { display: block; font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+.pay-field { display: block; }
+.pay-selected { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+.pay-period {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  border-radius: 10px;
+  background: #F7FBEA;
+  border: 1px solid #D9EBA8;
+}
+.pay-methods { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.pay-method {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 7px 4px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.pay-method.on { background: #F7FBEA; border-color: #7FA313; font-weight: 700; }
+
+@media (max-width: 760px) {
+  .pay-dialog { flex-direction: column; height: auto; }
+  .pay-products { border-right: none; border-bottom: 1px solid var(--border); }
+  .pay-grid { max-height: 50vh; }
+  .pay-side { width: auto; }
+}
