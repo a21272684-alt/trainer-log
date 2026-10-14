@@ -10,7 +10,8 @@ import Privacy from './pages/Privacy'
 import Refund from './pages/Refund'
 import AccountDeletion from './pages/AccountDeletion'
 import ComingSoon from './pages/ComingSoon'
-import { initNativeAuthListener } from './lib/nativeAuth'
+import NativeStart from './pages/NativeStart'
+import { initNativeAuthListener, isNativeApp } from './lib/nativeAuth'
 
 // ⚠️ Phase D-4 베타 출시 정책 (Path B):
 // CRM / Community 는 코드는 완성 상태이나 운영(prod) 배포엔 미공개.
@@ -29,7 +30,9 @@ export default function App() {
     <BrowserRouter>
       <ToastProvider>
         <Routes>
-          <Route path="/" element={<Landing />} />
+          {/* iOS 앱은 역할 선택 화면으로 시작(심사 4.2·2.1), 웹·안드로이드는 마케팅 랜딩 */}
+          <Route path="/" element={isNativeApp() ? <NativeStart /> : <Landing />} />
+          <Route path="/intro" element={<Landing />} />
           <Route path="/trainer" element={<TrainerApp />} />
           <Route path="/member" element={<MemberPortal />} />
           <Route path="/report" element={<Report />} />

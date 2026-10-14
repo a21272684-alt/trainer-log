@@ -3,10 +3,12 @@ import { Link } from 'react-router-dom'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import { isNativeApp } from '../lib/nativeAuth'
 
-// iOS 앱(Capacitor)에서는 요금제 섹션과 가격·충전 관련 FAQ 를 숨김
-// (인앱결제 없이 심사 통과 조건: 앱 안 구매 유도 금지 — App Store 가이드라인 3.1.1 / 3.1.3(f)).
+// iOS 앱(Capacitor)에서 '오운 소개 보기'로 들어온 랜딩은 아래를 숨김
+//  - 요금제 섹션, 가격·충전 FAQ (인앱결제 없이 심사 통과 조건 — 가이드라인 3.1.1 / 3.1.3(f))
+//  - PWA·홈 화면 추가·브라우저 안내 FAQ, CRM '곧 출시' 카드·링크 (웹사이트 감싼 앱 인상 — 4.2)
 const HIDE_PURCHASE = isNativeApp()
 const PURCHASE_FAQ_RE = /가격|요금|충전|구독|결제|유료|\bPro\b|프리미엄|Premium/i
+const WEB_ONLY_FAQ_RE = /홈 화면|PWA|브라우저/i
 
 // ── 데이터 ────────────────────────────────────────────────────
 
@@ -1314,7 +1316,10 @@ export default function Landing() {
             </div>
           </FadeUp>
           <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
-            {(HIDE_PURCHASE ? faqs.filter(f => !PURCHASE_FAQ_RE.test(`${f.q || ''} ${f.a || ''}`)) : faqs).map((faq, i) => (
+            {(HIDE_PURCHASE ? faqs.filter(f => {
+              const t = `${f.q || ''} ${f.a || ''}`
+              return !PURCHASE_FAQ_RE.test(t) && !WEB_ONLY_FAQ_RE.test(t)
+            }) : faqs).map((faq, i) => (
               <FadeUp key={i} delay={i * 60}>
                 <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:'14px',overflow:'hidden',
                   boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
@@ -1503,9 +1508,9 @@ export default function Landing() {
             )
           })()}
 
-          {/* 헬스장 CRM */}
+          {/* 헬스장 CRM (iOS 앱에선 '곧 출시' 페이지로 가므로 숨김) */}
           {(() => {
-            const v = portalButtons.crm
+            const v = HIDE_PURCHASE ? 'hidden' : portalButtons.crm
             const state = v === true ? 'show' : v === false ? 'coming_soon' : (v || 'show')
             if (state === 'hidden') return null
             return (
@@ -1578,6 +1583,7 @@ export default function Landing() {
               { key: 'crm',       to: '/crm',       label: '헬스장 CRM' },
             ]
             return items.map(it => {
+              if (HIDE_PURCHASE && it.key === 'crm') return null
               const v = portalButtons[it.key]
               const state = v === true ? 'show' : v === false ? 'coming_soon' : (v || 'show')
               if (state === 'hidden') return null
