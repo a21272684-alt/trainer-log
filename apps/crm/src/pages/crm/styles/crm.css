@@ -1247,3 +1247,210 @@ html, body, #root {
   border: 1px solid var(--border);
   border-radius: 10px;
 }
+
+/* ── 태블릿 터치 출석 (전체 화면) ─────────────────────────────── */
+.kiosk {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  background: #0F1318;
+  color: #F4F6F8;
+  font-family: 'Noto Sans KR', sans-serif;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  animation: crm-rise 0.3s ease backwards;
+}
+.kiosk-top {
+  position: absolute;
+  top: 22px;
+  left: 30px;
+  right: 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.kiosk-brand { font-size: 22px; font-weight: 900; color: #c8f135; }
+.kiosk-lock {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid #2B3240;
+  background: transparent;
+  color: #6B7380;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.kiosk-body { position: absolute; inset: 90px 30px 30px 30px; animation: crm-rise 0.25s ease backwards; }
+.kiosk-row { display: flex; gap: 80px; align-items: center; justify-content: center; flex-wrap: wrap; }
+.kiosk-col { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; }
+.kiosk-title { font-size: 40px; font-weight: 900; line-height: 1.25; }
+.kiosk-h1 { font-size: 40px; font-weight: 900; }
+.kiosk-h2 { font-size: 34px; font-weight: 900; }
+.kiosk-keypad { display: grid; grid-template-columns: repeat(3, 110px); gap: 12px; }
+.kiosk-key {
+  height: 84px;
+  border-radius: 16px;
+  border: 1px solid #2B3240;
+  background: #1A1F27;
+  color: #F4F6F8;
+  font: inherit;
+  font-size: 30px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 0.12s ease, transform 0.08s ease;
+}
+.kiosk-key:active { transform: scale(0.97); background: #232A35; }
+.kiosk-key.fn { font-size: 18px; color: #AEB6C2; }
+.kiosk-key:disabled { opacity: 0.5; }
+.kiosk-dot {
+  width: 54px;
+  height: 66px;
+  border-radius: 14px;
+  border: 2px solid #2B3240;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  font-weight: 700;
+}
+.kiosk-dot.on { border-color: #c8f135; }
+.kiosk-cand {
+  height: 80px;
+  border-radius: 16px;
+  border: 1px solid #2B3240;
+  background: #1A1F27;
+  color: #F4F6F8;
+  font: inherit;
+  font-size: 26px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.kiosk-btn {
+  height: 64px;
+  padding: 0 32px;
+  border-radius: 16px;
+  font: inherit;
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.kiosk-btn.small { height: 52px; font-size: 16px; }
+.kiosk-btn.ghost { background: transparent; border: 1px solid #3A4250; color: #E5E7EB; }
+.kiosk-btn.lime { background: #c8f135; border: none; color: #0a0a0a; height: 76px; font-size: 22px; padding: 0 36px; }
+.kiosk-btn:disabled { opacity: 0.6; }
+.kiosk-badge {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 46px;
+  font-weight: 900;
+}
+.kiosk-badge.ok { background: #c8f135; }
+.kiosk-badge.bad { background: #3A1D1B; border: 2px solid #F09A90; color: #F09A90; }
+.kiosk-badge.pause { background: #1C2740; border: 2px solid #8FB0F5; }
+.kiosk-infos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; width: min(820px, 100%); }
+.kiosk-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: #1A1F27;
+  border: 1px solid #2B3240;
+}
+.kiosk-info .k-l { font-size: 13px; color: #AEB6C2; }
+.kiosk-info .k-v { font-size: 20px; font-weight: 700; }
+
+@media (max-width: 900px) {
+  .kiosk-row { gap: 30px; }
+  .kiosk-keypad { grid-template-columns: repeat(3, 90px); }
+  .kiosk-key { height: 72px; }
+  .kiosk-infos { grid-template-columns: 1fr; }
+}
+
+/* ── 출석 관리 ───────────────────────────────────────────────── */
+.att-datenav {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.att-datenav > span { padding: 0 8px; }
+.att-datenav button {
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text);
+}
+.att-datenav button:hover:not(:disabled) { background: var(--surface2); }
+.att-datenav button:disabled { opacity: 0.35; cursor: default; }
+.att-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.att-hours { display: flex; gap: 3px; align-items: flex-end; height: 90px; border-bottom: 1px solid var(--text-dim); }
+.att-hour { flex: 1; height: 100%; display: flex; align-items: flex-end; }
+.att-hour > div {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  transform-origin: bottom;
+  animation: rev-grow 0.5s cubic-bezier(.22, 1, .36, 1) backwards;
+}
+.att-absent {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.att-pick {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+.att-pick:hover:not(:disabled) { background: var(--surface2); }
+.att-staff-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.kiosk-staff-tag {
+  font-size: 14px;
+  font-weight: 700;
+  padding: 3px 10px;
+  margin-right: 12px;
+  border-radius: 8px;
+  background: #2B3240;
+  color: #c8f135;
+  vertical-align: middle;
+}

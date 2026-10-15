@@ -32,6 +32,9 @@ import ProductsTab         from './tabs/ProductsTab'
 import SettingsTab         from './tabs/SettingsTab'
 import RevenueTab          from './tabs/RevenueTab'
 import LockersTab          from './tabs/LockersTab'
+import AttendanceTab       from './tabs/AttendanceTab'
+import KioskMode           from './components/KioskMode'
+import KioskLauncher       from './components/KioskLauncher'
 import AccessDenied        from './components/AccessDenied'
 
 // ── 탭별 필요 권한 매핑 ────────────────────────────────────────────
@@ -41,6 +44,7 @@ import AccessDenied        from './components/AccessDenied'
 const TAB_PERMISSIONS = {
   dashboard:     null,
   members:       null,
+  attendance:    null,
   lockers:       null,
   revenue:       null,                // 범위는 RPC 가 결정: 대표=센터 전체, 직원=본인 매출만
   settlement:    'view_settlement',   // SettingsTab > 직원 권한 관리의 '정산 열람' 키
@@ -55,6 +59,7 @@ const TAB_PERMISSIONS = {
 const NAV_ITEMS = [
   { key: 'dashboard',     icon: '📊', label: '대시보드' },
   { key: 'members',       icon: '👥', label: '회원 관리' },
+  { key: 'attendance',    icon: '✅', label: '출석 관리' },
   { key: 'lockers',       icon: '🔐', label: '락커 관리' },
   { key: 'revenue',       icon: '📈', label: '매출 분석' },
   { key: 'settlement',    icon: '💵', label: '센터 정산' },
@@ -75,6 +80,9 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
   const [apiKey,       setApiKey]       = useState(() => localStorage.getItem('crm_gemini_key') || '')
   const [showApiModal, setShowApiModal] = useState(false)
   const [apiKeyInput,  setApiKeyInput]  = useState('')
+  // 태블릿 터치 출석
+  const [kioskMenu,    setKioskMenu]    = useState(false)
+  const [kioskOn,      setKioskOn]      = useState(false)
 
   // 현재 로그인 트레이너의 탭 접근 권한 검사 — DB 재조회 없이 동기 판단
   // trainer.role === 'owner' 이면 전체 탭 패스, 그 외는 crm_permissions 키 확인
@@ -123,6 +131,7 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
   const TAB_TITLES = {
     dashboard:     { title: '대시보드',  sub: `${gym.name} 운영 현황` },
     members:       { title: '회원 관리', sub: `전체 ${members.length}명` },
+    attendance:    { title: '출석 관리', sub: '입장 기록 · 수동 출석 · 장기 미출석 · 직원 근태' },
     lockers:       { title: '락커 관리', sub: '락커 현황 · 배정 · 연장 · 회수' },
     revenue:       { title: '매출 분석', sub: '기간별 순매출 · 상품 · 결제 수단 · 환불' },
     settlement:    { title: '센터 정산', sub: '월별 매출 · 트레이너 정산 · 엑셀 내보내기' },
@@ -199,6 +208,9 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
             <>
               {activeTab === 'dashboard'     && <DashboardTab        gym={gym} gymId={gym.id} trainers={trainers} members={members} />}
               {activeTab === 'members'       && <MembersTab          members={members} trainers={trainers} gymId={gym.id} currentTrainer={trainer} />}
+              {activeTab === 'attendance'    && <AttendanceTab gymId={gym.id} gymName={gym.name} members={members}
+                  canManageAttendance={trainer?.role === 'owner' || (trainer?.crm_permissions || {}).manage_attendance === true}
+                  onOpenKiosk={() => setKioskMenu(true)} />}
               {activeTab === 'lockers'       && <LockersTab gymId={gym.id} members={members} trainers={trainers} currentTrainer={trainer} />}
               {activeTab === 'revenue'       && <RevenueTab gymId={gym.id} gymName={gym.name} />}
               {activeTab === 'settlement'    && (canAccess('settlement')
@@ -218,6 +230,15 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
           )}
         </div>
       </div>
+
+      <KioskLauncher
+        open={kioskMenu}
+        gymId={gym.id}
+        isOwner={trainer?.role === 'owner'}
+        onClose={() => setKioskMenu(false)}
+        onStart={() => { setKioskMenu(false); setKioskOn(true) }}
+      />
+      {kioskOn && <KioskMode gymId={gym.id} gymName={gym.name} onExit={() => setKioskOn(false)} />}
 
       {/* Gemini API 키 설정 모달 */}
       <Modal open={showApiModal} onClose={() => setShowApiModal(false)} title="Gemini API 키 설정" maxWidth="400px">

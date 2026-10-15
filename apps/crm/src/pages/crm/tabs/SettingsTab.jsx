@@ -1139,6 +1139,7 @@ const PERM_DEFS = [
   { key: 'view_all_members', label: '전체 회원 열람', desc: '모든 트레이너의 회원 조회',      color: 'var(--blue)',    bg: 'rgba(96,165,250,0.12)' },
   { key: 'manage_products',  label: '상품 관리',      desc: '상품 등록·수정·삭제',           color: 'var(--purple)',  bg: 'rgba(167,139,250,0.12)' },
   { key: 'view_settlement',  label: '정산 열람',      desc: '직원 정산 내역 조회',           color: 'var(--green)',   bg: 'rgba(74,222,128,0.12)' },
+  { key: 'manage_attendance', label: '근태 관리',     desc: '직원 출퇴근 기록 조회·수정',    color: 'var(--orange)',  bg: 'rgba(251,146,60,0.12)' },
 ]
 
 function PermToggle({ active, color, onChange, disabled }) {
