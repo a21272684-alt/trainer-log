@@ -5,14 +5,16 @@ import { supabase } from '@trainer-log/shared/lib/supabase'
 // 전화번호 뒤 4자리 → (동명이면 선택) → 입장 / 만료 안내 / 정지 중(풀고 입장).
 // 나가기 = 직원 PIN 4자리. 판정·기록은 전부 서버 RPC(089) — 화면 조작으로 입장 처리 불가.
 // 자동문: 추후 'ok' 응답 시 서버에서 열림 명령을 보내도록 연결 예정 (gym_checkins.door_opened).
+// 직원도 본인 전화번호 뒤 4자리 → 출근 / 다시 누르면 퇴근 (090 crm_kiosk_staff_punch).
 
 const mono = { fontFamily: "'DM Mono', monospace" }
-const RESET_MS = { ok: 5000, already: 5000, expired: 8000, notfound: 4000, error: 5000 }
+const RESET_MS = { ok: 5000, already: 5000, expired: 8000, notfound: 4000, error: 5000, staff: 5000 }
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '<']
 const MAX_PIN_FAILS = 5
 const PIN_LOCK_MS = 30000
 
 const md = d => (d ? d.slice(5).replace('-', '/') : '')
+const hmKst = iso => new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
 
 function Keypad({ onKey, disabled }) {
   return (
@@ -88,12 +90,25 @@ export default function KioskMode({ gymId, gymName, onExit }) {
     handleRpcResult(await supabase.rpc('crm_kiosk_checkin', { p_gym_id: gymId, p_member_id: memberId }))
   }
 
+  async function punch(trainerId) {
+    setBusy(true)
+    const { data, error } = await supabase.rpc('crm_kiosk_staff_punch', { p_gym_id: gymId, p_trainer_id: trainerId })
+    setBusy(false)
+    if (error) { show('error', { message: error.message }); return }
+    show('staff', data)
+  }
+
+  function pick(c) {
+    if (c.kind === 'staff') punch(c.trainer_id)
+    else checkin(c.member_id)
+  }
+
   async function lookup(last4) {
     setBusy(true)
     const { data, error } = await supabase.rpc('crm_kiosk_lookup', { p_gym_id: gymId, p_last4: last4 })
     if (error) { setBusy(false); show('error', { message: error.message }); return }
     if (!data?.length) { setBusy(false); show('notfound'); return }
-    if (data.length === 1) { checkin(data[0].member_id); return }
+    if (data.length === 1) { pick(data[0]); return }
     setBusy(false); setCands(data); setScreen('choose')
     timer.current = setTimeout(reset, 20000)
   }
@@ -177,8 +192,10 @@ export default function KioskMode({ gymId, gymName, onExit }) {
           <div className="kiosk-h2">본인 이름을 눌러주세요</div>
           <div style={{ width: '520px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {cands.map(c => (
-              <button key={c.member_id} type="button" className="kiosk-cand" disabled={busy}
-                onClick={() => checkin(c.member_id)}>{c.masked_name}</button>
+              <button key={c.member_id || c.trainer_id} type="button" className="kiosk-cand" disabled={busy}
+                onClick={() => pick(c)}>
+                {c.kind === 'staff' && <span className="kiosk-staff-tag">직원</span>}{c.masked_name}
+              </button>
             ))}
           </div>
           <button type="button" className="kiosk-btn ghost" onClick={reset}>다시 입력</button>
@@ -218,6 +235,24 @@ export default function KioskMode({ gymId, gymName, onExit }) {
             </div>
           </div>
           <button type="button" className="kiosk-btn ghost" onClick={reset}>확인</button>
+        </div>
+      )}
+
+      {screen === 'staff' && r && (
+        <div className="kiosk-body kiosk-col" style={{ textAlign: 'center' }}>
+          <div className={`kiosk-badge ${r.status === 'clock_in' ? 'ok' : 'pause'}`} aria-hidden="true">
+            {r.status === 'clock_in'
+              ? <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth="2.6"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+              : <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8FB0F5" strokeWidth="2.4"><path d="M15 4h4v16h-4" /><path d="M10 16l4-4-4-4" /><path d="M14 12H4" /></svg>}
+          </div>
+          <div className="kiosk-h1">{r.name}님<br />{r.status === 'clock_in' ? '출근하셨습니다' : '퇴근하셨습니다'}</div>
+          <div style={{ ...mono, fontSize: '22px', color: r.status === 'clock_in' ? '#c8f135' : '#AEB6C2' }}>
+            {r.status === 'clock_in'
+              ? `${dateText} ${hmKst(r.clock_in)}`
+              : `${hmKst(r.clock_in)} → ${hmKst(r.clock_out)} · 근무 ${Math.floor(r.minutes / 60)}시간 ${r.minutes % 60}분`}
+          </div>
+          <div style={{ fontSize: '15px', color: '#8B93A1' }}>{r.status === 'clock_in' ? '오늘도 좋은 하루 보내세요' : '수고하셨어요'}</div>
+          <button type="button" className="kiosk-btn ghost small" onClick={reset}>확인</button>
         </div>
       )}
 

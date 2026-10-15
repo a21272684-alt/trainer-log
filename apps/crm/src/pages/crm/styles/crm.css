@@ -1375,3 +1375,82 @@ html, body, #root {
   .kiosk-key { height: 72px; }
   .kiosk-infos { grid-template-columns: 1fr; }
 }
+
+/* ── 출석 관리 ───────────────────────────────────────────────── */
+.att-datenav {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.att-datenav > span { padding: 0 8px; }
+.att-datenav button {
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text);
+}
+.att-datenav button:hover:not(:disabled) { background: var(--surface2); }
+.att-datenav button:disabled { opacity: 0.35; cursor: default; }
+.att-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.att-hours { display: flex; gap: 3px; align-items: flex-end; height: 90px; border-bottom: 1px solid var(--text-dim); }
+.att-hour { flex: 1; height: 100%; display: flex; align-items: flex-end; }
+.att-hour > div {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  transform-origin: bottom;
+  animation: rev-grow 0.5s cubic-bezier(.22, 1, .36, 1) backwards;
+}
+.att-absent {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.att-pick {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+.att-pick:hover:not(:disabled) { background: var(--surface2); }
+.att-staff-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.kiosk-staff-tag {
+  font-size: 14px;
+  font-weight: 700;
+  padding: 3px 10px;
+  margin-right: 12px;
+  border-radius: 8px;
+  background: #2B3240;
+  color: #c8f135;
+  vertical-align: middle;
+}
