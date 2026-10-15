@@ -32,6 +32,8 @@ import ProductsTab         from './tabs/ProductsTab'
 import SettingsTab         from './tabs/SettingsTab'
 import RevenueTab          from './tabs/RevenueTab'
 import LockersTab          from './tabs/LockersTab'
+import KioskMode           from './components/KioskMode'
+import KioskLauncher       from './components/KioskLauncher'
 import AccessDenied        from './components/AccessDenied'
 
 // ── 탭별 필요 권한 매핑 ────────────────────────────────────────────
@@ -75,6 +77,9 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
   const [apiKey,       setApiKey]       = useState(() => localStorage.getItem('crm_gemini_key') || '')
   const [showApiModal, setShowApiModal] = useState(false)
   const [apiKeyInput,  setApiKeyInput]  = useState('')
+  // 태블릿 터치 출석
+  const [kioskMenu,    setKioskMenu]    = useState(false)
+  const [kioskOn,      setKioskOn]      = useState(false)
 
   // 현재 로그인 트레이너의 탭 접근 권한 검사 — DB 재조회 없이 동기 판단
   // trainer.role === 'owner' 이면 전체 탭 패스, 그 외는 crm_permissions 키 확인
@@ -166,6 +171,8 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
           ))}
         </nav>
         <div className="sidebar-footer">
+          <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: '10px', fontSize: '12px' }}
+            onClick={() => setKioskMenu(true)}>📲 출석 모드</button>
           <div className="sidebar-footer-trainer">{trainer.name}</div>
           <button className="logout-btn" onClick={onLogout}>로그아웃</button>
         </div>
@@ -218,6 +225,15 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
           )}
         </div>
       </div>
+
+      <KioskLauncher
+        open={kioskMenu}
+        gymId={gym.id}
+        isOwner={trainer?.role === 'owner'}
+        onClose={() => setKioskMenu(false)}
+        onStart={() => { setKioskMenu(false); setKioskOn(true) }}
+      />
+      {kioskOn && <KioskMode gymId={gym.id} gymName={gym.name} onExit={() => setKioskOn(false)} />}
 
       {/* Gemini API 키 설정 모달 */}
       <Modal open={showApiModal} onClose={() => setShowApiModal(false)} title="Gemini API 키 설정" maxWidth="400px">
