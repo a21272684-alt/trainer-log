@@ -51,13 +51,14 @@ function ExThumb({ name, size = 46 }) {
 }
 
 // 통합 매출 내역 (revenue 탭용)
+// 트레이너 앱 매출 = 트레이너 앱에서 등록한 결제만 (gym_product_id 있는 CRM 결제는 CRM 에서만 표시)
 function RevenuePaymentList({ trainerId, members, refreshKey }) {
   const [list, setList] = useState(null)
   const [loading, setLoading] = useState(false)
   const fetchList = () => {
     if (!trainerId) return
     setLoading(true)
-    supabase.from('payments').select('*').eq('trainer_id', trainerId).order('paid_at', { ascending: false }).limit(100)
+    supabase.from('payments').select('*').eq('trainer_id', trainerId).is('gym_product_id', null).order('paid_at', { ascending: false }).limit(100)
       .then(({ data, error }) => {
         if (error) console.warn('[RevenuePaymentList] payments 조회 실패:', error.message)
         setList(data || [])
@@ -512,7 +513,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
           .maybeSingle(),
         supabase.from('trainers').select('*, trainer_ranks(*)').eq('id', trainerId).maybeSingle(),
         supabase.from('payments').select('member_id, amount')
-          .eq('trainer_id', trainerId).gte('paid_at', start).lt('paid_at', end),
+          .eq('trainer_id', trainerId).is('gym_product_id', null).gte('paid_at', start).lt('paid_at', end),
       ])
 
       setSnap(snapRes.data || [])
@@ -2610,6 +2611,7 @@ export default function TrainerApp() {
       const { data } = await supabase.from('payments')
         .select('amount')
         .eq('trainer_id', trainer.id)
+        .is('gym_product_id', null)
         .gte('paid_at', start)
         .lt('paid_at', end)
       const total = (data||[]).reduce((s,p) => s+(p.amount||0), 0)
@@ -2651,6 +2653,7 @@ export default function TrainerApp() {
           .from('payments')
           .select('id, member_id, amount, paid_at, product_name')
           .in('member_id', memberIds)
+          .is('gym_product_id', null)
           .order('paid_at', { ascending: false })
         if (error) throw error
         if (cancelled) return
@@ -2725,7 +2728,7 @@ export default function TrainerApp() {
   // (제거됨) loadInquiries / submitInquiry — 1:1 문의는 카카오 채널 외부 우회로 전환되어 내부 DB 저장 0건.
 
   async function loadPayments(memberId) {
-    const { data } = await supabase.from('payments').select('*').eq('member_id', memberId).order('paid_at', { ascending: false })
+    const { data } = await supabase.from('payments').select('*').eq('member_id', memberId).is('gym_product_id', null).order('paid_at', { ascending: false })
     setPayments(data || [])
   }
   async function saveProduct() {
