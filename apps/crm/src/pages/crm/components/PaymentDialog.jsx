@@ -4,6 +4,7 @@ import Modal from './CrmModal'
 import { useToast } from './CrmToast'
 import { parseISO, addDays, format } from 'date-fns'
 import { isDurationTicket, calcTicketPeriod, todayStr } from '../lib/ticketDateCalc'
+import { couponDiscount, priceBreakdown, rateOf, pt, errText } from '../lib/benefits'
 
 // ── 결제 창 ─────────────────────────────────────────────────────
 // 왼쪽: 상품 카드(종류 필터·검색, 상품 설명=이벤트 문구 표시) / 오른쪽: 결제 정보.
@@ -11,6 +12,7 @@ import { isDurationTicket, calcTicketPeriod, todayStr } from '../lib/ticketDateC
 // 단, 대여권(락커)은 회원권 체인과 무관: 오늘부터(연장이면 기존 락커 만료 다음 날부터) 계산하고,
 // 회원권 이어붙이기 계산에서도 대여권 결제는 제외.
 // lockerExtend = { assignment, number } 이면 락커 연장 결제 모드.
+// 쿠폰·마일리지: 화면은 미리보기만, 저장은 crm_pay_with_benefits RPC 가 검증·계산·기록 (091).
 
 const mono = { fontFamily: "'DM Mono', monospace" }
 const won  = n => Number(n || 0).toLocaleString() + '원'
@@ -62,6 +64,10 @@ export default function PaymentDialog({ open, member, gymId, trainers = [], curr
   const [emptyLockers, setEmptyLockers] = useState([])
   const [lockerId, setLockerId] = useState('')
   const [later,    setLater]    = useState(false)
+  // 쿠폰·마일리지
+  const [benefits, setBenefits] = useState(null)      // crm_member_benefits
+  const [couponId, setCouponId] = useState('')        // member_coupons.id
+  const [useInput, setUseInput] = useState('')
 
   // 열릴 때 초기화 + 상품·진행 중 회원권 로드
   useEffect(() => {
@@ -69,7 +75,8 @@ export default function PaymentDialog({ open, member, gymId, trainers = [], curr
     setCat(lockerExtend ? '대여권' : '전체'); setQuery(''); setSelId(''); setMethod('card'); setAmount('')
     setMemo(''); setStaffId(currentTrainer?.id || ''); setPeriod(null); setError('')
     setLockerId(''); setLater(false)
-    loadProducts(); loadCurrent()
+    setBenefits(null); setCouponId(''); setUseInput('')
+    loadProducts(); loadCurrent(); loadBenefits()
   }, [open, member?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadProducts() {
@@ -78,6 +85,12 @@ export default function PaymentDialog({ open, member, gymId, trainers = [], curr
       .eq('gym_id', gymId).eq('is_active', true).order('category').order('name')
     setProducts(data || [])
     setLoading(false)
+  }
+
+  async function loadBenefits() {
+    const { data, error } = await supabase.rpc('crm_member_benefits', { p_member_id: member.id })
+    if (error) { console.error('[crm_member_benefits]', error); return }
+    setBenefits(data)
   }
 
   async function loadCurrent() {
@@ -144,12 +157,34 @@ export default function PaymentDialog({ open, member, gymId, trainers = [], curr
     return c
   }, [products])
 
+  const amountNum = Number(amount) || 0
+
+  // 쿠폰·마일리지 미리보기
+  const settings = benefits?.settings
+  const myCoupons = benefits?.coupons || []
+  const coupon = myCoupons.find(c => c.id === couponId)?.coupon || null
+  const bd = priceBreakdown({
+    list: amountNum, coupon, product: selected, use: Number(useInput || 0),
+    balance: benefits?.balance || 0, settings,
+  })
+  const mileageOn = !!settings?.enabled
+  const minUse = Number(settings?.min_use || 0)
+  const useNum = Number(useInput || 0)
+  const useError = !useNum ? ''
+    : useNum > (benefits?.balance || 0) ? '보유 마일리지보다 많아요'
+    : useNum > bd.maxUse ? `최대 ${pt(bd.maxUse)}까지 쓸 수 있어요`
+    : useNum < minUse ? `${pt(minUse)}부터 쓸 수 있어요` : ''
+
+  // 상품·금액이 바뀌어 쓸 수 없게 된 쿠폰은 해제
+  useEffect(() => {
+    if (coupon && couponDiscount(coupon, selected, amountNum).discount == null) setCouponId('')
+  }, [selId, amountNum]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const q = query.trim()
   const shown = products
     .filter(p => cat === '전체' || p.category === cat)
     .filter(p => !q || p.name.includes(q) || (p.description || '').includes(q))
 
-  const amountNum = Number(amount) || 0
 
   async function submit() {
     if (busy) return
@@ -160,23 +195,24 @@ export default function PaymentDialog({ open, member, gymId, trainers = [], curr
     if (isLocker && !lockerExtend && isTimeBased && !lockerId && !later) {
       setError("락커 칸을 고르거나 '칸은 나중에 배정'을 체크해주세요."); return
     }
+    if (useError) { setError('마일리지: ' + useError); return }
+    if (bd.final <= 0) { setError('할인 후 결제 금액이 0원이 될 수 없어요.'); return }
     setBusy(true)
     try {
-      const row = {
-        member_id:      member.id,
-        trainer_id:     member.trainer_id ?? null,
-        gym_product_id: selected.id,
-        product_name:   selected.name,
-        session_count:  selected.session_limit ?? 0,
-        amount:         amountNum,
-        payment_method: method,
-        memo:           memo.trim() || null,
-        processed_by:   staffId || null,
-        paid_at:        new Date().toISOString(),
-      }
-      if (isTimeBased && period) { row.start_date = period.startDate; row.end_date = period.endDate }
-      const { data: paid, error } = await supabase.from('payments').insert(row).select('id').single()
+      const { data: paid, error } = await supabase.rpc('crm_pay_with_benefits', {
+        p_member_id:        member.id,
+        p_product_id:       selected.id,
+        p_list_amount:      amountNum,
+        p_method:           method,
+        p_member_coupon_id: couponId || null,
+        p_mileage_use:      useNum,
+        p_memo:             memo.trim() || null,
+        p_processed_by:     staffId || null,
+        p_start:            isTimeBased && period ? period.startDate : null,
+        p_end:              isTimeBased && period ? period.endDate : null,
+      })
       if (error) throw error
+      paid.id = paid.payment_id
 
       // 락커 배정 / 연장 — 실패해도 결제는 이미 저장됨 → 안내만
       let lockerMsg = ''
@@ -194,11 +230,12 @@ export default function PaymentDialog({ open, member, gymId, trainers = [], curr
           lockerMsg = ` · ${emptyLockers.find(l => l.id === lockerId)?.number}번 배정`
         }
       }
-      showToast?.(`✓ 결제 등록 — ${selected.name} ${won(amountNum)}${lockerMsg}`)
+      const earnMsg = paid.mileage_earned > 0 ? ` · ${pt(paid.mileage_earned)} 적립` : ''
+      showToast?.(`✓ 결제 등록 — ${selected.name} ${won(paid.amount)}${earnMsg}${lockerMsg}`)
       onPaid?.()
       onClose()
     } catch (e) {
-      setError('등록 오류: ' + (e.message ?? '알 수 없는 오류'))
+      setError('등록 오류: ' + errText(e))
     } finally {
       setBusy(false)
     }
@@ -211,6 +248,7 @@ export default function PaymentDialog({ open, member, gymId, trainers = [], curr
       title={<span>{member?.name} 결제
         <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--text-muted)', marginLeft: '8px' }}>
           {current ? `진행 중: ${current.product_name || '회원권'} (~${current.end_date})` : '진행 중인 회원권 없음'}
+          {benefits && <> · 마일리지 {pt(benefits.balance)} · 쿠폰 {myCoupons.length}장</>}
         </span></span>}>
       <div className="pay-dialog">
         {/* ── 상품 고르기 ── */}
@@ -254,6 +292,7 @@ export default function PaymentDialog({ open, member, gymId, trainers = [], curr
                       <span>카드</span><span style={{ ...mono, fontSize: '12px', color: 'var(--text-muted)' }}>{won(p.price_card)}</span>
                     </span>
                   )}
+                  {rateOf(p, settings) > 0 && <span className="pay-earn">마일리지 {rateOf(p, settings)}% 적립</span>}
                 </button>
               )
             })}
@@ -333,10 +372,57 @@ export default function PaymentDialog({ open, member, gymId, trainers = [], curr
             </div>
 
             <label className="pay-field">
-              <span className="pay-label">결제 금액 (할인 시 수정)</span>
+              <span className="pay-label">상품 금액 (현장 할인 시 수정)</span>
               <input className="input" type="number" min={0} step={1000} style={{ ...mono, textAlign: 'right' }}
                 placeholder="금액 입력" value={amount} onChange={e => setAmount(e.target.value)} />
             </label>
+            {selected && myCoupons.length > 0 && (
+              <div>
+                <span className="pay-label">쿠폰 · 이 상품에 쓸 수 있는 것만 선택돼요</span>
+                <div className="pay-coupons">
+                  {myCoupons.map(mc => {
+                    const { discount, reason } = couponDiscount(mc.coupon, selected, amountNum)
+                    const on = couponId === mc.id
+                    return (
+                      <button key={mc.id} type="button" className={`pay-cpn ${on ? 'on' : ''}`} disabled={discount == null}
+                        aria-pressed={on} onClick={() => setCouponId(on ? '' : mc.id)}>
+                        <span style={{ minWidth: 0 }}>
+                          {mc.coupon.name}
+                          <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: '6px', fontSize: '11px' }}>~{mc.expires_at.slice(5).replace('-', '/')}</span>
+                        </span>
+                        <span style={mono}>{discount == null ? (reason || '사용 불가') : `−${won(discount)}`}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {selected && mileageOn && (benefits?.balance || 0) > 0 && (
+              <div>
+                <span className="pay-label">
+                  마일리지 사용 · 보유 {pt(benefits.balance)} (최대 {pt(bd.maxUse)}{minUse > 0 ? `, ${pt(minUse)}부터` : ''})
+                </span>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <input className="input" type="number" min={0} step={100} style={{ ...mono, textAlign: 'right' }}
+                    aria-label="사용할 마일리지" placeholder="0" value={useInput} onChange={e => setUseInput(e.target.value)} />
+                  <button type="button" className="btn btn-secondary" style={{ whiteSpace: 'nowrap', fontSize: '12px' }}
+                    disabled={bd.maxUse < Math.max(minUse, 1)} onClick={() => setUseInput(String(bd.maxUse))}>최대 사용</button>
+                </div>
+                {useError && <div style={{ fontSize: '11px', color: '#B42318', marginTop: '4px' }}>{useError}</div>}
+              </div>
+            )}
+
+            {selected && amountNum > 0 && (bd.couponDiscount > 0 || bd.mileage > 0 || bd.earn > 0) && (
+              <div className="pay-summary">
+                <div><span>상품 금액</span><span style={mono}>{won(amountNum)}</span></div>
+                {bd.couponDiscount > 0 && <div className="minus"><span>쿠폰 할인</span><span style={mono}>−{won(bd.couponDiscount)}</span></div>}
+                {bd.mileage > 0 && !useError && <div className="minus"><span>마일리지 사용</span><span style={mono}>−{won(bd.mileageWon)}</span></div>}
+                <div className="total"><span>결제 금액</span><span style={mono}>{won(useError ? amountNum - bd.couponDiscount : bd.final)}</span></div>
+                {bd.earn > 0 && <div className="earn"><span>적립 예정 ({bd.rate}%)</span><span style={mono}>+{pt(bd.earn)}</span></div>}
+              </div>
+            )}
+
             <label className="pay-field">
               <span className="pay-label">메모 (선택)</span>
               <input className="input" placeholder="특이사항, 할인 내용 등" value={memo} onChange={e => setMemo(e.target.value)} />
@@ -354,7 +440,7 @@ export default function PaymentDialog({ open, member, gymId, trainers = [], curr
             {error && <div className="pause-error" role="alert" style={{ marginBottom: '10px' }}>{error}</div>}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '10px' }}>
               <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>결제 금액</span>
-              <span style={{ ...mono, fontSize: '20px', fontWeight: 700 }}>{amountNum ? won(amountNum) : '—'}</span>
+              <span style={{ ...mono, fontSize: '20px', fontWeight: 700 }}>{amountNum ? won(useError ? amountNum - bd.couponDiscount : bd.final) : '—'}</span>
             </div>
             <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '14px' }}
               disabled={busy || !selected || !amountNum} onClick={submit}>

@@ -8,6 +8,7 @@ import { todayStr } from '../lib/ticketDateCalc'
 import MemberFilterPanel from '../components/MemberFilterPanel'
 import MemberPausePanel from '../components/MemberPausePanel'
 import PaymentDialog from '../components/PaymentDialog'
+import MemberBenefitsPanel from '../components/MemberBenefitsPanel'
 import {
   EMPTY_FILTERS, STATUS_CHIPS, memberStatus, matchStatus, matchFilters,
   filterTags, daysSince,
@@ -339,6 +340,7 @@ function MemberDetailModal({ member, trainer, gymId, trainers = [], currentTrain
     { key:'payment', label:'결제 내역' },
     { key:'pause',   label:'회원권 정지' },
     { key:'locker',  label:'락커' },
+    { key:'benefit', label:'혜택' },
     { key:'risk',    label:'이탈 위험' },
   ]
 
@@ -525,6 +527,8 @@ function MemberDetailModal({ member, trainer, gymId, trainers = [], currentTrain
           )}
         </div>
       )}
+
+      {tab === 'benefit' && <MemberBenefitsPanel member={member} gymId={gymId} version={payments} />}
 
       {/* 이탈 위험 탭 */}
       {tab === 'risk' && (
