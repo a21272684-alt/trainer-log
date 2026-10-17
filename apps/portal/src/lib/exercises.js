@@ -175,28 +175,3 @@ export async function getExerciseMeta(name) {
   return rowToExercise(data[0])
 }
 
-/**
- * 여러 종목명 일괄 메타 조회 — Supabase RPC get_exercises_bulk() 호출
- * workout_sessions.exercises JSONB 배열 렌더링 시 근육 다이어그램 데이터 일괄 로딩
- *
- * @param {string[]} names 종목명 배열
- * @returns {Promise<Object>} { [name]: exerciseObj } 맵
- */
-export async function getExercisesBulk(names) {
-  if (!names?.length) return {}
-
-  const { data, error } = await supabase
-    .rpc('get_exercises_bulk', { names })
-
-  const rows = (!error && data?.length) ? data.map(rowToExercise) : []
-
-  // 폴백 보완: Supabase에서 못 찾은 이름은 정적 배열에서 채움
-  const result = {}
-  for (const name of names) {
-    const found = rows.find(r => r.name === name)
-      ?? EXERCISE_DB.find(e => e.name === name)
-      ?? null
-    if (found) result[name] = found
-  }
-  return result
-}
