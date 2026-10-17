@@ -204,9 +204,18 @@ export default function MemberPortal() {
     catch (e) { showToast('카카오 로그인 오류: ' + (e?.message || e)) }
   }
   // Apple 로그인 — iOS 네이티브 앱에서만(버튼도 isNativeApp() 일 때만 노출). 심사 4.8 대응.
+  // Apple 로그인 — 시트를 사용자가 취소하면 AuthorizationError 1001 이 오므로 오류 토스트를 띄우지 않음.
+  // 연타 시 시트가 겹쳐 뜨지 않도록 진행 중엔 무시.
+  const appleBusyRef = useRef(false)
   async function signInWithApple() {
+    if (appleBusyRef.current) return
+    appleBusyRef.current = true
     try { await appleSignIn() }
-    catch (e) { showToast('Apple 로그인 오류: ' + (e?.message || e)) }
+    catch (e) {
+      const msg = String(e?.message || e || '')
+      if (!/1001|cancel/i.test(msg)) showToast('Apple 로그인 오류: ' + msg)
+    }
+    finally { appleBusyRef.current = false }
   }
   // 계정 삭제 — 오탭 방지 2차 경고 후 영구 삭제 페이지로 이동
   function confirmDeleteAccount() {
@@ -798,6 +807,8 @@ export default function MemberPortal() {
     const dateStr = d.toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric'})
     const contentLines = (log.content || '').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')
     const win = window.open('','_blank','width=800,height=900')
+    // 팝업 차단(또는 앱 웹뷰라 새 창 없음)이면 win 이 null → 예전엔 TypeError 로 버튼이 무반응이었음
+    if (!win) { showToast('새 창을 열 수 없어요. 브라우저의 팝업 차단을 해제한 뒤 다시 시도해 주세요'); return }
     win.document.write(`<!DOCTYPE html><html lang="ko"><head>
 <meta charset="UTF-8">
 <title>수업일지_${member.name}_${log.session_number}회차</title>
@@ -1258,7 +1269,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
   return (
     <div className="member-portal" style={{paddingBottom:'72px'}}>
       {/* 최초 로그인 1회 약관 동의 모달 (user_metadata.terms_agreed 미설정 시 강제 노출) */}
-      <TermsAgreementModal />
+      <TermsAgreementModal aiConsent />
       {/* 로그인 후 공지 (admin login_notice 설정 시) — 회원 화면 진입 시 1회 */}
       {/* iOS 앱에선 관리자 공지 미노출 (App Store 2.2·2.3.10 — TrainerApp 동일 사유) */}
       {!isNativeApp() && <LoginNoticeModal target="member" />}
@@ -1641,7 +1652,8 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                       borderTop:'1px solid #F9FAFB',
                       display:'flex', gap:'8px',
                     }}>
-                      <button onClick={()=>downloadPDF(i)} style={{
+                      {/* iOS 앱(WKWebView)은 새 창을 못 열어 PDF 저장이 동작하지 않음 → 앱에선 숨김 (App Store 2.1) */}
+                      {!isNativeApp() && <button onClick={()=>downloadPDF(i)} style={{
                         flex:1, padding:'9px 12px', borderRadius:'10px',
                         border:'1px solid #E5E7EB', background:'#F9FAFB',
                         fontSize:'12px', fontWeight:600, cursor:'pointer',
@@ -1657,7 +1669,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                           <line x1="9" y1="15" x2="15" y2="15"/>
                         </svg>
                         PDF 저장
-                      </button>
+                      </button>}
                       <button onClick={()=>copyLog(i)} style={{
                         flex:1, padding:'9px 12px', borderRadius:'10px',
                         border:'1px solid #E5E7EB', background:'#F9FAFB',
