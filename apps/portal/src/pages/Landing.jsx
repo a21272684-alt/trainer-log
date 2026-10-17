@@ -1368,6 +1368,8 @@ export default function Landing() {
               const v = portalButtons.trainer
               const state = v === true ? 'show' : v === false ? 'coming_soon' : (v || 'show')
               if (state === 'hidden') return null
+              // iOS 앱에선 '준비중' 카드 미노출 (미완성 기능 표시 — App Store 2.1·2.2)
+              if (HIDE_PURCHASE && state === 'coming_soon') return null
               return (
             <SlideCard delay={0}>
               {state === 'show' ? (
@@ -1415,6 +1417,8 @@ export default function Landing() {
               const v = portalButtons.member
               const state = v === true ? 'show' : v === false ? 'coming_soon' : (v || 'show')
               if (state === 'hidden') return null
+              // iOS 앱에선 '준비중' 카드 미노출 (미완성 기능 표시 — App Store 2.1·2.2)
+              if (HIDE_PURCHASE && state === 'coming_soon') return null
               return (
             <SlideCard delay={150}>
               {state === 'show' ? (
