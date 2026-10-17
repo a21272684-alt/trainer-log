@@ -1260,7 +1260,8 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
       {/* 최초 로그인 1회 약관 동의 모달 (user_metadata.terms_agreed 미설정 시 강제 노출) */}
       <TermsAgreementModal />
       {/* 로그인 후 공지 (admin login_notice 설정 시) — 회원 화면 진입 시 1회 */}
-      <LoginNoticeModal target="member" />
+      {/* iOS 앱에선 관리자 공지 미노출 (App Store 2.2·2.3.10 — TrainerApp 동일 사유) */}
+      {!isNativeApp() && <LoginNoticeModal target="member" />}
       <div className="m-topbar">
         <div className="m-topbar-title">오운</div>
         <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
