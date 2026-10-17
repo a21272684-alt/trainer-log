@@ -2,7 +2,7 @@
  * exerciseIllustrations.js — 운동 종목별 동작 일러스트 매핑
  *
  * 그림 출처: everkinetic 오픈 운동 일러스트 (@bryllim/workout-guide 로 정리),
- *            CC BY-SA 4.0. → 앱 정보/설정 화면에 저작자표시 필요 (ATTRIBUTION 참고).
+ *            CC BY-SA 4.0. → 앱 정보/설정 화면에 저작자표시 필요 (회원 앱 운동 일지 하단에 표기 중).
  *
  * SVG 애셋은 apps/portal/public/exercises/<slug>.svg 에 있으며,
  * 밝은 카드용으로 채움색을 #3f4756 로 리컬러해 둠. <img src> 로 렌더.
@@ -104,6 +104,3 @@ export function exerciseIllustration(name) {
   return slug ? `/exercises/${slug}.svg` : null
 }
 
-// 저작자표시 문구 (CC BY-SA — 앱 정보/설정 화면에 표기)
-export const ILLUSTRATION_ATTRIBUTION =
-  '운동 동작 일러스트: everkinetic (@bryllim/workout-guide), CC BY-SA 4.0'

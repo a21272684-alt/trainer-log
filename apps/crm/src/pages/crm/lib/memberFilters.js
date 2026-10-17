@@ -114,10 +114,6 @@ export function matchFilters(m, stat, riskRow, f, today = new Date()) {
   return true
 }
 
-export function countActiveFilters(f) {
-  return filterTags(f, []).length
-}
-
 // 적용 중인 조건을 사람이 읽는 태그로 — [{ key, text }]
 export function filterTags(f, trainers) {
   const tags = []

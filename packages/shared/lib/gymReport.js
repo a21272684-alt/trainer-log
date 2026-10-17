@@ -45,15 +45,6 @@ export function getPrevMondayStr() {
   return d.toISOString().split('T')[0]
 }
 
-/** 이번 주 월요일 날짜 문자열 */
-export function getThisMondayStr() {
-  const d = new Date()
-  const day = d.getDay()
-  const diff = (day + 6) % 7           // 월=0, 화=1 ...
-  d.setDate(d.getDate() - diff)
-  return d.toISOString().split('T')[0]
-}
-
 /** 오늘이 월요일인지 확인 */
 export function isMonday() {
   return new Date().getDay() === 1
