@@ -33,6 +33,7 @@ import SettingsTab         from './tabs/SettingsTab'
 import RevenueTab          from './tabs/RevenueTab'
 import LockersTab          from './tabs/LockersTab'
 import AttendanceTab       from './tabs/AttendanceTab'
+import BenefitsTab         from './tabs/BenefitsTab'
 import KioskMode           from './components/KioskMode'
 import KioskLauncher       from './components/KioskLauncher'
 import AccessDenied        from './components/AccessDenied'
@@ -46,6 +47,7 @@ const TAB_PERMISSIONS = {
   members:       null,
   attendance:    null,
   lockers:       null,
+  benefits:      'manage_benefits',   // 쿠폰 만들기·발급·마일리지 규칙 (결제 시 적용은 누구나)
   revenue:       null,                // 범위는 RPC 가 결정: 대표=센터 전체, 직원=본인 매출만
   settlement:    'view_settlement',   // SettingsTab > 직원 권한 관리의 '정산 열람' 키
   products:      'manage_products',   // SettingsTab > 직원 권한 관리의 '상품 관리' 키
@@ -61,6 +63,7 @@ const NAV_ITEMS = [
   { key: 'members',       icon: '👥', label: '회원 관리' },
   { key: 'attendance',    icon: '✅', label: '출석 관리' },
   { key: 'lockers',       icon: '🔐', label: '락커 관리' },
+  { key: 'benefits',      icon: '🎟️', label: '쿠폰·마일리지' },
   { key: 'revenue',       icon: '📈', label: '매출 분석' },
   { key: 'settlement',    icon: '💵', label: '센터 정산' },
   { key: 'products',      icon: '📦', label: '상품 관리' },
@@ -133,6 +136,7 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
     members:       { title: '회원 관리', sub: `전체 ${members.length}명` },
     attendance:    { title: '출석 관리', sub: '입장 기록 · 수동 출석 · 장기 미출석 · 직원 근태' },
     lockers:       { title: '락커 관리', sub: '락커 현황 · 배정 · 연장 · 회수' },
+    benefits:      { title: '쿠폰·마일리지', sub: '쿠폰 만들기·발급 · 마일리지 규칙 · 내역' },
     revenue:       { title: '매출 분석', sub: '기간별 순매출 · 상품 · 결제 수단 · 환불' },
     settlement:    { title: '센터 정산', sub: '월별 매출 · 트레이너 정산 · 엑셀 내보내기' },
     products:      { title: '상품 관리',   sub: '센터 판매 상품 등록 및 조회' },
@@ -212,6 +216,9 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
                   canManageAttendance={trainer?.role === 'owner' || (trainer?.crm_permissions || {}).manage_attendance === true}
                   onOpenKiosk={() => setKioskMenu(true)} />}
               {activeTab === 'lockers'       && <LockersTab gymId={gym.id} members={members} trainers={trainers} currentTrainer={trainer} />}
+              {activeTab === 'benefits'      && (canAccess('benefits')
+                ? <BenefitsTab gymId={gym.id} members={members} />
+                : <AccessDenied />)}
               {activeTab === 'revenue'       && <RevenueTab gymId={gym.id} gymName={gym.name} />}
               {activeTab === 'settlement'    && (canAccess('settlement')
                 ? <CenterSettlementTab gymId={gym.id} trainers={trainers} />

@@ -1454,3 +1454,103 @@ html, body, #root {
   color: #c8f135;
   vertical-align: middle;
 }
+
+/* ── 쿠폰·마일리지 ───────────────────────────────────────────── */
+.pay-earn { font-size: 11px; color: #3F6212; font-weight: 600; }
+.pay-coupons { display: flex; flex-direction: column; gap: 6px; }
+.pay-cpn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.pay-cpn:hover:not(:disabled):not(.on) { border-color: var(--text-dim); }
+.pay-cpn.on { background: #F7FBEA; border-color: #7FA313; font-weight: 700; }
+.pay-cpn:disabled { opacity: 0.5; cursor: default; }
+.pay-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.pay-summary > div { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.pay-summary .minus { color: #B42318; }
+.pay-summary .total { border-top: 1px solid var(--border); padding-top: 6px; font-weight: 700; }
+.pay-summary .earn { color: #3F6212; font-size: 12px; }
+
+.bn-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.bn-unit { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+.bn-unit > .input { flex: 1; min-width: 0; }
+.bn-pick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.bn-pick-btn {
+  padding: 6px 11px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.bn-pick-btn.on { background: #F7FBEA; border-color: #7FA313; font-weight: 700; }
+.bn-coupons { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+.bn-cp { display: flex; overflow: hidden; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.bn-cp.off { opacity: 0.55; }
+.bn-cp-l {
+  width: 104px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 10px 6px;
+  text-align: center;
+  background: #F7FBEA;
+  border-right: 2px dashed #D9EBA8;
+}
+.bn-cp-r { flex: 1; min-width: 0; padding: 12px 14px; display: flex; flex-direction: column; gap: 5px; }
+.bn-mini {
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bn-mini:hover { background: var(--surface2); }
+.bn-mini.strong { background: var(--accent); border-color: var(--accent); color: #0a0a0a; font-weight: 700; }
+.bn-member-list { max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; }
+.bn-member { display: flex; align-items: center; gap: 8px; padding: 9px 12px; font-size: 13px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.bn-member:last-child { border-bottom: none; }
+.bn-rules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.bn-rules-foot { grid-column: 1 / -1; display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
+.bn-switch { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.bn-switch input { width: 18px; height: 18px; accent-color: #7FA313; }
+.bn-rates { display: flex; flex-direction: column; }
+.bn-rate { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.bn-stat { border-radius: 10px; padding: 12px 14px; border: 1px solid var(--border); background: var(--surface); }
+.bn-stat.lime { background: #F7FBEA; border-color: #D9EBA8; }
+.bn-stat-label { font-size: 11px; color: var(--text-muted); }
+.bn-stat-value { font-size: 22px; font-weight: 700; font-family: 'DM Mono', monospace; }
+
+@media (max-width: 760px) {
+  .bn-rules, .bn-grid2 { grid-template-columns: minmax(0, 1fr); }
+  .bn-coupons { grid-template-columns: minmax(0, 1fr); }
+}
