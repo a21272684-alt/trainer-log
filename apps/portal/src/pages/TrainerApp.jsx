@@ -2211,9 +2211,18 @@ export default function TrainerApp() {
     catch (e) { showToast('카카오 로그인 오류: ' + (e?.message || e)) }
   }
   // Apple 로그인 — iOS 네이티브 앱에서만(버튼도 isNativeApp() 일 때만 노출). 심사 4.8 대응.
+  // Apple 로그인 — 시트를 사용자가 취소하면 AuthorizationError 1001 이 오므로 오류 토스트를 띄우지 않음.
+  // 연타 시 시트가 겹쳐 뜨지 않도록 진행 중엔 무시.
+  const appleBusyRef = useRef(false)
   async function signInWithApple() {
+    if (appleBusyRef.current) return
+    appleBusyRef.current = true
     try { await appleSignIn() }
-    catch (e) { showToast('Apple 로그인 오류: ' + (e?.message || e)) }
+    catch (e) {
+      const msg = String(e?.message || e || '')
+      if (!/1001|cancel/i.test(msg)) showToast('Apple 로그인 오류: ' + msg)
+    }
+    finally { appleBusyRef.current = false }
   }
   // 계정 삭제 — 오탭 방지 2차 경고 후 영구 삭제 페이지로 이동
   function confirmDeleteAccount() {
@@ -4977,7 +4986,7 @@ export default function TrainerApp() {
   return (
     <div style={{paddingBottom: MAIN_PAGES.includes(activePage) ? '72px' : '0'}}>
       {/* 최초 로그인 1회 약관 동의 모달 (user_metadata.terms_agreed 미설정 시 강제 노출) */}
-      <TermsAgreementModal />
+      <TermsAgreementModal aiConsent />
       {/* 로그인 후 공지 (admin login_notice 설정 시) — 트레이너 화면 진입 시 1회.
           iOS 앱에선 띄우지 않음: 관리자 공지에 '베타'·'Google Play/안드로이드 출시' 같은 문구가 들어가
           App Store 2.2(베타)·2.3.10(타 플랫폼 언급)으로 반려됨(2026-10-15). 공지 내용은 관리자가 수시로 바꾸므로 코드로 차단. */}
