@@ -54,7 +54,7 @@ trainer-log/
 │   ├── admin/   (port 3010, AdminPortal — 시스템 관리자)
 │   └── community/ (port 3040, CommunityPortal — 웹 전용, community.ownapp.kr)
 ├── packages/
-│   └── shared/  (lib 5개 + components/common 3개 + global.css)
+│   └── shared/  (lib 9개 + components/common 5개 + global.css)
 ├── supabase/    (migrations + functions, 4번째 repo 후보)
 ├── scripts/
 └── package.json (workspaces root)
@@ -83,8 +83,8 @@ import '@trainer-log/shared/styles/global.css'
 ```
 
 shared 항목:
-- `lib/{supabase, churnRisk, memberInsights, gymReport, ai_templates}.js`
-- `components/common/{Modal, Toast, TermsAgreementModal}.jsx`
+- `lib/{supabase, churnRisk, memberInsights, gymReport, ai_templates, analytics, imageCompress, sentry, storageCleanup}.js`
+- `components/common/{Modal, Toast, TermsAgreementModal, InAppBrowserBanner, LoginNoticeModal}.jsx`
 - `styles/global.css`
 
 ## 앱별 라우트 매핑
