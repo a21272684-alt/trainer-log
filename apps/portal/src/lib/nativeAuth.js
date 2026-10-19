@@ -74,6 +74,19 @@ export async function signInWithApple() {
   })
   const token = res?.response?.identityToken
   if (!token) throw new Error('Apple 인증 토큰을 받지 못했습니다.')
+
+  // Apple 은 이름을 '최초 승인 때만' 앱에 넘겨주고 ID 토큰엔 넣지 않음.
+  // 로그인(signInWithIdToken) 직후 SIGNED_IN 이벤트로 가입 화면이 먼저 뜨므로, 그 전에 이름을 보관해 둔다.
+  // (App Store 4 반려 2026-10-18: Apple 로그인 후 이름을 다시 입력시키면 안 됨 → 가입 화면이 이 값을 사용)
+  const given = res?.response?.givenName || ''
+  const family = res?.response?.familyName || ''
+  let fullName = ''
+  if (given || family) {
+    const korean = /[가-힣]/.test(given + family)
+    fullName = korean ? `${family}${given}` : [given, family].filter(Boolean).join(' ')
+    try { localStorage.setItem(APPLE_NAME_KEY, fullName) } catch { /* 저장 불가 환경 무시 */ }
+  }
+
   const { error } = await supabase.auth.signInWithIdToken({
     provider: 'apple',
     token,
@@ -81,19 +94,30 @@ export async function signInWithApple() {
   })
   if (error) throw error
 
-  // Apple 은 이름을 '최초 승인 때만' 앱에 넘겨주고 ID 토큰엔 넣지 않음 → 받았을 때 user_metadata 에 저장.
-  // (저장 안 하면 가입 화면 이름이 '이메일 가리기' 릴레이 주소 앞부분으로 채워짐)
-  const given = res?.response?.givenName || ''
-  const family = res?.response?.familyName || ''
-  if (given || family) {
-    const korean = /[가-힣]/.test(given + family)
-    const fullName = korean ? `${family}${given}` : [given, family].filter(Boolean).join(' ')
+  // 계정 메타데이터에도 저장 (다른 기기·재설치 시에도 이름 유지)
+  if (fullName) {
     try {
       await supabase.auth.updateUser({ data: { full_name: fullName } })
     } catch (e) {
       console.warn('[signInWithApple] 이름 저장 실패:', e?.message || e)
     }
   }
+}
+
+/** Apple 최초 승인 때 받은 이름 (가입 화면 프리필용). 없으면 '' */
+export const APPLE_NAME_KEY = 'ownapp_apple_name'
+export function getStashedAppleName() {
+  try { return localStorage.getItem(APPLE_NAME_KEY) || '' } catch { return '' }
+}
+export function clearStashedAppleName() {
+  try { localStorage.removeItem(APPLE_NAME_KEY) } catch { /* noop */ }
+}
+
+/** 현재 로그인 사용자가 Apple 로그인으로 들어왔는가 */
+export function isAppleAuthUser(u) {
+  if (!u) return false
+  if (u.app_metadata?.provider === 'apple') return true
+  return Array.isArray(u.identities) && u.identities.some(i => i?.provider === 'apple')
 }
 
 let _listenerBound = false

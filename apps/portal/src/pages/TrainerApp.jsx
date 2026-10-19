@@ -3,7 +3,7 @@ import ScheduleModal from '../components/ScheduleModal'
 import { compressImage as sharedCompressImage } from '@trainer-log/shared/lib/imageCompress'
 import { cleanupMemberStorage, removeStorageOnError, cleanupOldSessionMedia } from '@trainer-log/shared/lib/storageCleanup'
 import { supabase, GEMINI_MODEL } from '@trainer-log/shared/lib/supabase'
-import { signInWithProvider, isNativeApp, signInWithApple as appleSignIn } from '../lib/nativeAuth'
+import { signInWithProvider, isNativeApp, signInWithApple as appleSignIn, getStashedAppleName, clearStashedAppleName, isAppleAuthUser } from '../lib/nativeAuth'
 
 // iOS 앱(Capacitor)에서는 유료 플랜 가격·업그레이드·충전 안내를 숨김.
 // 인앱결제 없이 심사를 통과하려면 앱 안에 구매 기능도, 앱 밖 구매로 유도하는 안내도 없어야 함
@@ -1947,6 +1947,8 @@ export default function TrainerApp() {
   function defaultRegName(au) {
     const metaName = au?.user_metadata?.full_name || au?.user_metadata?.name
     if (metaName) return metaName
+    // Apple 최초 승인 때 받은 이름 (로그인 직전에 보관 — user_metadata 저장보다 가입 화면이 먼저 뜰 수 있음)
+    if (isAppleAuthUser(au)) { const stashed = getStashedAppleName(); if (stashed) return stashed }
     const email = au?.email || ''
     if (!email || /@privaterelay\.appleid\.com$/i.test(email)) return ''
     return email.split('@')[0]
@@ -2340,8 +2342,24 @@ export default function TrainerApp() {
     loadFeatureGates(t.id)
   }
 
+  // 표시 이름 변경 — 회원 일지 서명("— 이름 드림")에도 쓰임. Apple 로그인은 가입 때 이름을 묻지 않으므로 여기서 바꾼다.
+  async function renameTrainer() {
+    if (!trainer?.id) return
+    const next = (window.prompt('앱과 회원 일지에 표시될 이름을 입력해 주세요', trainer.name || '') || '').trim()
+    if (!next || next === trainer.name) return
+    if (next.length > 20) { showToast('이름은 20자 이내로 입력해 주세요'); return }
+    const { error } = await supabase.from('trainers').update({ name: next }).eq('id', trainer.id)
+    if (error) { showToast('이름 변경 실패: ' + error.message); return }
+    setTrainer(t => ({ ...t, name: next }))
+    showToast('✓ 이름을 변경했어요')
+  }
+
   async function register() {
-    if (!regName) { showToast('이름을 입력해주세요'); return }
+    // Apple 로그인 사용자에겐 이름을 묻지 않음 (App Store 4 / Sign in with Apple HIG — 2026-10-18 반려).
+    // Apple 이 준 이름이 없으면(공유 거부·재승인) '트레이너'로 시작하고 설정에서 바꿀 수 있게 함.
+    const appleUser = isAppleAuthUser(authUser)
+    const name = (regName || '').trim() || (appleUser ? '트레이너' : '')
+    if (!name) { showToast('이름을 입력해주세요'); return }
     if (!agreedTerms || !agreedPrivacy) { showToast('이용약관 및 개인정보처리방침에 동의해주세요'); return }
     if (!authUser) { showToast('먼저 소셜 로그인을 해주세요'); setScreen('login'); return }
     try {
@@ -2349,7 +2367,7 @@ export default function TrainerApp() {
       // 반환 status='approved'(신규 생성) 또는 'already_trainer'. 둘 다 바로 앱 진입.
       const { data: result, error: reqErr } = await supabase.rpc('trainer_create_signup_request', {
         p_email: authUser.email ?? '',
-        p_name:  regName,
+        p_name:  name,
       })
       if (reqErr) {
         console.error('[register] create_signup_request error:', reqErr)
@@ -2357,6 +2375,13 @@ export default function TrainerApp() {
       }
       const status = result?.status
       if (status === 'approved' || status === 'already_trainer') {
+        clearStashedAppleName()
+        // 등록 화면에서 약관·개인정보처리방침 동의를 이미 받았으므로 동의 기록을 남김
+        // → 첫 로그인 동의 창(TermsAgreementModal)이 같은 약관을 다시 묻지 않고 AI 항목만 묻게 됨
+        try {
+          const now = new Date().toISOString()
+          await supabase.auth.updateUser({ data: { terms_agreed: true, terms_agreed_at: now } })
+        } catch (e) { console.warn('[register] 약관 동의 기록 실패:', e?.message) }
         // 생성된 트레이너 로드 → 앱 진입 (resolve 분기 (a) 매칭)
         const r = await supabase.rpc('trainer_resolve_or_create', { p_email: authUser.email ?? null })
         if (r.data && r.data.id) { await _loginWithRecord(r.data); return }
@@ -4741,11 +4766,19 @@ export default function TrainerApp() {
                 연결된 계정: <strong style={{color:'#111'}}>{authUser.email}</strong>
               </div>
             )}
+            {/* Apple 로그인은 이름을 다시 묻지 않음 (App Store 4 — Sign in with Apple). 설정에서 변경 가능 */}
+            {isAppleAuthUser(authUser) ? (
+              <div style={{fontSize:'13px',color:'#6B7280',lineHeight:1.6,marginBottom:'4px'}}>
+                표시 이름: <strong style={{color:'#111'}}>{(regName || '').trim() || '트레이너'}</strong>
+                <div style={{fontSize:'12px',color:'#9CA3AF'}}>이름은 시작 후 설정에서 언제든 바꿀 수 있어요</div>
+              </div>
+            ) : (
             <div className="form-group">
               <label>이름 <span style={{color:'#9CA3AF',fontWeight:400}}>(앱에서 표시될 이름)</span></label>
               <input type="text" value={regName} onChange={e=>setRegName(e.target.value)} placeholder="홍길동"
                 onKeyDown={e=>e.key==='Enter'&&register()} />
             </div>
+            )}
 
             {/* ── 동의 항목 ── */}
             <div style={{marginTop:'20px',display:'flex',flexDirection:'column',gap:'10px'}}>
@@ -5784,7 +5817,14 @@ export default function TrainerApp() {
                 </button>
               </div>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:'15px',fontWeight:700}}>{trainer?.name} 트레이너</div>
+                <div style={{fontSize:'15px',fontWeight:700,display:'flex',alignItems:'center',gap:'6px'}}>
+                  <span>{trainer?.name} 트레이너</span>
+                  <button onClick={renameTrainer}
+                    style={{fontSize:'11px',fontWeight:600,color:'var(--text-muted)',background:'none',
+                      border:'1px solid var(--border)',borderRadius:'6px',padding:'2px 7px',cursor:'pointer',fontFamily:'inherit'}}>
+                    이름 변경
+                  </button>
+                </div>
                 <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'2px'}}>{trainer?.email || '오운 이용 중'}</div>
               </div>
               {HIDE_PURCHASE ? null : isPaid ? (
