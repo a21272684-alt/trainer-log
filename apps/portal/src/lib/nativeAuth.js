@@ -8,6 +8,13 @@
 //
 // 웹(일반 브라우저)에서는 isNativeApp()===false → 전부 기존 web 흐름 그대로 동작한다.
 import { Capacitor } from '@capacitor/core'
+// 플러그인은 정적 import — 예전엔 await import() 로 지연 로딩해서 별도 청크(index-<hash>.js)가 됐는데,
+// 배포로 해시가 바뀐 뒤 옛 화면을 띄워둔 앱이 없어진 청크를 요청 → Vercel SPA rewrite 가 index.html(text/html)
+// 을 돌려줘 "'text/html' is not a valid JavaScript MIME type" 로 로그인이 실패했음(2026-10-19).
+// 로그인은 핵심 경로라 본체 번들에 포함. (웹에선 플러그인 프록시만 등록되고 네이티브 호출은 하지 않음)
+import { App } from '@capacitor/app'
+import { Browser } from '@capacitor/browser'
+import { SignInWithApple } from '@capacitor-community/apple-sign-in'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 
 const APP_SCHEME = 'kr.ownapp.app'
@@ -30,7 +37,6 @@ export function isNativeApp() {
  */
 export async function signInWithProvider(provider, webRedirectPath = '/') {
   if (isNativeApp()) {
-    const { Browser } = await import('@capacitor/browser')
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: { redirectTo: OAUTH_REDIRECT, skipBrowserRedirect: true },
@@ -62,7 +68,6 @@ async function sha256hex(str) {
 }
 
 export async function signInWithApple() {
-  const { SignInWithApple } = await import('@capacitor-community/apple-sign-in')
   // Apple 에는 '해시된' nonce 를, Supabase 에는 '원본' nonce 를 전달해 토큰 변조를 막는다.
   const rawNonce = randomNonce()
   const hashedNonce = await sha256hex(rawNonce)
@@ -129,8 +134,6 @@ let _listenerBound = false
 export async function initNativeAuthListener() {
   if (!isNativeApp() || _listenerBound) return
   _listenerBound = true
-  const { App } = await import('@capacitor/app')
-  const { Browser } = await import('@capacitor/browser')
 
   App.addListener('appUrlOpen', async ({ url }) => {
     if (!url || url.indexOf(`${APP_SCHEME}://`) !== 0) return
