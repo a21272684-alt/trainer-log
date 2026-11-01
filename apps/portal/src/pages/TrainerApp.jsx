@@ -85,7 +85,7 @@ function RevenuePaymentList({ trainerId, members, refreshKey }) {
       {list.map(p => {
         const mem = members.find(m => m.id === p.member_id)
         const d = new Date(p.paid_at).toLocaleDateString('ko-KR',{month:'short',day:'numeric'})
-        const METHOD_LABEL = {cash:'💵 현금',card:'💳 카드',transfer:'🏦 계좌이체',local_currency:'🪙 지역화폐',payments_app:'📱 페이먼츠'}
+        const METHOD_LABEL = {cash:'현금',card:'카드',transfer:'계좌이체',local_currency:'지역화폐',payments_app:'간편결제'}
         const methodLabel = METHOD_LABEL[p.payment_method] || ''
         const methodDetail = p.payment_method_memo ? ` (${p.payment_method_memo})` : ''
         return (
@@ -385,7 +385,7 @@ function WeeklyReportPanel({ gymId, apiKey }) {
       {phase === 'error' && errMsg && (
         <div style={{background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',
           borderRadius:'10px',padding:'12px',marginBottom:'12px',fontSize:'12px',color:'#B91C1C'}}>
-          ⚠️ {errMsg}
+          {errMsg}
         </div>
       )}
 
@@ -1457,7 +1457,7 @@ function AiInsightPanel({ member, apiKey }) {
       {phase === 'error' && (
         <div style={{background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',
           borderRadius:'10px',padding:'12px',marginBottom:'12px',fontSize:'12px',color:'#B91C1C'}}>
-          ⚠️ {errMsg}
+          {errMsg}
         </div>
       )}
 
@@ -1478,7 +1478,7 @@ function AiInsightPanel({ member, apiKey }) {
             cursor: phase === 'loading' ? 'not-allowed' : 'pointer',
             opacity: phase === 'loading' ? 0.55 : 1,
             fontFamily:'inherit'}}>
-          {phase === 'done' ? '🔄 다시 분석하기' : '🤖 이번주 AI 인사이트 생성'}
+          {phase === 'done' ? '다시 분석하기' : '이번 주 AI 인사이트 만들기'}
         </button>
       )}
     </div>
@@ -1566,7 +1566,6 @@ function RiskPanel({ member }) {
           {/* 종합 점수 카드 */}
           <div style={{background: level.bg, border:`1px solid ${level.color}44`,
             borderRadius:'12px',padding:'16px',marginBottom:'14px',textAlign:'center'}}>
-            <div style={{fontSize:'28px',marginBottom:'4px'}}>{level.emoji}</div>
             <div style={{...mono,fontSize:'36px',fontWeight:800,color: level.color,marginBottom:'4px'}}>
               {result.riskScore}
               <span style={{fontSize:'16px',fontWeight:400,color:'var(--text-dim)'}}>/ 100</span>
@@ -1585,12 +1584,12 @@ function RiskPanel({ member }) {
           {/* 진단 근거 */}
           {result.flags.length > 0 && (
             <div style={{marginBottom:'14px'}}>
-              <div style={{fontSize:'11px',color:'var(--text-dim)',marginBottom:'8px',fontWeight:600}}>⚠️ 위험 신호</div>
+              <div style={{fontSize:'11px',color:'var(--text-dim)',marginBottom:'8px',fontWeight:600}}>위험 신호</div>
               {result.flags.map((f, i) => (
                 <div key={i} style={{display:'flex',alignItems:'center',gap:'8px',
                   background:'rgba(249,115,22,0.08)',border:'1px solid rgba(249,115,22,0.2)',
                   borderRadius:'8px',padding:'8px 10px',marginBottom:'6px',fontSize:'12px',color:'#C2410C'}}>
-                  <span>⚠</span><span>{f}</span>
+                  <Icon name="alert" size={14} /><span>{f}</span>
                 </div>
               ))}
             </div>
@@ -1598,7 +1597,7 @@ function RiskPanel({ member }) {
 
           {result.flags.length === 0 && (
             <div style={{textAlign:'center',padding:'12px',fontSize:'12px',color:'#3F6212'}}>
-              🟢 현재 이탈 위험 신호 없음
+              현재 이탈 위험 신호 없음
             </div>
           )}
 
@@ -1623,7 +1622,7 @@ function RiskPanel({ member }) {
           <button onClick={analyze}
             style={{width:'100%',marginTop:'10px',padding:'9px',borderRadius:'8px',border:'1px solid var(--border)',
               background:'transparent',color:'var(--text-dim)',fontSize:'12px',cursor:'pointer',fontFamily:'inherit'}}>
-            🔄 다시 분석
+            다시 분석
           </button>
         </div>
       )}
@@ -1638,7 +1637,7 @@ function RiskPanel({ member }) {
             background: phase === 'loading' ? 'var(--surface2)' : '#f97316',
             color: phase === 'loading' ? 'var(--text-dim)' : '#fff',
             fontWeight:700,fontSize:'13px',cursor: phase === 'loading' ? 'not-allowed' : 'pointer',fontFamily:'inherit'}}>
-          {phase === 'loading' ? '분석 중...' : '📊 이탈 위험 분석 시작'}
+          {phase === 'loading' ? '분석 중...' : '이탈 위험 분석 시작'}
         </button>
       )}
     </div>
@@ -3366,7 +3365,7 @@ export default function TrainerApp() {
     if (mediaInputRef.current) mediaInputRef.current.value = ''
 
     setMediaProcessing(true)
-    setMediaProgress('미디어를 앱에 맞게 최적화하고 있습니다 ⏳')
+    setMediaProgress('미디어를 앱에 맞게 최적화하고 있어요')
 
     const results    = []
     const videoQueue = []  // 30초 초과 영상 → 트리머 큐
@@ -4176,46 +4175,34 @@ export default function TrainerApp() {
     return (
       <div>
 
-        {/* ── Hero: 이번 달 총 결제액 ── */}
+        {/* ── Hero: 이번 달 총 결제액 — 잉크 카드 + 월 선택 칩 ── */}
         {(() => {
           const [py, pm] = payMonthStr.split('-').map(Number)
           const isCurrentMonth = py === new Date().getFullYear() && pm === new Date().getMonth()+1
           return (
-            <div className="card" style={{marginBottom:'14px',padding:'20px 18px'}}>
-              <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'8px' }}>
-                <div>
-                  <div style={{ fontSize:'11px', fontWeight:600, color:'var(--text-dim)', marginBottom:'6px', letterSpacing:'0.04em', textTransform:'uppercase' }}>
-                    {isCurrentMonth ? '이번 달' : `${py}년 ${pm}월`} 총 결제액
-                  </div>
-                  <div style={{ fontSize:'36px', fontWeight:800, color:'var(--accent-text)', lineHeight:1, fontVariantNumeric:'tabular-nums' }}>
-                    {payMonthLoading ? '—' : (payMonthData?.total ?? 0).toLocaleString()}
-                    <span style={{ fontSize:'16px', fontWeight:400, color:'var(--text-muted)', marginLeft:'4px' }}>원</span>
-                  </div>
-                  <div style={{ fontSize:'12px', color:'var(--text-muted)', marginTop:'6px' }}>
-                    {payMonthLoading ? '조회 중...' : `${payMonthData?.count ?? 0}건 결제`}
-                  </div>
-                </div>
-                {/* 월 선택 버튼 */}
-                <div style={{ position:'relative', flexShrink:0 }}>
-                  <button title="월 선택" style={{
-                    width:'34px', height:'34px', borderRadius:'9px',
-                    border:'1px solid var(--border)', background:'var(--surface2)',
-                    color:'var(--text-muted)', fontSize:'16px', cursor:'pointer',
-                    display:'flex', alignItems:'center', justifyContent:'center', padding:0,
-                  }}>📅
-                    <input type="month" value={payMonthStr}
-                      max={new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0')}
-                      onChange={e=>{ if(e.target.value) setPayMonthStr(e.target.value) }}
-                      style={{ position:'absolute', inset:0, opacity:0, cursor:'pointer', width:'100%', height:'100%' }}
-                    />
-                  </button>
-                </div>
+            <div style={{background:'#111827',borderRadius:'24px',padding:'20px',color:'#fff',marginBottom:'16px',display:'flex',flexDirection:'column',gap:'6px'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px'}}>
+                <span style={{fontSize:'13px',color:'#D1D5DB',fontWeight:500}}>{isCurrentMonth ? '이번 달' : `${py}년 ${pm}월`} 총 결제액</span>
+                <label style={{position:'relative',display:'inline-flex',alignItems:'center',gap:'2px',height:'36px',padding:'0 10px 0 12px',margin:0,
+                  borderRadius:'999px',background:'rgba(255,255,255,0.12)',color:'#fff',fontSize:'13px',fontWeight:700,cursor:'pointer'}}>
+                  {py}년 {pm}월<Icon name="chevronDown" size={16} />
+                  <input type="month" value={payMonthStr} aria-label="월 선택"
+                    max={new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0')}
+                    onChange={e=>{ if(e.target.value) setPayMonthStr(e.target.value) }}
+                    style={{ position:'absolute', inset:0, opacity:0, cursor:'pointer', width:'100%', height:'100%' }}
+                  />
+                </label>
               </div>
-              {/* 진행 바 */}
-              <div style={{ marginTop:'14px', height:'3px', background:'var(--border)', borderRadius:'2px', overflow:'hidden' }}>
-                <div style={{ height:'100%', background:'var(--accent)',
-                  width: (payMonthData?.total ?? 0) > 0 ? '100%' : '0%',
-                  transition:'width 0.6s ease', borderRadius:'2px' }} />
+              <div style={{display:'flex',alignItems:'baseline',gap:'4px',marginTop:'4px'}}>
+                <span style={{fontSize:'38px',fontWeight:900,letterSpacing:'-1.2px',lineHeight:1.1,fontVariantNumeric:'tabular-nums'}}>
+                  {payMonthLoading ? '—' : (payMonthData?.total ?? 0).toLocaleString()}
+                </span>
+                <span style={{fontSize:'18px',fontWeight:700,color:'#9CA3AF'}}>원</span>
+              </div>
+              <div>
+                <span style={{display:'inline-block',padding:'3px 9px',borderRadius:'999px',background:'#C8F135',color:'#111827',fontSize:'12px',fontWeight:800}}>
+                  {payMonthLoading ? '조회 중' : `결제 ${payMonthData?.count ?? 0}건`}
+                </span>
               </div>
             </div>
           )
@@ -4393,12 +4380,12 @@ export default function TrainerApp() {
   // === TRAINER LANDING SCREEN ===
   if (screen === 'landing') {
     const FEATURES = [
-      { icon:'✦', title:'AI 수업일지 자동 생성', desc:'녹음 업로드 → AI 분석 → 완성된 일지까지 자동' },
-      { icon:'👥', title:'회원 관리 올인원', desc:'결제·정지·방문경로·상태 배지까지 한 곳에' },
-      { icon:'📅', title:'주간 스케줄', desc:'수업·개인 일정 블록 관리, 수업 전 푸시 알림' },
-      { icon:'📊', title:'매출 자동 분석', desc:'세션 단가 기반 수익 & 잔존가치 실시간 계산' },
-      { icon:'⏸', title:'정지(홀딩) 관리', desc:'기간·사유·사진 기록, 회원 상태 자동 반영' },
-      { icon:'🔔', title:'브라우저 종료 알림', desc:'VAPID 푸시로 앱 닫아도 수업 알림 수신' },
+      { icon:'sparkle', title:'AI 수업일지 자동 생성', desc:'녹음 업로드 → AI 분석 → 완성된 일지까지 자동' },
+      { icon:'users', title:'회원 관리 올인원', desc:'결제·정지·방문경로·상태 배지까지 한 곳에' },
+      { icon:'calendar', title:'주간 스케줄', desc:'수업·개인 일정 블록 관리, 수업 전 푸시 알림' },
+      { icon:'chart', title:'매출 자동 분석', desc:'세션 단가 기반 수익 & 잔존가치 실시간 계산' },
+      { icon:'pause', title:'정지(홀딩) 관리', desc:'기간·사유·사진 기록, 회원 상태 자동 반영' },
+      { icon:'bell', title:'브라우저 종료 알림', desc:'VAPID 푸시로 앱 닫아도 수업 알림 수신' },
     ]
     return (
       <div style={{background:'#F7F8F4',color:'#111827',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",overflowX:'hidden'}}>
@@ -4457,7 +4444,7 @@ export default function TrainerApp() {
                 <div style={{background:'#fff',border:'1px solid #E1E4D9',
                   borderRadius:'14px',padding:'18px 16px',boxShadow:'0 1px 4px rgba(0,0,0,0.04)',
                   transition:'box-shadow 0.2s',height:'100%',boxSizing:'border-box'}}>
-                  <div style={{fontSize:'22px',marginBottom:'9px'}}>{f.icon}</div>
+                  <div style={{width:'40px',height:'40px',borderRadius:'12px',background:'#F2F3EF',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:'10px'}}><Icon name={f.icon} size={20} /></div>
                   <div style={{fontSize:'13px',fontWeight:700,color:'#111827',marginBottom:'5px',letterSpacing:'-0.2px'}}>{f.title}</div>
                   <div style={{fontSize:'11px',color:'#6B7280',lineHeight:1.65}}>{f.desc}</div>
                 </div>
@@ -4819,7 +4806,7 @@ export default function TrainerApp() {
               <div style={{marginTop:'10px',padding:'10px 12px',background:'rgba(239,68,68,0.08)',
                 border:'1px solid rgba(239,68,68,0.3)',borderRadius:'8px',
                 fontSize:'11px',color:'#ef4444',lineHeight:1.5,wordBreak:'break-all'}}>
-                ⚠️ {regError}
+                {regError}
               </div>
             )}
             <div style={{textAlign:'center',marginTop:'16px'}}>
@@ -4844,7 +4831,7 @@ export default function TrainerApp() {
         <div style={{width:'100%',maxWidth:'440px'}}>
           <div style={{background:'#fff',border:'1px solid #E1E4D9',borderRadius:'22px',
             padding:'40px 32px',boxShadow:'0 8px 40px rgba(0,0,0,0.08),0 1px 4px rgba(0,0,0,0.04)'}}>
-            <div style={{textAlign:'center',marginBottom:'8px',fontSize:'42px'}}>⏳</div>
+            <div style={{display:'flex',justifyContent:'center',marginBottom:'10px',color:'var(--text-muted)'}}><Icon name="hourglass" size={40} strokeWidth={1.6} /></div>
             <div style={{textAlign:'center',fontSize:'20px',fontWeight:800,color:'#111',marginBottom:'8px',letterSpacing:'-0.3px'}}>
               가입 요청 승인 대기 중
             </div>
@@ -4862,7 +4849,7 @@ export default function TrainerApp() {
             )}
             <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:'10px',
               padding:'12px 14px',fontSize:'12px',color:'#92400e',lineHeight:1.7,marginBottom:'18px'}}>
-              💡 승인 알림은 별도로 발송되지 않아요. ownapp(카카오채널)로 문의 주세요.
+              승인 알림은 별도로 발송되지 않아요. ownapp(카카오채널)로 문의 주세요.
             </div>
             <button className="btn btn-primary btn-full"
               style={{padding:'13px',fontSize:'14px'}}
@@ -4888,7 +4875,7 @@ export default function TrainerApp() {
         <div style={{width:'100%',maxWidth:'440px'}}>
           <div style={{background:'#fff',border:'1px solid #E1E4D9',borderRadius:'22px',
             padding:'40px 32px',boxShadow:'0 8px 40px rgba(0,0,0,0.08),0 1px 4px rgba(0,0,0,0.04)'}}>
-            <div style={{textAlign:'center',marginBottom:'8px',fontSize:'42px'}}>🚫</div>
+            <div style={{display:'flex',justifyContent:'center',marginBottom:'10px',color:'#B91C1C'}}><Icon name="ban" size={40} strokeWidth={1.6} /></div>
             <div style={{textAlign:'center',fontSize:'20px',fontWeight:800,color:'#111',marginBottom:'8px',letterSpacing:'-0.3px'}}>
               가입이 거부되었어요
             </div>
@@ -4938,7 +4925,7 @@ export default function TrainerApp() {
           borderRadius: '20px', padding: '40px 28px', textAlign: 'center',
           boxShadow: '0 8px 40px rgba(0,0,0,0.07)',
         }}>
-          <div style={{ fontSize: '40px', marginBottom: '16px' }}>🚫</div>
+          <div style={{ display:'flex', justifyContent:'center', marginBottom: '16px', color:'#B91C1C' }}><Icon name="ban" size={40} strokeWidth={1.6} /></div>
           <div style={{ fontSize: '18px', fontWeight: 800, color: '#111', marginBottom: '8px', letterSpacing: '-0.3px' }}>
             접근이 제한됐어요
           </div>
@@ -5070,7 +5057,7 @@ export default function TrainerApp() {
               <div style={{background:'var(--surface)', border:'1px solid var(--accent)',
                 borderRadius:'14px', padding:'16px 16px 8px', marginBottom:'12px'}}>
                 <div style={{fontSize:'15px',fontWeight:800,color:'var(--text)',letterSpacing:'-0.3px'}}>
-                  환영해요, {trainer?.name || ''} 트레이너님 👋
+                  환영해요, {trainer?.name || ''} 트레이너님
                 </div>
                 <div style={{fontSize:'12px',color:'var(--text-muted)',marginTop:'3px'}}>
                   3분이면 첫 회원에게 리포트를 보낼 수 있어요.
@@ -5331,7 +5318,7 @@ export default function TrainerApp() {
           {/* 날짜 필터 바 */}
           <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'14px'}}>
             <div style={{flex:1,position:'relative'}}>
-              <span style={{position:'absolute',left:'11px',top:'50%',transform:'translateY(-50%)',fontSize:'15px',pointerEvents:'none'}}>📅</span>
+              <span style={{position:'absolute',left:'12px',top:'50%',transform:'translateY(-50%)',pointerEvents:'none',display:'flex',color:'var(--text-muted)'}}><Icon name="calendar" size={17} /></span>
               <input
                 type="date"
                 value={historyDateFilter}
@@ -5370,13 +5357,12 @@ export default function TrainerApp() {
             if (!historyLoading && !displayList.length) {
               if (historyDateFilter) return (
                 <div className="empty">
-                  <div style={{fontSize:'32px',marginBottom:'10px'}}>🗓</div>
-                  <p style={{color:'var(--text-muted)'}}>
+                                    <p style={{color:'var(--text-muted)'}}>
                     {new Date(historyDateFilter+'T00:00:00').toLocaleDateString('ko-KR',{month:'long',day:'numeric'})}에 발송된 일지가 없어요
                   </p>
                 </div>
               )
-              return <div className="empty"><div style={{fontSize:'36px',marginBottom:'12px'}}>📋</div><p>발송한 수업일지가 없어요.</p></div>
+              return <div className="empty"><p>발송한 수업일지가 없어요.</p></div>
             }
 
             return (
@@ -5402,7 +5388,7 @@ export default function TrainerApp() {
                         color:'#3F6212',background:'rgba(34,197,94,0.1)',
                         border:'1px solid rgba(34,197,94,0.25)',
                         padding:'2px 7px',borderRadius:'6px',
-                      }}>✔ 읽음 {rStr}</span>
+                      }}>읽음 {rStr}</span>
                     )
                   } else {
                     readBadge = (
@@ -5462,7 +5448,7 @@ export default function TrainerApp() {
                         }}
                         onMouseEnter={e=>{ e.currentTarget.style.borderColor='#60a5fa'; e.currentTarget.style.color='#60a5fa' }}
                         onMouseLeave={e=>{ e.currentTarget.style.borderColor='var(--border)'; e.currentTarget.style.color='var(--text-muted)' }}
-                      >🔗 링크 복사</button>
+                      ><span style={{display:'inline-flex',alignItems:'center',gap:'4px'}}><Icon name="link" size={14} />링크 복사</span></button>
                     </div>
                   )
                 })}
@@ -5481,7 +5467,7 @@ export default function TrainerApp() {
                           cursor:historyLoading?'default':'pointer',fontFamily:'inherit',
                           transition:'all 0.15s',
                         }}>
-                        {historyLoading ? '불러오는 중…' : '⬇ 더보기'}
+                        {historyLoading ? '불러오는 중…' : '이전 기록 더보기'}
                       </button>
                     </div>
                   ) : displayList.length > 0 ? (
@@ -5518,7 +5504,7 @@ export default function TrainerApp() {
               background:'rgba(251,191,36,0.12)', border:'1px solid rgba(251,191,36,0.4)',
               borderRadius:'10px', padding:'12px 14px', marginBottom:'12px',
             }}>
-              <span style={{fontSize:'18px',flexShrink:0}}>⚠️</span>
+              <span style={{flexShrink:0,display:'flex',color:'#92400E'}}><Icon name="alert" size={18} /></span>
               <div style={{fontSize:'12px',color:'#92400E',lineHeight:1.65}}>
                 브라우저 알림 권한이 {Notification.permission === 'denied' ? '차단' : '미허용'}되어 있어 일정 푸시 알림을 받을 수 없습니다.
                 기기 설정에서 알림 권한을 허용해 주세요.
@@ -5540,7 +5526,7 @@ export default function TrainerApp() {
           {/* 알림 설정 */}
           {!canUse('push_notif') && !HIDE_PURCHASE && (
             <div style={{background:'var(--surface2)',border:'1px dashed var(--border)',borderRadius:'10px',padding:'12px 14px',marginBottom:'12px',display:'flex',alignItems:'center',gap:'10px',opacity:0.7}}>
-              <span style={{fontSize:'18px'}}>🔒</span>
+              <span style={{display:'flex',color:'var(--text-muted)'}}><Icon name="lock" size={18} /></span>
               <div>
                 <div style={{fontSize:'13px',fontWeight:600}}>Web Push 알림</div>
                 <div style={{fontSize:'11px',color:'var(--text-dim)'}}>유료 플랜에서 이용 가능해요.</div>
@@ -5591,7 +5577,7 @@ export default function TrainerApp() {
                 </div>
                 {NOTIF_SUPPORTED && notifPerm() !== 'granted' && (
                   <div style={{fontSize:'12px',color:'var(--danger)'}}>
-                    ⚠️ 브라우저 알림 권한이 필요해요.
+                    브라우저 알림 권한이 필요해요.
                     <span style={{color:'var(--accent-text)',cursor:'pointer',marginLeft:'6px'}} onClick={requestNotifPermission}>권한 요청 →</span>
                   </div>
                 )}
@@ -5635,7 +5621,7 @@ export default function TrainerApp() {
                     background:'var(--surface2)',border:'1px solid var(--border)',
                     display:'flex',alignItems:'center',justifyContent:'center',
                     cursor:'pointer',padding:0,fontSize:'11px'}}>
-                  {profileUploading ? '…' : '📷'}
+                  {profileUploading ? '…' : <Icon name="camera" size={12} />}
                 </button>
               </div>
               <div style={{flex:1,minWidth:0}}>
@@ -5858,7 +5844,7 @@ export default function TrainerApp() {
                   border:`1px solid ${t.isMe ? 'rgba(200,241,53,0.3)' : 'var(--border)'}`,
                 }}>
                   <div style={{fontSize:'15px',width:'22px',textAlign:'center',flexShrink:0}}>
-                    {i===0?'💎':i===1?'🥇':i===2?'🥈':<span style={{fontSize:'12px',fontWeight:700,fontVariantNumeric:'tabular-nums',color:'var(--text-dim)'}}>{i+1}</span>}
+                    <span style={{fontSize:'13px',fontWeight:800,fontVariantNumeric:'tabular-nums',color: i < 3 ? 'var(--text)' : 'var(--text-muted)'}}>{i+1}</span>
                   </div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:'13px',fontWeight:t.isMe?700:500,color:t.isMe?'var(--accent)':'var(--text)'}}>
@@ -5929,7 +5915,7 @@ export default function TrainerApp() {
           {trainer?.gym_id && trainer?.approval_status !== 'pending' && (
             <div style={{background:'rgba(74,222,128,0.06)',border:'1px solid rgba(74,222,128,0.2)',
               borderRadius:'12px',padding:'14px 16px',display:'flex',alignItems:'center',gap:'10px'}}>
-              <span style={{fontSize:'20px'}}>✅</span>
+              <span style={{display:'flex',color:'#3F6212'}}><Icon name="check" size={20} strokeWidth={2.6} /></span>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:'13px',fontWeight:600,color:'#3F6212'}}>
                   {gymName ? gymName : '센터 소속 확인됨'}
@@ -5946,7 +5932,7 @@ export default function TrainerApp() {
             <div style={{background:'rgba(250,204,21,0.06)',border:'1px solid rgba(250,204,21,0.25)',
               borderRadius:'12px',padding:'14px 16px'}}>
               <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'10px'}}>
-                <span style={{fontSize:'20px'}}>⏳</span>
+                <span style={{display:'flex',color:'#92400E'}}><Icon name="hourglass" size={20} /></span>
                 <div style={{flex:1}}>
                   <div style={{fontSize:'13px',fontWeight:600,color:'#92400E'}}>승인 대기 중</div>
                   <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'2px'}}>
@@ -6049,7 +6035,7 @@ export default function TrainerApp() {
             justifyContent:'center', minHeight:'420px',
             padding:'40px 20px', textAlign:'center',
           }}>
-            <div style={{ fontSize:'44px', marginBottom:'14px', lineHeight:1 }}>💬</div>
+            <div style={{ width:'64px', height:'64px', borderRadius:'50%', background:'#ECFCCB', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'14px' }}><Icon name="message" size={28} /></div>
             <div style={{ fontSize:'18px', fontWeight:800, color:'var(--text)', letterSpacing:'-0.4px', marginBottom:'8px' }}>
               1:1 문의는 카카오 채널로 안내드려요
             </div>
@@ -6075,7 +6061,7 @@ export default function TrainerApp() {
                 boxShadow:'0 4px 14px rgba(254,229,0,0.45)',
               }}
             >
-              💛 1:1 문의하기 (카카오 채널)
+              <Icon name="message" size={18} strokeWidth={2.2} />카카오 채널로 문의하기
             </button>
 
             {/* 안내 텍스트 */}
@@ -6089,11 +6075,10 @@ export default function TrainerApp() {
               textAlign:'left',
             }}>
               <div style={{ fontSize:'12px', fontWeight:800, color:'var(--text)', marginBottom:'10px' }}>
-                💡 다음과 같은 사항들을 문의하실 수 있습니다:
+                이런 내용을 물어보실 수 있어요
               </div>
               <ul style={{ margin:0, paddingLeft:'18px', fontSize:'12px', color:'var(--text-muted)', lineHeight:1.9 }}>
                 <li>일반 문의 및 서비스 이용 방법</li>
-                <li>결제, 구독 변경 및 해지</li>
                 <li>오류 신고 및 버그 제보</li>
                 <li>신규 기능 제안 및 피드백</li>
               </ul>
@@ -6359,7 +6344,7 @@ export default function TrainerApp() {
                           <div style={{textAlign:'center'}}><div style={{fontSize:'14px',fontWeight:700,fontVariantNumeric:'tabular-nums'}}>{r.evening_weight||'—'}</div><div style={{fontSize:'10px',color:'var(--text-dim)'}}>저녁</div></div>
                           {diff && <div style={{textAlign:'center'}}><div style={{fontSize:'14px',fontWeight:700,fontVariantNumeric:'tabular-nums',color:diff>0?'#ff5c5c':'#4ade80'}}>{diff>0?'+':''}{diff}</div><div style={{fontSize:'10px',color:'var(--text-dim)'}}>일중증가</div></div>}
                         </div>
-                        {r.sleep_level && <div style={{fontSize:'11px',color:'var(--text-muted)'}}>💤 {r.sleep_level}/10</div>}
+                        {r.sleep_level && <div style={{fontSize:'12px',color:'var(--text-muted)',display:'flex',alignItems:'center',gap:'3px'}}><Icon name="moon" size={13} />{r.sleep_level}/10</div>}
                       </div>
                     )
                   })}
@@ -6372,7 +6357,7 @@ export default function TrainerApp() {
           {rtab === 'holds' && (
             <div>
               {!holds.length ? (
-                <div className="empty"><div style={{fontSize:'32px',marginBottom:'12px'}}>⏸</div><p>정지(홀딩) 이력이 없어요</p></div>
+                <div className="empty"><p>정지(홀딩) 이력이 없어요</p></div>
               ) : (
                 <>
                   {/* 요약 */}
@@ -6403,10 +6388,10 @@ export default function TrainerApp() {
                               <span style={{fontSize:'11px',color:'var(--text-dim)'}}>{days}일</span>
                             </div>
                             {h.product_name && (
-                              <div style={{fontSize:'12px',color:'var(--text-muted)',marginBottom:'4px'}}>📦 {h.product_name}</div>
+                              <div style={{fontSize:'12px',color:'var(--text-muted)',marginBottom:'4px'}}>{h.product_name}</div>
                             )}
                             {h.reason && (
-                              <div style={{fontSize:'12px',color:'var(--text-muted)',marginBottom:'6px'}}>💬 {h.reason}</div>
+                              <div style={{fontSize:'12px',color:'var(--text-muted)',marginBottom:'6px'}}>{h.reason}</div>
                             )}
                             {h.photo_url && (
                               <img src={h.photo_url} alt="첨부사진" style={{maxWidth:'100%',maxHeight:'160px',borderRadius:'8px',objectFit:'cover',marginTop:'4px'}} />
@@ -6447,13 +6432,13 @@ export default function TrainerApp() {
                 <div style={{display:'flex',gap:'8px',marginBottom:'14px'}}>
                   {(workoutRoutines.length > 0 || trainerLibraryRoutines.length > 0) && (
                     <button className="btn btn-ghost btn-sm" style={{flex:1,fontSize:'12px'}} onClick={()=>setWorkoutRoutineModal(true)}>
-                      📋 루틴 불러오기{trainerLibraryRoutines.length > 0 ? ` · 🛒${trainerLibraryRoutines.length}` : ''}
+                      루틴 불러오기{trainerLibraryRoutines.length > 0 ? ` · 마켓 ${trainerLibraryRoutines.length}` : ''}
                     </button>
                   )}
                   <button className="btn btn-primary btn-sm" style={{flex:1,fontSize:'12px'}} onClick={()=>openWorkoutModal()}>+ 운동 기록</button>
                 </div>
                 {/* 세션 이력 */}
-                {!workoutSessions.length && <div className="empty"><div style={{fontSize:'32px',marginBottom:'12px'}}>🏃</div><p>아직 개인 운동 기록이 없어요</p></div>}
+                {!workoutSessions.length && <div className="empty"><p>아직 개인 운동 기록이 없어요</p></div>}
                 {workoutSessions.map(s => {
                   const isOpen = workoutDetailId === s.id
                   const exList = s.exercises || []
@@ -6467,7 +6452,7 @@ export default function TrainerApp() {
                           <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'4px',flexWrap:'wrap'}}>
                             <span style={{fontSize:'13px',fontWeight:600}}>{s.title||'운동'}</span>
                             <span style={{fontSize:'11px',color:'var(--text-dim)'}}>{dateStr}</span>
-                            {s.duration_min && <span style={{fontSize:'11px',color:'var(--text-dim)'}}>⏱ {s.duration_min}분</span>}
+                            {s.duration_min && <span style={{fontSize:'12px',color:'var(--text-muted)'}}>{s.duration_min}분</span>}
                             {s.source === 'member' && <span style={{fontSize:'10px',padding:'1px 6px',borderRadius:'4px',background:'rgba(34,197,94,0.12)',color:'#16a34a',border:'1px solid rgba(34,197,94,0.3)'}}>회원 기록</span>}
                           </div>
                           <div style={{display:'flex',gap:'6px',flexWrap:'wrap',marginBottom:'4px'}}>
@@ -6505,9 +6490,9 @@ export default function TrainerApp() {
                               </div>
                             )
                           })}
-                          {s.memo && <div style={{marginTop:'8px',fontSize:'12px',color:'var(--text-muted)',padding:'8px',background:'var(--surface2)',borderRadius:'6px'}}>💬 {s.memo}</div>}
+                          {s.memo && <div style={{marginTop:'8px',fontSize:'12px',color:'var(--text-muted)',padding:'8px',background:'var(--surface2)',borderRadius:'10px'}}>{s.memo}</div>}
                           <div style={{display:'flex',gap:'8px',marginTop:'12px'}}>
-                            <button className="btn btn-ghost btn-sm" style={{flex:1,fontSize:'12px'}} onClick={()=>openWorkoutModal(s)}>✏️ 수정</button>
+                            <button className="btn btn-ghost btn-sm" style={{flex:1,fontSize:'12px'}} onClick={()=>openWorkoutModal(s)}>수정</button>
                             <button className="btn btn-ghost btn-sm" style={{flex:1,fontSize:'12px',color:'var(--danger)'}} onClick={()=>deleteWorkoutSession(s.id)}>삭제</button>
                           </div>
                         </div>
@@ -6941,7 +6926,7 @@ export default function TrainerApp() {
               {/* 이탈 위험 분석 */}
               <div style={{marginBottom:'18px'}}>
                 <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',marginBottom:'10px',display:'flex',alignItems:'center',gap:'6px'}}>
-                  <span>📊 이탈 위험 분석</span>
+                  <span>이탈 위험 분석</span>
                   {riskMap[currentMember?.id] && (() => {
                     const lv = getRiskLevel(riskMap[currentMember.id].riskScore)
                     return <span style={{fontSize:'10px',padding:'1px 7px',borderRadius:'4px',background:lv.bg,color:lv.color,border:`1px solid ${lv.color}33`}}>{lv.emoji} {lv.label} ({riskMap[currentMember.id].riskScore}점)</span>
@@ -6951,12 +6936,12 @@ export default function TrainerApp() {
               </div>
               <div style={{height:'1px',background:'var(--border)',marginBottom:'18px'}} />
               {/* AI 인사이트 */}
-              <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',marginBottom:'10px'}}>🤖 AI 인사이트</div>
+              <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-muted)',marginBottom:'10px'}}>AI 인사이트</div>
               {canUse('ai_insight') ? (
                 <AiInsightPanel member={currentMember} apiKey={centralApiKey} />
               ) : (
                 <div style={{background:'var(--surface2)',border:'1px dashed var(--border)',borderRadius:'10px',padding:'16px',textAlign:'center',marginBottom:'10px'}}>
-                  <div style={{fontSize:'20px',marginBottom:'6px'}}>🔒</div>
+                  <div style={{marginBottom:'6px',color:'var(--text-muted)'}}><Icon name="lock" size={20} /></div>
                   <div style={{fontWeight:700,fontSize:'13px',marginBottom:'4px'}}>{HIDE_PURCHASE ? 'AI 회원 인사이트' : '유료 플랜 전용'}</div>
                   <div style={{fontSize:'12px',color:'var(--text-dim)'}}>{HIDE_PURCHASE ? '현재 이용할 수 없는 기능이에요.' : 'AI 회원 인사이트는 유료 플랜에서 이용 가능해요.'}</div>
                 </div>
@@ -6969,7 +6954,7 @@ export default function TrainerApp() {
       {/* PAYMENT CANCEL CONFIRM MODAL — 결제 관리 모달 위에 떠야 하므로 zIndex 강제 */}
       <Modal open={!!cancelPaymentTarget} onClose={()=>setCancelPaymentTarget(null)} title="결제 취소 확인" maxWidth="320px" zIndex={2000}>
         <div style={{textAlign:'center',padding:'8px 0 20px'}}>
-          <div style={{fontSize:'32px',marginBottom:'12px'}}>⚠️</div>
+          <div style={{display:'flex',justifyContent:'center',marginBottom:'12px',color:'#B91C1C'}}><Icon name="alert" size={32} strokeWidth={1.8} /></div>
           <div style={{fontSize:'14px',fontWeight:600,marginBottom:'8px'}}>정말로 결제를 취소하시겠습니까?</div>
           {cancelPaymentTarget && (
             <div style={{fontSize:'12px',color:'var(--text-muted)',lineHeight:'1.7'}}>
@@ -6986,11 +6971,11 @@ export default function TrainerApp() {
       </Modal>
 
       {/* PAYMENT MODAL */}
-      <Modal open={paymentModal} onClose={()=>setPaymentModal(false)} title={`결제 관리 — ${currentMember?.name||''}`}>
+      <Modal sheet open={paymentModal} onClose={()=>setPaymentModal(false)} title={`결제 관리 — ${currentMember?.name||''}`}>
         <div className="type-row" style={{marginBottom:'14px'}}>
-          <button className={`type-btn${paymentTab==='pay'?' active':''}`} onClick={()=>setPaymentTab('pay')}>💳 결제 등록</button>
-          <button className={`type-btn${paymentTab==='history'?' active':''}`} onClick={()=>setPaymentTab('history')}>📋 결제 내역</button>
-          <button className={`type-btn${paymentTab==='products'?' active':''}`} onClick={()=>setPaymentTab('products')}>🗂 상품 관리</button>
+          <button className={`type-btn${paymentTab==='pay'?' active':''}`} onClick={()=>setPaymentTab('pay')}>결제 등록</button>
+          <button className={`type-btn${paymentTab==='history'?' active':''}`} onClick={()=>setPaymentTab('history')}>결제 내역</button>
+          <button className={`type-btn${paymentTab==='products'?' active':''}`} onClick={()=>setPaymentTab('products')}>상품 관리</button>
         </div>
 
         {paymentTab === 'pay' && (
@@ -7034,11 +7019,11 @@ export default function TrainerApp() {
               <label>결제 수단</label>
               <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:'6px',marginTop:'4px'}}>
                 {[
-                  {value:'cash',     label:'💵',  name:'현금'},
-                  {value:'card',     label:'💳',  name:'카드'},
-                  {value:'transfer', label:'🏦',  name:'계좌\n이체'},
-                  {value:'local_currency', label:'🪙', name:'지역\n화폐'},
-                  {value:'payments_app',   label:'📱', name:'페이\n먼츠'},
+                  {value:'cash',     label:'cash',  name:'현금'},
+                  {value:'card',     label:'card',  name:'카드'},
+                  {value:'transfer', label:'bank',  name:'계좌\n이체'},
+                  {value:'local_currency', label:'coins', name:'지역\n화폐'},
+                  {value:'payments_app',   label:'phone', name:'간편\n결제'},
                 ].map(m => (
                   <button
                     key={m.value}
@@ -7057,7 +7042,7 @@ export default function TrainerApp() {
                       transition:'all 0.12s',
                     }}
                   >
-                    <span style={{fontSize:'18px',lineHeight:1}}>{m.label}</span>
+                    <span style={{display:'flex',lineHeight:1}}><Icon name={m.label} size={20} /></span>
                     <span style={{
                       fontSize:'9px',fontWeight:600,whiteSpace:'pre',textAlign:'center',lineHeight:1.3,
                       color: paymentForm.paymentMethod===m.value ? 'var(--accent-text)' : 'var(--text-muted)',
@@ -7076,7 +7061,7 @@ export default function TrainerApp() {
                 marginBottom:'12px',
               }}>
                 <span style={{fontSize:'13px',flexShrink:0}}>
-                  {paymentForm.paymentMethod === 'payments_app' ? '📱' : '🪙'}
+                  <Icon name={paymentForm.paymentMethod === 'payments_app' ? 'phone' : 'coins'} size={16} />
                 </span>
                 <input
                   type="text"
@@ -7167,7 +7152,7 @@ export default function TrainerApp() {
       </Modal>
 
       {/* PRODUCT MANAGE MODAL */}
-      <Modal open={productManageModal} onClose={()=>setProductManageModal(false)} title="🗂 상품 관리" maxWidth="400px">
+      <Modal open={productManageModal} onClose={()=>setProductManageModal(false)} title="상품 관리" maxWidth="400px">
         <div style={{marginBottom:'12px',display:'flex',justifyContent:'flex-end'}}>
           <button
             className="btn btn-primary btn-sm"
@@ -7176,8 +7161,7 @@ export default function TrainerApp() {
         </div>
         {products.length === 0 ? (
           <div className="empty" style={{padding:'32px 0',textAlign:'center'}}>
-            <div style={{fontSize:'32px',marginBottom:'10px'}}>📦</div>
-            <p style={{color:'var(--text-muted)',fontSize:'13px'}}>등록된 상품이 없어요.<br/>상품 추가 버튼으로 첫 상품을 등록해보세요.</p>
+                        <p style={{color:'var(--text-muted)',fontSize:'13px'}}>등록된 상품이 없어요.<br/>상품 추가 버튼으로 첫 상품을 등록해보세요.</p>
           </div>
         ) : (
           <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
@@ -7197,7 +7181,7 @@ export default function TrainerApp() {
                     <span style={{margin:'0 5px',color:'var(--border)'}}>|</span>
                     포함 <strong style={{color:'var(--text)'}}>{(p.price_incl_tax||0).toLocaleString()}원</strong>
                   </div>
-                  {p.memo && <div style={{fontSize:'11px',color:'var(--accent-text)',marginTop:'3px'}}>💬 {p.memo}</div>}
+                  {p.memo && <div style={{fontSize:'11px',color:'var(--accent-text)',marginTop:'3px'}}>{p.memo}</div>}
                   <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'2px'}}>
                     회당 단가: 미포함 {Math.round((p.price_excl_tax||0)/(p.session_count||1)).toLocaleString()}원 / 포함 {Math.round((p.price_incl_tax||0)/(p.session_count||1)).toLocaleString()}원
                   </div>
@@ -7210,11 +7194,11 @@ export default function TrainerApp() {
                       setEditingProductId(p.id)
                       setProductForm({name:p.name,count:String(p.session_count),priceEx:String(p.price_excl_tax||0),priceIn:String(p.price_incl_tax||0),memo:p.memo||''})
                       setProductFormModal(true)
-                    }}>✏️ 수정</button>
+                    }}>수정</button>
                   <button
                     className="btn btn-ghost btn-sm"
                     style={{fontSize:'11px',padding:'4px 10px',color:'var(--danger)',borderColor:'rgba(239,68,68,0.3)'}}
-                    onClick={()=>deleteProduct(p.id)}>🗑 삭제</button>
+                    onClick={()=>deleteProduct(p.id)}>삭제</button>
                 </div>
               </div>
             ))}
@@ -7311,11 +7295,11 @@ export default function TrainerApp() {
 
       {/* WORKOUT ROUTINE MODAL */}
       <Modal open={workoutRoutineModal} onClose={()=>setWorkoutRoutineModal(false)} title="루틴 불러오기">
-        {/* ── 🛒 마켓 루틴 보관함 ── */}
+        {/* ── 마켓 루틴 보관함 ── */}
         {trainerLibraryRoutines.length > 0 && (
           <>
             <div style={{fontSize:'11px',fontWeight:700,color:'#34d399',letterSpacing:'0.08em',marginBottom:'8px',display:'flex',alignItems:'center',gap:'6px'}}>
-              🛒 마켓 루틴 보관함
+              마켓 루틴 보관함
               <span style={{fontSize:'10px',color:'var(--text-dim)',fontWeight:400}}>— 구매한 교육자 루틴</span>
             </div>
             {trainerLibraryRoutines.map(r => (
@@ -7336,7 +7320,7 @@ export default function TrainerApp() {
                     className="btn btn-primary btn-sm"
                     style={{flex:2,fontSize:'11px',background:'#34d399',color:'#0a0a0a',fontWeight:700}}
                     onClick={()=>applyLibraryRoutineToMember(r)}>
-                    ✅ {currentMember?.name || '회원'}에게 적용
+                    {currentMember?.name || '회원'}에게 적용
                   </button>
                   {/* 세션 폼에 바로 불러오기 */}
                   <button
@@ -7361,7 +7345,7 @@ export default function TrainerApp() {
         {/* ── 회원별 저장 루틴 ── */}
         {workoutRoutines.length > 0 && (
           <div style={{fontSize:'11px',fontWeight:700,color:'var(--text-dim)',letterSpacing:'0.08em',marginBottom:'8px'}}>
-            📋 저장된 루틴
+            저장된 루틴
           </div>
         )}
         {!workoutRoutines.length && !trainerLibraryRoutines.length && (
@@ -7503,7 +7487,7 @@ export default function TrainerApp() {
             }}
           >
             <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
-              <span style={{fontSize:'12px',fontWeight:700,color:'var(--text)'}}>⚙️ 세션 직접 수정</span>
+              <span style={{fontSize:'12px',fontWeight:700,color:'var(--text)'}}>세션 직접 수정</span>
               <span style={{fontSize:'10px',color:'var(--text-dim)',fontWeight:400}}>앱 이전·오류 수정·증정 세션 전용</span>
               {/* ? 버튼 — 내부 button 그대로 유지 (이제 외부가 div 라 중첩 위반 해소) */}
               <button
@@ -7534,17 +7518,17 @@ export default function TrainerApp() {
                 style={{position:'absolute',top:'8px',right:'10px',background:'none',border:'none',
                   color:'#6b7280',cursor:'pointer',fontSize:'14px',lineHeight:1,padding:0}}>×</button>
               <div style={{fontWeight:700,color:'#a3e635',marginBottom:'8px',fontSize:'12px'}}>
-                💡 매출관리 결제 vs 세션 직접 수정
+                매출관리 결제 vs 세션 직접 수정
               </div>
               <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
                 <div>
-                  <span style={{color:'#3F6212',fontWeight:600}}>💳 매출관리 → 결제 등록</span>
+                  <span style={{color:'#3F6212',fontWeight:600}}>매출관리 → 결제 등록</span>
                   <br/>상품 선택 → 결제 금액 기록 + 세션 수 자동 추가.<br/>
                   <span style={{color:'#6b7280'}}>정식 결제 흐름으로, 매출 내역에 기록됩니다.</span>
                 </div>
                 <div style={{height:'1px',background:'var(--border)'}}/>
                 <div>
-                  <span style={{color:'#92400E',fontWeight:600}}>⚙️ 세션 직접 수정 (이 항목)</span>
+                  <span style={{color:'#92400E',fontWeight:600}}>세션 직접 수정 (이 항목)</span>
                   <br/>결제 기록 없이 세션 수만 바로 수정합니다.<br/>
                   <span style={{color:'#9ca3af'}}>아래 경우에만 사용하세요:</span>
                   <ul style={{margin:'5px 0 0 14px',padding:0,color:'#9ca3af',fontSize:'11px',lineHeight:'1.9'}}>
@@ -7569,7 +7553,7 @@ export default function TrainerApp() {
                 border:'1px solid rgba(249,115,22,0.2)',borderRadius:'7px',
                 padding:'7px 10px',marginBottom:'12px',lineHeight:'1.6',
               }}>
-                ⚠️ 결제 기록 없이 직접 수정됩니다. 정식 결제는 <strong>매출관리 탭</strong>을 이용하세요.
+                결제 기록 없이 직접 수정됩니다. 정식 결제는 <strong>매출관리 탭</strong>을 이용하세요.
               </div>
               <div className="two-col">
                 <div className="form-group" style={{marginBottom:0}}>
@@ -7599,7 +7583,7 @@ export default function TrainerApp() {
         }}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
             <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
-              <span style={{fontSize:'12px',fontWeight:700,color:'var(--text)'}}>⏸ 정지 이력</span>
+              <span style={{fontSize:'12px',fontWeight:700,color:'var(--text)'}}>정지 이력</span>
               {holds.length > 0 && (
                 <span style={{fontSize:'10px',fontWeight:600,padding:'1px 7px',borderRadius:'10px',
                   background:'rgba(249,115,22,0.12)',color:'#f97316',border:'1px solid rgba(249,115,22,0.25)'}}>
@@ -7654,7 +7638,7 @@ export default function TrainerApp() {
                         </div>
                         {h.reason && (
                           <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'2px'}}>
-                            💬 {h.reason}
+                            {h.reason}
                           </div>
                         )}
                       </div>
@@ -7679,7 +7663,7 @@ export default function TrainerApp() {
       {/* DELETE CONFIRM MODAL */}
       <Modal open={deleteConfirmModal} onClose={()=>setDeleteConfirmModal(false)} title="회원 삭제" maxWidth="320px">
         <div style={{textAlign:'center',padding:'8px 0 20px'}}>
-          <div style={{fontSize:'32px',marginBottom:'12px'}}>⚠️</div>
+          <div style={{display:'flex',justifyContent:'center',marginBottom:'12px',color:'#B91C1C'}}><Icon name="alert" size={32} strokeWidth={1.8} /></div>
           <div style={{fontSize:'14px',fontWeight:600,marginBottom:'8px'}}>{editMemberForm.name} 회원을 삭제할까요?</div>
           <div style={{fontSize:'12px',color:'var(--text-muted)',lineHeight:'1.6'}}>수업일지, 건강기록 등 관련 데이터는<br/>삭제되지 않습니다.</div>
         </div>
@@ -7691,7 +7675,7 @@ export default function TrainerApp() {
 
       {/* SETTINGS MODAL */}
       {/* 일지 확인 현황 모달 */}
-      <Modal open={showReadModal} onClose={()=>setShowReadModal(false)} title="✅ 일지 확인 현황">
+      <Modal open={showReadModal} onClose={()=>setShowReadModal(false)} title="일지 확인 현황">
         {(() => {
           const readLogs   = logs.filter(l => l.read_at)
           const unreadLogs = logs.filter(l => !l.read_at)
@@ -7716,7 +7700,7 @@ export default function TrainerApp() {
               {/* 미확인 목록 */}
               {unreadLogs.length > 0 && (
                 <>
-                  <div style={{fontSize:'11px',fontWeight:700,color:'#ef4444',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'0.05em'}}>⏳ 미확인</div>
+                  <div style={{fontSize:'11px',fontWeight:700,color:'#B91C1C',marginBottom:'6px'}}>미확인</div>
                   {unreadLogs.map(l => {
                     const mem = memberById.get(l.member_id)
                     return (
@@ -7736,7 +7720,7 @@ export default function TrainerApp() {
               {/* 확인 완료 목록 */}
               {readLogs.length > 0 && (
                 <>
-                  <div style={{fontSize:'11px',fontWeight:700,color:'#3F6212',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'0.05em'}}>✅ 확인 완료</div>
+                  <div style={{fontSize:'11px',fontWeight:700,color:'#3F6212',marginBottom:'6px'}}>확인 완료</div>
                   {readLogs.map(l => {
                     const mem = memberById.get(l.member_id)
                     return (
@@ -7794,7 +7778,7 @@ export default function TrainerApp() {
       <Modal open={showLimitModal} onClose={()=>setShowLimitModal(false)} title={HIDE_PURCHASE ? 'AI 일지 횟수를 모두 사용했어요' : '크레딧이 부족해요'}>
         {HIDE_PURCHASE ? (
         <div style={{textAlign:'center',padding:'8px 0'}}>
-          <div style={{fontSize:'48px',marginBottom:'12px'}}>📝</div>
+          <div style={{display:'flex',justifyContent:'center',marginBottom:'12px',color:'var(--text-muted)'}}><Icon name="file" size={40} strokeWidth={1.6} /></div>
           <div style={{fontSize:'14px',color:'var(--text-dim)',lineHeight:1.7,marginBottom:'16px'}}>
             {aiQuota?.mode === 'quota'
               ? <>이번 달 AI 수업일지 {aiQuota.quota}회를 모두 사용했어요.<br/>{fmtResetDate(aiQuota.resets_at)}에 다시 {aiQuota.quota}회가 제공돼요.</>
@@ -7806,7 +7790,7 @@ export default function TrainerApp() {
         </div>
         ) : (
         <div style={{textAlign:'center',padding:'8px 0'}}>
-          <div style={{fontSize:'48px',marginBottom:'12px'}}>🎟️</div>
+          <div style={{display:'flex',justifyContent:'center',marginBottom:'12px',color:'var(--text-muted)'}}><Icon name="sparkle" size={40} strokeWidth={1.6} /></div>
           <div style={{fontSize:'15px',fontWeight:700,marginBottom:'8px'}}>
             AI 수업일지를 생성하려면 크레딧이 필요해요
           </div>
@@ -7814,7 +7798,7 @@ export default function TrainerApp() {
             현재 보유 크레딧: <strong style={{color:'var(--accent-text)'}}>{credits}개</strong>
           </div>
           <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'10px',padding:'14px',marginBottom:'16px',textAlign:'left',fontSize:'13px',lineHeight:1.7}}>
-            <div style={{fontWeight:600,marginBottom:'6px'}}>💡 크레딧이란?</div>
+            <div style={{fontWeight:600,marginBottom:'6px'}}>크레딧이란?</div>
             <div style={{color:'var(--text-dim)'}}>크레딧 1개로 AI 수업일지를 1회 생성할 수 있어요. 크레딧은 관리자에게 문의하여 충전할 수 있어요.</div>
           </div>
           <button
@@ -7822,7 +7806,7 @@ export default function TrainerApp() {
             style={{width:'100%',marginBottom:'8px'}}
             onClick={()=>{ setShowLimitModal(false); setSettingsModal(true) }}
           >
-            🎟️ 크레딧 확인하기
+            크레딧 확인하기
           </button>
           <button className="btn btn-ghost" style={{width:'100%'}} onClick={()=>setShowLimitModal(false)}>
             닫기
@@ -7848,17 +7832,17 @@ export default function TrainerApp() {
           }}>
             {/* 헤더 */}
             <div style={{fontWeight:800,fontSize:'15px',color:'var(--text)',marginBottom:'14px',textAlign:'center'}}>
-              ✂️ 영상 구간 편집
+              영상 구간 편집
             </div>
 
-            {/* 💡 Tip 알림창 */}
+            {/* Tip 알림창 */}
             <div style={{
               background:'rgba(59,130,246,0.08)',
               border:'1px solid rgba(59,130,246,0.25)',
               borderRadius:'10px',padding:'12px 14px',marginBottom:'14px',
             }}>
               <div style={{fontSize:'12px',color:'#93c5fd',lineHeight:1.7}}>
-                💡 Tip. 핵심만 쏙쏙, 하이라이트 편집! 긴 영상은 회원님이 끝까지 보기 힘들어요. 가장 중요한 자세 교정 구간(최대 60초)만 잘라서 100% 몰입형 피드백을 전달해 보세요!
+                Tip. 핵심만 쏙쏙, 하이라이트 편집! 긴 영상은 회원님이 끝까지 보기 힘들어요. 가장 중요한 자세 교정 구간(최대 60초)만 잘라서 100% 몰입형 피드백을 전달해 보세요!
               </div>
             </div>
 
@@ -7960,7 +7944,7 @@ export default function TrainerApp() {
                   fontSize:'13px',fontWeight:700,cursor:'pointer',
                   fontFamily:'inherit',opacity:isTrimming?0.6:1,
                 }}
-              >{isTrimming ? '편집 중...' : '✂️ 구간 저장'}</button>
+              >{isTrimming ? '편집 중...' : '구간 저장'}</button>
             </div>
           </div>
         </div>
@@ -7970,13 +7954,13 @@ export default function TrainerApp() {
       <Modal open={showEmailGuide} onClose={()=>setShowEmailGuide(false)} title="이메일을 입력하는 이유">
         <div style={{fontSize:'13px',lineHeight:1.7}}>
           {[
-            { icon:'🔗', title:'수업 리포트 직접 전달', desc:'AI가 생성한 수업일지 리포트 링크를 이메일로도 전달할 수 있어요. 카카오톡이 없는 회원도 리포트를 받을 수 있어요.' },
-            { icon:'🔐', title:'회원 포털 로그인 연동', desc:'회원이 앱에서 자신의 수업 기록, 진행률, 식단을 직접 확인할 수 있는 회원 포털의 계정으로 사용돼요.' },
-            { icon:'📣', title:'공지 및 안내 발송', desc:'휴무일, 일정 변경 등 센터 공지를 이메일로 발송할 때 사용돼요.' },
-            { icon:'🛡️', title:'개인정보 보호', desc:'수집된 이메일은 오운 서비스 내에서만 사용되며 외부에 공유되지 않아요.' },
+            { icon:'link', title:'수업 리포트 직접 전달', desc:'AI가 생성한 수업일지 리포트 링크를 이메일로도 전달할 수 있어요. 카카오톡이 없는 회원도 리포트를 받을 수 있어요.' },
+            { icon:'lock', title:'회원 포털 로그인 연동', desc:'회원이 앱에서 자신의 수업 기록, 진행률, 식단을 직접 확인할 수 있는 회원 포털의 계정으로 사용돼요.' },
+            { icon:'megaphone', title:'공지 및 안내 발송', desc:'휴무일, 일정 변경 등 센터 공지를 이메일로 발송할 때 사용돼요.' },
+            { icon:'shield', title:'개인정보 보호', desc:'수집된 이메일은 오운 서비스 내에서만 사용되며 외부에 공유되지 않아요.' },
           ].map(({ icon, title, desc }) => (
             <div key={title} style={{display:'flex',gap:'12px',marginBottom:'16px',alignItems:'flex-start'}}>
-              <span style={{fontSize:'22px',flexShrink:0}}>{icon}</span>
+              <span style={{width:'36px',height:'36px',borderRadius:'10px',background:'#F2F3EF',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Icon name={icon} size={18} /></span>
               <div>
                 <div style={{fontWeight:700,color:'#111',marginBottom:'3px'}}>{title}</div>
                 <div style={{color:'#6B7280',fontSize:'12px'}}>{desc}</div>
@@ -7985,7 +7969,7 @@ export default function TrainerApp() {
           ))}
           <div style={{background:'#f9fafb',border:'1px solid #E1E4D9',
             borderRadius:'10px',padding:'12px 14px',fontSize:'12px',color:'#6B7280',marginTop:'4px'}}>
-            💡 이메일 입력 시 회원이 더 풍부한 서비스를 받을 수 있어요.
+            이메일 입력 시 회원이 더 풍부한 서비스를 받을 수 있어요.
           </div>
         </div>
         <button className="btn btn-primary" style={{width:'100%',marginTop:'16px'}} onClick={()=>setShowEmailGuide(false)}>확인</button>
