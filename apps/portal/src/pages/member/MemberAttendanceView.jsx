@@ -11,7 +11,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import { useToast } from '@trainer-log/shared/components/common/Toast'
 
-const LIME = '#10B981' // 회원앱 톤(그린)에 맞춤
+const LIME = '#C8F135' // 오운 라임 (2026-11 개편)
 
 export default function MemberAttendanceView({ member, onAgreed }) {
   const showToast = useToast()
@@ -62,18 +62,18 @@ export default function MemberAttendanceView({ member, onAgreed }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       {/* 정책 카드 */}
-      <div style={{ background: '#F0FDF4', border: '1px solid #A7F3D0', borderRadius: 14, padding: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: '#065f46', marginBottom: 8 }}>📋 출결 정책</div>
+      <div style={{ background: '#F7F8F4', border: '1px solid #E6E8E0', borderRadius: 14, padding: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#111827', marginBottom: 8 }}>출결 정책</div>
         <p style={{ fontSize: 13, lineHeight: 1.7, color: '#166534', whiteSpace: 'pre-wrap', margin: 0 }}>{policyText}</p>
 
         {policy && (
           agreedAt
-            ? <div style={{ marginTop: 12, fontSize: 12, color: '#059669', fontWeight: 600 }}>
+            ? <div style={{ marginTop: 12, fontSize: 12, color: '#3F6212', fontWeight: 600 }}>
                 ✓ {new Date(agreedAt).toLocaleDateString('ko-KR')} 에 확인함
               </div>
             : <button onClick={agree} disabled={agreeing}
                 style={{ marginTop: 12, width: '100%', padding: 12, borderRadius: 10, border: 'none',
-                  background: LIME, color: '#fff', fontSize: 14, fontWeight: 800, cursor: agreeing ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: agreeing ? 0.6 : 1 }}>
+                  background: LIME, color: '#111827', fontSize: 14, fontWeight: 800, cursor: agreeing ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: agreeing ? 0.6 : 1 }}>
                 위 정책을 확인했어요
               </button>
         )}
@@ -92,7 +92,7 @@ export default function MemberAttendanceView({ member, onAgreed }) {
             const st = r.status || 'attended'
             const meta = st === 'noshow' ? { label: '노쇼', c: '#dc2626', bg: '#fef2f2' }
               : st === 'cancelled' ? { label: '사전취소', c: '#64748b', bg: '#f1f5f9' }
-              : { label: '출석', c: '#059669', bg: '#F0FDF4' }
+              : { label: '출석', c: '#3F6212', bg: '#ECFCCB' }
             return (
               <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: '#fff', border: '1px solid #f0f0f0', borderRadius: 10, marginBottom: 6 }}>
                 <span style={{ fontSize: 13, color: '#111' }}>
