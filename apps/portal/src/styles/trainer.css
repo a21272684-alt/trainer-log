@@ -133,41 +133,43 @@
 .msum .ml { font-size:10.5px; color:var(--text-muted); margin-top:4px; }
 /* 서브탭 네비게이션 — sticky + 가로 스크롤 */
 .rtab-row {
-  display: flex;
-  gap: 0;
-  margin-bottom: 0;
-  /* 짧은 라벨로 7개를 화면 폭에 균등 분배 — 가로 스크롤 없음(전부 한눈에) */
-  /* sticky 헤더 */
+  /* 서브탭 — 세그먼트 컨트롤 (2026-11 개편): 회색 트랙 + 선택된 탭 흰 알약 */
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 2px;
+  padding: 4px;
+  margin-bottom: 14px;
+  background: #ECEEE7;
+  border-radius: 14px;
   position: sticky;
-  top: 0;
+  top: 60px;
   z-index: 10;
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
 }
 .rtab-btn {
-  flex: 1;
   min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px 4px;
-  min-height: 44px;
+  height: 40px;
+  padding: 0 2px;
   border: none;
-  border-bottom: 2px solid transparent;
+  border-radius: 10px;
   background: transparent;
   color: var(--text-muted);
-  font-size: 13.5px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
-  transition: color 0.15s, border-color 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 .rtab-btn:hover { color: var(--text); }
 .rtab-btn.active {
   color: var(--text);
-  font-weight: 700;
-  border-bottom-color: var(--accent-dim);
+  font-weight: 800;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(17,24,39,0.10);
 }
 
 /* ── Exercise blocks ── */
@@ -408,3 +410,19 @@
   font-size:13px; letter-spacing:0; text-transform:none;
   color:var(--text-muted); font-weight:700;
 }
+
+/* ── 일지 쓰기 카드 · 미리보기 · 운동 블록 (2026-11 개편) ── */
+.page-t .write-card {
+  border:none; border-radius:20px; padding:16px;
+  box-shadow:0 1px 2px rgba(17,24,39,0.04), 0 6px 20px rgba(17,24,39,0.04);
+}
+.page-t .preview-card {
+  border:none; border-radius:20px; padding:18px;
+  box-shadow:0 1px 2px rgba(17,24,39,0.04), 0 6px 20px rgba(17,24,39,0.04);
+}
+.write-card .ex-block { background:#F7F8F4; border:none; border-radius:16px; box-shadow:none; }
+.write-card .ex-block-header { background:transparent; border-bottom:1px solid #E9EBE4; }
+.write-card .ex-block-name { font-size:15px; font-weight:800; }
+.write-card .ex-set-item { font-size:14px; border-bottom-color:#E9EBE4; }
+.write-card .ex-set-num { font-size:12px; color:var(--text-muted); }
+.write-card .ex-set-rir { background:#ECFCCB; color:#3F6212; border-radius:999px; font-size:12px; }

@@ -1749,6 +1749,7 @@ export default function TrainerApp() {
   const [generating, setGenerating] = useState(false)
   const [aiStatus, setAiStatus] = useState('')
   const [showPreview, setShowPreview] = useState(false)
+  const [editingLog, setEditingLog] = useState(false)   // 미리보기 '직접 수정하기' 토글
   const [showSend, setShowSend] = useState(false)
   const VALID_RTABS = ['write','attendance','health','holds','personal','diet','insight']
   const [rtab, setRtab] = useState('write')
@@ -3515,7 +3516,7 @@ export default function TrainerApp() {
     }
     // ─────────────────────────────────────────────────────────
 
-    setGenerating(true); setShowPreview(false); setShowSend(false)
+    setGenerating(true); setShowPreview(false); setShowSend(false); setEditingLog(false)
     setAiStatus('AI가 회원님을 위한 맞춤형 리포트를 작성하고 있습니다...')
     try {
       // P0 fix (비용 폭탄 방지): Gemini 호출 전 트레이너 월 한도 확인.
@@ -5017,35 +5018,37 @@ export default function TrainerApp() {
       {/* MEMBERS LIST */}
       {activePage === 'page-members' && (
         <div className="page-t">
-          <div style={{display:'flex',gap:'8px',marginBottom:'10px'}}>
-            <button className="btn btn-primary" style={{flex:1}} onClick={()=>{
-              // 게이트는 free/pro/premium 3단계 — 옛 'paid' 키는 없어서 유료가 항상 무제한으로 떨어지던 것 수정
-              const limit = featureGates[tier]?.member_limit ?? 9999
-              if (members.length >= limit) { showToast(HIDE_PURCHASE ? `🔒 회원은 최대 ${limit}명까지 등록할 수 있어요.` : `🔒 현재 플랜에서는 최대 ${limit}명까지 등록 가능해요. 플랜 업그레이드 후 이용하세요.`); return }
-              setAddForm({name:'',kakao_phone:'',phone:'',birthdate:'',address:'',email:'',special_notes:'',purpose:'체형교정',visit_source:'',visit_source_memo:'',total:'',done:'0',price:'',memo:''});setActivePage('page-add-member')
-            }}>+ 회원 추가</button>
-            <button
-              onClick={() => setShowReadModal(true)}
-              title="일지 확인 현황"
-              style={{
-                position:'relative',flexShrink:0,width:'44px',height:'44px',
-                border:'1px solid var(--border)',borderRadius:'10px',
-                background:'var(--surface2)',cursor:'pointer',fontSize:'20px',
-                display:'flex',alignItems:'center',justifyContent:'center',
-              }}
-            >
-              ✅
-              {(() => {
-                const unread = logs.filter(l => !l.read_at).length
-                return unread > 0 ? (
-                  <span style={{
-                    position:'absolute',top:'-6px',right:'-6px',
-                    background:'#ef4444',color:'#fff',borderRadius:'10px',
-                    fontSize:'10px',fontWeight:700,padding:'1px 5px',minWidth:'16px',textAlign:'center',lineHeight:'16px',
-                  }}>{unread}</span>
-                ) : null
-              })()}
-            </button>
+          {/* 제목 줄 — 회원 수 | 일지 확인 현황 · 회원 추가 */}
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
+            <div style={{display:'flex',alignItems:'baseline',gap:'6px'}}>
+              <span style={{fontSize:'22px',fontWeight:900,letterSpacing:'-0.6px'}}>회원</span>
+              <span style={{fontSize:'15px',fontWeight:700,color:'var(--text-muted)'}}>{members.length}명</span>
+            </div>
+            <div style={{display:'flex',gap:'8px'}}>
+              <button
+                onClick={() => setShowReadModal(true)}
+                aria-label="일지 확인 현황"
+                style={{position:'relative',width:'44px',height:'44px',border:'1px solid #E6E8E0',borderRadius:'14px',
+                  background:'#fff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--text)'}}
+              >
+                <Icon name="eye" size={20} />
+                {(() => {
+                  const unread = logs.filter(l => !l.read_at).length
+                  return unread > 0 ? (
+                    <span style={{position:'absolute',top:'-6px',right:'-6px',minWidth:'20px',height:'20px',padding:'0 5px',
+                      boxSizing:'border-box',borderRadius:'10px',background:'#DC2626',color:'#fff',fontSize:'11px',fontWeight:800,
+                      display:'flex',alignItems:'center',justifyContent:'center'}}>{unread}</span>
+                  ) : null
+                })()}
+              </button>
+              <button className="btn btn-primary" style={{height:'44px',padding:'0 16px',borderRadius:'14px',fontSize:'14px',fontWeight:800,
+                display:'flex',alignItems:'center',gap:'6px'}} onClick={()=>{
+                // 게이트는 free/pro/premium 3단계 — 옛 'paid' 키는 없어서 유료가 항상 무제한으로 떨어지던 것 수정
+                const limit = featureGates[tier]?.member_limit ?? 9999
+                if (members.length >= limit) { showToast(HIDE_PURCHASE ? `회원은 최대 ${limit}명까지 등록할 수 있어요.` : `현재 플랜에서는 최대 ${limit}명까지 등록 가능해요. 플랜 업그레이드 후 이용하세요.`); return }
+                setAddForm({name:'',kakao_phone:'',phone:'',birthdate:'',address:'',email:'',special_notes:'',purpose:'체형교정',visit_source:'',visit_source_memo:'',total:'',done:'0',price:'',memo:''});setActivePage('page-add-member')
+              }}><Icon name="plus" size={16} strokeWidth={2.6} />회원 추가</button>
+            </div>
           </div>
 
           {/* ── 웰컴 체크리스트 (콜드스타트 first-run 가이드) ──
@@ -5120,8 +5123,6 @@ export default function TrainerApp() {
               if (r <= 3) return 'expiring'
               return 'active'
             }
-            const STATUS_LABEL = { active:'활성', expiring:'만료예정', expired:'만료' }
-            const STATUS_COLOR = { active:'#4ade80', expiring:'#f97316', expired:'#ef4444' }
             // 필터 + 정렬
             const searchQ = memberSearch.trim().toLowerCase()
             const filtered = [...members].filter(m => {
@@ -5151,168 +5152,107 @@ export default function TrainerApp() {
             return (
               <>
                 {/* 이름 검색 */}
-                <div style={{position:'relative',marginBottom:'8px'}}>
-                  <span style={{position:'absolute',left:'10px',top:'50%',transform:'translateY(-50%)',fontSize:'14px',pointerEvents:'none'}}>🔍</span>
+                <div style={{position:'relative',marginBottom:'10px'}}>
+                  <span style={{position:'absolute',left:'14px',top:'50%',transform:'translateY(-50%)',color:'var(--text-muted)',display:'flex',pointerEvents:'none'}}><Icon name="search" size={18} /></span>
                   <input
                     type="text"
                     value={memberSearch}
                     onChange={e => setMemberSearch(e.target.value)}
-                    placeholder="이름으로 검색"
-                    style={{width:'100%',padding:'8px 10px 8px 32px',borderRadius:'10px',border:'1px solid var(--border)',background:'var(--surface2)',color:'var(--text)',fontSize:'13px',fontFamily:'inherit',boxSizing:'border-box',outline:'none'}}
+                    placeholder="회원 이름 검색"
+                    aria-label="회원 이름 검색"
+                    style={{width:'100%',height:'48px',padding:'0 40px 0 42px',borderRadius:'14px',border:'1px solid #E6E8E0',background:'#fff',color:'var(--text)',fontSize:'15px',fontFamily:'inherit',boxSizing:'border-box',outline:'none'}}
                   />
                   {memberSearch && (
-                    <button
-                      onClick={() => setMemberSearch('')}
-                      style={{position:'absolute',right:'8px',top:'50%',transform:'translateY(-50%)',background:'none',border:'none',color:'var(--text-dim)',fontSize:'16px',cursor:'pointer',padding:'0',lineHeight:1}}
-                    >×</button>
+                    <button aria-label="검색어 지우기" onClick={() => setMemberSearch('')}
+                      style={{position:'absolute',right:'4px',top:'50%',transform:'translateY(-50%)',width:'40px',height:'40px',background:'none',border:'none',color:'var(--text-muted)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                      <Icon name="x" size={16} />
+                    </button>
                   )}
                 </div>
 
-                {/* 상태 필터 */}
-                <div style={{display:'flex',gap:'6px',marginBottom:'6px',flexWrap:'wrap'}}>
+                {/* 상태 필터 — 한 줄 칩 (선택 = 잉크) */}
+                <div style={{display:'flex',gap:'6px',marginBottom:'10px',overflowX:'auto',scrollbarWidth:'none'}}>
                   {['전체','활성','만료','정지'].map(f => (
                     <button key={f} onClick={()=>setMemberFilter(f)}
-                      style={{flex:1,padding:'6px 4px',borderRadius:'8px',border:'1px solid',fontSize:'11px',fontWeight:500,cursor:'pointer',fontFamily:'inherit',transition:'all 0.15s',
-                        background: memberFilter===f ? 'var(--accent)' : 'var(--surface2)',
-                        color: memberFilter===f ? '#0f0f0f' : 'var(--text-muted)',
-                        borderColor: memberFilter===f ? 'var(--accent)' : 'var(--border)'}}>
+                      style={{flexShrink:0,height:'36px',padding:'0 14px',borderRadius:'999px',fontSize:'13px',cursor:'pointer',fontFamily:'inherit',transition:'all 0.15s',
+                        border: memberFilter===f ? 'none' : '1px solid #E6E8E0',
+                        background: memberFilter===f ? '#111827' : '#fff',
+                        color: memberFilter===f ? '#fff' : '#374151',
+                        fontWeight: memberFilter===f ? 700 : 600}}>
                       {f}
                     </button>
                   ))}
-                  {/* 이탈위험 필터 */}
                   {canUse('risk_analysis') && Object.keys(riskMap).length > 0 && (() => {
                     const riskCount = members.filter(m => {
                       const rs = riskMap[m.id]
                       return rs && (rs.riskLevel === 'risk' || rs.riskLevel === 'critical')
                     }).length
+                    const on = memberFilter==='이탈위험'
                     return (
                       <button onClick={()=>setMemberFilter('이탈위험')}
-                        style={{padding:'6px 8px',borderRadius:'8px',border:'1px solid',fontSize:'11px',fontWeight:600,cursor:'pointer',fontFamily:'inherit',transition:'all 0.15s',whiteSpace:'nowrap',
-                          background: memberFilter==='이탈위험' ? '#ef4444' : 'rgba(239,68,68,0.1)',
-                          color: memberFilter==='이탈위험' ? '#fff' : '#ef4444',
-                          borderColor: '#ef444444'}}>
-                        🔴 이탈위험 {riskCount > 0 ? `(${riskCount})` : ''}
+                        style={{flexShrink:0,height:'36px',padding:'0 12px',borderRadius:'999px',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap',
+                          display:'flex',alignItems:'center',gap:'5px',
+                          border: on ? 'none' : '1px solid #FECDD3',
+                          background: on ? '#BE123C' : '#FFF1F2',
+                          color: on ? '#fff' : '#BE123C'}}>
+                        <span style={{width:'7px',height:'7px',borderRadius:'50%',background: on ? '#fff' : '#E11D48'}} />
+                        이탈위험{riskCount > 0 ? ` ${riskCount}` : ''}
                       </button>
                     )
                   })()}
                 </div>
 
-                {/* 이탈위험이란? 버튼 + 설명 패널 */}
+                {/* 이탈위험이란? 설명 */}
                 {memberFilter === '이탈위험' && (
                   <div style={{marginBottom:'10px'}}>
-                    <button
-                      onClick={() => setShowRiskInfo(v => !v)}
-                      style={{
-                        display:'flex', alignItems:'center', gap:'5px',
-                        background:'none', border:'1px solid rgba(239,68,68,0.3)',
-                        borderRadius:'8px', padding:'6px 10px', cursor:'pointer',
-                        fontFamily:'inherit', fontSize:'11px',
-                        color:'#B91C1C', fontWeight:600, transition:'all 0.15s',
-                      }}>
-                      {showRiskInfo ? '▲' : '❓'} 이탈위험이란?
+                    <button onClick={() => setShowRiskInfo(v => !v)}
+                      style={{display:'flex',alignItems:'center',gap:'5px',background:'none',border:'none',padding:'6px 0',cursor:'pointer',fontFamily:'inherit',fontSize:'13px',color:'#BE123C',fontWeight:700}}>
+                      <Icon name="info" size={15} /> 이탈위험이란?
+                      <Icon name={showRiskInfo ? 'chevronUp' : 'chevronDown'} size={14} />
                     </button>
-
                     {showRiskInfo && (
-                      <div style={{
-                        marginTop:'8px', background:'rgba(239,68,68,0.06)',
-                        border:'1px solid rgba(239,68,68,0.2)', borderRadius:'12px',
-                        padding:'14px', fontSize:'12px', lineHeight:1.65,
-                      }}>
-                        {/* 위험 등급 */}
-                        <div style={{fontWeight:700, color:'#B91C1C', marginBottom:'10px', fontSize:'13px'}}>
-                          🔴 이탈위험 판단 기준
-                        </div>
-                        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'6px', marginBottom:'12px'}}>
+                      <div style={{marginTop:'6px',background:'#fff',border:'1px solid #FECDD3',borderRadius:'16px',padding:'14px',fontSize:'13px',lineHeight:1.65}}>
+                        <div style={{fontWeight:800,color:'var(--text)',marginBottom:'10px'}}>이탈위험 판단 기준</div>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'6px',marginBottom:'12px'}}>
                           {[
-                            ['🟢 안전',      '0~29점',  '#22c55e'],
-                            ['🟡 관찰',      '30~49점', '#eab308'],
-                            ['🟠 위험',      '50~74점', '#f97316'],
-                            ['🔴 이탈 임박', '75~100점','#ef4444'],
-                          ].map(([label, range, color]) => (
-                            <div key={label} style={{
-                              background:'var(--surface2)', borderRadius:'8px',
-                              padding:'8px 10px', borderLeft:`3px solid ${color}`,
-                            }}>
-                              <div style={{fontWeight:700, color, fontSize:'11px'}}>{label}</div>
-                              <div style={{color:'var(--text-dim)', fontSize:'10px', marginTop:'2px'}}>{range}</div>
+                            ['안전','0~29점','#ECFCCB','#3F6212'],
+                            ['관찰','30~49점','#FEF3C7','#92400E'],
+                            ['위험','50~74점','#FFEDD5','#9A3412'],
+                            ['이탈 임박','75~100점','#FEE2E2','#991B1B'],
+                          ].map(([label, range, bg, fg]) => (
+                            <div key={label} style={{background:bg,borderRadius:'10px',padding:'8px 10px'}}>
+                              <div style={{fontWeight:800,color:fg,fontSize:'13px'}}>{label}</div>
+                              <div style={{color:fg,fontSize:'12px',marginTop:'1px',opacity:0.85}}>{range}</div>
                             </div>
                           ))}
                         </div>
-
-                        {/* 3가지 신호 */}
-                        <div style={{fontWeight:700, color:'var(--text)', marginBottom:'8px', fontSize:'12px'}}>
-                          📊 3가지 신호로 0~100점 산출
+                        <div style={{fontWeight:700,color:'var(--text)',marginBottom:'6px'}}>3가지 신호로 0~100점 계산</div>
+                        <div style={{color:'var(--text-muted)',fontSize:'12px'}}>
+                          <b style={{color:'var(--text)'}}>출석 (0~40점)</b> — 마지막 출석 7·14·21일 경과, 최근 2주 출석 0회, 출석 빈도 절반 이상 감소<br/>
+                          <b style={{color:'var(--text)'}}>건강기록 (0~30점)</b> — 최근 2주 체중·수면 기록 없음, 기록 빈도 감소, 수면 품질 낮음<br/>
+                          <b style={{color:'var(--text)'}}>수업 평점 (0~30점)</b> — 최근 3회 평점 낮음, 이전보다 평점 급락
                         </div>
-
-                        {/* A. 출석 */}
-                        <div style={{
-                          background:'rgba(96,165,250,0.08)', border:'1px solid rgba(96,165,250,0.2)',
-                          borderRadius:'8px', padding:'10px', marginBottom:'8px',
-                        }}>
-                          <div style={{fontWeight:700, color:'#1D4ED8', marginBottom:'6px'}}>
-                            A. 출석 위험도 <span style={{fontWeight:400, color:'var(--text-dim)'}}>0~40점</span>
-                          </div>
-                          <div style={{color:'var(--text-muted)'}}>
-                            · 마지막 출석 <b style={{color:'var(--text)'}}>7일</b> 경과 → +6점<br/>
-                            · 마지막 출석 <b style={{color:'var(--text)'}}>14일</b> 경과 → +13점<br/>
-                            · 마지막 출석 <b style={{color:'var(--text)'}}>21일</b> 경과 → +20점<br/>
-                            · 최근 2주 출석 0회 (이전 대비) → +20점<br/>
-                            · 출석 빈도 <b style={{color:'var(--text)'}}>50% 이상</b> 감소 → +12점
-                          </div>
-                        </div>
-
-                        {/* B. 건강기록 */}
-                        <div style={{
-                          background:'rgba(74,222,128,0.08)', border:'1px solid rgba(74,222,128,0.2)',
-                          borderRadius:'8px', padding:'10px', marginBottom:'8px',
-                        }}>
-                          <div style={{fontWeight:700, color:'#3F6212', marginBottom:'6px'}}>
-                            B. 건강기록 중단 <span style={{fontWeight:400, color:'var(--text-dim)'}}>0~30점</span>
-                          </div>
-                          <div style={{color:'var(--text-muted)'}}>
-                            · 최근 2주 체중/수면 기록 <b style={{color:'var(--text)'}}>전혀 없음</b> → +20점<br/>
-                            · 기록 빈도 50% 이상 감소 → +10점<br/>
-                            · 수면 품질 <b style={{color:'var(--text)'}}>2점 이하</b> (10점 만점) → +10점<br/>
-                            · 수면 품질 2점 이상 하락 → +6점
-                          </div>
-                        </div>
-
-                        {/* C. 수업 평점 */}
-                        <div style={{
-                          background:'rgba(250,204,21,0.08)', border:'1px solid rgba(250,204,21,0.2)',
-                          borderRadius:'8px', padding:'10px', marginBottom:'10px',
-                        }}>
-                          <div style={{fontWeight:700, color:'#92400E', marginBottom:'6px'}}>
-                            C. 수업 평점 저하 <span style={{fontWeight:400, color:'var(--text-dim)'}}>0~30점</span>
-                          </div>
-                          <div style={{color:'var(--text-muted)'}}>
-                            · 최근 3회 평점 <b style={{color:'var(--text)'}}>2점 이하</b> (5점 만점) → +20점<br/>
-                            · 최근 3회 평점 <b style={{color:'var(--text)'}}>3점 이하</b> → +10점<br/>
-                            · 이전 대비 평점 <b style={{color:'var(--text)'}}>1.5점 이상</b> 급락 → +10점<br/>
-                            · 1.0점 이상 하락 → +5점
-                          </div>
-                        </div>
-
-                        <div style={{fontSize:'10px', color:'var(--text-dim)', lineHeight:1.6}}>
-                          💡 <b>위험(50점 이상)</b> · <b>이탈임박(75점 이상)</b> 회원이 필터에 표시됩니다.<br/>
-                          💡 점수는 출석·건강기록·수업일지 데이터를 기반으로 자동 계산됩니다.
-                        </div>
+                        <div style={{fontSize:'12px',color:'var(--text-muted)',marginTop:'8px'}}>위험(50점 이상)·이탈 임박(75점 이상) 회원이 필터에 표시돼요.</div>
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* 정렬 */}
-                <div style={{display:'flex',gap:'6px',marginBottom:'12px'}}>
-                  {[['created','등록일자순'],['name','이름순'],['expire','만료예정순'],['risk','위험도순']].map(([key,label])=>(
-                    <button key={key} onClick={()=>setMemberSort(key)}
-                      style={{flex:1,padding:'6px 4px',borderRadius:'8px',border:'1px solid',fontSize:'11px',fontWeight:500,cursor:'pointer',fontFamily:'inherit',transition:'all 0.15s',
-                        background: memberSort===key ? 'var(--surface2)' : 'transparent',
-                        color: memberSort===key ? 'var(--text)' : 'var(--text-dim)',
-                        borderColor: memberSort===key ? 'var(--border)' : 'transparent'}}>
-                      {label}
-                    </button>
-                  ))}
+                {/* 정렬 — 드롭다운 하나 */}
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
+                  <span style={{fontSize:'12px',color:'var(--text-muted)'}}>
+                    {memberSort === 'created' ? '이탈위험 회원을 맨 위에 보여줘요' : filtered.length + '명'}
+                  </span>
+                  <label style={{position:'relative',display:'flex',alignItems:'center',margin:0,fontSize:'13px',fontWeight:700,color:'#374151'}}>
+                    <select value={memberSort} onChange={e=>setMemberSort(e.target.value)} aria-label="정렬"
+                      style={{appearance:'none',WebkitAppearance:'none',border:'none',background:'transparent',width:'auto',padding:'6px 22px 6px 8px',fontSize:'13px',fontWeight:700,color:'#374151',fontFamily:'inherit',cursor:'pointer',boxShadow:'none'}}>
+                      <option value="created">등록일순</option>
+                      <option value="name">이름순</option>
+                      <option value="expire">만료예정순</option>
+                      <option value="risk">위험도순</option>
+                    </select>
+                    <span style={{position:'absolute',right:0,pointerEvents:'none',display:'flex'}}><Icon name="chevronDown" size={16} /></span>
+                  </label>
                 </div>
                 {!filtered.length && (
                   <div className="empty">
@@ -5325,106 +5265,54 @@ export default function TrainerApp() {
                   const pct        = m.total_sessions > 0 ? Math.round((m.done_sessions / m.total_sessions) * 100) : 0
                   const low        = remain <= 3
                   const riskResult = riskMap[m.id]
+                  const showRisk   = riskResult && riskResult.riskLevel !== 'safe'
                   const riskLv     = riskResult ? getRiskLevel(riskResult.riskScore) : null
-                  // 좌측 컬러바 색상: critical→빨강, risk→주황, watch→노랑, safe/없음→투명
-                  const barColor   = riskLv && riskResult.riskLevel !== 'safe' ? riskLv.color : 'transparent'
                   const isAttendedToday = todayAttendSet.has(m.id)
+                  const ST = { active:['활성','#ECFCCB','#3F6212'], expiring:['만료예정','#FEF3C7','#92400E'], expired:['만료','#FEE2E2','#991B1B'] }[status]
                   return (
-                    <div
-                      key={m.id}
-                      onClick={() => openRecord(m.id)}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        background: 'var(--surface)',
-                        border: '1px solid var(--border)',
-                        borderLeft: `3.5px solid ${barColor}`,
-                        borderRadius: '12px',
-                        padding: '13px 14px 10px',
-                        marginBottom: '8px',
-                        cursor: 'pointer',
-                        transition: 'border-color 0.15s, box-shadow 0.15s',
-                        boxShadow: riskResult?.riskLevel === 'critical' ? `0 0 0 1px ${riskLv.color}28` : 'none',
-                      }}
-                    >
-                      {/* 상단: 아바타 + 이름 + 뱃지 | 잔여 세션 */}
-                      <div style={{display:'flex',alignItems:'center',gap:'11px'}}>
-                        {/* 아바타 */}
-                        <div style={{
-                          width:'40px',height:'40px',borderRadius:'50%',flexShrink:0,
-                          background:'var(--accent)',color:'#0f0f0f',
-                          display:'flex',alignItems:'center',justifyContent:'center',
-                          fontWeight:800,fontSize:'15px',
-                        }}>
+                    <div key={m.id} onClick={() => openRecord(m.id)}
+                      style={{background:'#fff',borderRadius:'20px',padding:'16px',marginBottom:'10px',cursor:'pointer',
+                        boxShadow:'0 1px 2px rgba(17,24,39,0.04), 0 6px 20px rgba(17,24,39,0.04)',display:'flex',flexDirection:'column',gap:'12px'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
+                        <div style={{width:'44px',height:'44px',borderRadius:'50%',flexShrink:0,background:'#F2F3EF',color:'#111827',
+                          display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:'16px'}}>
                           {m.name[0]}
                         </div>
-                        {/* 이름 + 뱃지 */}
                         <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:'15px',fontWeight:700,color:'var(--text)',lineHeight:1.2,marginBottom:'4px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-                            {m.name}
-                          </div>
-                          <div style={{display:'flex',alignItems:'center',gap:'4px',flexWrap:'wrap'}}>
-                            <span style={{fontSize:'10px',fontWeight:600,padding:'1px 7px',borderRadius:'4px',background:STATUS_COLOR[status]+'22',color:STATUS_COLOR[status],border:`1px solid ${STATUS_COLOR[status]}44`,flexShrink:0}}>
-                              {STATUS_LABEL[status]}
-                            </span>
-                            {riskLv && riskResult.riskLevel !== 'safe' && (
-                              <span style={{fontSize:'10px',fontWeight:700,padding:'1px 6px',borderRadius:'4px',background:riskLv.bg,color:riskLv.color,border:`1px solid ${riskLv.color}44`,flexShrink:0}}>
-                                {riskLv.emoji} {riskLv.label}
-                              </span>
+                          <div style={{fontSize:'16px',fontWeight:800,letterSpacing:'-0.3px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{m.name}</div>
+                          <div style={{display:'flex',gap:'6px',marginTop:'4px',flexWrap:'wrap'}}>
+                            <span style={{padding:'2px 8px',borderRadius:'999px',background:ST[1],color:ST[2],fontSize:'12px',fontWeight:700}}>{ST[0]}</span>
+                            {showRisk && riskLv && (
+                              <span style={{padding:'2px 8px',borderRadius:'999px',background:'#FFF1F2',color:'#BE123C',fontSize:'12px',fontWeight:700}}>{riskLv.label}</span>
                             )}
                           </div>
                         </div>
-                        {/* 잔여 세션 수 */}
                         <div style={{textAlign:'right',flexShrink:0}}>
-                          <div style={{fontSize:'22px',fontWeight:800,lineHeight:1,color: low ? '#ef4444' : 'var(--text)'}}>
-                            {remain}
-                          </div>
-                          <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'2px'}}>
-                            / {m.total_sessions}회
-                          </div>
+                          <div style={{fontSize:'26px',fontWeight:900,lineHeight:1,letterSpacing:'-0.5px',fontVariantNumeric:'tabular-nums',color: low ? '#DC2626' : 'var(--text)'}}>{remain}</div>
+                          <div style={{fontSize:'12px',color:'var(--text-muted)',marginTop:'4px'}}>/ {m.total_sessions}회</div>
                         </div>
                       </div>
-
-                      {/* 세션 프로그레스 바 */}
-                      <div className="session-bar-bg" style={{marginTop:'10px',marginBottom:'0'}}>
-                        <div className={`session-bar-fill${low?' low':''}`} style={{width:pct+'%'}} />
+                      <div style={{height:'6px',borderRadius:'3px',background:'#EEF0EA',overflow:'hidden'}}>
+                        <div style={{height:'100%',width:pct+'%',borderRadius:'3px',background: low ? '#DC2626' : '#84CC16'}} />
                       </div>
-
-                      {/* 하단: 퀵 액션 */}
-                      <div style={{display:'flex',justifyContent:'flex-end',alignItems:'center',gap:'6px',marginTop:'10px'}}>
-                        <button
-                          onClick={e => quickToggleToday(e, m.id)}
-                          style={{
-                            display:'flex',alignItems:'center',gap:'4px',
-                            padding:'5px 10px',borderRadius:'8px',border:'1px solid',
-                            fontSize:'11px',fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                            background: isAttendedToday ? 'rgba(74,222,128,0.12)' : 'var(--surface2)',
-                            color:      isAttendedToday ? '#4ade80'               : 'var(--text-muted)',
-                            borderColor:isAttendedToday ? 'rgba(74,222,128,0.4)'  : 'var(--border)',
-                            transition:'all 0.15s',
-                          }}
-                        >
-                          📅 {isAttendedToday ? '출석완료' : '출석'}
+                      <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(0,1fr) 44px',gap:'8px'}}>
+                        <button onClick={e => quickToggleToday(e, m.id)}
+                          style={{height:'44px',borderRadius:'12px',fontSize:'14px',fontWeight:isAttendedToday?800:700,cursor:'pointer',fontFamily:'inherit',
+                            display:'flex',alignItems:'center',justifyContent:'center',gap:'6px',
+                            border: isAttendedToday ? 'none' : '1px solid #E6E8E0',
+                            background: isAttendedToday ? '#ECFCCB' : '#fff',
+                            color: isAttendedToday ? '#3F6212' : 'var(--text)'}}>
+                          <Icon name={isAttendedToday ? 'check' : 'calendarCheck'} size={17} strokeWidth={isAttendedToday ? 2.6 : 2} />
+                          {isAttendedToday ? '출석 완료' : '출석 체크'}
                         </button>
-                        <button
-                          onClick={e => { e.stopPropagation(); openRecord(m.id) }}
-                          style={{
-                            display:'flex',alignItems:'center',gap:'4px',
-                            padding:'5px 10px',borderRadius:'8px',
-                            border:'1px solid rgba(59,130,246,0.35)',
-                            background:'rgba(59,130,246,0.10)',
-                            color:'#1D4ED8',
-                            fontSize:'11px',fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                          }}
-                        >
-                          📝 일지
+                        <button onClick={e => { e.stopPropagation(); openRecord(m.id) }}
+                          style={{height:'44px',borderRadius:'12px',border:'none',background:'#111827',color:'#fff',fontSize:'14px',fontWeight:700,cursor:'pointer',fontFamily:'inherit',
+                            display:'flex',alignItems:'center',justifyContent:'center',gap:'6px'}}>
+                          <Icon name="file" size={17} color="#C8F135" />일지 쓰기
                         </button>
-                        <button
-                          className="btn btn-ghost btn-sm"
-                          style={{padding:'5px 8px',fontSize:'13px'}}
-                          onClick={e => { e.stopPropagation(); openEditMember(m) }}
-                        >
-                          ✏️
+                        <button aria-label="회원 정보 수정" onClick={e => { e.stopPropagation(); openEditMember(m) }}
+                          style={{height:'44px',borderRadius:'12px',border:'1px solid #E6E8E0',background:'#fff',cursor:'pointer',color:'#374151',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                          <Icon name="pencil" size={17} />
                         </button>
                       </div>
                     </div>
@@ -6275,25 +6163,27 @@ export default function TrainerApp() {
       {/* RECORD */}
       {activePage === 'page-record' && currentMember && (
         <div className="page-t">
-<div className="record-header">
-            <button className="back-btn" onClick={()=>{setActivePage('page-members');setTab('members')}}>←</button>
-            <div style={{width:'40px',height:'40px',borderRadius:'50%',background:'var(--accent)',color:'#1a2e05',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:'17px',flexShrink:0}}>
+          <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'14px'}}>
+            <button aria-label="회원 목록으로" onClick={()=>{setActivePage('page-members');setTab('members')}}
+              style={{width:'44px',height:'44px',marginLeft:'-12px',border:'none',background:'none',cursor:'pointer',color:'var(--text)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+              <Icon name="chevronLeft" size={22} strokeWidth={2.2} />
+            </button>
+            <div style={{width:'44px',height:'44px',borderRadius:'50%',background:'#F2F3EF',color:'#111827',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:'16px',flexShrink:0}}>
               {currentMember.name?.[0] || '회'}
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:'16px',fontWeight:800,letterSpacing:'-0.3px'}}>{currentMember.name}</div>
-              <div style={{display:'flex',gap:'5px',marginTop:'4px',flexWrap:'wrap'}}>
-                {currentMember.lesson_purpose && <span className="mchip">{currentMember.lesson_purpose}</span>}
-                {currentMember.phone && <span className="mchip">{currentMember.phone}</span>}
+              <div style={{fontSize:'18px',fontWeight:800,letterSpacing:'-0.4px'}}>{currentMember.name}</div>
+              <div style={{fontSize:'13px',color:'var(--text-muted)',marginTop:'1px'}}>
+                {[currentMember.lesson_purpose, currentMember.phone ? `뒷자리 ${currentMember.phone}` : null].filter(Boolean).join(' · ')}
               </div>
             </div>
             {/* members.suspended 컬럼 부재 — 정지 등록 진입점만 유지 */}
-            <button className="btn btn-sm" style={{fontSize:'12px',whiteSpace:'nowrap',background:'var(--surface2)',border:'1px solid var(--border)',color:'var(--text-muted)',flexShrink:0}}
+            <button style={{height:'36px',padding:'0 14px',borderRadius:'10px',border:'1px solid #E6E8E0',background:'#fff',fontSize:'13px',fontWeight:700,color:'#374151',cursor:'pointer',fontFamily:'inherit',flexShrink:0}}
               onClick={()=>{setHoldForm({startDate:'',endDate:'',productId:'',reason:'',photoFile:null,photoPreview:''});loadHolds(currentMemberId);setHoldModal(true)}}>
               정지
             </button>
           </div>
-          {/* 한눈 요약 — 상세 열자마자 회원 상태 파악 (남은 세션 · 진행률 · 마지막 수업) */}
+          {/* 한눈 요약 — 잉크 카드 (남은 세션 라임 · 진행률 · 마지막 수업) */}
           {(() => {
             const total = currentMember.total_sessions || 0
             const done = currentMember.done_sessions || 0
@@ -6307,10 +6197,26 @@ export default function TrainerApp() {
               lastTxt = days <= 0 ? '오늘' : days + '일 전'
             }
             return (
-              <div className="msum">
-                <div className="mt"><div className={'mv' + (remain <= 3 ? ' warn' : ' g')}>{remain}</div><div className="ml">남은 세션</div></div>
-                <div className="mt"><div className="mv">{pct}%</div><div className="ml">진행률</div></div>
-                <div className="mt"><div className="mv" style={{fontSize:'15px'}}>{lastTxt}</div><div className="ml">마지막 수업</div></div>
+              <div style={{background:'#111827',borderRadius:'20px',padding:'16px',color:'#fff',marginBottom:'14px'}}>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(3, minmax(0, 1fr))'}}>
+                  <div>
+                    <div style={{fontSize:'12px',color:'#9CA3AF'}}>남은 세션</div>
+                    <div style={{fontSize:'26px',fontWeight:900,letterSpacing:'-0.5px',fontVariantNumeric:'tabular-nums',marginTop:'2px',color: remain <= 3 ? '#FCA5A5' : '#C8F135'}}>
+                      {remain}<span style={{fontSize:'13px',fontWeight:600,color:'#9CA3AF'}}> / {total}회</span>
+                    </div>
+                  </div>
+                  <div style={{paddingLeft:'14px',borderLeft:'1px solid #1F2937'}}>
+                    <div style={{fontSize:'12px',color:'#9CA3AF'}}>진행률</div>
+                    <div style={{fontSize:'26px',fontWeight:900,letterSpacing:'-0.5px',fontVariantNumeric:'tabular-nums',marginTop:'2px'}}>{pct}%</div>
+                  </div>
+                  <div style={{paddingLeft:'14px',borderLeft:'1px solid #1F2937'}}>
+                    <div style={{fontSize:'12px',color:'#9CA3AF'}}>마지막 수업</div>
+                    <div style={{fontSize:'20px',fontWeight:800,marginTop:'6px'}}>{lastTxt}</div>
+                  </div>
+                </div>
+                <div style={{height:'6px',borderRadius:'3px',background:'#374151',marginTop:'14px',overflow:'hidden'}}>
+                  <div style={{height:'100%',width:pct+'%',borderRadius:'3px',background:'#C8F135'}} />
+                </div>
               </div>
             )
           })()}
@@ -6621,66 +6527,53 @@ export default function TrainerApp() {
           {/* write 탭 — rtab가 null/undefined/알 수 없는 값이면 여기가 fallback */}
           {(rtab === 'write' || !['write','attendance','health','holds','personal','diet','insight'].includes(rtab ?? '')) && (
             <div>
-              <div className="section-label">1단계 — 수업 브리핑 입력</div>
-              <div className="card">
+              {/* 단계 표시 — 1 브리핑 → 2 AI 생성 → 3 전송 */}
+              {(() => {
+                const step = showSend ? 3 : (showPreview || generating) ? 2 : 1
+                const items = [[1,'브리핑'],[2,'AI 생성'],[3,'전송']]
+                return (
+                  <div style={{display:'flex',alignItems:'center',gap:'8px',padding:'2px 2px 0',marginBottom:'14px'}}>
+                    {items.map(([n,label], i) => (
+                      <div key={n} style={{display:'contents'}}>
+                        {i > 0 && <span style={{flex:1,height:'2px',background: step > i ? '#84CC16' : '#E1E4D9'}} />}
+                        <span style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'13px',flexShrink:0,
+                          fontWeight: step === n ? 800 : 700, color: step > n ? '#4D7C0F' : step === n ? 'var(--text)' : 'var(--text-muted)'}}>
+                          <span style={{width:'22px',height:'22px',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'12px',fontWeight:800,
+                            background: step > n ? '#ECFCCB' : step === n ? '#111827' : '#E9EBE4',
+                            color: step > n ? '#3F6212' : step === n ? '#fff' : 'var(--text-muted)'}}>
+                            {step > n ? <Icon name="check" size={12} strokeWidth={3.2} /> : n}
+                          </span>
+                          {label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+              <div className="card write-card">
 
-                {/* ── AI 음성 마이크 버튼 (Web Speech API) ── */}
+                {/* ── AI 음성 마이크 버튼 (Web Speech API) — 잉크 버튼, 듣는 중엔 빨강 ── */}
                 {speechSupported && (
                   <button
                     onClick={toggleSpeech}
                     style={{
-                      width: '100%',
-                      marginBottom: '14px',
-                      padding: '15px 16px',
-                      borderRadius: '12px',
-                      border: isListening
-                        ? '1.5px solid rgba(239,68,68,0.55)'
-                        : '1.5px solid rgba(132,204,22,0.5)',
-                      background: isListening
-                        ? 'rgba(239,68,68,0.10)'
-                        : 'rgba(200,241,53,0.14)',
-                      color: isListening ? '#f87171' : 'var(--accent-text)',
-                      fontSize: '14px',
-                      fontWeight: 700,
-                      fontFamily: 'inherit',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '10px',
-                      transition: 'all 0.2s',
-                      minHeight: '52px',
+                      width:'100%', marginBottom:'10px', minHeight:'60px', padding:'0 14px', borderRadius:'16px',
+                      border:'none', background: isListening ? '#B91C1C' : '#111827', color:'#fff',
+                      fontFamily:'inherit', cursor:'pointer', display:'flex', alignItems:'center', gap:'12px', textAlign:'left',
+                      transition:'background 0.2s',
                     }}
                   >
-                    <svg viewBox="0 0 24 24" style={{
-                      width: '19px', height: '19px', flexShrink: 0,
-                      stroke: 'currentColor', fill: 'none', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round',
-                      animation: isListening ? 'pulse 1s ease-in-out infinite' : 'none',
-                    }}>
-                      <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3" />
-                    </svg>
-                    <span>
-                      {isListening ? 'AI가 듣고 있어요 — 탭하면 중지' : 'AI 음성으로 일지 쓰기'}
+                    <span style={{width:'36px',height:'36px',borderRadius:'50%',background: isListening ? '#fff' : '#C8F135',
+                      display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,
+                      animation: isListening ? 'pulse 1s ease-in-out infinite' : 'none'}}>
+                      <Icon name="mic" size={18} color={isListening ? '#B91C1C' : '#111827'} strokeWidth={2.2} />
                     </span>
-                    {isListening && (
-                      <span style={{
-                        display: 'inline-flex',
-                        gap: '3px',
-                        alignItems: 'center',
-                        marginLeft: '2px',
-                      }}>
-                        {[0, 0.2, 0.4].map((delay, i) => (
-                          <span key={i} style={{
-                            width: '4px',
-                            height: '4px',
-                            borderRadius: '50%',
-                            background: '#f87171',
-                            animation: `pulse 1s ease-in-out ${delay}s infinite`,
-                            display: 'inline-block',
-                          }} />
-                        ))}
+                    <span style={{flex:1}}>
+                      <span style={{display:'block',fontSize:'15px',fontWeight:800}}>{isListening ? 'AI가 듣고 있어요' : '말로 일지 쓰기'}</span>
+                      <span style={{display:'block',fontSize:'12px',color: isListening ? '#FECACA' : '#9CA3AF',marginTop:'1px'}}>
+                        {isListening ? '탭하면 멈춰요' : '탭하고 1분만 말하면 받아 적어요'}
                       </span>
-                    )}
+                    </span>
                   </button>
                 )}
 
@@ -6689,32 +6582,17 @@ export default function TrainerApp() {
                   onClick={() => !mediaProcessing && mediaFiles.length < 5 && mediaInputRef.current?.click()}
                   disabled={mediaProcessing || mediaFiles.length >= 5}
                   style={{
-                    width: '100%',
-                    marginBottom: '10px',
-                    padding: '11px 16px',
-                    borderRadius: '12px',
-                    border: '1.5px dashed var(--border)',
-                    background: 'transparent',
-                    color: mediaFiles.length >= 5 ? 'var(--text-dim)' : 'var(--text-muted)',
-                    fontSize: '13px',
-                    fontWeight: 500,
-                    fontFamily: 'inherit',
+                    width:'100%', marginBottom:'14px', minHeight:'48px', padding:'0 14px', borderRadius:'14px',
+                    border:'1.5px dashed #D6D9CF', background:'#fff', color:'#374151',
+                    fontSize:'14px', fontWeight:700, fontFamily:'inherit',
                     cursor: mediaProcessing || mediaFiles.length >= 5 ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    opacity: mediaFiles.length >= 5 ? 0.45 : 1,
-                    transition: 'all 0.2s',
+                    display:'flex', alignItems:'center', gap:'8px', opacity: mediaFiles.length >= 5 ? 0.5 : 1,
                   }}
                 >
-                  <svg viewBox="0 0 24 24" style={{width:'15px',height:'15px',flexShrink:0,stroke:'currentColor',fill:'none',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'}}>
-                    <rect x="3" y="4" width="18" height="14" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="M21 15l-5-5L5 18"/>
-                  </svg>
-                  <span>
-                    {mediaFiles.length >= 5
-                      ? '미디어 최대 5개 첨부됨'
-                      : `사진·영상 첨부 (JPG · PNG · MP4 · MOV 등, 최대 5개)${mediaFiles.length ? ` · ${mediaFiles.length}개 선택됨` : ''}`}
+                  <Icon name="image" size={18} />
+                  <span style={{flex:1,textAlign:'left'}}>{mediaFiles.length >= 5 ? '사진 · 영상 5개 첨부됨' : '사진 · 영상 첨부'}</span>
+                  <span style={{fontSize:'12px',fontWeight:500,color:'var(--text-muted)'}}>
+                    {mediaFiles.length ? `${mediaFiles.length} / 5` : '최대 5개'}
                   </span>
                 </button>
                 <input
@@ -6747,13 +6625,13 @@ export default function TrainerApp() {
 
                 {/* 모바일 STT 최적화 메인 텍스트 입력 */}
                 <div style={{marginBottom:'6px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                  <span style={{fontSize:'12px',fontWeight:600,color:'var(--text-muted)'}}>수업 내용 브리핑</span>
+                  <span style={{fontSize:'14px',fontWeight:800,color:'var(--text)'}}>수업 내용</span>
                   {rawInput.trim() && (
                     <button
                       onClick={() => setRawInput('')}
-                      style={{background:'none',border:'none',color:'var(--text-dim)',cursor:'pointer',fontSize:'12px',padding:'2px 6px',borderRadius:'4px'}}
+                      style={{background:'none',border:'none',color:'var(--text-muted)',cursor:'pointer',fontSize:'13px',padding:'4px 6px',borderRadius:'6px',fontFamily:'inherit'}}
                     >
-                      지우기 ×
+                      지우기
                     </button>
                   )}
                 </div>
@@ -6761,19 +6639,19 @@ export default function TrainerApp() {
                   value={rawInput}
                   onChange={e => setRawInput(e.target.value)}
                   placeholder={speechSupported
-                    ? '위 버튼을 눌러서 음성인식을 사용하면, 분석후 텍스트로 변환됩니다!\n수기로 직접 입력하셔도 됩니다!'
-                    : '이 브라우저는 음성인식이 지원되지 않아요.\n수기로 직접 입력하시거나, 스마트폰 자판의 마이크 버튼을 사용해주세요.'}
+                    ? '위 버튼으로 말하거나, 여기에 직접 적어주세요'
+                    : '여기에 직접 적어주세요. 스마트폰 자판의 마이크 버튼으로 말해도 돼요'}
                   style={{
                     width:'100%',
-                    minHeight:'160px',
+                    minHeight:'150px',
                     padding:'14px',
-                    borderRadius:'10px',
+                    borderRadius:'16px',
                     border: isListening
                       ? '1.5px solid rgba(239,68,68,0.4)'
-                      : '1.5px solid var(--border)',
-                    background:'var(--surface2)',
+                      : '1.5px solid #E1E4D9',
+                    background:'#fff',
                     color:'var(--text)',
-                    fontSize:'14px',
+                    fontSize:'15px',
                     lineHeight:'1.65',
                     fontFamily:'inherit',
                     resize:'vertical',
@@ -6782,8 +6660,8 @@ export default function TrainerApp() {
                     transition: 'border-color 0.2s',
                   }}
                 />
-                <div style={{fontSize:'11px',color:'var(--text-dim)',marginBottom: mediaFiles.length ? '10px' : '16px',paddingLeft:'2px'}}>
-                  수업 후 1분간 핵심만 간단히 말하거나 입력하세요. AI가 전문 일지로 변환해 드려요.
+                <div style={{fontSize:'12px',color:'var(--text-muted)',lineHeight:1.5,marginBottom: mediaFiles.length ? '10px' : '18px',paddingLeft:'2px'}}>
+                  수업 후 핵심만 말하거나 적어주세요. AI가 전문 일지로 바꿔드려요.
                 </div>
 
                 {/* 썸네일 프리뷰 — 가로 스크롤 */}
@@ -6850,21 +6728,16 @@ export default function TrainerApp() {
                   </div>
                 )}
 
-                {/* ── AI 해석 관점 — 칩 버튼 ── */}
-                <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'12px',marginTop:'6px'}}>
-                  <div style={{flex:1,height:'1px',background:'var(--border)'}}></div>
-                  <span style={{fontSize:'11px',color:'var(--text-dim)'}}>AI 해석 관점</span>
-                  <div style={{flex:1,height:'1px',background:'var(--border)'}}></div>
-                </div>
-                {/* 칩 버튼 6개 — 색은 라임 하나로 통일(선택된 것만 강조), 이모지 제거 */}
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'10px'}}>
+                {/* ── AI 해석 관점 — 선택된 칩 잉크 ── */}
+                <div style={{fontSize:'14px',fontWeight:800,marginBottom:'10px'}}>AI 해석 관점</div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'14px'}}>
                   {[
-                    { value:'rehab',       label:'재활·부상 케어',  paid:false },
-                    { value:'motivation',  label:'동기부여·심리',   paid:false },
-                    { value:'performance', label:'퍼포먼스·기술',   paid:true  },
-                    { value:'diet',        label:'다이어트·체성분', paid:true  },
-                    { value:'ak',          label:'AK·응용근신경학', paid:true  },
-                    { value:'complex',     label:'복잡계',          paid:true  },
+                    { value:'rehab',       label:'재활 · 부상 케어',  paid:false },
+                    { value:'motivation',  label:'동기부여 · 심리',   paid:false },
+                    { value:'performance', label:'퍼포먼스 · 기술',   paid:true  },
+                    { value:'diet',        label:'다이어트 · 체성분', paid:true  },
+                    { value:'ak',          label:'AK · 응용근신경학', paid:true  },
+                    { value:'complex',     label:'복잡계',            paid:true  },
                   ].map(chip => {
                     const isActive = (perspectiveChip || 'rehab') === chip.value
                     // iOS 앱에선 유료 표시(자물쇠)만 제거, 칩 6개는 그대로 노출 (3.1.1)
@@ -6874,46 +6747,37 @@ export default function TrainerApp() {
                         key={chip.value}
                         onClick={() => setPerspectiveChip(chip.value)}
                         style={{
-                          display:'flex',
-                          alignItems:'center',
-                          justifyContent:'center',
-                          gap:'4px',
-                          padding:'10px 8px',
-                          borderRadius:'10px',
-                          border: isActive ? '1.5px solid rgba(132,204,22,0.5)' : '1.5px solid var(--border)',
-                          background: isActive ? 'rgba(200,241,53,0.14)' : 'transparent',
-                          color: isActive ? 'var(--accent-text)' : 'var(--text-muted)',
-                          fontSize:'12px',
-                          fontWeight: isActive ? 700 : 500,
-                          cursor:'pointer',
-                          transition:'all 0.15s',
-                          lineHeight:1.3,
-                          textAlign:'center',
-                          minHeight:'44px',
+                          display:'flex', alignItems:'center', justifyContent:'center', gap:'6px',
+                          minHeight:'48px', padding:'0 8px', borderRadius:'14px', fontFamily:'inherit',
+                          border: isActive ? 'none' : '1px solid #E6E8E0',
+                          background: isActive ? '#111827' : '#fff',
+                          color: isActive ? '#fff' : '#374151',
+                          fontSize:'14px', fontWeight: isActive ? 700 : 600,
+                          cursor:'pointer', transition:'all 0.15s', lineHeight:1.3, textAlign:'center',
                         }}
                       >
+                        {isActive && <Icon name="check" size={14} color="#C8F135" strokeWidth={3} />}
                         <span>{chip.label}</span>
-                        {showLock && (
-                          <svg viewBox="0 0 24 24" style={{width:'12px',height:'12px',stroke:'currentColor',fill:'none',strokeWidth:2,flexShrink:0,opacity:0.65}}>
-                            <rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>
-                          </svg>
-                        )}
+                        {showLock && <Icon name="lock" size={12} style={{opacity:0.6}} />}
                       </button>
                     )
                   })}
                 </div>
                 {/* 추가 지시사항 오버라이드 */}
                 <div style={{marginBottom:'16px'}}>
+                  <label style={{fontSize:'13px',fontWeight:700,color:'#374151',marginBottom:'6px'}}>
+                    추가 요청 <span style={{fontWeight:500,color:'var(--text-muted)'}}>(선택)</span>
+                  </label>
                   <textarea
                     value={extraInstruction || ''}
                     onChange={e => setExtraInstruction(e.target.value)}
-                    placeholder="추가 지시사항 (선택) — 예: 왼쪽 무릎 통증 언급해줘"
+                    placeholder="예: 왼쪽 무릎 통증도 언급해줘"
                     rows={2}
-                    style={{resize:'none',fontSize:'12px',color:'var(--text-muted)'}}
+                    style={{resize:'none',fontSize:'14px',borderRadius:'14px'}}
                   />
                 </div>
 
-                <div className="section-label" style={{marginTop:'4px'}}>운동 종목 기록 (선택)</div>
+                <div style={{display:'flex',alignItems:'baseline',gap:'6px',margin:'4px 0 10px'}}><span style={{fontSize:'14px',fontWeight:800}}>운동 종목 기록</span><span style={{fontSize:'13px',color:'var(--text-muted)'}}>선택</span></div>
                 {exercises.map(ex => (
                   <div key={ex.id} className="ex-block">
                     <div className="ex-block-header">
@@ -6937,7 +6801,7 @@ export default function TrainerApp() {
                     </div>
                   </div>
                 ))}
-                <button className="btn btn-ghost" style={{width:'100%',padding:'10px',marginBottom:'8px'}} onClick={openAddExercise}>+ 운동 종목 추가</button>
+                <button className="btn btn-ghost" style={{width:'100%',minHeight:'46px',marginBottom:'8px',borderRadius:'14px',color:'var(--text)',fontSize:'14px',display:'flex',alignItems:'center',justifyContent:'center',gap:'6px'}} onClick={openAddExercise}><Icon name="plus" size={15} strokeWidth={2.6} />운동 종목 추가</button>
                 {/* RIR 가이드 — 아코디언 */}
                 <button
                   onClick={() => setShowRirGuide(v => !v)}
@@ -6949,13 +6813,15 @@ export default function TrainerApp() {
                     border:'none',
                     padding:'6px 0',
                     cursor:'pointer',
-                    color:'var(--text-dim)',
-                    fontSize:'11px',
+                    color:'#4D7C0F',
+                    fontSize:'13px',
+                    fontWeight:700,
+                    fontFamily:'inherit',
                     marginBottom: showRirGuide ? '8px' : '0',
                   }}
                 >
-                  <span>ℹ️ RIR 입력 가이드 보기</span>
-                  <span style={{fontSize:'10px',transition:'transform 0.2s',display:'inline-block',transform: showRirGuide ? 'rotate(180deg)' : 'rotate(0deg)'}}>▼</span>
+                  <span>RIR 입력 가이드 보기</span>
+                  <Icon name={showRirGuide ? 'chevronUp' : 'chevronDown'} size={14} />
                 </button>
                 {showRirGuide && (
                   <div className="rir-guide">
@@ -6965,7 +6831,6 @@ export default function TrainerApp() {
                   </div>
                 )}
               </div>
-              <div className="section-label">2단계 — AI 수업일지 생성</div>
               {generating && (
                 <div style={{
                   display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
@@ -6986,48 +6851,48 @@ export default function TrainerApp() {
                 </div>
               )}
               {showPreview && (
-                <div>
-                  <div className="preview-card">{previewContent}</div>
-                  <div className="form-group"><label>수정이 필요하면 직접 편집하세요</label><textarea value={finalContent} onChange={e=>setFinalContent(e.target.value)} rows={12} style={{fontSize:'13px',lineHeight:'1.8'}}></textarea></div>
+                <div className="preview-card" style={{whiteSpace:'normal'}}>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
+                    <span style={{fontSize:'15px',fontWeight:800}}>AI가 만든 수업일지</span>
+                    {editingLog && <span style={{padding:'3px 9px',borderRadius:'999px',background:'#FEF3C7',color:'#92400E',fontSize:'12px',fontWeight:700}}>수정 중</span>}
+                  </div>
+                  {editingLog
+                    ? <textarea value={finalContent} onChange={e=>setFinalContent(e.target.value)} rows={14} aria-label="수업일지 직접 수정"
+                        style={{fontSize:'15px',lineHeight:'1.75',borderRadius:'14px',marginBottom:'12px'}} />
+                    : <div style={{whiteSpace:'pre-wrap',fontSize:'15px',lineHeight:1.75,color:'#1F2937',marginBottom:'12px'}}>{finalContent || previewContent}</div>}
+                  <button onClick={()=>setEditingLog(v=>!v)}
+                    style={{width:'100%',minHeight:'44px',borderRadius:'12px',border:'1px solid #E6E8E0',background:'#fff',fontSize:'14px',fontWeight:700,color:'var(--text)',cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:'6px'}}>
+                    <Icon name={editingLog ? 'check' : 'pencil'} size={16} />{editingLog ? '수정 완료' : '직접 수정하기'}
+                  </button>
                 </div>
               )}
-              {/* 크레딧 표시 */}
-              {(function CreditBar() {
-                const barColor  = aiRemaining <= 3 ? '#f9a8d4' : aiRemaining <= 10 ? '#fcd34d' : '#86efac'
-                const creditTail = credits > 0 ? ` + 크레딧 ${credits}개` : ''
-                const label     = aiQuota?.mode === 'quota'
-                  ? (aiRemaining <= 0
-                      ? `⛔ 이번 달 무료 AI 일지를 모두 썼어요 · ${fmtResetDate(aiQuota.resets_at)} 충전`
-                      : `✦ 무료 AI 일지 ${aiQuotaLeft}/${aiQuota.quota}회 남음${creditTail} · ${fmtResetDate(aiQuota.resets_at)} 충전`)
-                  : credits <= 0
-                  ? '⛔ 크레딧이 없어요'
-                  : credits <= 3
-                  ? `⚠️ 크레딧 ${credits}개 남았어요`
-                  : credits <= 10
-                  ? `🔔 크레딧 ${credits}개 남았어요`
-                  : `✦ 크레딧 ${credits}개`
+              {/* 크레딧 표시 — 남은 횟수 한 줄 + 얇은 막대 */}
+              {(() => {
+                const quota = aiQuota?.mode === 'quota'
+                const empty = aiRemaining <= 0
+                const label = quota
+                  ? (empty ? '이번 달 무료 AI 일지를 모두 썼어요' : `무료 AI 일지 ${aiQuotaLeft} / ${aiQuota.quota}회 남음${credits > 0 ? ` + 크레딧 ${credits}` : ''}`)
+                  : (credits <= 0 ? '크레딧이 없어요' : `크레딧 ${credits}개 남음`)
+                const ratio = quota ? aiQuotaLeft / Math.max(1, aiQuota.quota || 1) : Math.min(1, credits / 10)
                 return (
-                  <div style={{
-                    background:'var(--surface2)',
-                    border:`1px solid ${barColor}44`,
-                    borderRadius:'10px',
-                    padding:'12px 14px',
-                    marginBottom:'10px',
-                    display:'flex',
-                    justifyContent:'space-between',
-                    alignItems:'center',
-                  }}>
-                    <span style={{fontSize:'13px',fontWeight:600,color:barColor}}>{label}</span>
-                    {!HIDE_PURCHASE && <button
-                      onClick={()=>setSettingsModal(true)}
-                      style={{background:'none',border:`1px solid ${barColor}66`,borderRadius:'6px',
-                        color:barColor,fontSize:'11px',fontWeight:700,padding:'3px 8px',
-                        cursor:'pointer',fontFamily:'inherit'}}>
-                      충전
-                    </button>}
+                  <div style={{background:'#fff',borderRadius:'16px',padding:'12px 14px',marginBottom:'12px',boxShadow:'0 1px 2px rgba(17,24,39,0.04)'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                      <Icon name="sparkle" size={16} color={empty ? '#B91C1C' : '#4D7C0F'} strokeWidth={2.2} />
+                      <span style={{flex:1,fontSize:'14px',fontWeight:700,color: empty ? '#B91C1C' : 'var(--text)',fontVariantNumeric:'tabular-nums'}}>{label}</span>
+                      {quota && <span style={{fontSize:'12px',color:'var(--text-muted)'}}>{fmtResetDate(aiQuota.resets_at)} 충전</span>}
+                      {!HIDE_PURCHASE && !quota && (
+                        <button onClick={()=>setSettingsModal(true)}
+                          style={{background:'none',border:'1px solid #E6E8E0',borderRadius:'8px',color:'var(--text)',fontSize:'12px',fontWeight:700,padding:'4px 10px',cursor:'pointer',fontFamily:'inherit'}}>
+                          충전
+                        </button>
+                      )}
+                    </div>
+                    <div style={{height:'4px',borderRadius:'2px',background:'#EEF0EA',marginTop:'8px',overflow:'hidden'}}>
+                      <div style={{height:'100%',borderRadius:'2px',width:`${Math.round(Math.max(0, Math.min(1, ratio)) * 100)}%`,background: empty ? '#DC2626' : '#84CC16'}} />
+                    </div>
                   </div>
                 )
-              }())}
+              })()}
               {!generating && !showPreview && (
                 /* AI 일지는 "유료 플랜 OR 크레딧 보유" 면 사용 가능.
                    크레딧 1개 = 생성 1회 모델 + Free 플랜도 'AI 일지 월 20회' 제공이므로,
@@ -7035,20 +6900,20 @@ export default function TrainerApp() {
                 (canUse('ai_journal') || aiRemaining > 0 || aiQuota?.mode === 'quota') ? (
                   <button
                     className="btn btn-primary"
-                    style={{width:'100%',marginBottom:'10px',
+                    style={{width:'100%',marginBottom:'10px',minHeight:'58px',borderRadius:'18px',fontSize:'17px',fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',
                       opacity: aiRemaining <= 0 || ((currentMember?.total_sessions||0)-(currentMember?.done_sessions||0)) <= 0 ? 0.5 : 1,
                       cursor: aiRemaining <= 0 || ((currentMember?.total_sessions||0)-(currentMember?.done_sessions||0)) <= 0 ? 'not-allowed' : 'pointer'}}
                     onClick={generateLog}
                   >
                     {aiRemaining <= 0
-                      ? (aiQuota?.mode === 'quota' ? '🔒 이번 달 무료 횟수 소진' : '🔒 크레딧 부족')
+                      ? <><Icon name="lock" size={17} />{aiQuota?.mode === 'quota' ? '이번 달 무료 횟수 소진' : '크레딧 부족'}</>
                       : ((currentMember?.total_sessions||0)-(currentMember?.done_sessions||0)) <= 0
-                        ? '🔒 잔여 수업 없음'
-                        : '✦ AI 수업일지 생성'}
+                        ? <><Icon name="lock" size={17} />잔여 수업 없음</>
+                        : <><Icon name="sparkle" size={19} strokeWidth={2.2} />AI 수업일지 만들기</>}
                   </button>
                 ) : (
-                  <div style={{background:'var(--surface2)',border:'1px dashed var(--border)',borderRadius:'10px',padding:'18px',textAlign:'center',marginBottom:'10px'}}>
-                    <div style={{fontSize:'24px',marginBottom:'6px'}}>🔒</div>
+                  <div style={{background:'var(--surface2)',border:'1px dashed var(--border)',borderRadius:'16px',padding:'18px',textAlign:'center',marginBottom:'10px'}}>
+                    <div style={{marginBottom:'6px',color:'var(--text-muted)'}}><Icon name="lock" size={22} /></div>
                     <div style={{fontWeight:700,fontSize:'13px',marginBottom:'4px'}}>{HIDE_PURCHASE ? '사용 가능한 AI 일지 횟수가 없어요' : '유료 플랜 전용 기능'}</div>
                     <div style={{fontSize:'12px',color:'var(--text-dim)'}}>{HIDE_PURCHASE ? '현재 계정에서는 AI 수업일지를 생성할 수 없어요.' : 'AI 수업일지 생성은 유료 플랜에서 이용 가능해요.'}</div>
                   </div>
@@ -7056,16 +6921,15 @@ export default function TrainerApp() {
               )}
               {showSend && (
                 <div>
-                  <div className="section-label">3단계 — 발송</div>
                   <button className="btn btn-primary" disabled={sending}
-                    style={{width:'100%',marginBottom:'8px',opacity:sending?0.6:1,cursor:sending?'not-allowed':'pointer'}}
+                    style={{width:'100%',minHeight:'58px',borderRadius:'18px',fontSize:'17px',fontWeight:800,marginBottom:'8px',opacity:sending?0.6:1,cursor:sending?'not-allowed':'pointer'}}
                     onClick={sendKakao}>
                     <span style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px'}}>
-                      {sending ? '전송 중… 잠시만 기다려주세요' : '📱 회원 앱으로 전송하기'}
+                      {sending ? '전송 중… 잠시만 기다려주세요' : <><Icon name="send" size={19} strokeWidth={2.2} />회원 앱으로 보내기</>}
                     </span>
                   </button>
-                  <div style={{fontSize:'12px',color:'var(--text-dim)',textAlign:'center',marginBottom:'10px'}}>
-                    회원님의 오운 앱으로 수업 리포트가 전달돼요
+                  <div style={{fontSize:'12px',color:'var(--text-muted)',textAlign:'center',marginBottom:'10px'}}>
+                    {currentMember?.name ? `${currentMember.name} 님의 ` : '회원님의 '}오운 앱으로 바로 전달돼요
                   </div>
                 </div>
               )}
