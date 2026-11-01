@@ -16,17 +16,13 @@
     "@capacitor/app": "^8.1.2",
     "@capacitor/browser": "^8.0.5",
     "@capacitor/core": "^8.5.2",
-    "@ffmpeg/core": "^0.12.10",
-    "@ffmpeg/ffmpeg": "^0.12.15",
-    "@ffmpeg/util": "^0.12.2",
     "@sentry/react": "^9.47.1",
     "@supabase/supabase-js": "^2.49.0",
     "@trainer-log/shared": "*",
     "chart.js": "^4.4.0",
-    "date-fns": "^4.1.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-router-dom": "^7.5.0"
+    "react-router-dom": "^7.18.5"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.2",

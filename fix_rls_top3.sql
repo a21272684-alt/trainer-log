@@ -86,7 +86,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF p_admin_token IS NULL OR p_admin_token <> 'hardcoded_admin_token_here' THEN
+  IF p_admin_token IS NULL OR p_admin_token <> '<<ADMIN_TOKEN>>' THEN
     RAISE EXCEPTION 'unauthorized';
   END IF;
 

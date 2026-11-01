@@ -806,13 +806,17 @@ export default function MemberPortal() {
     const log = memberLogs[i]
     const d = new Date(log.created_at)
     const dateStr = d.toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric'})
-    const contentLines = (log.content || '').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')
+    // 새 창 HTML 에 넣는 값은 전부 이스케이프 (이름·회차·운동 데이터 포함 — 스크립트 주입 방지)
+    const esc = (v) => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')
+    const contentLines = esc(log.content).replace(/\n/g,'<br>')
+    const safeName = esc(member.name)
+    const safeSession = esc(log.session_number)
     const win = window.open('','_blank','width=800,height=900')
     // 팝업 차단(또는 앱 웹뷰라 새 창 없음)이면 win 이 null → 예전엔 TypeError 로 버튼이 무반응이었음
     if (!win) { showToast('새 창을 열 수 없어요. 브라우저의 팝업 차단을 해제한 뒤 다시 시도해 주세요'); return }
     win.document.write(`<!DOCTYPE html><html lang="ko"><head>
 <meta charset="UTF-8">
-<title>수업일지_${member.name}_${log.session_number}회차</title>
+<title>수업일지_${safeName}_${safeSession}회차</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
   *{box-sizing:border-box;margin:0;padding:0}
@@ -829,13 +833,13 @@ export default function MemberPortal() {
 </head><body>
 <div class="header">
   <h1>오운</h1>
-  <p>${member.name} &nbsp;|&nbsp; ${dateStr} &nbsp;|&nbsp; ${log.session_number}회차</p>
+  <p>${safeName} &nbsp;|&nbsp; ${esc(dateStr)} &nbsp;|&nbsp; ${safeSession}회차</p>
 </div>
 <div class="section">
   <div class="section-title">수업 일지</div>
   <div class="content">${contentLines}</div>
 </div>
-${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"><div class="section-title">운동 데이터</div><div class="content">${JSON.stringify(log.workout_session?.exercises || log.exercises_data,null,2)}</div></div>` : ''}
+${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"><div class="section-title">운동 데이터</div><div class="content">${esc(JSON.stringify(log.workout_session?.exercises || log.exercises_data,null,2))}</div></div>` : ''}
 <div class="footer">© 오운 &nbsp;·&nbsp; 본 일지는 트레이너와 회원 간 비공개 문서입니다.</div>
 <script>window.onload=function(){window.print()}<\/script>
 </body></html>`)
