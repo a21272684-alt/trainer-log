@@ -109,6 +109,10 @@ tr:hover td { background:var(--surface2); }
 .modal-title { font-size:15px; font-weight:700; margin-bottom:18px; display:flex; align-items:center; justify-content:space-between; color:var(--text); }
 .close-btn { background:none; border:none; color:var(--text-muted); font-size:20px; cursor:pointer; line-height:1; transition:color 0.2s; }
 .close-btn:hover { color:var(--text); }
+/* 하단 시트형 모달 (Modal sheet prop) — 화면 아래에 붙고 위쪽만 둥글게 */
+.modal-overlay.sheet { align-items:flex-end; padding:0; }
+.modal.sheet { max-width:640px; border-radius:24px 24px 0 0; border-bottom:none; max-height:92vh; padding-bottom:calc(24px + env(safe-area-inset-bottom)); }
+@media (min-width: 700px) { .modal-overlay.sheet { align-items:center; padding:20px; } .modal.sheet { border-radius:18px; border-bottom:1px solid var(--border); } }
 
 /* ========== PERIOD TABS ========== */
 .period-tabs { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
