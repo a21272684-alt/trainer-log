@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import ScheduleModal from '../components/ScheduleModal'
+import Icon from '../components/Icon'
 import { compressImage as sharedCompressImage } from '@trainer-log/shared/lib/imageCompress'
 import { cleanupMemberStorage, removeStorageOnError, cleanupOldSessionMedia } from '@trainer-log/shared/lib/storageCleanup'
 import { supabase, GEMINI_MODEL } from '@trainer-log/shared/lib/supabase'
@@ -78,7 +79,7 @@ function RevenuePaymentList({ trainerId, members, refreshKey }) {
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:'8px',marginBottom:'8px'}}>
         {loading && <span style={{fontSize:'11px',color:'var(--text-dim)'}}>새로고침 중...</span>}
-        <span style={{fontSize:'12px',color:'var(--text-muted)'}}>총 <span style={{color:'var(--accent)',fontWeight:700}}>{total.toLocaleString()}원</span> · {list.length}건</span>
+        <span style={{fontSize:'12px',color:'var(--text-muted)'}}>총 <span style={{color:'var(--accent-text)',fontWeight:700}}>{total.toLocaleString()}원</span> · {list.length}건</span>
       </div>
       {!list.length && <div className="empty" style={{padding:'20px'}}><p>결제 내역이 없어요</p></div>}
       {list.map(p => {
@@ -102,7 +103,7 @@ function RevenuePaymentList({ trainerId, members, refreshKey }) {
                 <span style={{fontSize:'11px',color:'var(--text-muted)'}}>{d} · {p.session_count}회{p.memo?' · '+p.memo:''}{p.tax_included?' (부가세포함)':''}</span>
               </div>
             </div>
-            <div style={{fontSize:'14px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'var(--accent)',flexShrink:0}}>{p.amount.toLocaleString()}원</div>
+            <div style={{fontSize:'14px',fontWeight:700,fontVariantNumeric:'tabular-nums',color:'var(--accent-text)',flexShrink:0}}>{p.amount.toLocaleString()}원</div>
           </div>
         )
       })}
@@ -123,7 +124,7 @@ function MemberRevenueCard({ m, mWeekLogs, mMonthLogs, attendRate, cancelledBloc
         </div>
         <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:'4px',flexShrink:0}}>
           <div style={{textAlign:'right'}}>
-            <div style={{fontSize:'15px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'var(--accent)'}}>{confirmed!=null?confirmed.toLocaleString():'—'}<span style={{fontSize:'11px'}}>원</span></div>
+            <div style={{fontSize:'15px',fontWeight:700,fontVariantNumeric:'tabular-nums',color:'var(--accent-text)'}}>{confirmed!=null?confirmed.toLocaleString():'—'}<span style={{fontSize:'11px'}}>원</span></div>
             <div style={{fontSize:'10px',color:'var(--text-dim)'}}>누적 결제</div>
           </div>
           <button
@@ -144,7 +145,7 @@ function MemberRevenueCard({ m, mWeekLogs, mMonthLogs, attendRate, cancelledBloc
           [dayOfMonth>0&&mMonthLogs.length>0?Math.round(mMonthLogs.length/dayOfMonth*daysInMonth):0,'월간예상','#60a5fa']
         ].map(([v,l,c],i)=>(
           <div key={i} style={{textAlign:'center',padding:'8px',background:'var(--surface2)',borderRadius:'8px'}}>
-            <div style={{fontSize:'15px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:c}}>{v}</div>
+            <div style={{fontSize:'15px',fontWeight:700,fontVariantNumeric:'tabular-nums',color:c}}>{v}</div>
             <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'2px'}}>{l}</div>
           </div>
         ))}
@@ -156,7 +157,7 @@ function MemberRevenueCard({ m, mWeekLogs, mMonthLogs, attendRate, cancelledBloc
       </div>
       <div style={{display:'flex',justifyContent:'space-between',fontSize:'11px',color:'var(--text-muted)',marginBottom: recentPays.length>0?'10px':0}}>
         <span>{m.done_sessions}회 완료 · 잔여 {remain}회</span>
-        {price>0 && <span style={{color:'var(--accent)'}}>잔존가치 {(price*remain).toLocaleString()}원</span>}
+        {price>0 && <span style={{color:'var(--accent-text)'}}>잔존가치 {(price*remain).toLocaleString()}원</span>}
       </div>
 
       {/* 최근 결제 미리보기 */}
@@ -164,11 +165,11 @@ function MemberRevenueCard({ m, mWeekLogs, mMonthLogs, attendRate, cancelledBloc
         <div style={{borderTop:'1px solid var(--border)',paddingTop:'10px'}}>
           <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'6px',fontWeight:600,letterSpacing:'0.05em'}}>최근 결제 내역</div>
           {recentPays.map(p=>(
-            <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
+            <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 0',borderBottom:'1px solid var(--border)'}}>
               <div style={{fontSize:'11px',color:'var(--text-muted)'}}>
                 {new Date(p.paid_at).toLocaleDateString('ko-KR',{month:'short',day:'numeric'})} · {p.product_name}
               </div>
-              <div style={{fontSize:'11px',fontWeight:700,color:'var(--accent)',fontFamily:"'DM Mono',monospace"}}>{p.amount.toLocaleString()}원</div>
+              <div style={{fontSize:'11px',fontWeight:700,color:'var(--accent-text)',fontVariantNumeric:'tabular-nums'}}>{p.amount.toLocaleString()}원</div>
             </div>
           ))}
         </div>
@@ -179,7 +180,7 @@ function MemberRevenueCard({ m, mWeekLogs, mMonthLogs, attendRate, cancelledBloc
         <div style={{marginTop:'10px',paddingTop:'10px',borderTop:'1px solid var(--border)'}}>
           <div style={{fontSize:'10px',color:'var(--danger)',marginBottom:'6px'}}>취소 이력 {cancelledBlocks.length}건</div>
           {cancelledBlocks.slice(-3).map((b,i)=>(
-            <div key={i} style={{fontSize:'11px',color:'var(--text-muted)',padding:'4px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
+            <div key={i} style={{fontSize:'11px',color:'var(--text-muted)',padding:'4px 0',borderBottom:'1px solid var(--border)'}}>
               {b.date} · {b.cancelType}{b.cancelDetail?' — '+b.cancelDetail:''}
             </div>
           ))}
@@ -198,7 +199,7 @@ function WeeklyReportPanel({ gymId, apiKey }) {
   const [errMsg,    setErrMsg]    = useState('')
   const showToast = useToast()
 
-  const mono = { fontFamily: "'DM Mono',monospace" }
+  const mono = { fontVariantNumeric:'tabular-nums' }
 
   // ── 7일 1회 rate limit (AI 비용 폭탄 방지) ────────────────
   // 무한 재생성 / 수동 생성 클릭으로 Gemini API 호출이 누적되는 것을 차단.
@@ -338,14 +339,14 @@ function WeeklyReportPanel({ gymId, apiKey }) {
       {pendingReports.map(r => (
         <div key={r.id} style={{background:'rgba(250,204,21,0.08)',border:'1px solid rgba(250,204,21,0.25)',
           borderRadius:'10px',padding:'12px',marginBottom:'12px'}}>
-          <div style={{fontSize:'12px',fontWeight:700,color:'#facc15',marginBottom:'6px'}}>
+          <div style={{fontSize:'12px',fontWeight:700,color:'#92400E',marginBottom:'6px'}}>
             {r.status === 'error' ? '⚠️ 생성 실패 — 재시도 필요' : '📋 새 주간 리포트 대기 중'}
           </div>
           <div style={{fontSize:'11px',color:'var(--text-muted)',marginBottom:'8px'}}>
             기준 기간: {r.week_start} ~ {r.week_end || ''}
           </div>
           {r.error_message && (
-            <div style={{fontSize:'11px',color:'#f87171',marginBottom:'8px'}}>{r.error_message}</div>
+            <div style={{fontSize:'11px',color:'#B91C1C',marginBottom:'8px'}}>{r.error_message}</div>
           )}
           <button onClick={() => handleGenerate(r)} disabled={phase === 'loading'}
             style={{width:'100%',padding:'8px',borderRadius:'8px',border:'none',fontWeight:700,
@@ -383,7 +384,7 @@ function WeeklyReportPanel({ gymId, apiKey }) {
       {/* 에러 */}
       {phase === 'error' && errMsg && (
         <div style={{background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',
-          borderRadius:'10px',padding:'12px',marginBottom:'12px',fontSize:'12px',color:'#f87171'}}>
+          borderRadius:'10px',padding:'12px',marginBottom:'12px',fontSize:'12px',color:'#B91C1C'}}>
           ⚠️ {errMsg}
         </div>
       )}
@@ -494,7 +495,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
   const [savingCfg, setSavingCfg] = useState(false)
   // P1 fix: 정산 계산 더블클릭 방지 (calculate_settlement RPC 다중 호출 차단)
   const [calculating, setCalculating] = useState(false)
-  const mono = { fontFamily:"'DM Mono',monospace" }
+  const mono = { fontVariantNumeric:'tabular-nums' }
 
   // ── 로드 ──────────────────────────────────────────────────
   useEffect(() => { if (trainerId) load() }, [trainerId, year, month])
@@ -714,7 +715,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
           <input type="number" value={value} onChange={e=>onChange(Number(e.target.value))}
             style={{flex:1,background:'var(--surface2)',border:'1px solid var(--border)',
               borderRadius:'8px',padding:'8px 10px',color:'var(--text)',fontSize:'13px',
-              fontFamily:"'DM Mono',monospace",outline:'none'}}/>
+              fontVariantNumeric:'tabular-nums',outline:'none'}}/>
           <span style={{fontSize:'12px',color:'var(--text-dim)',minWidth:'18px'}}>{unit}</span>
         </div>
         {hint && <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'3px'}}>{hint}</div>}
@@ -725,7 +726,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
   function Row({ label, value, sub, highlight }) {
     return (
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',
-        padding:'4px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
+        padding:'4px 0',borderBottom:'1px solid var(--border)'}}>
         <span style={{fontSize:'12px',color:highlight?'var(--text)':'var(--text-muted)',fontWeight:highlight?700:400}}>{label}</span>
         <span style={{textAlign:'right'}}>
           {value!=null && <span style={{...mono,fontWeight:highlight?700:600,color:highlight?'var(--accent)':'var(--text)',fontSize:'12px'}}>{Number(value).toLocaleString()}원</span>}
@@ -753,7 +754,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
           return (
             <div key={m.id} style={{
               display:'flex', alignItems:'center', gap:'8px',
-              padding:'8px 0', borderBottom:'1px solid rgba(255,255,255,0.04)',
+              padding:'8px 0', borderBottom:'1px solid var(--border)',
             }}>
               {/* 이름 + 결제액 */}
               <div style={{flex:1, minWidth:0}}>
@@ -768,7 +769,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
                 {amt > 0
                   ? <div style={{...mono,fontSize:'10px',color:'var(--text-dim)',marginTop:'2px'}}>
                       이번달 {amt.toLocaleString()}원
-                      {amt > 0 && fee > 0 && <span style={{color:'#f87171',marginLeft:'4px'}}>→ 수수료 {fee.toLocaleString()}원</span>}
+                      {amt > 0 && fee > 0 && <span style={{color:'#B91C1C',marginLeft:'4px'}}>→ 수수료 {fee.toLocaleString()}원</span>}
                     </div>
                   : <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'2px'}}>이번달 결제 없음</div>
                 }
@@ -779,7 +780,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
                   onChange={e => setRateFor(m.id, Number(e.target.value))}
                   style={{width:'52px',background:'var(--surface)',border:`1px solid ${isCustom ? accentColor+'88' : 'var(--border)'}`,
                     borderRadius:'6px',padding:'5px 6px',color:'var(--text)',fontSize:'12px',
-                    fontFamily:"'DM Mono',monospace",outline:'none',textAlign:'center'}}/>
+                    fontVariantNumeric:'tabular-nums',outline:'none',textAlign:'center'}}/>
                 <span style={{fontSize:'11px',color:'var(--text-dim)'}}>%</span>
               </div>
             </div>
@@ -791,9 +792,9 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
 
   // ── 렌더 ──────────────────────────────────────────────────
   const EMP_TABS = [
-    { key:'rental',    label:'🏠 대관',     color:'#a78bfa' },
-    { key:'freelance', label:'💼 프리랜서', color:'#fb923c' },
-    { key:'employee',  label:'👔 정직원',   color:'#60a5fa' },
+    { key:'rental',    label:'🏠 대관',     color:'#6D28D9' },
+    { key:'freelance', label:'💼 프리랜서', color:'#C2410C' },
+    { key:'employee',  label:'👔 정직원',   color:'#1D4ED8' },
   ]
 
   return (
@@ -810,7 +811,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
               color:isCurrentMonth?'var(--border)':'var(--text-muted)'}}>›</button>
         </div>
         {totalRevenue > 0 && (
-          <span style={{...mono,fontSize:'12px',fontWeight:700,color:'var(--accent)'}}>
+          <span style={{...mono,fontSize:'12px',fontWeight:700,color:'var(--accent-text)'}}>
             {totalRevenue.toLocaleString()}원
             <span style={{fontSize:'10px',color:'var(--text-dim)',fontWeight:400,fontFamily:'inherit',marginLeft:'4px'}}>{payCount}건</span>
           </span>
@@ -842,7 +843,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
           return (
             <div>
               <div style={{background:'rgba(167,139,250,0.08)',border:'1px solid rgba(167,139,250,0.2)',
-                borderRadius:'8px',padding:'10px 12px',marginBottom:'14px',fontSize:'11px',color:'#a78bfa',lineHeight:1.6}}>
+                borderRadius:'8px',padding:'10px 12px',marginBottom:'14px',fontSize:'11px',color:'#6D28D9',lineHeight:1.6}}>
                 📌 <strong>대관 트레이너 세금 안내</strong><br/>
                 사업소득 3.3% 예납 · 매년 5월 종합소득세 신고 · 대관료·장비비 등 필요경비 공제 가능
               </div>
@@ -855,14 +856,14 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
                 <button onClick={()=>setShowRentalAssigned(v=>!v)}
                   style={{width:'100%',display:'flex',justifyContent:'space-between',alignItems:'center',
                     padding:'10px 12px',background:'rgba(167,139,250,0.08)',border:'none',cursor:'pointer',fontFamily:'inherit'}}>
-                  <span style={{fontSize:'12px',fontWeight:700,color:'#a78bfa'}}>
+                  <span style={{fontSize:'12px',fontWeight:700,color:'#6D28D9'}}>
                     🏢 센터 배정 회원 수수료 설정
                     {assignedMembers.length > 0 && <span style={{marginLeft:'6px',fontSize:'10px',
                       background:'rgba(167,139,250,0.2)',borderRadius:'4px',padding:'1px 5px'}}>
                       {assignedMembers.length}명 배정
                     </span>}
                   </span>
-                  <span style={{fontSize:'12px',color:'#a78bfa'}}>{showRentalAssigned?'▲':'▼'}</span>
+                  <span style={{fontSize:'12px',color:'#6D28D9'}}>{showRentalAssigned?'▲':'▼'}</span>
                 </button>
                 {showRentalAssigned && (
                   <div style={{padding:'12px'}}>
@@ -878,7 +879,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
                       return (
                         <div key={m.id} style={{
                           display:'flex', alignItems:'center', gap:'8px',
-                          padding:'8px 0', borderBottom:'1px solid rgba(255,255,255,0.04)',
+                          padding:'8px 0', borderBottom:'1px solid var(--border)',
                           opacity: isAssigned ? 1 : 0.5,
                         }}>
                           {/* 배정 토글 */}
@@ -898,7 +899,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
                             {amt > 0
                               ? <div style={{...mono,fontSize:'10px',color:'var(--text-dim)',marginTop:'1px'}}>
                                   이번달 {amt.toLocaleString()}원
-                                  {isAssigned && fee > 0 && <span style={{color:'#a78bfa',marginLeft:'4px'}}>→ 수수료 {fee.toLocaleString()}원</span>}
+                                  {isAssigned && fee > 0 && <span style={{color:'#6D28D9',marginLeft:'4px'}}>→ 수수료 {fee.toLocaleString()}원</span>}
                                 </div>
                               : <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'1px'}}>이번달 결제 없음</div>
                             }
@@ -911,7 +912,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
                                 style={{width:'52px',background:'var(--surface)',
                                   border:'1px solid rgba(167,139,250,0.5)',borderRadius:'6px',
                                   padding:'5px 6px',color:'var(--text)',fontSize:'12px',
-                                  fontFamily:"'DM Mono',monospace",outline:'none',textAlign:'center'}}/>
+                                  fontVariantNumeric:'tabular-nums',outline:'none',textAlign:'center'}}/>
                               <span style={{fontSize:'11px',color:'var(--text-dim)'}}>%</span>
                             </div>
                           )}
@@ -920,7 +921,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
                     })}
                     {assignedMembers.length > 0 && (
                       <div style={{marginTop:'10px',padding:'8px',background:'rgba(167,139,250,0.08)',
-                        borderRadius:'6px',fontSize:'10px',color:'#a78bfa',lineHeight:1.5}}>
+                        borderRadius:'6px',fontSize:'10px',color:'#6D28D9',lineHeight:1.5}}>
                         배정 회원 수수료 합계: <strong>{r.assignedCommission.toLocaleString()}원</strong> (필요경비 처리)
                       </div>
                     )}
@@ -964,7 +965,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
                   <div style={{borderTop:'1px solid var(--border)',margin:'6px 0'}}/>
                   <Row label="예상 실수령" value={r.payout} highlight/>
                   <div style={{marginTop:'10px',padding:'8px',background:'rgba(167,139,250,0.08)',
-                    borderRadius:'6px',fontSize:'10px',color:'#a78bfa',lineHeight:1.6}}>
+                    borderRadius:'6px',fontSize:'10px',color:'#6D28D9',lineHeight:1.6}}>
                     💡 부가세: {r.vatStatus}<br/>
                     💡 배정 회원 수수료는 사업 필요경비로 처리됩니다.
                   </div>
@@ -986,7 +987,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
           return (
             <div>
               <div style={{background:'rgba(251,146,60,0.08)',border:'1px solid rgba(251,146,60,0.2)',
-                borderRadius:'8px',padding:'10px 12px',marginBottom:'14px',fontSize:'11px',color:'#fb923c',lineHeight:1.6}}>
+                borderRadius:'8px',padding:'10px 12px',marginBottom:'14px',fontSize:'11px',color:'#C2410C',lineHeight:1.6}}>
                 📌 <strong>프리랜서 세금 안내</strong><br/>
                 센터가 수수료 지급 시 3.3% 원천징수 · 매년 5월 종합소득세 신고 · 지급조서 발급 의무
               </div>
@@ -999,7 +1000,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
                 <button onClick={()=>setShowMemberRates(v=>!v)}
                   style={{width:'100%',display:'flex',justifyContent:'space-between',alignItems:'center',
                     padding:'10px 12px',background:'rgba(251,146,60,0.08)',border:'none',cursor:'pointer',fontFamily:'inherit'}}>
-                  <span style={{fontSize:'12px',fontWeight:700,color:'#fb923c'}}>
+                  <span style={{fontSize:'12px',fontWeight:700,color:'#C2410C'}}>
                     👤 회원별 수수료율 개별 설정
                     {Object.keys(memberCommissions).length > 0 && (
                       <span style={{marginLeft:'6px',fontSize:'10px',
@@ -1008,7 +1009,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
                       </span>
                     )}
                   </span>
-                  <span style={{fontSize:'12px',color:'#fb923c'}}>{showMemberRates?'▲':'▼'}</span>
+                  <span style={{fontSize:'12px',color:'#C2410C'}}>{showMemberRates?'▲':'▼'}</span>
                 </button>
                 {showMemberRates && (
                   <div style={{padding:'12px'}}>
@@ -1032,7 +1033,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
                     />
                     {Object.keys(memberCommissions).length > 0 && (
                       <button onClick={()=>setMemberCommissions({})}
-                        style={{marginTop:'10px',background:'none',border:'none',color:'#f87171',
+                        style={{marginTop:'10px',background:'none',border:'none',color:'#B91C1C',
                           fontSize:'10px',cursor:'pointer',fontFamily:'inherit',padding:'4px 0'}}>
                         × 모든 개별 설정 초기화
                       </button>
@@ -1077,7 +1078,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
                   <div style={{borderTop:'1px solid var(--border)',margin:'6px 0'}}/>
                   <Row label="예상 실수령" value={f.payout} highlight/>
                   <div style={{marginTop:'10px',padding:'8px',background:'rgba(251,146,60,0.08)',
-                    borderRadius:'6px',fontSize:'10px',color:'#fb923c',lineHeight:1.6}}>
+                    borderRadius:'6px',fontSize:'10px',color:'#C2410C',lineHeight:1.6}}>
                     💡 {f.simpleExpenseNote}<br/>
                     💡 센터는 분기별 지급조서(원천징수영수증)를 발급해야 합니다.
                   </div>
@@ -1099,9 +1100,9 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
           const status = settle?.status ?? 'none'
           const STATUS_META = {
             none:      { label:'계산 전',  color:'var(--text-dim)', bg:'var(--surface2)' },
-            draft:     { label:'초안',     color:'#facc15',         bg:'rgba(250,204,21,0.12)' },
-            confirmed: { label:'확정',     color:'#60a5fa',         bg:'rgba(96,165,250,0.12)' },
-            paid:      { label:'지급완료', color:'var(--accent)',   bg:'rgba(200,241,53,0.12)' },
+            draft:     { label:'초안',     color:'#92400E',         bg:'rgba(250,204,21,0.12)' },
+            confirmed: { label:'확정',     color:'#1D4ED8',         bg:'rgba(96,165,250,0.12)' },
+            paid:      { label:'지급완료', color:'var(--accent-text)',   bg:'rgba(200,241,53,0.12)' },
           }
           const sm = STATUS_META[status] || STATUS_META.none
           return (
@@ -1131,7 +1132,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
                 </div>
               )}
               <div style={{background:'rgba(96,165,250,0.08)',border:'1px solid rgba(96,165,250,0.2)',
-                borderRadius:'8px',padding:'10px 12px',marginBottom:'12px',fontSize:'11px',color:'#60a5fa',lineHeight:1.6}}>
+                borderRadius:'8px',padding:'10px 12px',marginBottom:'12px',fontSize:'11px',color:'#1D4ED8',lineHeight:1.6}}>
                 📌 <strong>정직원 세금 안내</strong><br/>4대보험(근로자부담 ~9.6%) · 근로소득세 간이세액 · 연말정산 (1월)
               </div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'12px'}}>
@@ -1168,7 +1169,7 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
                   <Row label="예상 실수령" value={e.payout} highlight/>
                   {lessonCount > 0 && <div style={{marginTop:'8px',fontSize:'11px',color:'var(--text-dim)'}}>📋 수업 완료 {lessonCount}회 기록됨</div>}
                   <div style={{marginTop:'10px',padding:'8px',background:'rgba(96,165,250,0.08)',
-                    borderRadius:'6px',fontSize:'10px',color:'#60a5fa',lineHeight:1.6}}>
+                    borderRadius:'6px',fontSize:'10px',color:'#1D4ED8',lineHeight:1.6}}>
                     💡 4대보험 요율은 2024년 기준입니다.<br/>
                     💡 근로소득세는 간이세액표 추정값 — 연말정산으로 정산됩니다.<br/>
                     💡 식대 비과세 월 20만원 공제 적용.
@@ -1205,12 +1206,12 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
                 </button>
               )}
               {hasGym && status==='confirmed' && (
-                <div style={{textAlign:'center',fontSize:'12px',color:'#60a5fa',padding:'8px',background:'rgba(96,165,250,0.08)',borderRadius:'8px'}}>
+                <div style={{textAlign:'center',fontSize:'12px',color:'#1D4ED8',padding:'8px',background:'rgba(96,165,250,0.08)',borderRadius:'8px'}}>
                   ✅ 정산이 확정됐어요. 지급 처리 후 '지급완료'로 변경해주세요.
                 </div>
               )}
               {hasGym && status==='paid' && (
-                <div style={{textAlign:'center',fontSize:'12px',color:'var(--accent)',padding:'8px',background:'rgba(200,241,53,0.08)',borderRadius:'8px'}}>
+                <div style={{textAlign:'center',fontSize:'12px',color:'var(--accent-text)',padding:'8px',background:'rgba(200,241,53,0.08)',borderRadius:'8px'}}>
                   🎉 지급 완료된 정산입니다.
                 </div>
               )}
@@ -1322,7 +1323,7 @@ function AiInsightPanel({ member, apiKey }) {
     }
   }
 
-  const mono = { fontFamily:"'DM Mono',monospace" }
+  const mono = { fontVariantNumeric:'tabular-nums' }
 
   // ── 통계 요약 미니카드 ──────────────────────────────────────
   function StatChip({ label, value, color = 'var(--text)' }) {
@@ -1337,10 +1338,10 @@ function AiInsightPanel({ member, apiKey }) {
   // ── AI 응답 파싱: 섹션별 색상 렌더링 ───────────────────────
   function renderInsight(text) {
     const SECTION_STYLES = {
-      '✅': { color: '#4ade80', bg: 'rgba(74,222,128,0.08)', border: 'rgba(74,222,128,0.2)' },
-      '⚠️': { color: '#facc15', bg: 'rgba(250,204,21,0.08)', border: 'rgba(250,204,21,0.2)' },
-      '💡': { color: '#60a5fa', bg: 'rgba(96,165,250,0.08)', border: 'rgba(96,165,250,0.2)' },
-      '💪': { color: 'var(--accent)', bg: 'rgba(200,241,53,0.08)', border: 'rgba(200,241,53,0.2)' },
+      '✅': { color:'#3F6212', bg: 'rgba(74,222,128,0.08)', border: 'rgba(74,222,128,0.2)' },
+      '⚠️': { color:'#92400E', bg: 'rgba(250,204,21,0.08)', border: 'rgba(250,204,21,0.2)' },
+      '💡': { color:'#1D4ED8', bg: 'rgba(96,165,250,0.08)', border: 'rgba(96,165,250,0.2)' },
+      '💪': { color:'var(--accent-text)', bg: 'rgba(200,241,53,0.08)', border: 'rgba(200,241,53,0.2)' },
     }
     // 섹션 분리
     const sections = []
@@ -1430,7 +1431,7 @@ function AiInsightPanel({ member, apiKey }) {
                   {stats.topExercises.map((e, i) => (
                     <span key={i} style={{marginRight:'8px'}}>
                       <span style={{color:'var(--text)'}}>{e.name}</span>
-                      <span style={{color:'var(--accent)',fontSize:'10px',marginLeft:'2px'}}>{e.cnt}</span>
+                      <span style={{color:'var(--accent-text)',fontSize:'10px',marginLeft:'2px'}}>{e.cnt}</span>
                     </span>
                   ))}
                 </div>
@@ -1455,7 +1456,7 @@ function AiInsightPanel({ member, apiKey }) {
       {/* ── 에러 ── */}
       {phase === 'error' && (
         <div style={{background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',
-          borderRadius:'10px',padding:'12px',marginBottom:'12px',fontSize:'12px',color:'#f87171'}}>
+          borderRadius:'10px',padding:'12px',marginBottom:'12px',fontSize:'12px',color:'#B91C1C'}}>
           ⚠️ {errMsg}
         </div>
       )}
@@ -1537,7 +1538,7 @@ function RiskPanel({ member }) {
     }
   }
 
-  const mono = { fontFamily:"'DM Mono',monospace" }
+  const mono = { fontVariantNumeric:'tabular-nums' }
 
   // 점수 바 컴포넌트
   function ScoreBar({ label, score, max, color }) {
@@ -1588,7 +1589,7 @@ function RiskPanel({ member }) {
               {result.flags.map((f, i) => (
                 <div key={i} style={{display:'flex',alignItems:'center',gap:'8px',
                   background:'rgba(249,115,22,0.08)',border:'1px solid rgba(249,115,22,0.2)',
-                  borderRadius:'8px',padding:'8px 10px',marginBottom:'6px',fontSize:'12px',color:'#fb923c'}}>
+                  borderRadius:'8px',padding:'8px 10px',marginBottom:'6px',fontSize:'12px',color:'#C2410C'}}>
                   <span>⚠</span><span>{f}</span>
                 </div>
               ))}
@@ -1596,7 +1597,7 @@ function RiskPanel({ member }) {
           )}
 
           {result.flags.length === 0 && (
-            <div style={{textAlign:'center',padding:'12px',fontSize:'12px',color:'#22c55e'}}>
+            <div style={{textAlign:'center',padding:'12px',fontSize:'12px',color:'#3F6212'}}>
               🟢 현재 이탈 위험 신호 없음
             </div>
           )}
@@ -1628,7 +1629,7 @@ function RiskPanel({ member }) {
       )}
 
       {phase === 'error' && (
-        <div style={{color:'#f87171',fontSize:'12px',textAlign:'center',padding:'12px'}}>분석 중 오류가 발생했어요</div>
+        <div style={{color:'#B91C1C',fontSize:'12px',textAlign:'center',padding:'12px'}}>분석 중 오류가 발생했어요</div>
       )}
 
       {(phase === 'idle' || phase === 'loading') && (
@@ -3767,10 +3768,6 @@ export default function TrainerApp() {
     }
   }
 
-  async function saveSettings() {
-    setSettingsModal(false); showToast('✓ 설정이 저장됐어요')
-  }
-
   // === HEALTH VIEW ===
   async function loadHealthView() {
     try {
@@ -4114,7 +4111,7 @@ export default function TrainerApp() {
           <div style={{ filter:'blur(5px)', opacity:0.3, pointerEvents:'none', userSelect:'none' }}>
             <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'14px', padding:'20px 18px', marginBottom:'10px' }}>
               <div style={{ fontSize:'11px', color:'var(--text-dim)', marginBottom:'4px' }}>이번 달 총 결제액</div>
-              <div style={{ fontSize:'38px', fontWeight:800, color:'#60a5fa' }}>1,700,000원</div>
+              <div style={{ fontSize:'38px', fontWeight:800, color:'#1D4ED8' }}>1,700,000원</div>
               <div style={{ fontSize:'11px', color:'var(--text-muted)' }}>12건 결제</div>
             </div>
             {FAKE_PAYS.map((p,i) => (
@@ -4124,7 +4121,7 @@ export default function TrainerApp() {
                   <div style={{ fontSize:'13px', fontWeight:600 }}>{p.name} · {p.product}</div>
                   <div style={{ fontSize:'11px', color:'var(--text-muted)' }}>{p.method} · {p.date}</div>
                 </div>
-                <div style={{ fontSize:'13px', fontWeight:700, color:'var(--accent)' }}>{p.amount.toLocaleString()}원</div>
+                <div style={{ fontSize:'13px', fontWeight:700, color:'var(--accent-text)' }}>{p.amount.toLocaleString()}원</div>
               </div>
             ))}
           </div>
@@ -4189,7 +4186,7 @@ export default function TrainerApp() {
                   <div style={{ fontSize:'11px', fontWeight:600, color:'var(--text-dim)', marginBottom:'6px', letterSpacing:'0.04em', textTransform:'uppercase' }}>
                     {isCurrentMonth ? '이번 달' : `${py}년 ${pm}월`} 총 결제액
                   </div>
-                  <div style={{ fontSize:'36px', fontWeight:800, color:'var(--accent-text)', lineHeight:1, fontFamily:"'DM Mono',monospace" }}>
+                  <div style={{ fontSize:'36px', fontWeight:800, color:'var(--accent-text)', lineHeight:1, fontVariantNumeric:'tabular-nums' }}>
                     {payMonthLoading ? '—' : (payMonthData?.total ?? 0).toLocaleString()}
                     <span style={{ fontSize:'16px', fontWeight:400, color:'var(--text-muted)', marginLeft:'4px' }}>원</span>
                   </div>
@@ -4967,57 +4964,12 @@ export default function TrainerApp() {
   // 하단 탭이 있는 메인 페이지 목록 (서브페이지에서는 탭 숨김)
   const MAIN_PAGES = ['page-members','page-history','page-schedule','page-revenue','page-settings','page-support']
   const TAB_LABELS = {members:'회원',history:'발송기록',schedule:'시간표',revenue:'매출관리',settings:'설정',support:'문의'}
-  const TAB_ICONS = {
-    members: (active) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-        stroke={active?'#10B981':'#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
-        <circle cx="9" cy="7" r="4"/>
-        <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
-      </svg>
-    ),
-    history: (active) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-        stroke={active?'#10B981':'#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-        <polyline points="14 2 14 8 20 8"/>
-        <line x1="16" y1="13" x2="8" y2="13"/>
-        <line x1="16" y1="17" x2="8" y2="17"/>
-        <line x1="10" y1="9" x2="8" y2="9"/>
-      </svg>
-    ),
-    schedule: (active) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-        stroke={active?'#10B981':'#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-        <line x1="16" y1="2" x2="16" y2="6"/>
-        <line x1="8" y1="2" x2="8" y2="6"/>
-        <line x1="3" y1="10" x2="21" y2="10"/>
-      </svg>
-    ),
-    revenue: (active) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-        stroke={active?'#10B981':'#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="12" y1="1" x2="12" y2="23"/>
-        <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
-      </svg>
-    ),
-    settings: (active) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-        stroke={active?'#10B981':'#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-      </svg>
-    ),
-    support: (active) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-        stroke={active?'#10B981':'#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-      </svg>
-    ),
-  }
+  // 하단 탭 아이콘 — components/Icon 의 선 아이콘 이름
+  const TAB_ICON_NAMES = { members:'users', history:'file', schedule:'calendar', revenue:'chart', settings:'settings', support:'message' }
+  // 상단 AI 칩 — 남은 AI 일지 횟수(무료 월 잔여 + 크레딧). 눌러서 상세 확인
+  const aiChipLabel = aiQuota?.mode === 'quota' ? `AI 일지 ${aiRemaining}회` : (credits > 0 ? `AI 일지 ${credits}회` : 'AI 일지')
   return (
-    <div style={{paddingBottom: MAIN_PAGES.includes(activePage) ? '72px' : '0'}}>
+    <div style={{paddingBottom: MAIN_PAGES.includes(activePage) ? 'calc(84px + env(safe-area-inset-bottom))' : '0'}}>
       {/* 최초 로그인 1회 약관 동의 모달 (user_metadata.terms_agreed 미설정 시 강제 노출) */}
       <TermsAgreementModal aiConsent />
       {/* 로그인 후 공지 (admin login_notice 설정 시) — 트레이너 화면 진입 시 1회.
@@ -5025,20 +4977,19 @@ export default function TrainerApp() {
           App Store 2.2(베타)·2.3.10(타 플랫폼 언급)으로 반려됨(2026-10-15). 공지 내용은 관리자가 수시로 바꾸므로 코드로 차단. */}
       {!isNativeApp() && <LoginNoticeModal target="trainer" />}
       <div className="topbar-t">
-        <div className="topbar-left"><Link to="/" style={{background:'none',border:'none',color:'var(--text-muted)',fontSize:'18px',textDecoration:'none'}}>⌂</Link><div className="topbar-title">오<span>운</span></div></div>
-        <button className="settings-btn" onClick={()=>setSettingsModal(true)}>⚙ AI 설정</button>
+        <div className="topbar-left">
+          <Link to="/" aria-label="처음 화면" className="topbar-home"><Icon name="home" size={20} /></Link>
+          <div className="topbar-title">오<span>운</span></div>
+        </div>
+        <button className="settings-btn" onClick={()=>setSettingsModal(true)}>
+          <Icon name="sparkle" size={15} color="#4D7C0F" strokeWidth={2.2} />
+          {aiChipLabel}
+        </button>
       </div>
 
-      {/* ── 하단 고정 네비게이션 ── */}
+      {/* ── 하단 고정 네비게이션 — 선택된 탭은 라임 알약 + 잉크 아이콘 ── */}
       {MAIN_PAGES.includes(activePage) && (
-        <div style={{
-          position:'fixed', bottom:0, left:0, right:0, zIndex:200,
-          background:'#fff',
-          borderTop:'1px solid #E5E7EB',
-          display:'flex',
-          boxShadow:'0 -2px 16px rgba(0,0,0,0.07)',
-          paddingBottom:'env(safe-area-inset-bottom)',
-        }}>
+        <nav className="tabbar-t">
           {['members','history','schedule','revenue','settings','support'].map(t => {
             const TAB_GATE = { history:'history_tab', schedule:'schedule_tab', revenue:'revenue_tab' }
             const locked = TAB_GATE[t] && !canUse(TAB_GATE[t])
@@ -5046,38 +4997,21 @@ export default function TrainerApp() {
             return (
               <button
                 key={t}
+                className={'tabbar-btn' + (active ? ' active' : '')}
                 onClick={() => showTabFn(t)}
-                style={{
-                  flex:1, display:'flex', flexDirection:'column',
-                  alignItems:'center', justifyContent:'center',
-                  gap:'3px', padding:'9px 2px 7px',
-                  border:'none', background:'none',
-                  cursor: locked ? 'not-allowed' : 'pointer',
-                  fontFamily:'inherit',
-                  transition:'color 0.15s', minHeight:'54px',
-                  position:'relative',
-                  opacity: locked ? 0.5 : 1,
-                }}
+                style={{ cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.5 : 1 }}
               >
-                {active && (
-                  <span style={{
-                    position:'absolute', top:0, left:'50%', transform:'translateX(-50%)',
-                    width:'28px', height:'2.5px', borderRadius:'0 0 3px 3px',
-                    background:'#10B981',
-                  }}/>
-                )}
-                {TAB_ICONS[t](active)}
-                <span style={{
-                  fontSize:'9.5px', fontWeight: active ? 700 : 400, lineHeight:1,
-                  color: active ? '#10B981' : '#9CA3AF',
-                }}>
+                <span className="tabbar-pill">
+                  <Icon name={TAB_ICON_NAMES[t]} size={21} strokeWidth={active ? 2.2 : 2} />
+                </span>
+                <span className="tabbar-label">
                   {TAB_LABELS[t]}
-                  {locked && <span style={{marginLeft:'2px'}}>🔒</span>}
+                  {locked && <Icon name="lock" size={10} style={{marginLeft:'2px'}} />}
                 </span>
               </button>
             )
           })}
-        </div>
+        </nav>
       )}
 
       {/* MEMBERS LIST */}
@@ -5273,7 +5207,7 @@ export default function TrainerApp() {
                         background:'none', border:'1px solid rgba(239,68,68,0.3)',
                         borderRadius:'8px', padding:'6px 10px', cursor:'pointer',
                         fontFamily:'inherit', fontSize:'11px',
-                        color:'#f87171', fontWeight:600, transition:'all 0.15s',
+                        color:'#B91C1C', fontWeight:600, transition:'all 0.15s',
                       }}>
                       {showRiskInfo ? '▲' : '❓'} 이탈위험이란?
                     </button>
@@ -5285,7 +5219,7 @@ export default function TrainerApp() {
                         padding:'14px', fontSize:'12px', lineHeight:1.65,
                       }}>
                         {/* 위험 등급 */}
-                        <div style={{fontWeight:700, color:'#f87171', marginBottom:'10px', fontSize:'13px'}}>
+                        <div style={{fontWeight:700, color:'#B91C1C', marginBottom:'10px', fontSize:'13px'}}>
                           🔴 이탈위험 판단 기준
                         </div>
                         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'6px', marginBottom:'12px'}}>
@@ -5315,7 +5249,7 @@ export default function TrainerApp() {
                           background:'rgba(96,165,250,0.08)', border:'1px solid rgba(96,165,250,0.2)',
                           borderRadius:'8px', padding:'10px', marginBottom:'8px',
                         }}>
-                          <div style={{fontWeight:700, color:'#60a5fa', marginBottom:'6px'}}>
+                          <div style={{fontWeight:700, color:'#1D4ED8', marginBottom:'6px'}}>
                             A. 출석 위험도 <span style={{fontWeight:400, color:'var(--text-dim)'}}>0~40점</span>
                           </div>
                           <div style={{color:'var(--text-muted)'}}>
@@ -5332,7 +5266,7 @@ export default function TrainerApp() {
                           background:'rgba(74,222,128,0.08)', border:'1px solid rgba(74,222,128,0.2)',
                           borderRadius:'8px', padding:'10px', marginBottom:'8px',
                         }}>
-                          <div style={{fontWeight:700, color:'#4ade80', marginBottom:'6px'}}>
+                          <div style={{fontWeight:700, color:'#3F6212', marginBottom:'6px'}}>
                             B. 건강기록 중단 <span style={{fontWeight:400, color:'var(--text-dim)'}}>0~30점</span>
                           </div>
                           <div style={{color:'var(--text-muted)'}}>
@@ -5348,7 +5282,7 @@ export default function TrainerApp() {
                           background:'rgba(250,204,21,0.08)', border:'1px solid rgba(250,204,21,0.2)',
                           borderRadius:'8px', padding:'10px', marginBottom:'10px',
                         }}>
-                          <div style={{fontWeight:700, color:'#facc15', marginBottom:'6px'}}>
+                          <div style={{fontWeight:700, color:'#92400E', marginBottom:'6px'}}>
                             C. 수업 평점 저하 <span style={{fontWeight:400, color:'var(--text-dim)'}}>0~30점</span>
                           </div>
                           <div style={{color:'var(--text-muted)'}}>
@@ -5479,7 +5413,7 @@ export default function TrainerApp() {
                             padding:'5px 10px',borderRadius:'8px',
                             border:'1px solid rgba(59,130,246,0.35)',
                             background:'rgba(59,130,246,0.10)',
-                            color:'#60a5fa',
+                            color:'#1D4ED8',
                             fontSize:'11px',fontWeight:600,cursor:'pointer',fontFamily:'inherit',
                           }}
                         >
@@ -5534,7 +5468,7 @@ export default function TrainerApp() {
               )}
             </div>
             {historyDateFilter && historyFiltered !== null && (
-              <div style={{fontSize:'11px',color:'var(--accent)',whiteSpace:'nowrap',fontWeight:600}}>
+              <div style={{fontSize:'11px',color:'var(--accent-text)',whiteSpace:'nowrap',fontWeight:600}}>
                 {historyFiltered.length}건
               </div>
             )}
@@ -5577,7 +5511,7 @@ export default function TrainerApp() {
                     readBadge = (
                       <span style={{
                         fontSize:'10px',fontWeight:600,whiteSpace:'nowrap',
-                        color:'#22c55e',background:'rgba(34,197,94,0.1)',
+                        color:'#3F6212',background:'rgba(34,197,94,0.1)',
                         border:'1px solid rgba(34,197,94,0.25)',
                         padding:'2px 7px',borderRadius:'6px',
                       }}>✔ 읽음 {rStr}</span>
@@ -5613,7 +5547,7 @@ export default function TrainerApp() {
                           <span style={{fontSize:'13px',fontWeight:700,color:'var(--text)'}}>{memberName}</span>
                           {readBadge}
                         </div>
-                        <div style={{fontSize:'11px',color:'var(--text-dim)',fontFamily:"'DM Mono',monospace"}}>
+                        <div style={{fontSize:'11px',color:'var(--text-dim)',fontVariantNumeric:'tabular-nums'}}>
                           {dateTimeStr}
                         </div>
                       </div>
@@ -5697,7 +5631,7 @@ export default function TrainerApp() {
               borderRadius:'10px', padding:'12px 14px', marginBottom:'12px',
             }}>
               <span style={{fontSize:'18px',flexShrink:0}}>⚠️</span>
-              <div style={{fontSize:'12px',color:'#fbbf24',lineHeight:1.65}}>
+              <div style={{fontSize:'12px',color:'#92400E',lineHeight:1.65}}>
                 브라우저 알림 권한이 {Notification.permission === 'denied' ? '차단' : '미허용'}되어 있어 일정 푸시 알림을 받을 수 없습니다.
                 기기 설정에서 알림 권한을 허용해 주세요.
               </div>
@@ -5717,7 +5651,7 @@ export default function TrainerApp() {
 
           {/* 알림 설정 */}
           {!canUse('push_notif') && !HIDE_PURCHASE && (
-            <div style={{background:'rgba(255,255,255,0.03)',border:'1px dashed rgba(255,255,255,0.12)',borderRadius:'10px',padding:'12px 14px',marginBottom:'12px',display:'flex',alignItems:'center',gap:'10px',opacity:0.7}}>
+            <div style={{background:'var(--surface2)',border:'1px dashed var(--border)',borderRadius:'10px',padding:'12px 14px',marginBottom:'12px',display:'flex',alignItems:'center',gap:'10px',opacity:0.7}}>
               <span style={{fontSize:'18px'}}>🔒</span>
               <div>
                 <div style={{fontSize:'13px',fontWeight:600}}>Web Push 알림</div>
@@ -5770,7 +5704,7 @@ export default function TrainerApp() {
                 {NOTIF_SUPPORTED && notifPerm() !== 'granted' && (
                   <div style={{fontSize:'12px',color:'var(--danger)'}}>
                     ⚠️ 브라우저 알림 권한이 필요해요.
-                    <span style={{color:'var(--accent)',cursor:'pointer',marginLeft:'6px'}} onClick={requestNotifPermission}>권한 요청 →</span>
+                    <span style={{color:'var(--accent-text)',cursor:'pointer',marginLeft:'6px'}} onClick={requestNotifPermission}>권한 요청 →</span>
                   </div>
                 )}
               </div>
@@ -5830,7 +5764,7 @@ export default function TrainerApp() {
               {HIDE_PURCHASE ? null : isPaid ? (
                 <div style={{fontSize:'11px',padding:'4px 10px',borderRadius:'20px',
                   background:'linear-gradient(135deg,rgba(167,139,250,0.2),rgba(251,191,36,0.18))',
-                  color:'#fbbf24',border:'1px solid rgba(251,191,36,0.4)',fontWeight:700,flexShrink:0}}>
+                  color:'#92400E',border:'1px solid rgba(251,191,36,0.4)',fontWeight:700,flexShrink:0}}>
                   Premium
                 </div>
               ) : (
@@ -5904,8 +5838,8 @@ export default function TrainerApp() {
           {planGuideVisible === true && !HIDE_PURCHASE && (() => {
             const fallbackPlans = [
               { id: 'free',    name: 'Free',    price: '무료',         color: '#9ca3af', highlight: false, current: !isPaid, badge: null,        enabled: true, features: ['회원 5명', 'AI 일지 월 20회', '식단 기록', '기본 통계'] },
-              { id: 'pro',     name: 'Pro',     price: '₩9,900/월',   color: '#60a5fa', highlight: false, current: false,  badge: '출시 예정',   enabled: true, features: ['회원 무제한', 'AI 일지 무제한', '주간 리포트 AI', '매출 분석'] },
-              { id: 'premium', name: 'Premium', price: '₩19,900/월',  color: '#c8f135', highlight: true,  current: isPaid, badge: '출시 예정',   enabled: true, features: ['Pro 전체 포함', '루틴 마켓 무제한', '회원 앱 자동 발송', '우선 지원'] },
+              { id: 'pro',     name: 'Pro',     price: '₩9,900/월',   color:'#1D4ED8', highlight: false, current: false,  badge: '출시 예정',   enabled: true, features: ['회원 무제한', 'AI 일지 무제한', '주간 리포트 AI', '매출 분석'] },
+              { id: 'premium', name: 'Premium', price: '₩19,900/월',  color: '#4D7C0F', highlight: true,  current: isPaid, badge: '출시 예정',   enabled: true, features: ['Pro 전체 포함', '루틴 마켓 무제한', '회원 앱 자동 발송', '우선 지원'] },
             ]
             const sourcePlans = (Array.isArray(plansList) && plansList.length > 0) ? plansList : fallbackPlans
             const visiblePlans = sourcePlans.filter(p => p.enabled !== false)
@@ -6036,7 +5970,7 @@ export default function TrainerApp() {
                   border:`1px solid ${t.isMe ? 'rgba(200,241,53,0.3)' : 'var(--border)'}`,
                 }}>
                   <div style={{fontSize:'15px',width:'22px',textAlign:'center',flexShrink:0}}>
-                    {i===0?'💎':i===1?'🥇':i===2?'🥈':<span style={{fontSize:'12px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'var(--text-dim)'}}>{i+1}</span>}
+                    {i===0?'💎':i===1?'🥇':i===2?'🥈':<span style={{fontSize:'12px',fontWeight:700,fontVariantNumeric:'tabular-nums',color:'var(--text-dim)'}}>{i+1}</span>}
                   </div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:'13px',fontWeight:t.isMe?700:500,color:t.isMe?'var(--accent)':'var(--text)'}}>
@@ -6048,7 +5982,7 @@ export default function TrainerApp() {
                     </div>
                   </div>
                   <div style={{textAlign:'right',flexShrink:0}}>
-                    <div style={{fontSize:'14px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'var(--text)'}}>{t.logCount}<span style={{fontSize:'10px',fontWeight:400,color:'var(--text-dim)'}}> 건</span></div>
+                    <div style={{fontSize:'14px',fontWeight:700,fontVariantNumeric:'tabular-nums',color:'var(--text)'}}>{t.logCount}<span style={{fontSize:'10px',fontWeight:400,color:'var(--text-dim)'}}> 건</span></div>
                     <div style={{fontSize:'10px',color:t.readRate>=70?'#4ade80':t.readRate>=40?'#facc15':'var(--text-dim)',marginTop:'1px'}}>열람 {t.readRate}%</div>
                   </div>
                 </div>
@@ -6066,7 +6000,7 @@ export default function TrainerApp() {
           <button className={'rev-row'+(setReadOpen?' open':'')} onClick={()=>setSetReadOpen(o=>!o)}>
             <span className="rev-row-ic"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.5"/></svg></span>
             <span className="rev-row-t"><span className="rev-row-l">일지 열람률</span><span className="rev-row-s">이번 주 · 전체 합산</span></span>
-            {!lbLoading && leaderboard && <span style={{fontSize:'13px',fontWeight:700,color:'var(--accent-text)',fontFamily:"'DM Mono',monospace",marginRight:'6px'}}>{leaderboard.overallRate}%</span>}
+            {!lbLoading && leaderboard && <span style={{fontSize:'13px',fontWeight:700,color:'var(--accent-text)',fontVariantNumeric:'tabular-nums',marginRight:'6px'}}>{leaderboard.overallRate}%</span>}
             <span className="rev-row-chev">›</span>
           </button>
           {setReadOpen && (
@@ -6075,13 +6009,13 @@ export default function TrainerApp() {
           {!lbLoading && leaderboard && (
             <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'14px',padding:'20px'}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'14px'}}>
-                <div style={{fontSize:'42px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'var(--accent)',lineHeight:1}}>
+                <div style={{fontSize:'42px',fontWeight:700,fontVariantNumeric:'tabular-nums',color:'var(--accent-text)',lineHeight:1}}>
                   {leaderboard.overallRate}<span style={{fontSize:'20px'}}>%</span>
                 </div>
                 <div style={{textAlign:'right',display:'flex',flexDirection:'column',gap:'6px'}}>
                   <div style={{fontSize:'12px',color:'var(--text-muted)'}}>총 발송 <span style={{color:'var(--text)',fontWeight:700}}>{leaderboard.totalLogs}건</span></div>
-                  <div style={{fontSize:'12px',color:'var(--text-muted)'}}>열람 완료 <span style={{color:'#4ade80',fontWeight:700}}>{leaderboard.totalRead}건</span></div>
-                  <div style={{fontSize:'12px',color:'var(--text-muted)'}}>미열람 <span style={{color:'#f87171',fontWeight:700}}>{leaderboard.totalLogs - leaderboard.totalRead}건</span></div>
+                  <div style={{fontSize:'12px',color:'var(--text-muted)'}}>열람 완료 <span style={{color:'#3F6212',fontWeight:700}}>{leaderboard.totalRead}건</span></div>
+                  <div style={{fontSize:'12px',color:'var(--text-muted)'}}>미열람 <span style={{color:'#B91C1C',fontWeight:700}}>{leaderboard.totalLogs - leaderboard.totalRead}건</span></div>
                 </div>
               </div>
               <div style={{height:'8px',background:'var(--surface2)',borderRadius:'4px',overflow:'hidden'}}>
@@ -6109,7 +6043,7 @@ export default function TrainerApp() {
               borderRadius:'12px',padding:'14px 16px',display:'flex',alignItems:'center',gap:'10px'}}>
               <span style={{fontSize:'20px'}}>✅</span>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:'13px',fontWeight:600,color:'#4ade80'}}>
+                <div style={{fontSize:'13px',fontWeight:600,color:'#3F6212'}}>
                   {gymName ? gymName : '센터 소속 확인됨'}
                 </div>
                 <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'2px'}}>
@@ -6126,7 +6060,7 @@ export default function TrainerApp() {
               <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'10px'}}>
                 <span style={{fontSize:'20px'}}>⏳</span>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:'13px',fontWeight:600,color:'#facc15'}}>승인 대기 중</div>
+                  <div style={{fontSize:'13px',fontWeight:600,color:'#92400E'}}>승인 대기 중</div>
                   <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'2px'}}>
                     {gymName ? `${gymName} · ` : ''}센터 대표님의 승인을 기다리고 있어요
                   </div>
@@ -6134,7 +6068,7 @@ export default function TrainerApp() {
               </div>
               <button onClick={cancelJoinRequest}
                 style={{width:'100%',padding:'8px',borderRadius:'8px',border:'1px solid rgba(239,68,68,0.3)',
-                  background:'rgba(239,68,68,0.06)',color:'#f87171',fontSize:'12px',fontWeight:600,
+                  background:'rgba(239,68,68,0.06)',color:'#B91C1C',fontSize:'12px',fontWeight:600,
                   cursor:'pointer',fontFamily:'inherit'}}>
                 요청 취소
               </button>
@@ -6418,7 +6352,7 @@ export default function TrainerApp() {
               <div>
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
                   <button className="week-nav-btn" onClick={()=>setAttendanceMonth(({y,m})=>m===0?{y:y-1,m:11}:{y,m:m-1})}>‹</button>
-                  <div style={{fontSize:'14px',fontWeight:700}}>{y}년 {m+1}월 <span style={{fontSize:'12px',color:'var(--accent)',fontWeight:400}}>({monthCount}회 출석)</span></div>
+                  <div style={{fontSize:'14px',fontWeight:700}}>{y}년 {m+1}월 <span style={{fontSize:'12px',color:'var(--accent-text)',fontWeight:400}}>({monthCount}회 출석)</span></div>
                   <button className="week-nav-btn" onClick={()=>setAttendanceMonth(({y,m})=>m===11?{y:y+1,m:0}:{y,m:m+1})}>›</button>
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:'4px',marginBottom:'8px'}}>
@@ -6464,7 +6398,7 @@ export default function TrainerApp() {
                 </div>
                 <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'6px',lineHeight:1.5}}>
                   날짜 선택 후 기록 (미선택 시 오늘). 노쇼는 {attendancePolicy?.noshow_deduct===1?'정책에 따라 세션 1회 차감':'차감 없음'}.{' '}
-                  <span onClick={()=>setShowAttendancePolicy(true)} style={{color:'var(--accent)',cursor:'pointer',fontWeight:600}}>출결 정책 설정 ›</span>
+                  <span onClick={()=>setShowAttendancePolicy(true)} style={{color:'var(--accent-text)',cursor:'pointer',fontWeight:600}}>출결 정책 설정 ›</span>
                 </div>
 
                 {attendanceDates.length>0 && (
@@ -6504,7 +6438,7 @@ export default function TrainerApp() {
                 <>
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'14px'}}>
                     {[[currentMember.target_weight,'목표 체중','var(--accent)'],[healthData.find(r=>r.morning_weight)?.morning_weight,'현재 체중','var(--text)'],[currentMember.start_weight,'시작 체중','var(--text)'],[(currentMember.start_weight&&healthData.find(r=>r.morning_weight)?.morning_weight?(currentMember.start_weight-healthData.find(r=>r.morning_weight).morning_weight).toFixed(1)+'kg':'—'),'감량','var(--accent)']].map(([v,l,c],i)=>(
-                      <div key={i} className="card" style={{marginBottom:0,padding:'12px'}}><div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'4px'}}>{l}</div><div style={{fontSize:'18px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:c}}>{v||'—'}</div></div>
+                      <div key={i} className="card" style={{marginBottom:0,padding:'12px'}}><div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'4px'}}>{l}</div><div style={{fontSize:'18px',fontWeight:700,fontVariantNumeric:'tabular-nums',color:c}}>{v||'—'}</div></div>
                     ))}
                   </div>
                   <div className="section-label">체중 기록</div>
@@ -6513,11 +6447,11 @@ export default function TrainerApp() {
                     const ds = new Date(r.record_date+'T00:00:00').toLocaleDateString('ko-KR',{month:'short',day:'numeric'})
                     return (
                       <div key={r.id} style={{display:'flex',alignItems:'center',gap:'12px',padding:'10px 14px',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'8px',marginBottom:'6px'}}>
-                        <div style={{fontSize:'11px',color:'var(--text-dim)',fontFamily:"'DM Mono',monospace",minWidth:'40px'}}>{ds}</div>
+                        <div style={{fontSize:'11px',color:'var(--text-dim)',fontVariantNumeric:'tabular-nums',minWidth:'40px'}}>{ds}</div>
                         <div style={{flex:1,display:'flex',gap:'16px'}}>
-                          <div style={{textAlign:'center'}}><div style={{fontSize:'14px',fontWeight:700,fontFamily:"'DM Mono',monospace"}}>{r.morning_weight||'—'}</div><div style={{fontSize:'10px',color:'var(--text-dim)'}}>공복</div></div>
-                          <div style={{textAlign:'center'}}><div style={{fontSize:'14px',fontWeight:700,fontFamily:"'DM Mono',monospace"}}>{r.evening_weight||'—'}</div><div style={{fontSize:'10px',color:'var(--text-dim)'}}>저녁</div></div>
-                          {diff && <div style={{textAlign:'center'}}><div style={{fontSize:'14px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:diff>0?'#ff5c5c':'#4ade80'}}>{diff>0?'+':''}{diff}</div><div style={{fontSize:'10px',color:'var(--text-dim)'}}>일중증가</div></div>}
+                          <div style={{textAlign:'center'}}><div style={{fontSize:'14px',fontWeight:700,fontVariantNumeric:'tabular-nums'}}>{r.morning_weight||'—'}</div><div style={{fontSize:'10px',color:'var(--text-dim)'}}>공복</div></div>
+                          <div style={{textAlign:'center'}}><div style={{fontSize:'14px',fontWeight:700,fontVariantNumeric:'tabular-nums'}}>{r.evening_weight||'—'}</div><div style={{fontSize:'10px',color:'var(--text-dim)'}}>저녁</div></div>
+                          {diff && <div style={{textAlign:'center'}}><div style={{fontSize:'14px',fontWeight:700,fontVariantNumeric:'tabular-nums',color:diff>0?'#ff5c5c':'#4ade80'}}>{diff>0?'+':''}{diff}</div><div style={{fontSize:'10px',color:'var(--text-dim)'}}>일중증가</div></div>}
                         </div>
                         {r.sleep_level && <div style={{fontSize:'11px',color:'var(--text-muted)'}}>💤 {r.sleep_level}/10</div>}
                       </div>
@@ -6539,11 +6473,11 @@ export default function TrainerApp() {
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'14px'}}>
                     <div className="card" style={{marginBottom:0,padding:'12px'}}>
                       <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'4px'}}>총 정지 횟수</div>
-                      <div style={{fontSize:'20px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'var(--accent)'}}>{holds.length}회</div>
+                      <div style={{fontSize:'20px',fontWeight:700,fontVariantNumeric:'tabular-nums',color:'var(--accent-text)'}}>{holds.length}회</div>
                     </div>
                     <div className="card" style={{marginBottom:0,padding:'12px'}}>
                       <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'4px'}}>총 정지 일수</div>
-                      <div style={{fontSize:'20px',fontWeight:700,fontFamily:"'DM Mono',monospace",color:'var(--accent)'}}>
+                      <div style={{fontSize:'20px',fontWeight:700,fontVariantNumeric:'tabular-nums',color:'var(--accent-text)'}}>
                         {holds.reduce((s,h)=>s+Math.round((new Date(h.end_date)-new Date(h.start_date))/86400000)+1,0)}일
                       </div>
                     </div>
@@ -6599,7 +6533,7 @@ export default function TrainerApp() {
                   ].map(([label,val,color])=>(
                     <div key={label} className="card" style={{marginBottom:0,padding:'10px 12px'}}>
                       <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'3px'}}>{label}</div>
-                      <div style={{fontSize:'16px',fontWeight:700,fontFamily:"'DM Mono',monospace",color}}>{val}</div>
+                      <div style={{fontSize:'16px',fontWeight:700,fontVariantNumeric:'tabular-nums',color}}>{val}</div>
                     </div>
                   ))}
                 </div>
@@ -6656,7 +6590,7 @@ export default function TrainerApp() {
                                     {ex.sets.map((set,si)=>(
                                       <div key={si} style={{background:'var(--surface2)',borderRadius:'6px',padding:'6px 8px',fontSize:'12px',textAlign:'center'}}>
                                         <div style={{color:'var(--text-dim)',fontSize:'10px',marginBottom:'2px'}}>{si+1}세트</div>
-                                        <div style={{fontWeight:600,fontFamily:"'DM Mono',monospace"}}>{set.weight||'—'}kg × {set.reps||'—'}회</div>
+                                        <div style={{fontWeight:600,fontVariantNumeric:'tabular-nums'}}>{set.weight||'—'}kg × {set.reps||'—'}회</div>
                                         {set.rest_sec && <div style={{color:'var(--text-dim)',fontSize:'10px',marginTop:'2px'}}>휴식 {set.rest_sec}초</div>}
                                       </div>
                                     ))}
@@ -7074,7 +7008,7 @@ export default function TrainerApp() {
                   : `✦ 크레딧 ${credits}개`
                 return (
                   <div style={{
-                    background:'rgba(255,255,255,0.05)',
+                    background:'var(--surface2)',
                     border:`1px solid ${barColor}44`,
                     borderRadius:'10px',
                     padding:'12px 14px',
@@ -7113,7 +7047,7 @@ export default function TrainerApp() {
                         : '✦ AI 수업일지 생성'}
                   </button>
                 ) : (
-                  <div style={{background:'rgba(255,255,255,0.04)',border:'1px dashed rgba(255,255,255,0.15)',borderRadius:'10px',padding:'18px',textAlign:'center',marginBottom:'10px'}}>
+                  <div style={{background:'var(--surface2)',border:'1px dashed var(--border)',borderRadius:'10px',padding:'18px',textAlign:'center',marginBottom:'10px'}}>
                     <div style={{fontSize:'24px',marginBottom:'6px'}}>🔒</div>
                     <div style={{fontWeight:700,fontSize:'13px',marginBottom:'4px'}}>{HIDE_PURCHASE ? '사용 가능한 AI 일지 횟수가 없어요' : '유료 플랜 전용 기능'}</div>
                     <div style={{fontSize:'12px',color:'var(--text-dim)'}}>{HIDE_PURCHASE ? '현재 계정에서는 AI 수업일지를 생성할 수 없어요.' : 'AI 수업일지 생성은 유료 플랜에서 이용 가능해요.'}</div>
@@ -7157,7 +7091,7 @@ export default function TrainerApp() {
               {canUse('ai_insight') ? (
                 <AiInsightPanel member={currentMember} apiKey={centralApiKey} />
               ) : (
-                <div style={{background:'rgba(255,255,255,0.04)',border:'1px dashed rgba(255,255,255,0.15)',borderRadius:'10px',padding:'16px',textAlign:'center',marginBottom:'10px'}}>
+                <div style={{background:'var(--surface2)',border:'1px dashed var(--border)',borderRadius:'10px',padding:'16px',textAlign:'center',marginBottom:'10px'}}>
                   <div style={{fontSize:'20px',marginBottom:'6px'}}>🔒</div>
                   <div style={{fontWeight:700,fontSize:'13px',marginBottom:'4px'}}>{HIDE_PURCHASE ? 'AI 회원 인사이트' : '유료 플랜 전용'}</div>
                   <div style={{fontSize:'12px',color:'var(--text-dim)'}}>{HIDE_PURCHASE ? '현재 이용할 수 없는 기능이에요.' : 'AI 회원 인사이트는 유료 플랜에서 이용 가능해요.'}</div>
@@ -7211,11 +7145,11 @@ export default function TrainerApp() {
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}}>
                     <div>
                       <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'3px'}}>부가세 미포함</div>
-                      <div style={{fontSize:'15px',fontWeight:700,fontFamily:"'DM Mono',monospace"}}>{(prod.price_excl_tax||0).toLocaleString()}원</div>
+                      <div style={{fontSize:'15px',fontWeight:700,fontVariantNumeric:'tabular-nums'}}>{(prod.price_excl_tax||0).toLocaleString()}원</div>
                     </div>
                     <div>
                       <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'3px'}}>부가세 포함</div>
-                      <div style={{fontSize:'15px',fontWeight:700,fontFamily:"'DM Mono',monospace"}}>{(prod.price_incl_tax||0).toLocaleString()}원</div>
+                      <div style={{fontSize:'15px',fontWeight:700,fontVariantNumeric:'tabular-nums'}}>{(prod.price_incl_tax||0).toLocaleString()}원</div>
                     </div>
                   </div>
                   <div style={{marginTop:'10px'}}>
@@ -7225,7 +7159,7 @@ export default function TrainerApp() {
                     </label>
                   </div>
                   <div style={{marginTop:'8px',fontSize:'12px',color:'var(--text-muted)'}}>
-                    결제 금액: <span style={{color:'var(--accent)',fontWeight:700}}>{(paymentForm.taxIncluded?(prod.price_incl_tax||prod.price_excl_tax):prod.price_excl_tax).toLocaleString()}원</span>
+                    결제 금액: <span style={{color:'var(--accent-text)',fontWeight:700}}>{(paymentForm.taxIncluded?(prod.price_incl_tax||prod.price_excl_tax):prod.price_excl_tax).toLocaleString()}원</span>
                     {' '}· 세션 {prod.session_count}회 추가
                   </div>
                 </div>
@@ -7329,7 +7263,7 @@ export default function TrainerApp() {
                       </div>
                     </div>
                     <div style={{textAlign:'right',flexShrink:0}}>
-                      <div style={{fontSize:'14px',fontWeight:700,color:'var(--accent)',fontFamily:"'DM Mono',monospace"}}>{p.amount.toLocaleString()}원</div>
+                      <div style={{fontSize:'14px',fontWeight:700,color:'var(--accent-text)',fontVariantNumeric:'tabular-nums'}}>{p.amount.toLocaleString()}원</div>
                       <button style={{fontSize:'10px',color:'var(--danger)',background:'none',border:'none',cursor:'pointer',padding:0}} onClick={e=>{e.stopPropagation();setCancelPaymentTarget(p)}}>취소</button>
                     </div>
                   </div>
@@ -7338,7 +7272,7 @@ export default function TrainerApp() {
             }
             {payments.length > 0 && (
               <div style={{textAlign:'right',paddingTop:'8px',borderTop:'1px solid var(--border)',fontSize:'12px',color:'var(--text-muted)'}}>
-                총 결제: <span style={{color:'var(--accent)',fontWeight:700}}>{payments.reduce((s,p)=>s+p.amount,0).toLocaleString()}원</span>
+                총 결제: <span style={{color:'var(--accent-text)',fontWeight:700}}>{payments.reduce((s,p)=>s+p.amount,0).toLocaleString()}원</span>
               </div>
             )}
           </div>
@@ -7431,7 +7365,7 @@ export default function TrainerApp() {
         <div className="divider"></div>
         <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'6px'}}>
           <div className="section-label" style={{margin:0}}>단가 설정</div>
-          <span style={{fontSize:'11px',color:'var(--accent)',fontWeight:600,background:'rgba(200,241,53,0.1)',border:'1px solid rgba(200,241,53,0.25)',borderRadius:'6px',padding:'1px 7px'}}>회당</span>
+          <span style={{fontSize:'11px',color:'var(--accent-text)',fontWeight:600,background:'rgba(200,241,53,0.1)',border:'1px solid rgba(200,241,53,0.25)',borderRadius:'6px',padding:'1px 7px'}}>회당</span>
         </div>
         <div className="two-col">
           <div className="form-group"><label>부가세 미포함 (원)</label><input type="number" value={productForm.priceEx} onChange={e=>setProductForm({...productForm,priceEx:e.target.value})} placeholder="1500000" min="0" /></div>
@@ -7607,7 +7541,7 @@ export default function TrainerApp() {
           <div className="form-group"><label>종료일</label><input type="date" value={holdForm.endDate} onChange={e=>setHoldForm({...holdForm,endDate:e.target.value})} /></div>
         </div>
         {holdForm.startDate && holdForm.endDate && holdForm.startDate <= holdForm.endDate && (
-          <div style={{fontSize:'12px',color:'var(--accent)',marginBottom:'8px',marginTop:'-4px'}}>
+          <div style={{fontSize:'12px',color:'var(--accent-text)',marginBottom:'8px',marginTop:'-4px'}}>
             총 {Math.round((new Date(holdForm.endDate)-new Date(holdForm.startDate))/86400000)+1}일 정지
           </div>
         )}
@@ -7740,13 +7674,13 @@ export default function TrainerApp() {
               </div>
               <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
                 <div>
-                  <span style={{color:'#86efac',fontWeight:600}}>💳 매출관리 → 결제 등록</span>
+                  <span style={{color:'#3F6212',fontWeight:600}}>💳 매출관리 → 결제 등록</span>
                   <br/>상품 선택 → 결제 금액 기록 + 세션 수 자동 추가.<br/>
                   <span style={{color:'#6b7280'}}>정식 결제 흐름으로, 매출 내역에 기록됩니다.</span>
                 </div>
-                <div style={{height:'1px',background:'rgba(255,255,255,0.07)'}}/>
+                <div style={{height:'1px',background:'var(--border)'}}/>
                 <div>
-                  <span style={{color:'#fbbf24',fontWeight:600}}>⚙️ 세션 직접 수정 (이 항목)</span>
+                  <span style={{color:'#92400E',fontWeight:600}}>⚙️ 세션 직접 수정 (이 항목)</span>
                   <br/>결제 기록 없이 세션 수만 바로 수정합니다.<br/>
                   <span style={{color:'#9ca3af'}}>아래 경우에만 사용하세요:</span>
                   <ul style={{margin:'5px 0 0 14px',padding:0,color:'#9ca3af',fontSize:'11px',lineHeight:'1.9'}}>
@@ -7850,7 +7784,7 @@ export default function TrainerApp() {
                           <span style={{fontSize:'12px',fontWeight:600,color:'var(--text)'}}>
                             {startFmt} ~ {endFmt}
                           </span>
-                          <span style={{fontSize:'11px',color:'var(--text-muted)',fontFamily:"'DM Mono',monospace"}}>
+                          <span style={{fontSize:'11px',color:'var(--text-muted)',fontVariantNumeric:'tabular-nums'}}>
                             {days}일
                           </span>
                         </div>
@@ -7906,7 +7840,7 @@ export default function TrainerApp() {
               {/* 요약 */}
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'16px'}}>
                 <div style={{background:'rgba(74,222,128,0.1)',border:'1px solid rgba(74,222,128,0.3)',borderRadius:'10px',padding:'12px',textAlign:'center'}}>
-                  <div style={{fontSize:'24px',fontWeight:800,color:'#4ade80'}}>{readLogs.length}</div>
+                  <div style={{fontSize:'24px',fontWeight:800,color:'#3F6212'}}>{readLogs.length}</div>
                   <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'2px'}}>확인 완료</div>
                 </div>
                 <div style={{background:'rgba(239,68,68,0.08)',border:'1px solid rgba(239,68,68,0.25)',borderRadius:'10px',padding:'12px',textAlign:'center'}}>
@@ -7938,7 +7872,7 @@ export default function TrainerApp() {
               {/* 확인 완료 목록 */}
               {readLogs.length > 0 && (
                 <>
-                  <div style={{fontSize:'11px',fontWeight:700,color:'#4ade80',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'0.05em'}}>✅ 확인 완료</div>
+                  <div style={{fontSize:'11px',fontWeight:700,color:'#3F6212',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'0.05em'}}>✅ 확인 완료</div>
                   {readLogs.map(l => {
                     const mem = memberById.get(l.member_id)
                     return (
@@ -7948,7 +7882,7 @@ export default function TrainerApp() {
                           <span style={{fontSize:'11px',color:'var(--text-dim)',marginLeft:'6px'}}>{l.session_number}회차</span>
                         </div>
                         <div style={{textAlign:'right'}}>
-                          <div style={{fontSize:'10px',color:'#4ade80',fontWeight:600}}>확인</div>
+                          <div style={{fontSize:'10px',color:'#3F6212',fontWeight:600}}>확인</div>
                           <div style={{fontSize:'10px',color:'var(--text-dim)'}}>{fmt(l.read_at)}</div>
                         </div>
                       </div>
@@ -7963,49 +7897,33 @@ export default function TrainerApp() {
         })()}
       </Modal>
 
-      <Modal open={settingsModal} onClose={()=>setSettingsModal(false)} title="설정">
-        <div className="form-group">
-          <label>트레이너 이름</label>
-          <input type="text" value={trainer?.name||''} readOnly style={{opacity:0.6}} />
-        </div>
-        <div className="divider"></div>
-
-        {/* 크레딧 섹션 */}
-        <div className="form-group">
-          <label>AI 크레딧</label>
-          <div style={{
-            background:'rgba(255,255,255,0.05)',
-            border:'1px solid var(--border)',
-            borderRadius:'10px',
-            padding:'16px',
-          }}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
-              <div>
-                <div style={{fontSize:'28px',fontWeight:800,fontFamily:"'DM Mono',monospace",color:'var(--accent)',lineHeight:1}}>
-                  {credits}
-                </div>
-                <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'4px'}}>보유 크레딧</div>
-              </div>
-              <div style={{fontSize:'32px'}}>🎟️</div>
-            </div>
-            <div style={{fontSize:'11px',color:'var(--text-muted)',lineHeight:1.6,marginBottom:HIDE_PURCHASE ? 0 : '12px'}}>
-              크레딧 1개 = AI 수업일지 생성 1회
-              {!HIDE_PURCHASE && <><br/>크레딧이 부족하면 관리자에게 충전을 요청하세요.</>}
-            </div>
-            {!HIDE_PURCHASE && <div style={{
-              background:'rgba(200,241,53,0.08)',
-              border:'1px solid rgba(200,241,53,0.2)',
-              borderRadius:'8px',
-              padding:'10px 12px',
-              fontSize:'12px',
-              color:'var(--accent)',
-              fontWeight:600,
-            }}>
-              💡 크레딧 충전 문의: 관리자에게 연락해주세요
-            </div>}
+      {/* AI 일지 — 상단 칩에서 열림. 지금 쓸 수 있는 횟수(무료 월 잔여 + 크레딧) */}
+      <Modal open={settingsModal} onClose={()=>setSettingsModal(false)} title="AI 일지">
+        <div style={{background:'#111827',borderRadius:'18px',padding:'18px',color:'#fff',marginBottom:'14px'}}>
+          <div style={{fontSize:'12px',color:'#9CA3AF'}}>지금 쓸 수 있는 AI 일지</div>
+          <div style={{display:'flex',alignItems:'baseline',gap:'4px',marginTop:'4px'}}>
+            <span style={{fontSize:'34px',fontWeight:900,letterSpacing:'-1px',fontVariantNumeric:'tabular-nums',color:'#C8F135'}}>
+              {aiQuota?.mode === 'quota' ? aiRemaining : credits}
+            </span>
+            <span style={{fontSize:'15px',fontWeight:700,color:'#9CA3AF'}}>회</span>
           </div>
+          {aiQuota?.mode === 'quota' && (
+            <>
+              <div style={{height:'6px',borderRadius:'3px',background:'#374151',marginTop:'12px',overflow:'hidden'}}>
+                <div style={{height:'100%',borderRadius:'3px',background:'#C8F135',
+                  width:`${Math.min(100, Math.round(aiQuotaLeft / Math.max(1, aiQuota.quota || 1) * 100))}%`}} />
+              </div>
+              <div style={{fontSize:'12px',color:'#D1D5DB',marginTop:'8px'}}>
+                무료 {aiQuotaLeft} / {aiQuota.quota}회 · {fmtResetDate(aiQuota.resets_at)} 충전{credits > 0 ? ` · 크레딧 ${credits}개` : ''}
+              </div>
+            </>
+          )}
         </div>
-        <button className="btn btn-primary" style={{width:'100%',marginTop:'8px'}} onClick={saveSettings}>닫기</button>
+        <div style={{fontSize:'13px',color:'var(--text-muted)',lineHeight:1.7}}>
+          AI로 일지를 한 번 만들 때마다 1회씩 차감돼요.
+          {!HIDE_PURCHASE && aiQuota?.mode !== 'quota' && <><br/>크레딧이 부족하면 관리자에게 충전을 요청하세요.</>}
+        </div>
+        <button className="btn btn-primary" style={{width:'100%',marginTop:'16px'}} onClick={()=>setSettingsModal(false)}>닫기</button>
       </Modal>
 
       {/* ── 크레딧 부족 모달 ── */}
@@ -8029,7 +7947,7 @@ export default function TrainerApp() {
             AI 수업일지를 생성하려면 크레딧이 필요해요
           </div>
           <div style={{fontSize:'13px',color:'var(--text-dim)',marginBottom:'16px'}}>
-            현재 보유 크레딧: <strong style={{color:'var(--accent)'}}>{credits}개</strong>
+            현재 보유 크레딧: <strong style={{color:'var(--accent-text)'}}>{credits}개</strong>
           </div>
           <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'10px',padding:'14px',marginBottom:'16px',textAlign:'left',fontSize:'13px',lineHeight:1.7}}>
             <div style={{fontWeight:600,marginBottom:'6px'}}>💡 크레딧이란?</div>
@@ -8099,7 +8017,7 @@ export default function TrainerApp() {
                 <div style={{marginBottom:'12px'}}>
                   <div style={{display:'flex',justifyContent:'space-between',marginBottom:'5px'}}>
                     <span style={{fontSize:'11px',color:'var(--text-dim)'}}>시작 지점</span>
-                    <span style={{fontSize:'12px',fontWeight:700,color:'var(--text)',fontFamily:"'DM Mono',monospace"}}>{fmtTime(trimStart)}</span>
+                    <span style={{fontSize:'12px',fontWeight:700,color:'var(--text)',fontVariantNumeric:'tabular-nums'}}>{fmtTime(trimStart)}</span>
                   </div>
                   <input
                     type="range" min="0"
@@ -8111,13 +8029,13 @@ export default function TrainerApp() {
                       if (trimEnd - v < 2) setTrimEnd(Math.min(trimDuration, v + 2))
                       if (trimVideoRef.current) trimVideoRef.current.currentTime = v
                     }}
-                    style={{width:'100%',accentColor:'#60a5fa'}}
+                    style={{width:'100%',accentcolor:'#1D4ED8'}}
                   />
                 </div>
                 <div style={{marginBottom:'16px'}}>
                   <div style={{display:'flex',justifyContent:'space-between',marginBottom:'5px'}}>
                     <span style={{fontSize:'11px',color:'var(--text-dim)'}}>종료 지점 (최대 60초)</span>
-                    <span style={{fontSize:'12px',fontWeight:700,color:'var(--text)',fontFamily:"'DM Mono',monospace"}}>{fmtTime(trimEnd)}</span>
+                    <span style={{fontSize:'12px',fontWeight:700,color:'var(--text)',fontVariantNumeric:'tabular-nums'}}>{fmtTime(trimEnd)}</span>
                   </div>
                   <input
                     type="range"
@@ -8125,12 +8043,12 @@ export default function TrainerApp() {
                     max={Math.min(trimDuration, trimStart + 60)}
                     step="0.5" value={trimEnd}
                     onChange={e => setTrimEnd(parseFloat(e.target.value))}
-                    style={{width:'100%',accentColor:'#60a5fa'}}
+                    style={{width:'100%',accentcolor:'#1D4ED8'}}
                   />
                 </div>
                 <div style={{
                   textAlign:'center',fontSize:'13px',fontWeight:700,
-                  color:'#60a5fa',marginBottom:'16px',
+                  color:'#1D4ED8',marginBottom:'16px',
                   background:'rgba(96,165,250,0.08)',borderRadius:'8px',padding:'8px',
                 }}>
                   선택 구간: {fmtTime(trimStart)} ~ {fmtTime(trimEnd)}
@@ -8148,7 +8066,7 @@ export default function TrainerApp() {
               }}>
                 <div style={{
                   display:'inline-block',width:'14px',height:'14px',
-                  border:'2px solid var(--border)',borderTopColor:'#60a5fa',
+                  border:'2px solid var(--border)',borderTopcolor:'#1D4ED8',
                   borderRadius:'50%',animation:'spin 0.8s linear infinite',
                   marginRight:'8px',verticalAlign:'middle',
                 }} />

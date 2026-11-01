@@ -81,7 +81,7 @@ export default function MemberDietView({ memberId }) {
             {/* 날짜 헤더 + 일일 합계 */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{fmtDate(date)}</span>
-              <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)' }}>{Math.round(dayKcal).toLocaleString()} kcal</span>
+              <span style={{ fontSize: 12, fontWeight: 800, color:'var(--accent-text)' }}>{Math.round(dayKcal).toLocaleString()} kcal</span>
             </div>
             {/* 끼니별 */}
             <div style={{ padding: '6px 14px 12px' }}>
@@ -125,7 +125,7 @@ export default function MemberDietView({ memberId }) {
 
 function Macro({ label, g, color }) {
   return (
-    <div style={{ flex: 1, textAlign: 'center', background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: '7px 4px' }}>
+    <div style={{ flex: 1, textAlign: 'center', background: 'var(--surface2)', borderRadius: 8, padding: '7px 4px' }}>
       <div style={{ fontSize: 13, fontWeight: 800, color }}>{Math.round(g)}g</div>
       <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 1 }}>{label}</div>
     </div>

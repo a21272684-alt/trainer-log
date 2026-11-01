@@ -31,7 +31,7 @@
   background:var(--m-surface); border-color:var(--m-border);
   border-radius:var(--m-radius); box-shadow:0 1px 4px rgba(0,0,0,0.04);
 }
-.member-portal .section-label { color:var(--m-text-dim); }
+.member-portal .section-label { color:var(--m-text-muted); font-size:13px; letter-spacing:0; text-transform:none; font-weight:700; }
 .member-portal .empty { color:var(--m-text-dim); }
 .member-portal .btn-primary { background:var(--m-accent); color:#111; font-weight:700; }
 .member-portal .btn-primary:hover { background:#84cc16; transform:translateY(-1px); }
@@ -61,21 +61,43 @@
 .m-login-logo span { color:#111; background:#c8f135; padding:0 7px; border-radius:6px; margin-left:1px; }
 .m-login-sub { font-size:13px; color:#6B7280; margin-bottom:28px; margin-top:6px; }
 
-/* ── Topbar ── */
+/* ── Topbar ── (2026-11 개편: 워드마크 | 문의 칩 · 로그아웃 글자 버튼) */
 .m-topbar {
-  background:#fff; padding:13px 20px;
+  background:#fff; padding:6px 8px 6px 16px; min-height:56px; box-sizing:border-box;
   display:flex; align-items:center; justify-content:space-between;
-  border-bottom:1px solid var(--m-border);
-  box-shadow:0 1px 8px rgba(0,0,0,0.05);
+  border-bottom:1px solid #EEF0EA;
   position:sticky; top:0; z-index:100;
 }
-.m-topbar-title { font-size:16px; font-weight:900; color:#111; letter-spacing:-0.5px; }
-.m-topbar-title span { color:#111; background:#c8f135; padding:1px 7px; border-radius:5px; margin-left:1px; }
-.m-logout-btn {
-  background:none; border:1.5px solid var(--m-border); color:var(--m-text-muted);
-  border-radius:8px; padding:5px 12px; font-size:12px; cursor:pointer; font-family:inherit; transition:all 0.2s;
+.m-topbar-title { font-size:18px; font-weight:900; color:#111; letter-spacing:-0.5px; }
+.m-topbar-title span { color:#111; background:#c8f135; padding:1px 7px; border-radius:6px; margin-left:2px; }
+.m-chip-btn {
+  display:inline-flex; align-items:center; gap:6px; height:40px; padding:0 12px;
+  border:none; border-radius:999px; background:var(--m-surface2); color:var(--m-text);
+  font-size:13px; font-weight:700; cursor:pointer; font-family:inherit;
 }
-.m-logout-btn:hover { border-color:#84cc16; color:var(--m-text); }
+.m-chip-btn:hover { background:#E9EBE4; }
+.m-logout-btn {
+  height:40px; padding:0 10px; background:none; border:none; color:var(--m-text-muted);
+  font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; border-radius:10px;
+}
+.m-logout-btn:hover { color:var(--m-text); background:var(--m-surface2); }
+
+/* ── 하단 탭바 ── 선택된 탭 = 라임 알약 + 잉크 아이콘 */
+.m-tabbar {
+  position:fixed; bottom:0; left:0; right:0; z-index:200;
+  display:flex; background:#fff; border-top:1px solid #EEF0EA;
+  padding:8px 0 calc(6px + env(safe-area-inset-bottom));
+}
+.m-tabbar-btn {
+  flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:4px;
+  padding:0 4px; min-height:52px; border:none; background:none; cursor:pointer; font-family:inherit;
+  color:#6B7280;
+}
+.m-tabbar-pill { width:56px; height:30px; border-radius:15px; display:flex; align-items:center; justify-content:center; transition:background 0.15s; }
+.m-tabbar-btn.active { color:#111827; }
+.m-tabbar-btn.active .m-tabbar-pill { background:#c8f135; }
+.m-tabbar-label { font-size:11px; font-weight:600; line-height:1; white-space:nowrap; }
+.m-tabbar-btn.active .m-tabbar-label { font-weight:800; }
 
 /* ── Tabs ── */
 .m-tabs {
@@ -107,7 +129,7 @@
   background:rgba(255,255,255,0.09); border-radius:10px; padding:10px; text-align:center;
   border:1px solid rgba(255,255,255,0.08);
 }
-.m-stat-num { font-size:18px; font-weight:800; font-family:'DM Mono',monospace; }
+.m-stat-num { font-size:18px; font-weight:800; font-variant-numeric:tabular-nums; }
 .m-stat-label { font-size:10px; opacity:0.58; margin-top:2px; }
 .m-session-bar-bg { height:5px; background:rgba(255,255,255,0.15); border-radius:3px; margin-top:14px; overflow:hidden; }
 .m-session-bar-fill { height:100%; background:#c8f135; border-radius:3px; }
@@ -119,7 +141,7 @@
   border-radius:12px; padding:14px; box-shadow:0 1px 4px rgba(0,0,0,0.04);
 }
 .m-weight-card-label { font-size:11px; color:var(--m-text-dim); margin-bottom:6px; font-weight:500; }
-.m-weight-card-num { font-size:22px; font-weight:800; font-family:'DM Mono',monospace; color:var(--m-text); }
+.m-weight-card-num { font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; color:var(--m-text); }
 .m-weight-card-unit { font-size:12px; color:var(--m-text-muted); margin-left:2px; }
 .m-weight-card.green .m-weight-card-num { color:var(--m-green); }
 .m-weight-card.dark .m-weight-card-num { color:var(--m-text); }
@@ -137,10 +159,10 @@
   display:flex; align-items:center; gap:12px; flex-wrap:wrap;
   box-shadow:0 1px 4px rgba(0,0,0,0.04);
 }
-.m-daily-date { font-size:11px; color:var(--m-text-dim); font-family:'DM Mono',monospace; min-width:44px; text-align:center; }
+.m-daily-date { font-size:11px; color:var(--m-text-dim); font-variant-numeric:tabular-nums; min-width:44px; text-align:center; }
 .m-daily-weights { display:flex; gap:16px; flex:1; }
 .m-daily-w { text-align:center; }
-.m-daily-w-num { font-size:15px; font-weight:700; font-family:'DM Mono',monospace; color:var(--m-text); }
+.m-daily-w-num { font-size:15px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--m-text); }
 .m-daily-w-label { font-size:10px; color:var(--m-text-dim); margin-top:1px; }
 
 /* ── Sleep ── */
@@ -173,7 +195,7 @@
   padding:14px 16px; display:flex; align-items:center; justify-content:space-between;
   border-bottom:1px solid var(--m-border); cursor:pointer;
 }
-.m-log-item-date { font-size:12px; color:var(--m-text-muted); font-family:'DM Mono',monospace; }
+.m-log-item-date { font-size:12px; color:var(--m-text-muted); font-variant-numeric:tabular-nums; }
 .m-log-session { font-size:11px; background:var(--m-surface2); padding:3px 8px; border-radius:6px; color:var(--m-text-muted); font-weight:500; }
 .m-log-body { padding:18px; white-space:pre-wrap; font-size:13px; line-height:2; color:var(--m-text); }
 .m-log-footer { padding:12px 16px; border-top:1px solid var(--m-border); display:flex; gap:8px; }

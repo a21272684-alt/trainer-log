@@ -1,23 +1,49 @@
 /* ========== TRAINER APP STYLES — Premium Light Theme ========== */
 
-/* ── Topbar ── */
+/* ── Topbar ── (2026-11 개편: 홈 아이콘 + 워드마크 | AI 일지 남은 횟수 칩) */
 .topbar-t {
   position:sticky; top:0; z-index:100;
   background:#fff;
-  border-bottom:1px solid var(--border);
-  padding:13px 20px;
+  border-bottom:1px solid #EEF0EA;
+  padding:6px 12px 6px 8px; min-height:56px; box-sizing:border-box;
   display:flex; align-items:center; justify-content:space-between;
-  box-shadow:0 1px 8px rgba(0,0,0,0.05);
 }
-.topbar-title { font-size:16px; font-weight:900; letter-spacing:-0.5px; color:#111; }
-.topbar-title span { color:#111; background:var(--accent); padding:1px 7px; border-radius:5px; margin-left:1px; }
-.topbar-left { display:flex; align-items:center; gap:10px; }
+.topbar-title { font-size:18px; font-weight:900; letter-spacing:-0.5px; color:#111; }
+.topbar-title span { color:#111; background:var(--accent); padding:1px 7px; border-radius:6px; margin-left:2px; }
+.topbar-left { display:flex; align-items:center; gap:2px; }
+.topbar-home {
+  width:44px; height:44px; display:flex; align-items:center; justify-content:center;
+  color:var(--text-muted); text-decoration:none; border-radius:12px;
+}
+.topbar-home:hover { background:var(--surface2); color:var(--text); }
 .settings-btn {
-  background:none; border:1.5px solid var(--border);
-  color:var(--text-muted); border-radius:8px; padding:6px 12px;
-  font-size:12px; cursor:pointer; font-family:inherit; transition:all 0.2s;
+  display:inline-flex; align-items:center; gap:6px;
+  height:40px; padding:0 14px; border:none; border-radius:999px;
+  background:var(--surface2); color:var(--text);
+  font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; transition:background 0.2s;
+  font-variant-numeric:tabular-nums;
 }
-.settings-btn:hover { border-color:var(--accent-dim); color:var(--text); background:rgba(200,241,53,0.08); }
+.settings-btn:hover { background:var(--surface3); }
+
+/* ── 하단 탭바 ── 선택된 탭 = 라임 알약 + 잉크 아이콘, 나머지 회색 */
+.tabbar-t {
+  position:fixed; bottom:0; left:0; right:0; z-index:200;
+  display:flex; background:#fff; border-top:1px solid #EEF0EA;
+  padding:8px 0 calc(6px + env(safe-area-inset-bottom));
+}
+.tabbar-btn {
+  flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:4px;
+  padding:0 2px; min-height:52px; border:none; background:none; font-family:inherit;
+  color:#6B7280;
+}
+.tabbar-pill {
+  width:52px; height:30px; border-radius:15px;
+  display:flex; align-items:center; justify-content:center; transition:background 0.15s;
+}
+.tabbar-btn.active { color:#111827; }
+.tabbar-btn.active .tabbar-pill { background:var(--accent); }
+.tabbar-label { display:flex; align-items:center; font-size:11px; font-weight:600; line-height:1; white-space:nowrap; }
+.tabbar-btn.active .tabbar-label { font-weight:800; }
 
 /* ── Tab bar ── */
 .tabs-t {
@@ -64,7 +90,7 @@
 .member-name { font-size:14px; font-weight:600; color:var(--text); }
 .member-meta { font-size:12px; color:var(--text-muted); margin-top:2px; }
 .session-badge {
-  font-family:'DM Mono',monospace; font-size:11px;
+  font-variant-numeric:tabular-nums; font-size:11px;
   color:var(--accent-text); background:rgba(200,241,53,0.2);
   border:1px solid rgba(200,241,53,0.42); border-radius:6px;
   padding:3px 8px; white-space:nowrap; font-weight:600;
@@ -101,7 +127,7 @@
 }
 .msum .mt { padding:12px 8px; text-align:center; }
 .msum .mt + .mt { border-left:1px solid var(--border); }
-.msum .mv { font-size:19px; font-weight:800; font-family:'DM Mono',monospace; letter-spacing:-0.5px; color:var(--text); line-height:1.1; }
+.msum .mv { font-size:19px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:-0.5px; color:var(--text); line-height:1.1; }
 .msum .mv.g { color:var(--accent-text); }
 .msum .mv.warn { color:var(--danger); }
 .msum .ml { font-size:10.5px; color:var(--text-muted); margin-top:4px; }
@@ -163,10 +189,10 @@
   border-bottom:1px solid var(--border); font-size:12px;
 }
 .ex-set-item:last-child { border-bottom:none; }
-.ex-set-num { font-family:'DM Mono',monospace; font-size:10px; color:var(--text-dim); min-width:28px; }
+.ex-set-num { font-variant-numeric:tabular-nums; font-size:10px; color:var(--text-dim); min-width:28px; }
 .ex-set-info { flex:1; color:var(--text-muted); }
 .ex-set-rir {
-  font-family:'DM Mono',monospace; font-size:11px; font-weight:600;
+  font-variant-numeric:tabular-nums; font-size:11px; font-weight:600;
   padding:2px 7px; border-radius:5px;
   background:rgba(200,241,53,0.18); color:var(--accent-text);
 }
@@ -178,7 +204,7 @@
 /* ── RIR Guide ── */
 .rir-guide { margin-top:14px; }
 .rir-item { border-radius:10px; padding:12px 14px; margin-bottom:8px; font-size:12px; line-height:1.6; }
-.rir-badge { display:inline-block; font-family:'DM Mono',monospace; font-size:11px; font-weight:600; padding:2px 8px; border-radius:6px; margin-bottom:4px; }
+.rir-badge { display:inline-block; font-variant-numeric:tabular-nums; font-size:11px; font-weight:600; padding:2px 8px; border-radius:6px; margin-bottom:4px; }
 .rir-2 { background:rgba(59,130,246,0.07); border:1px solid rgba(59,130,246,0.2); }
 .rir-2 .rir-badge { background:rgba(59,130,246,0.12); color:#1d4ed8; }
 .rir-1 { background:rgba(200,241,53,0.1); border:1px solid rgba(200,241,53,0.28); }
@@ -211,7 +237,7 @@
   box-shadow:var(--shadow-sm); transition:all 0.2s; cursor:pointer;
 }
 .history-item:hover { box-shadow:var(--shadow); border-color:var(--border); }
-.history-date { font-size:11px; color:var(--text-dim); font-family:'DM Mono',monospace; margin-bottom:6px; }
+.history-date { font-size:11px; color:var(--text-dim); font-variant-numeric:tabular-nums; margin-bottom:6px; }
 .history-preview { font-size:13px; color:var(--text-muted); line-height:1.6; }
 
 /* ── Schedule ── */
@@ -282,7 +308,7 @@
   color: var(--text-muted);
   text-align: right;
   padding-right: 5px;
-  font-family: 'DM Mono', monospace;
+  font-variant-numeric:tabular-nums;
   position: absolute;
   top: -7px;
   right: 0;
@@ -349,7 +375,7 @@
 .rev-tile:nth-child(-n+2) { border-top: none; }
 .rev-tile:nth-child(odd) { border-right: 1px solid var(--border); }
 .rev-tile .rl { font-size: 11px; color: var(--text-muted); }
-.rev-tile .rv { font-size: 17px; font-weight: 700; font-family: 'DM Mono', monospace; margin-top: 3px; color: var(--text); }
+.rev-tile .rv { font-size: 17px; font-weight: 700; font-variant-numeric:tabular-nums; margin-top: 3px; color: var(--text); }
 
 .rev-rows { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 0 16px; }
 .rev-rows > .rev-sec + .rev-sec { border-top: 1px solid var(--border); }
@@ -376,3 +402,9 @@
 .type-btn.active { background:var(--accent); color:#111; border-color:transparent; font-weight:700; }
 .time-row { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:8px; }
 .time-row span { text-align:center; color:var(--text-muted); font-size:13px; }
+
+/* ── 섹션 라벨 — 11px 대문자 회색 → 13px 굵은 보조색 (가독성, 2026-11 개편) ── */
+.page-t .section-label {
+  font-size:13px; letter-spacing:0; text-transform:none;
+  color:var(--text-muted); font-weight:700;
+}

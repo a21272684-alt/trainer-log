@@ -126,7 +126,7 @@ export default function AttendancePolicyEditor({ trainer, onClose }) {
           style={{ width: '100%', fontSize: 13, lineHeight: 1.7, resize: 'vertical' }} />
         {textEdited && (
           <button type="button" onClick={() => { setText(defaultPolicyText(hours, deduct)); setTextEdited(false) }}
-            style={{ marginTop: 6, background: 'none', border: 'none', color: 'var(--accent)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+            style={{ marginTop: 6, background: 'none', border: 'none', color:'var(--accent-text)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
             ↺ 자동 문구로 되돌리기
           </button>
         )}

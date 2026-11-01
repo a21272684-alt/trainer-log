@@ -3,6 +3,7 @@ import { supabase } from '@trainer-log/shared/lib/supabase'
 import { signInWithProvider, isNativeApp, signInWithApple as appleSignIn } from '../lib/nativeAuth'
 import { useToast } from '@trainer-log/shared/components/common/Toast'
 import Modal from '@trainer-log/shared/components/common/Modal'
+import Icon from '../components/Icon'
 import TermsAgreementModal from '@trainer-log/shared/components/common/TermsAgreementModal'
 import InAppBrowserBanner from '@trainer-log/shared/components/common/InAppBrowserBanner'
 import LoginNoticeModal from '@trainer-log/shared/components/common/LoginNoticeModal'
@@ -1218,117 +1219,43 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
   const pct = member.total_sessions>0 ? Math.round((member.done_sessions/member.total_sessions)*100) : 0
   const remain = member.total_sessions - member.done_sessions
 
-  // ── 하단 네비 아이콘 정의 ────────────────────────────────────────
+  // ── 하단 네비 — components/Icon 의 선 아이콘 이름 ──────────────────
   const NAV_ITEMS = [
-    {
-      key: 'logs', label: '수업일지',
-      icon: (active) => (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-          stroke={active ? '#10B981' : '#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="16" y1="13" x2="8" y2="13"/>
-          <line x1="16" y1="17" x2="8" y2="17"/>
-          <line x1="10" y1="9"  x2="8" y2="9"/>
-        </svg>
-      ),
-    },
-    {
-      key: 'health', label: '체중관리',
-      icon: (active) => (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-          stroke={active ? '#10B981' : '#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
-        </svg>
-      ),
-    },
-    {
-      key: 'diet', label: '식단',
-      icon: (active) => (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-          stroke={active ? '#10B981' : '#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M18 8h1a4 4 0 010 8h-1"/>
-          <path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/>
-          <line x1="6" y1="1" x2="6" y2="4"/>
-          <line x1="10" y1="1" x2="10" y2="4"/>
-          <line x1="14" y1="1" x2="14" y2="4"/>
-        </svg>
-      ),
-    },
-    {
-      key: 'workout', label: '운동',
-      icon: (active) => (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-          stroke={active ? '#10B981' : '#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M6.5 6.5h11M6.5 17.5h11M3 10h3v4H3zM18 10h3v4h-3zM6.5 12h11"/>
-        </svg>
-      ),
-    },
+    { key: 'logs',    label: '수업일지', icon: 'file' },
+    { key: 'health',  label: '체중관리', icon: 'scale' },
+    { key: 'diet',    label: '식단',     icon: 'utensils' },
+    { key: 'workout', label: '운동',     icon: 'dumbbell' },
   ]
 
   return (
-    <div className="member-portal" style={{paddingBottom:'72px'}}>
+    <div className="member-portal" style={{paddingBottom:'calc(84px + env(safe-area-inset-bottom))'}}>
       {/* 최초 로그인 1회 약관 동의 모달 (user_metadata.terms_agreed 미설정 시 강제 노출) */}
       <TermsAgreementModal aiConsent />
       {/* 로그인 후 공지 (admin login_notice 설정 시) — 회원 화면 진입 시 1회 */}
       {/* iOS 앱에선 관리자 공지 미노출 (App Store 2.2·2.3.10 — TrainerApp 동일 사유) */}
       {!isNativeApp() && <LoginNoticeModal target="member" />}
       <div className="m-topbar">
-        <div className="m-topbar-title">오운</div>
-        <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
-          <button
-            type="button"
-            onClick={openInquiryChat}
-            title="1:1 문의 (카카오 오픈채팅)"
-            style={{
-              border:'1px solid #FEE500',background:'#FEE500',color:'#191919',
-              fontWeight:700,fontSize:'12px',borderRadius:'8px',padding:'6px 10px',
-              cursor:'pointer',fontFamily:'inherit'
-            }}
-          >
-            💬 1:1 문의
+        <div className="m-topbar-title">오<span>운</span></div>
+        <div style={{display:'flex',alignItems:'center',gap:'2px'}}>
+          <button type="button" className="m-chip-btn" onClick={openInquiryChat} title="1:1 문의 (카카오 채널)">
+            <Icon name="message" size={15} strokeWidth={2.2} />문의
           </button>
           <button className="m-logout-btn" onClick={logout}>로그아웃</button>
         </div>
       </div>
 
-      {/* ── 하단 고정 네비게이션 ── */}
-      <div style={{
-        position:'fixed', bottom:0, left:0, right:0, zIndex:200,
-        background:'#fff',
-        borderTop:'1px solid #E5E7EB',
-        display:'flex',
-        boxShadow:'0 -2px 16px rgba(0,0,0,0.07)',
-        paddingBottom:'env(safe-area-inset-bottom)',
-      }}>
+      {/* ── 하단 고정 네비게이션 — 선택된 탭은 라임 알약 + 잉크 아이콘 ── */}
+      <nav className="m-tabbar">
         {NAV_ITEMS.map(({ key, label, icon }) => {
           const active = tab === key
           return (
-            <button key={key} onClick={()=>setTab(key)} style={{
-              flex:1, display:'flex', flexDirection:'column',
-              alignItems:'center', justifyContent:'center',
-              gap:'3px', padding:'9px 4px 7px',
-              border:'none', background:'none',
-              cursor:'pointer', fontFamily:'inherit',
-              transition:'color 0.15s', minHeight:'54px',
-              position:'relative',
-            }}>
-              {active && (
-                <span style={{
-                  position:'absolute', top:0, left:'50%', transform:'translateX(-50%)',
-                  width:'28px', height:'2.5px', borderRadius:'0 0 3px 3px',
-                  background:'#10B981',
-                }}/>
-              )}
-              {icon(active)}
-              <span style={{
-                fontSize:'10px', fontWeight: active ? 700 : 400, lineHeight:1,
-                color: active ? '#10B981' : '#9CA3AF',
-              }}>{label}</span>
+            <button key={key} className={'m-tabbar-btn' + (active ? ' active' : '')} onClick={()=>setTab(key)}>
+              <span className="m-tabbar-pill"><Icon name={icon} size={21} strokeWidth={active ? 2.2 : 2} /></span>
+              <span className="m-tabbar-label">{label}</span>
             </button>
           )
         })}
-      </div>
+      </nav>
 
       {/* ── 수업일지 ── */}
       {tab === 'logs' && (
@@ -1828,7 +1755,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
               <div key={label} style={{marginBottom:'12px'}}>
                 <div style={{display:'flex',justifyContent:'space-between',marginBottom:'6px'}}>
                   <span style={{fontSize:'12px',fontWeight:600,color:'#374151'}}>{label}</span>
-                  <span style={{fontSize:'12px',fontWeight:700,color,fontFamily:"'DM Mono',monospace"}}>{val}%</span>
+                  <span style={{fontSize:'12px',fontWeight:700,color,fontVariantNumeric:'tabular-nums'}}>{val}%</span>
                 </div>
                 <div style={{height:'7px',background:'#F3F4F6',borderRadius:'4px',overflow:'hidden'}}>
                   <div style={{height:'100%',width:Math.min(100,val)+'%',background:'linear-gradient(90deg,#10B981,#059669)',borderRadius:'4px',transition:'width 0.5s ease'}}/>
@@ -2432,7 +2359,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
               ].map(([label,val,color,bg,border])=>(
                 <div key={label} style={{background:bg,borderRadius:'14px',padding:'12px',border:`1px solid ${border}`,boxShadow:'0 1px 6px rgba(0,0,0,0.04)'}}>
                   <div style={{fontSize:'10px',color:'#6b7280',marginBottom:'5px',fontWeight:600}}>{label}</div>
-                  <div style={{fontSize:'17px',fontWeight:800,fontFamily:"'DM Mono',monospace",color}}>{val}</div>
+                  <div style={{fontSize:'17px',fontWeight:800,fontVariantNumeric:'tabular-nums',color}}>{val}</div>
                 </div>
               ))}
             </div>
@@ -2488,7 +2415,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                                 {ex.sets.map((set,si)=>(
                                   <div key={si} style={{background:'#F0FDF4',borderRadius:'10px',padding:'8px',fontSize:'12px',textAlign:'center',border:'1px solid #A7F3D0'}}>
                                     <div style={{color:'#10B981',fontSize:'10px',fontWeight:700,marginBottom:'3px'}}>{si+1}세트</div>
-                                    <div style={{fontWeight:700,fontFamily:"'DM Mono',monospace",color:'#111'}}>{set.weight||'—'}kg × {set.reps||'—'}회</div>
+                                    <div style={{fontWeight:700,fontVariantNumeric:'tabular-nums',color:'#111'}}>{set.weight||'—'}kg × {set.reps||'—'}회</div>
                                     {set.rest_sec && <div style={{color:'#6b7280',fontSize:'10px',marginTop:'2px'}}>휴식 {set.rest_sec}초</div>}
                                   </div>
                                 ))}
