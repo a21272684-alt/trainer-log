@@ -28,7 +28,7 @@ const MUSCLE_COLOR = {'가슴':'#ef4444','등':'#3b82f6','어깨':'#8b5cf6','이
 function foodSourceBadge(item) {
   const src = item?.source || (item?.ai_recognized ? 'ai' : null)
   const map = {
-    db:     { label: '식약처',   bg: '#ECFDF5', color: '#059669' },
+    db:     { label: '식약처',   bg: '#ECFCCB', color: '#3F6212' },
     ai:     { label: 'AI추정',   bg: '#FFFBEB', color: '#B45309' },
     manual: { label: '직접입력', bg: '#F3F4F6', color: '#6B7280' },
   }
@@ -763,10 +763,10 @@ export default function MemberPortal() {
     chartInstance.current = new Chart(ctx, {
       type:'line',
       data:{labels:records.map(r=>formatDate(r.record_date)),datasets:[
-        {label:'공복 체중',data:records.map(r=>r.morning_weight),borderColor:'#10B981',backgroundColor:'rgba(16,185,129,0.08)',tension:0.4,pointRadius:4,pointBackgroundColor:'#10B981',pointBorderColor:'#fff',pointBorderWidth:2,borderWidth:2.5,fill:true},
-        ...(member?.target_weight?[{label:'목표',data:Array(records.length).fill(member.target_weight),borderColor:'#d1fae5',borderDash:[5,4],borderWidth:2,pointRadius:0,fill:false}]:[])
+        {label:'공복 체중',data:records.map(r=>r.morning_weight),borderColor:'#111827',backgroundColor:'rgba(200,241,53,0.28)',tension:0.4,pointRadius:4,pointBackgroundColor:'#111827',pointBorderColor:'#fff',pointBorderWidth:2,borderWidth:2.5,fill:true},
+        ...(member?.target_weight?[{label:'목표',data:Array(records.length).fill(member.target_weight),borderColor:'#9CA3AF',borderDash:[5,4],borderWidth:2,pointRadius:0,fill:false}]:[])
       ]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#9CA3AF'}},y:{grid:{color:'#F3F4F6'},ticks:{font:{size:10},color:'#9CA3AF',callback:v=>v+'kg'}}}}
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:11},color:'#6B7280'}},y:{grid:{color:'#EEF0EA'},ticks:{font:{size:11},color:'#6B7280',callback:v=>v+'kg'}}}}
     })
   }
 
@@ -790,7 +790,7 @@ export default function MemberPortal() {
   }
 
   async function saveDiet() {
-    const parts = [dBreakfast&&'🍳 아침: '+dBreakfast, dLunch&&'🍱 점심: '+dLunch, dDinner&&'🍽️ 저녁: '+dDinner, dSnack&&'🧃 간식: '+dSnack].filter(Boolean)
+    const parts = [dBreakfast&&'아침: '+dBreakfast, dLunch&&'점심: '+dLunch, dDinner&&'저녁: '+dDinner, dSnack&&'간식: '+dSnack].filter(Boolean)
     if (!parts.length) { showToast('식단을 입력해주세요'); return }
     try {
       await supabase.from('health_records').insert({ member_id:member.id, record_date:dDate||today(), diet_note:parts.join('\n') })
@@ -1041,7 +1041,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
   if (!loggedIn && showLanding) {
     const FEATURES = [
       { icon:'📋', title:'수업일지 열람', desc:'트레이너가 작성한 수업일지를 열람하고 PDF로 저장해요' },
-      { icon:'⚖️', title:'체중·건강 추적', desc:'공복/저녁 체중, 수면을 기록하고 14일 추이를 확인해요' },
+      { icon:'', title:'체중·건강 추적', desc:'공복/저녁 체중, 수면을 기록하고 14일 추이를 확인해요' },
       { icon:'🏃', title:'개인운동 일지', desc:'60+ 종목 자동완성, 세트·볼륨 계산, 운동 동작 일러스트' },
     ]
     return (
@@ -1062,7 +1062,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
           <div style={{background:'#fff',borderBottom:'1px solid #E1E4D9',padding:'52px 24px 44px',textAlign:'center'}}>
             <div style={{maxWidth:'440px',margin:'0 auto'}}>
               <div style={{display:'inline-flex',alignItems:'center',gap:'6px',fontSize:'11px',fontWeight:700,
-                letterSpacing:'0.13em',color:'#10B981',background:'rgba(59,130,246,0.08)',padding:'5px 14px',
+                letterSpacing:'0.13em',color:'#4D7C0F',background:'rgba(59,130,246,0.08)',padding:'5px 14px',
                 borderRadius:'20px',border:'1px solid rgba(59,130,246,0.22)',marginBottom:'22px'}}>
                 <span style={{width:'6px',height:'6px',borderRadius:'50%',background:'#3b82f6',display:'inline-block'}}/>
                 MEMBER PORTAL
@@ -1070,7 +1070,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
               <h1 style={{fontSize:'clamp(26px,6vw,42px)',fontWeight:900,letterSpacing:'-2px',lineHeight:1.1,
                 color:'#111827',margin:'0 0 14px'}}>
                 내 운동 기록을<br/>
-                <span style={{color:'#10B981',background:'rgba(59,130,246,0.08)',padding:'2px 10px',borderRadius:'8px'}}>한눈에 확인</span>
+                <span style={{color:'#4D7C0F',background:'rgba(59,130,246,0.08)',padding:'2px 10px',borderRadius:'8px'}}>한눈에 확인</span>
               </h1>
               <p style={{fontSize:'14px',color:'#6B7280',lineHeight:1.9,margin:'0 auto 32px',maxWidth:'300px'}}>
                 트레이너와 연결된 나만의 건강 기록장.
@@ -1270,7 +1270,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                   color: '#111827', fontSize: '13px', fontWeight: 800,
                   cursor: 'pointer', fontFamily: 'inherit',
                   boxShadow: '0 1px 8px rgba(200,241,53,0.25)', letterSpacing: '-0.2px' }}>
-                💪 내 변화 공유 (dev)
+                내 변화 공유 (dev)
               </button>
               <Modal open={showTransformShare} onClose={() => setShowTransformShare(false)}
                 title="내 변화 공유" maxWidth="520px">
@@ -1279,61 +1279,55 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
             </div>
           )}
 
-          {/* 출결 내역 · 정책 (항상 노출) */}
-          <div style={{ marginBottom: '14px' }}>
-            <button type="button" onClick={() => setShowAttendance(true)}
-              style={{ width: '100%', padding: '12px', borderRadius: '11px', border: '1px solid #A7F3D0',
-                background: '#F0FDF4', color: '#065f46', fontSize: '13px', fontWeight: 700,
-                cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-              📋 출결 내역 · 정책 보기
-            </button>
-            <Modal open={showAttendance} onClose={() => setShowAttendance(false)} title="출결 내역 · 정책" maxWidth="500px">
-              {member && <MemberAttendanceView member={member} onAgreed={(t) => setMember(m => ({ ...m, attendance_policy_agreed_at: t }))} />}
-            </Modal>
-          </div>
-
-          {/* 헤더 카드 — 세션 현황 */}
+          {/* 헤더 카드 — 세션 현황 (잉크 카드 + 라임 강조). 출결 내역은 카드 안 링크로 */}
           {(() => {
             const ratedLogs = memberLogs.filter(l => l.session_rating)
             const avgRating = ratedLogs.length
               ? (ratedLogs.reduce((s, l) => s + l.session_rating, 0) / ratedLogs.length).toFixed(1)
               : null
             return (
-          <div style={{
-            background:'linear-gradient(135deg,#10B981 0%,#059669 100%)',
-            borderRadius:'18px', padding:'20px', marginBottom:'20px', color:'#fff',
-          }}>
-            <div style={{fontSize:'16px',fontWeight:800,marginBottom:'2px'}}>
-              {member.name} 회원님 👋
+          <div style={{background:'#111827',borderRadius:'24px',padding:'20px',marginBottom:'20px',color:'#fff',
+            display:'flex',flexDirection:'column',gap:'16px'}}>
+            <div>
+              <div style={{fontSize:'21px',fontWeight:900,letterSpacing:'-0.5px'}}>{member.name} 회원님</div>
+              <div style={{fontSize:'13px',color:'#9CA3AF',marginTop:'2px'}}>{member.lesson_purpose || '열심히 운동 중!'}</div>
             </div>
-            <div style={{fontSize:'12px',opacity:0.85,marginBottom:'16px'}}>
-              {member.lesson_purpose || '열심히 운동 중!'}
-            </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:'8px',marginBottom:'14px'}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4, minmax(0, 1fr))'}}>
               {[
-                {num: member.done_sessions,        label:'완료 세션'},
-                {num: remain,                       label:'잔여 세션'},
-                {num: pct+'%',                      label:'진행률'},
-                {num: avgRating ? '⭐ '+avgRating : '—', label:'평균 평점'},
-              ].map(({num, label}) => (
-                <div key={label} style={{
-                  background:'rgba(255,255,255,0.15)', borderRadius:'10px', padding:'10px 8px', textAlign:'center',
-                }}>
-                  <div style={{fontSize:'18px',fontWeight:800,lineHeight:1}}>{num}</div>
-                  <div style={{fontSize:'10px',opacity:0.85,marginTop:'3px'}}>{label}</div>
+                {num: member.done_sessions, label:'완료'},
+                {num: remain,               label:'남은 횟수', lime:true},
+                {num: pct+'%',              label:'진행률'},
+                {num: avgRating || '—',     label:'평균 평점', star: !!avgRating},
+              ].map(({num, label, lime, star}) => (
+                <div key={label}>
+                  <div style={{display:'flex',alignItems:'center',gap:'3px',fontSize:'22px',fontWeight:900,lineHeight:1.1,
+                    fontVariantNumeric:'tabular-nums',color: lime ? '#C8F135' : '#fff'}}>
+                    {star && <Icon name="star" size={15} color="#C8F135" fill="#C8F135" strokeWidth={1.5} />}{num}
+                  </div>
+                  <div style={{fontSize:'12px',color:'#9CA3AF',marginTop:'3px'}}>{label}</div>
                 </div>
               ))}
             </div>
-            {/* 프로그레스 바 */}
-            <div style={{background:'rgba(255,255,255,0.25)',borderRadius:'4px',height:'6px',overflow:'hidden'}}>
-              <div style={{height:'100%',background:'#fff',borderRadius:'4px',width:pct+'%',transition:'width 0.6s ease'}}/>
+            <div style={{background:'#374151',borderRadius:'3px',height:'6px',overflow:'hidden'}}>
+              <div style={{height:'100%',background:'#C8F135',borderRadius:'3px',width:pct+'%',transition:'width 0.6s ease'}}/>
             </div>
+            <button type="button" onClick={() => setShowAttendance(true)}
+              style={{display:'flex',alignItems:'center',gap:'8px',padding:'14px 0 0',
+                background:'none',border:'none',borderTop:'1px solid #1F2937',color:'#fff',fontSize:'14px',fontWeight:700,
+                cursor:'pointer',fontFamily:'inherit',textAlign:'left'}}>
+              <Icon name="calendarCheck" size={17} color="#C8F135" />
+              <span style={{flex:1}}>출결 내역 · 정책 보기</span>
+              <Icon name="chevronRight" size={18} color="#9CA3AF" />
+            </button>
           </div>
             )
           })()}
+          <Modal open={showAttendance} onClose={() => setShowAttendance(false)} title="출결 내역 · 정책" maxWidth="500px">
+            {member && <MemberAttendanceView member={member} onAgreed={(t) => setMember(m => ({ ...m, attendance_policy_agreed_at: t }))} />}
+          </Modal>
 
           {/* 일지 목록 */}
-          <div style={{fontSize:'11px',fontWeight:700,color:'#9CA3AF',letterSpacing:'0.08em',marginBottom:'12px'}}>
+          <div style={{fontSize:'13px',fontWeight:700,color:'#6B7280',marginBottom:'12px'}}>
             수업일지 · {memberLogs.length}건
           </div>
 
@@ -1342,8 +1336,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
               textAlign:'center', padding:'48px 20px', color:'#9CA3AF',
               background:'#F9FAFB', borderRadius:'16px', border:'1px dashed #E5E7EB',
             }}>
-              <div style={{fontSize:'36px',marginBottom:'12px'}}>📋</div>
-              <div style={{fontSize:'14px',fontWeight:600,marginBottom:'4px',color:'#6B7280'}}>아직 수업일지가 없어요</div>
+                            <div style={{fontSize:'14px',fontWeight:600,marginBottom:'4px',color:'#6B7280'}}>아직 수업일지가 없어요</div>
               <div style={{fontSize:'12px'}}>첫 수업 후에 확인해보세요!</div>
             </div>
           )}
@@ -1386,11 +1379,11 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                 background:'#fff',
                 borderRadius:'16px',
                 boxShadow: isOpen
-                  ? '0 4px 20px rgba(16,185,129,0.10), 0 1px 4px rgba(0,0,0,0.06)'
+                  ? '0 4px 20px rgba(17,24,39,0.08), 0 1px 4px rgba(0,0,0,0.06)'
                   : '0 1px 3px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04)',
                 marginBottom:'10px',
                 overflow:'hidden',
-                border: isOpen ? '1px solid rgba(16,185,129,0.18)' : '1px solid #F3F4F6',
+                border: isOpen ? '1px solid rgba(17,24,39,0.08)' : '1px solid #F3F4F6',
                 transition:'box-shadow 0.2s, border-color 0.2s',
               }}>
 
@@ -1407,14 +1400,14 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                     {/* 날짜 컬럼 */}
                     <div style={{
                       width:'44px', height:'44px', borderRadius:'12px', flexShrink:0,
-                      background: isNew ? '#F0FDF4' : '#F9FAFB',
+                      background: isNew ? '#111827' : '#F2F3EF',
                       display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-                      border: isNew ? '1px solid #A7F3D0' : '1px solid #E5E7EB',
+                      border: 'none',
                     }}>
-                      <div style={{fontSize:'16px',fontWeight:800,lineHeight:1,color: isNew ? '#10B981' : '#374151'}}>
+                      <div style={{fontSize:'16px',fontWeight:800,lineHeight:1,color: isNew ? '#fff' : '#111827'}}>
                         {d.getDate()}
                       </div>
-                      <div style={{fontSize:'9px',fontWeight:500,color: isNew ? '#34D399' : '#9CA3AF',marginTop:'1px'}}>
+                      <div style={{fontSize:'11px',fontWeight:700,color: isNew ? '#C8F135' : '#6B7280',marginTop:'2px'}}>
                         {d.toLocaleDateString('ko-KR',{month:'short'})}
                       </div>
                     </div>
@@ -1427,7 +1420,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                         {isNew && (
                           <span style={{
                             fontSize:'9px', fontWeight:700, padding:'2px 6px',
-                            borderRadius:'20px', background:'#10B981', color:'#fff',
+                            borderRadius:'20px', background:'#C8F135', color:'#111827',
                             letterSpacing:'0.04em',
                           }}>NEW</span>
                         )}
@@ -1435,11 +1428,11 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                       <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
                         <span style={{
                           fontSize:'11px', fontWeight:600, padding:'2px 7px',
-                          borderRadius:'6px', background:'#F0FDF4', color:'#10B981',
+                          borderRadius:'6px', background:'#F2F3EF', color:'#374151',
                         }}>{l.session_number}회차</span>
                         {l.session_rating && (
                           <span style={{fontSize:'11px',fontWeight:600,padding:'2px 7px',borderRadius:'6px',background:'#FEF3C7',color:'#D97706'}}>
-                            ⭐ {l.session_rating}
+                            <Icon name="star" size={11} color="#D97706" fill="#D97706" strokeWidth={1.5} /> {l.session_rating}
                           </span>
                         )}
                         <span style={{fontSize:'11px',color:'#9CA3AF'}}>
@@ -1447,7 +1440,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                         </span>
                         {mediaArray.length > 0 && (
                           <span style={{fontSize:'11px',color:'#9CA3AF'}}>
-                            · 📎 {mediaArray.length}
+                            · <Icon name="clip" size={12} /> {mediaArray.length}
                           </span>
                         )}
                       </div>
@@ -1484,7 +1477,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                       if (!list.length) return null
                       return (
                         <div style={{padding:'0 16px 4px'}}>
-                          <div style={{fontSize:'12px',fontWeight:700,color:'#6B7280',marginBottom:'10px'}}>💪 오늘의 운동</div>
+                          <div style={{fontSize:'12px',fontWeight:700,color:'#6B7280',marginBottom:'10px'}}>오늘의 운동</div>
                           {list.map((ex, ei) => (
                             <div key={ei} style={{display:'flex',gap:'10px',alignItems:'flex-start',marginBottom:'12px'}}>
                               <ExerciseThumb name={ex.name} size={52} />
@@ -1493,7 +1486,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                                 <div style={{display:'flex',flexWrap:'wrap',gap:'5px'}}>
                                   {(Array.isArray(ex.sets)?ex.sets:[]).map((set,si)=>{
                                     const label = [set.weight?`${set.weight}kg`:null, set.reps?`${set.reps}회`:null].filter(Boolean).join(' × ') || '-'
-                                    return <span key={si} style={{fontSize:'11px',padding:'3px 8px',borderRadius:'8px',background:'#F0FDF4',border:'1px solid #A7F3D0',color:'#111',fontWeight:600,fontVariantNumeric:'tabular-nums'}}>{label}</span>
+                                    return <span key={si} style={{fontSize:'11px',padding:'3px 8px',borderRadius:'8px',background:'#F7F8F4',border:'1px solid #E6E8E0',color:'#111',fontWeight:600,fontVariantNumeric:'tabular-nums'}}>{label}</span>
                                   })}
                                 </div>
                               </div>
@@ -1525,9 +1518,9 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                                   fontSize:'11px', fontWeight:600, cursor:'pointer',
                                   fontFamily:'inherit', transition:'all 0.15s',
                                   border: currentSpeed === rate ? 'none' : '1px solid #E5E7EB',
-                                  background: currentSpeed === rate ? '#10B981' : '#F9FAFB',
+                                  background: currentSpeed === rate ? '#111827' : '#F9FAFB',
                                   color: currentSpeed === rate ? '#fff' : '#6B7280',
-                                  boxShadow: currentSpeed === rate ? '0 1px 6px rgba(16,185,129,0.25)' : 'none',
+                                  boxShadow: currentSpeed === rate ? '0 1px 6px rgba(17,24,39,0.08)' : 'none',
                                 }}
                               >{rate}x</button>
                             ))}
@@ -1623,20 +1616,20 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                       return (
                         <div style={{
                           margin:'0 16px 16px',
-                          background:'#F0FDF4',
-                          border:'1px solid #A7F3D0',
+                          background:'#F7F8F4',
+                          border:'1px solid #E6E8E0',
                           borderRadius:'12px',
                           padding:'12px 14px',
                         }}>
                           <div style={{
-                            fontSize:'11px', fontWeight:700, color:'#065f46',
+                            fontSize:'11px', fontWeight:700, color:'#111827',
                             marginBottom:'10px', display:'flex', alignItems:'center', gap:'6px',
                           }}>
-                            ⭐ 이번 수업 평점
+                            이번 수업은 어떠셨어요?
                             {savedRating && !pendingRating && (
                               <span style={{
                                 fontSize:'10px', fontWeight:600, padding:'1px 7px',
-                                borderRadius:'20px', background:'#10B981', color:'#fff',
+                                borderRadius:'20px', background:'#4D7C0F', color:'#fff',
                               }}>저장됨 {savedRating}/5</span>
                             )}
                           </div>
@@ -1650,11 +1643,11 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                                   fontSize:'14px', fontWeight:700, cursor:'pointer',
                                   fontFamily:'inherit', transition:'all 0.15s',
                                   border: displayRating === n
-                                    ? '1.5px solid #10B981'
-                                    : '1px solid #A7F3D0',
-                                  background: displayRating === n ? '#10B981' : '#fff',
+                                    ? '1.5px solid #111827'
+                                    : '1px solid #E6E8E0',
+                                  background: displayRating === n ? '#111827' : '#fff',
                                   color: displayRating === n ? '#fff' : '#6B7280',
-                                  boxShadow: displayRating === n ? '0 2px 8px rgba(16,185,129,0.25)' : 'none',
+                                  boxShadow: displayRating === n ? '0 2px 8px rgba(17,24,39,0.08)' : 'none',
                                   transform: displayRating === n ? 'scale(1.06)' : 'scale(1)',
                                 }}>
                                 {n}
@@ -1670,11 +1663,11 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                               cursor: pendingRating && !isSaving ? 'pointer' : 'not-allowed',
                               fontFamily:'inherit', transition:'all 0.2s',
                               background: pendingRating
-                                ? 'linear-gradient(135deg,#10B981 0%,#059669 100%)'
+                                ? '#C8F135'
                                 : '#E5E7EB',
-                              color: pendingRating ? '#fff' : '#9CA3AF',
+                              color: pendingRating ? '#111827' : '#9CA3AF',
                               opacity: pendingRating && !isSaving ? 1 : 0.6,
-                              boxShadow: pendingRating ? '0 2px 8px rgba(16,185,129,0.30)' : 'none',
+                              boxShadow: pendingRating ? '0 2px 8px rgba(17,24,39,0.08)' : 'none',
                             }}>
                             {isSaving ? '저장 중...' : pendingRating ? `${pendingRating}점으로 저장` : '점수를 선택해주세요'}
                           </button>
@@ -1714,30 +1707,29 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
         <div className="m-page">
           {!member.target_weight && !member.start_weight && (
             <div style={{
-              background:'#F0FDF4',border:'1px solid #A7F3D0',borderRadius:'12px',
-              padding:'12px 14px',marginBottom:'16px',fontSize:'12px',color:'#065f46',fontWeight:500,
-            }}>💡 아래 목표 설정에서 목표/시작 체중을 먼저 입력해주세요!</div>
+              background:'#F7F8F4',border:'1px solid #E6E8E0',borderRadius:'12px',
+              padding:'12px 14px',marginBottom:'16px',fontSize:'12px',color:'#111827',fontWeight:500,
+            }}>아래 목표 설정에서 목표/시작 체중을 먼저 입력해주세요!</div>
           )}
 
           {/* 통계 카드 그리드 */}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'14px'}}>
             {[
-              {icon:'🎯',label:'목표 체중',val:member.target_weight,unit:'kg',accent:false},
-              {icon:'📌',label:'시작 체중',val:member.start_weight,unit:'kg',accent:false},
-              {icon:'⚖️',label:'현재 공복',val:currentW,unit:'kg',accent:true},
-              {icon:'📉',label:'총 감량',val:lost,unit:'kg',accent:true},
-            ].map(({icon,label,val,unit,accent})=>(
+              {label:'목표 체중',val:member.target_weight,unit:'kg',accent:false},
+              {label:'시작 체중',val:member.start_weight,unit:'kg',accent:false},
+              {label:'현재 공복',val:currentW,unit:'kg',accent:true},
+              {label:'총 감량',val:lost,unit:'kg',accent:true},
+            ].map(({label,val,unit,accent})=>(
               <div key={label} style={{
                 background:'#fff',borderRadius:'16px',padding:'14px',
                 boxShadow:'0 1px 3px rgba(0,0,0,0.06),0 2px 8px rgba(0,0,0,0.04)',
-                border: accent ? '1px solid #A7F3D0' : '1px solid #F3F4F6',
+                border: 'none',
               }}>
-                <div style={{fontSize:'20px',marginBottom:'6px'}}>{icon}</div>
                 <div style={{
-                  fontSize:'22px',fontWeight:800,lineHeight:1,
-                  color: accent ? '#10B981' : '#111',
+                  fontSize:'24px',fontWeight:900,lineHeight:1.1,letterSpacing:'-0.5px',fontVariantNumeric:'tabular-nums',
+                  color: accent && label==='총 감량' ? '#4D7C0F' : '#111827',
                 }}>{val||'—'}<span style={{fontSize:'12px',fontWeight:500,color:'#9CA3AF',marginLeft:'3px'}}>{unit}</span></div>
-                <div style={{fontSize:'10px',color:'#9CA3AF',marginTop:'4px'}}>{label}</div>
+                <div style={{fontSize:'13px',color:'#6B7280',marginTop:'4px'}}>{label}</div>
               </div>
             ))}
           </div>
@@ -1749,8 +1741,8 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
             border:'1px solid #F3F4F6',
           }}>
             {[
-              {label:'감량률',val:lostPct,color:'#10B981'},
-              {label:'목표 달성률',val:goalPct,color:goalPct>=100?'#10B981':'#10B981'},
+              {label:'감량률',val:lostPct,color:'#4D7C0F'},
+              {label:'목표 달성률',val:goalPct,color:goalPct>=100?'#4D7C0F':'#4D7C0F'},
             ].map(({label,val,color})=>(
               <div key={label} style={{marginBottom:'12px'}}>
                 <div style={{display:'flex',justifyContent:'space-between',marginBottom:'6px'}}>
@@ -1758,7 +1750,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                   <span style={{fontSize:'12px',fontWeight:700,color,fontVariantNumeric:'tabular-nums'}}>{val}%</span>
                 </div>
                 <div style={{height:'7px',background:'#F3F4F6',borderRadius:'4px',overflow:'hidden'}}>
-                  <div style={{height:'100%',width:Math.min(100,val)+'%',background:'linear-gradient(90deg,#10B981,#059669)',borderRadius:'4px',transition:'width 0.5s ease'}}/>
+                  <div style={{height:'100%',width:Math.min(100,val)+'%',background:'#84CC16',borderRadius:'4px',transition:'width 0.5s ease'}}/>
                 </div>
               </div>
             ))}
@@ -1779,7 +1771,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
 
           {/* 오늘 기록 입력 */}
           <div style={{
-            fontSize:'11px',fontWeight:700,color:'#9CA3AF',letterSpacing:'0.08em',marginBottom:'10px',
+            fontSize:'13px',fontWeight:700,color:'#6B7280',marginBottom:'10px',
           }}>오늘 체중 기록</div>
           <div style={{
             background:'#fff',borderRadius:'16px',padding:'16px',marginBottom:'14px',
@@ -1787,27 +1779,27 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
             border:'1px solid #F3F4F6',
           }}>
             <div className="two-col" style={{marginBottom:'12px'}}>
-              <div className="form-group" style={{marginBottom:0}}><label>🌅 공복 체중 (아침, kg)</label><input type="number" value={hMorning} onChange={e=>setHMorning(e.target.value)} placeholder="68.5" step="0.1" /></div>
-              <div className="form-group" style={{marginBottom:0}}><label>🌙 저녁 체중 (kg)</label><input type="number" value={hEvening} onChange={e=>setHEvening(e.target.value)} placeholder="69.2" step="0.1" /></div>
+              <div className="form-group" style={{marginBottom:0}}><label>공복 체중 (아침, kg)</label><input type="number" value={hMorning} onChange={e=>setHMorning(e.target.value)} placeholder="68.5" step="0.1" /></div>
+              <div className="form-group" style={{marginBottom:0}}><label>저녁 체중 (kg)</label><input type="number" value={hEvening} onChange={e=>setHEvening(e.target.value)} placeholder="69.2" step="0.1" /></div>
             </div>
             <div className="form-group">
-              <label>😴 수면 레벨 (1~10)</label>
+              <label>수면 레벨 (1~10)</label>
               <div className="m-sleep-selector">
                 {Array.from({length:10},(_,i)=>(
                   <button key={i} className={`m-sleep-btn${selectedSleep&&i<selectedSleep?' active':''}`} onClick={()=>setSelectedSleep(i+1)}>{i+1}</button>
                 ))}
               </div>
             </div>
-            <div className="form-group" style={{marginBottom:'14px'}}><label>📅 날짜</label><input type="date" value={hDate} onChange={e=>setHDate(e.target.value)} /></div>
+            <div className="form-group" style={{marginBottom:'14px'}}><label>날짜</label><input type="date" value={hDate} onChange={e=>setHDate(e.target.value)} /></div>
             <button onClick={saveHealthRecord} style={{
               width:'100%',padding:'12px',borderRadius:'12px',border:'none',
-              background:'linear-gradient(135deg,#10B981,#059669)',color:'#fff',
+              background:'#C8F135',color:'#111827',
               fontSize:'14px',fontWeight:700,cursor:'pointer',fontFamily:'inherit',
             }}>체중 기록 저장</button>
           </div>
 
           {/* 일별 기록 */}
-          <div style={{fontSize:'11px',fontWeight:700,color:'#9CA3AF',letterSpacing:'0.08em',marginBottom:'10px'}}>일별 기록</div>
+          <div style={{fontSize:'13px',fontWeight:700,color:'#6B7280',marginBottom:'10px'}}>일별 기록</div>
           {healthRecords.filter(r=>r.morning_weight||r.evening_weight).slice(0,14).map(r => {
             // 일중: 같은 날 저녁 − 공복
             const intra = (r.morning_weight&&r.evening_weight)?(r.evening_weight-r.morning_weight).toFixed(1):null
@@ -1831,13 +1823,13 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                   ))}
                   {intra && (
                     <div style={{textAlign:'center'}}>
-                      <div style={{fontSize:'13px',fontWeight:700,color:parseFloat(intra)>0?'#ef4444':'#10B981'}}>{parseFloat(intra)>0?'+':''}{intra}</div>
+                      <div style={{fontSize:'13px',fontWeight:700,color:parseFloat(intra)>0?'#ef4444':'#4D7C0F'}}>{parseFloat(intra)>0?'+':''}{intra}</div>
                       <div style={{fontSize:'9px',color:'#9CA3AF'}}>일중</div>
                     </div>
                   )}
                   {dod && (
                     <div style={{textAlign:'center'}}>
-                      <div style={{fontSize:'13px',fontWeight:700,color:parseFloat(dod)>0?'#ef4444':parseFloat(dod)<0?'#10B981':'#9CA3AF'}}>{parseFloat(dod)>0?'+':''}{dod}</div>
+                      <div style={{fontSize:'13px',fontWeight:700,color:parseFloat(dod)>0?'#ef4444':parseFloat(dod)<0?'#4D7C0F':'#9CA3AF'}}>{parseFloat(dod)>0?'+':''}{dod}</div>
                       <div style={{fontSize:'9px',color:'#9CA3AF'}}>전일비</div>
                     </div>
                   )}
@@ -1847,7 +1839,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                     {Array.from({length:10},(_,i)=>(
                       <div key={i} style={{
                         width:'5px',height:'14px',borderRadius:'2px',
-                        background: i<r.sleep_level ? '#10B981' : '#E5E7EB',
+                        background: i<r.sleep_level ? '#111827' : '#E5E7EB',
                       }}/>
                     ))}
                   </div>
@@ -1857,21 +1849,21 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
           })}
           {!healthRecords.filter(r=>r.morning_weight||r.evening_weight).length && (
             <div style={{textAlign:'center',padding:'32px 20px',color:'#9CA3AF',background:'#F9FAFB',borderRadius:'16px',border:'1px dashed #E5E7EB'}}>
-              <div style={{fontSize:'28px',marginBottom:'8px'}}>⚖️</div>
+              
               <div style={{fontSize:'13px'}}>체중 기록이 없어요. 위에서 기록해보세요!</div>
             </div>
           )}
 
           {/* 목표 설정 */}
-          <div style={{fontSize:'11px',fontWeight:700,color:'#9CA3AF',letterSpacing:'0.08em',margin:'16px 0 10px'}}>목표 설정</div>
+          <div style={{fontSize:'13px',fontWeight:700,color:'#6B7280',margin:'16px 0 10px'}}>목표 설정</div>
           <div style={{
             background:'#fff',borderRadius:'16px',padding:'16px',marginBottom:'14px',
             boxShadow:'0 1px 3px rgba(0,0,0,0.06),0 2px 8px rgba(0,0,0,0.04)',
             border:'1px solid #F3F4F6',
           }}>
             <div className="two-col">
-              <div className="form-group"><label>🎯 목표 체중 (kg)</label><input type="number" value={hTarget} onChange={e=>setHTarget(e.target.value)} placeholder="60" step="0.1" /></div>
-              <div className="form-group"><label>📌 시작 체중 (kg)</label><input type="number" value={hStart} onChange={e=>setHStart(e.target.value)} placeholder="75" step="0.1" /></div>
+              <div className="form-group"><label>목표 체중 (kg)</label><input type="number" value={hTarget} onChange={e=>setHTarget(e.target.value)} placeholder="60" step="0.1" /></div>
+              <div className="form-group"><label>시작 체중 (kg)</label><input type="number" value={hStart} onChange={e=>setHStart(e.target.value)} placeholder="75" step="0.1" /></div>
             </div>
             <div className="two-col">
               <div className="form-group"><label>나이</label><input type="number" value={hAge} onChange={e=>setHAge(e.target.value)} placeholder="28" /></div>
@@ -1902,10 +1894,10 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
         const totalFat  = sumNutri('fat_per_g')
         const hasMacros = dietLogs.some(i => i.calories_per_g != null)
         const MEAL_TYPES = [
-          { key: 'breakfast', label: '🍳 아침' },
-          { key: 'lunch',     label: '🍱 점심' },
-          { key: 'dinner',    label: '🍽️ 저녁' },
-          { key: 'snack',     label: '🧃 간식' },
+          { key: 'breakfast', label: '아침' },
+          { key: 'lunch',     label: '점심' },
+          { key: 'dinner',    label: '저녁' },
+          { key: 'snack',     label: '간식' },
         ]
         const mealCal = (key) => dietLogs
           .filter(i => i.meal_type === key)
@@ -1916,17 +1908,17 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
             {/* 날짜 선택 */}
             <div style={{background:'#fff',borderRadius:'16px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)',padding:'14px 16px',marginBottom:'12px'}}>
               <div className="form-group" style={{marginBottom:0}}>
-                <label style={{color:'#10B981',fontWeight:700,fontSize:'12px'}}>📅 날짜</label>
-                <input type="date" value={dietDate} onChange={e => setDietDate(e.target.value)} style={{borderColor:'#A7F3D0'}} />
+                <label style={{color:'#374151',fontWeight:700,fontSize:'13px'}}>날짜</label>
+                <input type="date" value={dietDate} onChange={e => setDietDate(e.target.value)} style={{borderColor:'#E6E8E0'}} />
               </div>
             </div>
 
             {/* 자주쓰는 식단 */}
             <div style={{background:'#fff',borderRadius:'16px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)',marginBottom:'12px',padding:'14px 16px'}}>
-              <div style={{fontSize:'12px',fontWeight:700,color:'#10B981',marginBottom:'10px',textTransform:'uppercase',letterSpacing:'0.05em'}}>⚡ 자주쓰는 식단</div>
+              <div style={{fontSize:'15px',fontWeight:800,color:'#111827',marginBottom:'10px'}}>자주 쓰는 식단</div>
               {dietTemplates.length === 0 ? (
                 <div style={{fontSize:'12px',color:'var(--m-text-dim)',padding:'4px 0'}}>
-                  아직 저장된 식단이 없어요. 식사 항목을 추가한 뒤 <strong>💾 저장</strong> 버튼으로 등록하세요.
+                  아직 저장된 식단이 없어요. 식사 항목을 추가한 뒤 <strong>저장</strong> 버튼으로 등록하세요.
                 </div>
               ) : (
                 <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
@@ -1938,17 +1930,17 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                         onClick={() => openApplyTemplateModal(tpl)}
                         style={{
                           display:'flex',alignItems:'center',gap:'6px',
-                          background:'#F0FDF4',border:'1.5px solid #A7F3D0',
+                          background:'#F7F8F4',border:'1.5px solid #E6E8E0',
                           borderRadius:'20px',padding:'6px 12px 6px 10px',
                           cursor:'pointer',userSelect:'none',
                         }}
                       >
-                        <span style={{fontSize:'12px',fontWeight:700,color:'#065F46'}}>{tpl.name}</span>
-                        {totalCal > 0 && <span style={{fontSize:'10px',color:'#10B981',fontWeight:700}}>{totalCal.toFixed(0)}kcal</span>}
-                        <span style={{fontSize:'10px',color:'#6EE7B7',marginLeft:'2px'}}>{tpl.items.length}가지</span>
+                        <span style={{fontSize:'12px',fontWeight:700,color:'#111827'}}>{tpl.name}</span>
+                        {totalCal > 0 && <span style={{fontSize:'10px',color:'#4D7C0F',fontWeight:700}}>{totalCal.toFixed(0)}kcal</span>}
+                        <span style={{fontSize:'10px',color:'#6B7280',marginLeft:'2px'}}>{tpl.items.length}가지</span>
                         <button
                           onClick={e => deleteTemplate(tpl.id, e)}
-                          style={{background:'none',border:'none',color:'#A7F3D0',fontSize:'13px',cursor:'pointer',padding:'0 0 0 4px',lineHeight:1}}
+                          style={{background:'none',border:'none',color:'#E6E8E0',fontSize:'13px',cursor:'pointer',padding:'0 0 0 4px',lineHeight:1}}
                         >×</button>
                       </div>
                     )
@@ -1960,13 +1952,13 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
             {/* 일일 영양소 요약 */}
             {hasMacros && (
               <div style={{background:'#fff',borderRadius:'16px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)',marginBottom:'14px',padding:'16px'}}>
-                <div style={{fontSize:'12px',fontWeight:700,color:'#10B981',marginBottom:'12px',textTransform:'uppercase',letterSpacing:'0.05em'}}>🔥 오늘 총 섭취</div>
+                <div style={{fontSize:'15px',fontWeight:800,color:'#111827',marginBottom:'12px'}}>오늘 먹은 양</div>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'8px',marginBottom:'14px'}}>
                   {[
-                    { label:'칼로리', val: totalCal.toFixed(0), unit:'kcal', color:'#f97316', bg:'#fff7ed' },
-                    { label:'단백질', val: totalProt.toFixed(1), unit:'g', color:'#3b82f6', bg:'#eff6ff' },
-                    { label:'탄수화물', val: totalCarb.toFixed(1), unit:'g', color:'#eab308', bg:'#fefce8' },
-                    { label:'지방',   val: totalFat.toFixed(1), unit:'g', color:'#ef4444', bg:'#fef2f2' },
+                    { label:'칼로리', val: totalCal.toFixed(0), unit:'kcal', color:'#C2410C', bg:'#fff7ed' },
+                    { label:'단백질', val: totalProt.toFixed(1), unit:'g', color:'#1D4ED8', bg:'#eff6ff' },
+                    { label:'탄수화물', val: totalCarb.toFixed(1), unit:'g', color:'#B45309', bg:'#fefce8' },
+                    { label:'지방',   val: totalFat.toFixed(1), unit:'g', color:'#BE185D', bg:'#fef2f2' },
                   ].map(n => (
                     <div key={n.label} style={{textAlign:'center',background:n.bg,borderRadius:'12px',padding:'10px 4px',border:`1px solid ${n.color}22`}}>
                       <div style={{fontSize:'16px',fontWeight:800,color:n.color,lineHeight:1}}>{n.val}</div>
@@ -1985,14 +1977,14 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                   return (
                     <div>
                       <div style={{display:'flex',borderRadius:'8px',overflow:'hidden',height:'9px',gap:'2px'}}>
-                        <div style={{flex:pProt,background:'#3b82f6',minWidth:pProt>0?'2px':0,borderRadius:'4px'}} />
-                        <div style={{flex:pCarb,background:'#eab308',minWidth:pCarb>0?'2px':0,borderRadius:'4px'}} />
-                        <div style={{flex:pFat, background:'#ef4444',minWidth:pFat>0?'2px':0,borderRadius:'4px'}} />
+                        <div style={{flex:pProt,background:'#1D4ED8',minWidth:pProt>0?'2px':0,borderRadius:'4px'}} />
+                        <div style={{flex:pCarb,background:'#B45309',minWidth:pCarb>0?'2px':0,borderRadius:'4px'}} />
+                        <div style={{flex:pFat, background:'#BE185D',minWidth:pFat>0?'2px':0,borderRadius:'4px'}} />
                       </div>
                       <div style={{display:'flex',gap:'10px',marginTop:'6px',fontSize:'10px',color:'var(--m-text-dim)'}}>
-                        <span style={{color:'#3b82f6',fontWeight:600}}>● 단백질 {pProt}%</span>
-                        <span style={{color:'#eab308',fontWeight:600}}>● 탄수 {pCarb}%</span>
-                        <span style={{color:'#ef4444',fontWeight:600}}>● 지방 {pFat}%</span>
+                        <span style={{color:'#1D4ED8',fontWeight:600}}>● 단백질 {pProt}%</span>
+                        <span style={{color:'#B45309',fontWeight:600}}>● 탄수 {pCarb}%</span>
+                        <span style={{color:'#BE185D',fontWeight:600}}>● 지방 {pFat}%</span>
                       </div>
                     </div>
                   )
@@ -2009,22 +2001,22 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px'}}>
                     <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
                       <span style={{fontSize:'14px',fontWeight:700,color:'#111'}}>{label}</span>
-                      {cal > 0 && <span style={{fontSize:'11px',color:'#10B981',fontWeight:700,background:'#F0FDF4',padding:'2px 8px',borderRadius:'10px'}}>{cal.toFixed(0)} kcal</span>}
+                      {cal > 0 && <span style={{fontSize:'11px',color:'#374151',fontWeight:700,background:'#F2F3EF',padding:'2px 8px',borderRadius:'999px'}}>{cal.toFixed(0)} kcal</span>}
                     </div>
                     <div style={{display:'flex',gap:'6px'}}>
                       <button
                         onClick={() => openSaveTemplateModal(key)}
-                        style={{background:'none',color:'#10B981',border:'1.5px solid #A7F3D0',borderRadius:'8px',padding:'5px 10px',fontSize:'12px',fontWeight:600,cursor:'pointer'}}
+                        style={{background:'#fff',color:'#374151',border:'1px solid #E6E8E0',borderRadius:'10px',padding:'0 10px',height:'36px',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}
                         title="이 식사를 자주쓰는 식단으로 저장"
-                      >💾 저장</button>
+                      >저장</button>
                       <button
                         onClick={() => openFoodModal(key)}
-                        style={{background:'linear-gradient(135deg,#10B981,#059669)',color:'#fff',border:'none',borderRadius:'8px',padding:'5px 14px',fontSize:'12px',fontWeight:700,cursor:'pointer'}}
+                        style={{background:'#111827',color:'#fff',border:'none',borderRadius:'10px',padding:'0 12px',height:'36px',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}
                       >+ 추가</button>
                     </div>
                   </div>
                   {!items.length && (
-                    <div style={{fontSize:'12px',color:'var(--m-text-dim)',padding:'10px 0',textAlign:'center'}}>아직 기록이 없어요 🍽️</div>
+                    <div style={{fontSize:'12px',color:'var(--m-text-dim)',padding:'10px 0',textAlign:'center'}}>아직 기록이 없어요</div>
                   )}
                   {items.map(item => {
                     const cal   = item.calories_per_g != null ? (item.calories_per_g * item.amount_g).toFixed(0) : null
@@ -2032,7 +2024,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                     const carb  = item.carbs_per_g    != null ? (item.carbs_per_g    * item.amount_g).toFixed(1) : null
                     const fat   = item.fat_per_g      != null ? (item.fat_per_g      * item.amount_g).toFixed(1) : null
                     return (
-                      <div key={item.id} style={{display:'flex',alignItems:'flex-start',gap:'10px',padding:'10px 0',borderTop:'1px solid #F0FDF4'}}>
+                      <div key={item.id} style={{display:'flex',alignItems:'flex-start',gap:'10px',padding:'10px 0',borderTop:'1px solid #F7F8F4'}}>
                         {item.photo_url && (
                           <img src={item.photo_url} alt={item.food_name} crossOrigin="anonymous" style={{width:'48px',height:'48px',objectFit:'cover',borderRadius:'10px',flexShrink:0}} />
                         )}
@@ -2044,10 +2036,10 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                           <div style={{fontSize:'11px',color:'var(--m-text-dim)'}}>{item.amount_g}g</div>
                           {(cal || prot || carb || fat) && (
                             <div style={{fontSize:'11px',color:'var(--m-text-muted)',marginTop:'3px',display:'flex',gap:'8px',flexWrap:'wrap'}}>
-                              {cal  && <span style={{color:'#f97316',fontWeight:600}}>{cal} kcal</span>}
-                              {prot && <span style={{color:'#3b82f6'}}>단백질 {prot}g</span>}
-                              {carb && <span style={{color:'#eab308'}}>탄수 {carb}g</span>}
-                              {fat  && <span style={{color:'#ef4444'}}>지방 {fat}g</span>}
+                              {cal  && <span style={{color:'#C2410C',fontWeight:600}}>{cal} kcal</span>}
+                              {prot && <span style={{color:'#1D4ED8'}}>단백질 {prot}g</span>}
+                              {carb && <span style={{color:'#B45309'}}>탄수 {carb}g</span>}
+                              {fat  && <span style={{color:'#BE185D'}}>지방 {fat}g</span>}
                             </div>
                           )}
                         </div>
@@ -2066,9 +2058,9 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
             {showSaveTemplateModal && (
               <Modal open={true} onClose={() => setShowSaveTemplateModal(false)}>
                 <div style={{padding:'4px 0'}}>
-                  <div style={{fontSize:'16px',fontWeight:800,marginBottom:'6px'}}>💾 자주쓰는 식단으로 저장</div>
+                  <div style={{fontSize:'16px',fontWeight:800,marginBottom:'6px'}}>자주쓰는 식단으로 저장</div>
                   <div style={{fontSize:'12px',color:'var(--m-text-dim)',marginBottom:'16px'}}>
-                    {{ breakfast:'🍳 아침', lunch:'🍱 점심', dinner:'🍽️ 저녁', snack:'🧃 간식' }[saveTemplateMealType]} 식단 항목 {dietLogs.filter(i => i.meal_type === saveTemplateMealType).length}가지를 저장합니다
+                    {{ breakfast:'아침', lunch:'점심', dinner:'저녁', snack:'간식' }[saveTemplateMealType]} 식단 항목 {dietLogs.filter(i => i.meal_type === saveTemplateMealType).length}가지를 저장합니다
                   </div>
 
                   {/* 저장할 항목 미리보기 */}
@@ -2078,7 +2070,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                       return (
                         <div key={item.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 0',borderBottom:'1px solid #eee'}}>
                           <span style={{fontSize:'13px',fontWeight:600}}>{item.food_name}</span>
-                          <span style={{fontSize:'11px',color:'var(--m-text-dim)'}}>{item.amount_g}g {cal && <span style={{color:'#f97316'}}>{cal}kcal</span>}</span>
+                          <span style={{fontSize:'11px',color:'var(--m-text-dim)'}}>{item.amount_g}g {cal && <span style={{color:'#C2410C'}}>{cal}kcal</span>}</span>
                         </div>
                       )
                     })}
@@ -2107,7 +2099,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
             {showApplyTemplateModal && selectedTemplate && (
               <Modal open={true} onClose={() => { setShowApplyTemplateModal(false); setSelectedTemplate(null) }}>
                 <div style={{padding:'4px 0'}}>
-                  <div style={{fontSize:'16px',fontWeight:800,marginBottom:'4px'}}>⚡ {selectedTemplate.name}</div>
+                  <div style={{fontSize:'16px',fontWeight:800,marginBottom:'4px'}}>{selectedTemplate.name}</div>
                   <div style={{fontSize:'12px',color:'var(--m-text-dim)',marginBottom:'14px'}}>
                     {selectedTemplate.items.length}가지 · 사용 {selectedTemplate.used_count}회
                   </div>
@@ -2124,7 +2116,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                             <div style={{fontSize:'11px',color:'var(--m-text-dim)'}}>{item.amount_g}g</div>
                           </div>
                           <div style={{textAlign:'right',fontSize:'11px'}}>
-                            {cal && <div style={{color:'#f97316',fontWeight:600}}>{cal} kcal</div>}
+                            {cal && <div style={{color:'#C2410C',fontWeight:600}}>{cal} kcal</div>}
                             {prot && <div style={{color:'var(--m-text-dim)'}}>단백질 {prot}g</div>}
                           </div>
                         </div>
@@ -2133,7 +2125,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                     {(() => {
                       const total = selectedTemplate.items.reduce((s,i) => s + (i.calories_per_g != null ? i.calories_per_g * i.amount_g : 0), 0)
                       return total > 0 ? (
-                        <div style={{display:'flex',justifyContent:'flex-end',paddingTop:'8px',fontSize:'12px',fontWeight:700,color:'#f97316'}}>
+                        <div style={{display:'flex',justifyContent:'flex-end',paddingTop:'8px',fontSize:'12px',fontWeight:700,color:'#C2410C'}}>
                           합계 {total.toFixed(0)} kcal
                         </div>
                       ) : null
@@ -2144,10 +2136,10 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                   <div className="form-group" style={{marginBottom:'16px'}}>
                     <label>적용할 식사</label>
                     <select value={applyTemplateMealType} onChange={e => setApplyTemplateMealType(e.target.value)}>
-                      <option value="breakfast">🍳 아침</option>
-                      <option value="lunch">🍱 점심</option>
-                      <option value="dinner">🍽️ 저녁</option>
-                      <option value="snack">🧃 간식</option>
+                      <option value="breakfast">아침</option>
+                      <option value="lunch">점심</option>
+                      <option value="dinner">저녁</option>
+                      <option value="snack">간식</option>
                     </select>
                   </div>
 
@@ -2166,7 +2158,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
               <Modal open={true} onClose={() => setShowFoodModal(false)}>
                 <div style={{padding:'4px 0'}}>
                   <div style={{fontSize:'16px',fontWeight:800,marginBottom:'16px'}}>
-                    {{'breakfast':'🍳 아침','lunch':'🍱 점심','dinner':'🍽️ 저녁','snack':'🧃 간식'}[foodForm.mealType]} 음식 추가
+                    {{'breakfast':'아침','lunch':'점심','dinner':'저녁','snack':'간식'}[foodForm.mealType]} 음식 추가
                   </div>
 
                   {/* 사진 업로드 + AI 인식 */}
@@ -2189,7 +2181,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                         onClick={() => foodPhotoInputRef.current?.click()}
                         style={{width:'100%',padding:'14px',border:'2px dashed #ddd',borderRadius:'12px',background:'none',cursor:'pointer',color:'var(--m-text-dim)',fontSize:'13px',display:'flex',alignItems:'center',justifyContent:'center',gap:'6px'}}
                       >
-                        📸 사진으로 자동 인식
+                        사진으로 자동 인식
                       </button>
                     ) : (
                       <div style={{position:'relative',marginBottom:'8px'}}>
@@ -2248,7 +2240,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                                 {item.food_category && <div style={{fontSize:'10px',color:'#aaa',marginTop:'1px'}}>{item.food_category}</div>}
                               </div>
                               {item.calories_per_g != null && (
-                                <div style={{fontSize:'11px',color:'#f97316',fontWeight:600,flexShrink:0,marginLeft:'8px'}}>
+                                <div style={{fontSize:'11px',color:'#C2410C',fontWeight:600,flexShrink:0,marginLeft:'8px'}}>
                                   {(item.calories_per_g * 100).toFixed(0)} kcal
                                 </div>
                               )}
@@ -2319,9 +2311,9 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                   {/* 실시간 계산 미리보기 */}
                   {foodForm.calPerG && foodForm.amountG && (
                     <div style={{background:'#f8f8f6',borderRadius:'10px',padding:'10px 12px',marginBottom:'14px',fontSize:'12px'}}>
-                      <div style={{fontWeight:700,marginBottom:'4px',color:'#111'}}>📊 {foodForm.amountG}g 기준 계산값</div>
+                      <div style={{fontWeight:700,marginBottom:'4px',color:'#111'}}>{foodForm.amountG}g 기준 계산값</div>
                       <div style={{display:'flex',gap:'12px',flexWrap:'wrap',color:'var(--m-text-muted)'}}>
-                        {foodForm.calPerG     && <span style={{color:'#f97316'}}>{(parseFloat(foodForm.calPerG)*parseFloat(foodForm.amountG)).toFixed(0)} kcal</span>}
+                        {foodForm.calPerG     && <span style={{color:'#C2410C'}}>{(parseFloat(foodForm.calPerG)*parseFloat(foodForm.amountG)).toFixed(0)} kcal</span>}
                         {foodForm.proteinPerG && <span>단백질 {(parseFloat(foodForm.proteinPerG)*parseFloat(foodForm.amountG)).toFixed(1)}g</span>}
                         {foodForm.carbsPerG   && <span>탄수 {(parseFloat(foodForm.carbsPerG)*parseFloat(foodForm.amountG)).toFixed(1)}g</span>}
                         {foodForm.fatPerG     && <span>지방 {(parseFloat(foodForm.fatPerG)*parseFloat(foodForm.amountG)).toFixed(1)}g</span>}
@@ -2353,8 +2345,8 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
             {/* 이번 달 요약 */}
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'10px',marginBottom:'14px'}}>
               {[
-                ['이번 달 운동', monthSessions.length+'회', '#10B981', '#F0FDF4', '#A7F3D0'],
-                ['총 볼륨', monthVolume>=1000?(monthVolume/1000).toFixed(1)+'t':Math.round(monthVolume)+'kg', '#10B981', '#F0FDF4', '#A7F3D0'],
+                ['이번 달 운동', monthSessions.length+'회', '#111827', '#ffffff', '#EEF0EA'],
+                ['총 볼륨', monthVolume>=1000?(monthVolume/1000).toFixed(1)+'t':Math.round(monthVolume)+'kg', '#111827', '#ffffff', '#EEF0EA'],
                 ['전체 기록', workoutSessions.length+'회', '#6b7280', '#f9fafb', '#e5e7eb'],
               ].map(([label,val,color,bg,border])=>(
                 <div key={label} style={{background:bg,borderRadius:'14px',padding:'12px',border:`1px solid ${border}`,boxShadow:'0 1px 6px rgba(0,0,0,0.04)'}}>
@@ -2366,12 +2358,12 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
             {/* 버튼 */}
             <div style={{display:'flex',gap:'8px',marginBottom:'16px'}}>
               {workoutRoutines.length > 0 && (
-                <button style={{flex:1,padding:'10px',border:'1.5px solid #A7F3D0',borderRadius:'12px',background:'#fff',color:'#10B981',fontSize:'12px',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}} onClick={()=>setWorkoutRoutineModal(true)}>📋 루틴 불러오기</button>
+                <button style={{flex:1,padding:'10px',border:'1.5px solid #E6E8E0',borderRadius:'12px',background:'#fff',color:'#111827',fontSize:'14px',fontWeight:700,cursor:'pointer',fontFamily:'inherit',minHeight:'46px'}} onClick={()=>setWorkoutRoutineModal(true)}>루틴 불러오기</button>
               )}
-              <button style={{flex:1,padding:'10px',border:'none',borderRadius:'12px',background:'linear-gradient(135deg,#10B981,#059669)',color:'#fff',fontSize:'12px',fontWeight:700,cursor:'pointer',fontFamily:'inherit',boxShadow:'0 2px 8px rgba(16,185,129,0.3)'}} onClick={()=>openWorkoutModal()}>+ 운동 기록</button>
+              <button style={{flex:1,padding:'10px',border:'none',borderRadius:'12px',background:'#C8F135',color:'#111827',fontSize:'14px',fontWeight:800,cursor:'pointer',fontFamily:'inherit',minHeight:'46px'}} onClick={()=>openWorkoutModal()}>+ 운동 기록</button>
             </div>
             {/* 세션 이력 */}
-            {!workoutSessions.length && <div className="empty"><div style={{fontSize:'32px',marginBottom:'12px'}}>🏃</div><p>아직 개인 운동 기록이 없어요</p><p style={{fontSize:'12px',marginTop:'4px'}}>위 버튼으로 오늘 운동을 기록해보세요!</p></div>}
+            {!workoutSessions.length && <div className="empty"><p>아직 개인 운동 기록이 없어요</p><p style={{fontSize:'12px',marginTop:'4px'}}>위 버튼으로 오늘 운동을 기록해보세요!</p></div>}
             {workoutSessions.map(s => {
               const isOpen = workoutDetailId === s.id
               const exList = s.exercises || []
@@ -2385,19 +2377,19 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                       <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'5px',flexWrap:'wrap'}}>
                         <span style={{fontSize:'14px',fontWeight:700,color:'#111'}}>{s.title||'운동'}</span>
                         <span style={{fontSize:'11px',color:'#6b7280',background:'#f3f4f6',padding:'1px 7px',borderRadius:'6px'}}>{dateStr}</span>
-                        {s.duration_min && <span style={{fontSize:'11px',color:'#6b7280',background:'#f3f4f6',padding:'1px 7px',borderRadius:'6px'}}>⏱ {s.duration_min}분</span>}
+                        {s.duration_min && <span style={{fontSize:'11px',color:'#6b7280',background:'#f3f4f6',padding:'1px 7px',borderRadius:'6px'}}>{s.duration_min}분</span>}
                       </div>
                       <div style={{display:'flex',gap:'5px',flexWrap:'wrap',marginBottom:'5px'}}>
                         {muscles.map(mg=>(
                           <span key={mg} style={{fontSize:'10px',padding:'2px 8px',borderRadius:'6px',background:(MUSCLE_COLOR[mg]||'#6b7280')+'22',color:MUSCLE_COLOR[mg]||'#6b7280',border:`1px solid ${(MUSCLE_COLOR[mg]||'#6b7280')}44`,fontWeight:600}}>{mg}</span>
                         ))}
                       </div>
-                      <div style={{fontSize:'12px',color:'#10B981',fontWeight:600}}>운동 {exList.length}종목 · 총 볼륨 {vol>=1000?(vol/1000).toFixed(1)+'t':Math.round(vol)+'kg'}</div>
+                      <div style={{fontSize:'12px',color:'#4D7C0F',fontWeight:600}}>운동 {exList.length}종목 · 총 볼륨 {vol>=1000?(vol/1000).toFixed(1)+'t':Math.round(vol)+'kg'}</div>
                     </div>
-                    <span style={{color:'#10B981',fontSize:'13px',flexShrink:0,marginTop:'2px',transition:'transform 0.2s',transform:isOpen?'rotate(180deg)':'rotate(0deg)'}}>▼</span>
+                    <span style={{color:'#4D7C0F',fontSize:'13px',flexShrink:0,marginTop:'2px',transition:'transform 0.2s',transform:isOpen?'rotate(180deg)':'rotate(0deg)'}}>▼</span>
                   </div>
                   {isOpen && (
-                    <div style={{marginTop:'14px',borderTop:'1px solid #F0FDF4',paddingTop:'14px'}} onClick={e=>e.stopPropagation()}>
+                    <div style={{marginTop:'14px',borderTop:'1px solid #F7F8F4',paddingTop:'14px'}} onClick={e=>e.stopPropagation()}>
                       {exList.map((ex,ei)=>{
                         const exVol = ex.sets.reduce((s,set)=>s+((parseFloat(set.weight)||0)*(parseInt(set.reps)||0)),0)
                         const dbEx = EXERCISE_DB.find(d => d.name === ex.name)
@@ -2409,12 +2401,12 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                                 <span style={{fontSize:'13px',fontWeight:700,color:'#111'}}>{ex.name}</span>
                                 {ex.muscle_group && <span style={{fontSize:'10px',padding:'2px 8px',borderRadius:'6px',background:(MUSCLE_COLOR[ex.muscle_group]||'#6b7280')+'22',color:MUSCLE_COLOR[ex.muscle_group]||'#6b7280',border:`1px solid ${(MUSCLE_COLOR[ex.muscle_group]||'#6b7280')}44`,fontWeight:600}}>{ex.muscle_group}</span>}
                                 {dbEx && <span style={{fontSize:'10px',color:'#aaa'}}>장비: {dbEx.eq}</span>}
-                                <span style={{fontSize:'11px',color:'#10B981',fontWeight:600,marginLeft:'auto'}}>볼륨 {Math.round(exVol)}kg</span>
+                                <span style={{fontSize:'11px',color:'#4D7C0F',fontWeight:600,marginLeft:'auto'}}>볼륨 {Math.round(exVol)}kg</span>
                               </div>
                               <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(90px,1fr))',gap:'6px'}}>
                                 {ex.sets.map((set,si)=>(
-                                  <div key={si} style={{background:'#F0FDF4',borderRadius:'10px',padding:'8px',fontSize:'12px',textAlign:'center',border:'1px solid #A7F3D0'}}>
-                                    <div style={{color:'#10B981',fontSize:'10px',fontWeight:700,marginBottom:'3px'}}>{si+1}세트</div>
+                                  <div key={si} style={{background:'#F7F8F4',borderRadius:'10px',padding:'8px',fontSize:'12px',textAlign:'center',border:'1px solid #E6E8E0'}}>
+                                    <div style={{color:'#4D7C0F',fontSize:'10px',fontWeight:700,marginBottom:'3px'}}>{si+1}세트</div>
                                     <div style={{fontWeight:700,fontVariantNumeric:'tabular-nums',color:'#111'}}>{set.weight||'—'}kg × {set.reps||'—'}회</div>
                                     {set.rest_sec && <div style={{color:'#6b7280',fontSize:'10px',marginTop:'2px'}}>휴식 {set.rest_sec}초</div>}
                                   </div>
@@ -2424,9 +2416,9 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
                           </div>
                         )
                       })}
-                      {s.memo && <div style={{marginTop:'10px',fontSize:'12px',color:'#555',padding:'10px 12px',background:'#F0FDF4',borderRadius:'10px',borderLeft:'3px solid #10B981'}}>💬 {s.memo}</div>}
+                      {s.memo && <div style={{marginTop:'10px',fontSize:'12px',color:'#555',padding:'10px 12px',background:'#F7F8F4',borderRadius:'10px'}}>{s.memo}</div>}
                       <div style={{display:'flex',gap:'8px',marginTop:'14px'}}>
-                        <button style={{flex:1,padding:'9px',border:'1.5px solid #A7F3D0',borderRadius:'10px',background:'#fff',color:'#10B981',fontSize:'12px',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}} onClick={()=>openWorkoutModal(s)}>✏️ 수정</button>
+                        <button style={{flex:1,padding:'9px',border:'1.5px solid #E6E8E0',borderRadius:'10px',background:'#fff',color:'#111827',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'inherit',minHeight:'42px'}} onClick={()=>openWorkoutModal(s)}>수정</button>
                         <button style={{flex:1,padding:'9px',border:'1.5px solid #fecaca',borderRadius:'10px',background:'#fff',color:'#ef4444',fontSize:'12px',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}} onClick={()=>deleteWorkoutSession(s.id)}>삭제</button>
                       </div>
                     </div>
