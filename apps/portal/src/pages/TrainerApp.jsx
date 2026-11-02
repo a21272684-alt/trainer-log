@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import ScheduleModal from '../components/ScheduleModal'
+import { BookingSettings, RequestInbox } from '../components/ScheduleRequests'
 import Icon from '../components/Icon'
 import { compressImage as sharedCompressImage } from '@trainer-log/shared/lib/imageCompress'
 import { cleanupMemberStorage, removeStorageOnError, cleanupOldSessionMedia } from '@trainer-log/shared/lib/storageCleanup'
@@ -1903,6 +1904,23 @@ export default function TrainerApp() {
   // 모달 form state 는 ScheduleModal 컴포넌트 내부에서 관리.
   // 부모는 "어떤 block 을 편집할지" 만 보유 — null = 모달 닫힘 / 객체 = 모달 열림.
   const [editingBlock, setEditingBlock] = useState(null)
+  // 수업 신청(096): 시간표 탭 안 화면 전환 + 승인 대기 건수(탭 배지)
+  const [schedView, setSchedView] = useState('grid')   // grid | booking | inbox
+  const [pendingReqCount, setPendingReqCount] = useState(0)
+  const refreshPendingReqs = useCallback(async () => {
+    if (!trainer?.id) return
+    const { count } = await supabase.from('schedule_requests').select('id', { count: 'exact', head: true })
+      .eq('trainer_id', trainer.id).eq('status', 'pending')
+    setPendingReqCount(count || 0)
+  }, [trainer?.id])
+  useEffect(() => {
+    if (!trainer?.id) return
+    refreshPendingReqs()
+    const iv = setInterval(() => { if (document.visibilityState === 'visible') refreshPendingReqs() }, 60000)
+    const onVis = () => { if (document.visibilityState === 'visible') refreshPendingReqs() }
+    document.addEventListener('visibilitychange', onVis)
+    return () => { clearInterval(iv); document.removeEventListener('visibilitychange', onVis) }
+  }, [trainer?.id, refreshPendingReqs])
 
   // perf: 7일 그리드 render 마다 blocks.filter 7회 → blocks 변경 시 1회 그룹핑.
   const blocksByDate = useMemo(() => {
@@ -3982,6 +4000,17 @@ export default function TrainerApp() {
     }
   }, [blocks, notifEnabled, notifMinutes, trainer?.id, members])
 
+  // 회원 신청 승인 → 시간표에 수업 추가 (저장은 기존 blocks 자동 저장이 담당)
+  const handleApproveRequest = useCallback(async (newBlocks, memberId) => {
+    setBlocks(prev => [...prev, ...newBlocks])
+    if (notifEnabled && notifPerm() === 'granted' && trainer?.id && import.meta.env.VITE_VAPID_PUBLIC_KEY) {
+      const memberName = members.find(m => m.id === memberId)?.name || '회원'
+      for (const b of newBlocks) {
+        try { await scheduleNotification(trainer.id, b, memberName, notifMinutes) } catch(e) {}
+      }
+    }
+  }, [notifEnabled, notifMinutes, trainer?.id, members])
+
   const handleDeleteBlock = useCallback(async (id) => {
     // U-014: 실수 클릭 방지 — confirm 추가
     if (!window.confirm('정말 삭제할까요? 일정과 알림 예약 모두 사라지며 복구할 수 없습니다.')) return
@@ -4989,8 +5018,13 @@ export default function TrainerApp() {
                 onClick={() => showTabFn(t)}
                 style={{ cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.5 : 1 }}
               >
-                <span className="tabbar-pill">
+                <span className="tabbar-pill" style={{position:'relative'}}>
                   <Icon name={TAB_ICON_NAMES[t]} size={21} strokeWidth={active ? 2.2 : 2} />
+                  {t === 'schedule' && pendingReqCount > 0 && (
+                    <span aria-label={`수업 신청 ${pendingReqCount}건`} style={{position:'absolute',top:'-3px',right:'6px',minWidth:'16px',height:'16px',padding:'0 4px',borderRadius:'8px',background:'#E11D48',color:'#fff',fontSize:'10px',fontWeight:800,lineHeight:'16px',textAlign:'center',boxSizing:'border-box'}}>
+                      {pendingReqCount > 9 ? '9+' : pendingReqCount}
+                    </span>
+                  )}
                 </span>
                 <span className="tabbar-label">
                   {TAB_LABELS[t]}
@@ -5511,6 +5545,28 @@ export default function TrainerApp() {
               </div>
             </div>
           )}
+          {/* 시간표 | 예약 받기 | 요청함 */}
+          <div role="tablist" style={{display:'flex',gap:'4px',padding:'4px',borderRadius:'12px',background:'var(--surface2)',marginBottom:'12px'}}>
+            {[['grid','시간표'],['booking','예약 받기'],['inbox','요청함']].map(([k, lbl]) => {
+              const on = schedView === k
+              return (
+                <button key={k} role="tab" aria-selected={on} onClick={() => { setSchedView(k); if (k === 'inbox') refreshPendingReqs() }}
+                  style={{flex:1,padding:'8px 4px',borderRadius:'9px',border:'none',cursor:'pointer',fontFamily:'inherit',fontSize:'13px',fontWeight: on ? 800 : 600,
+                    background: on ? '#111827' : 'transparent', color: on ? '#fff' : 'var(--text-muted)',display:'flex',alignItems:'center',justifyContent:'center',gap:'5px'}}>
+                  {lbl}
+                  {k === 'inbox' && pendingReqCount > 0 && (
+                    <span style={{minWidth:'18px',height:'18px',padding:'0 5px',borderRadius:'9px',background: on ? 'var(--accent)' : '#E11D48',color: on ? '#111827' : '#fff',fontSize:'11px',fontWeight:800,lineHeight:'18px',boxSizing:'border-box'}}>{pendingReqCount}</span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+          {schedView === 'booking' && <BookingSettings trainerId={trainer?.id} showToast={showToast} />}
+          {schedView === 'inbox' && (
+            <RequestInbox trainerId={trainer?.id} members={members} blocks={blocks}
+              onApprove={handleApproveRequest} onChanged={refreshPendingReqs} showToast={showToast} />
+          )}
+          {schedView === 'grid' && <>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}}>
             <div className="week-nav">
               <button className="week-nav-btn" onClick={()=>setWeekOff(weekOff-1)}>‹</button>
@@ -5586,6 +5642,7 @@ export default function TrainerApp() {
           </div>}
 
           {renderScheduleGrid()}
+          </>}
         </div>
       )}
 
