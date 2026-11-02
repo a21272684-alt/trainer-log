@@ -200,6 +200,7 @@ DECLARE
   v_rem   integer := GREATEST(0, COALESCE(m.total_sessions,0) - COALESCE(m.done_sessions,0));
   v_id    uuid;
   v_label text;
+  k       integer;
 BEGIN
   SELECT * INTO s FROM trainer_booking_settings WHERE trainer_id = m.trainer_id;
   IF NOT FOUND OR NOT s.enabled THEN RAISE EXCEPTION '트레이너가 지금은 신청을 받지 않아요'; END IF;
@@ -219,6 +220,12 @@ BEGIN
   IF NOT _sched_slot_free(m.trainer_id, p_date, p_start, v_end) THEN
     RAISE EXCEPTION '방금 다른 일정이 생겼어요. 다른 시간을 골라 주세요';
   END IF;
+  -- 매주 반복이면 이후 주차도 모두 비어 있어야 함
+  FOR k IN 1..p_weeks - 1 LOOP
+    IF NOT _sched_slot_free(m.trainer_id, p_date + k * 7, p_start, v_end) THEN
+      RAISE EXCEPTION '%은 이미 일정이 있어요. 반복 횟수를 줄이거나 다른 시간을 골라 주세요', to_char(p_date + k * 7, 'FMMM/FMDD');
+    END IF;
+  END LOOP;
 
   INSERT INTO schedule_requests (trainer_id, member_id, start_date, start_time, end_time, weeks, note)
   VALUES (m.trainer_id, m.id, p_date, p_start, v_end, p_weeks, NULLIF(trim(COALESCE(p_note,'')), ''))
