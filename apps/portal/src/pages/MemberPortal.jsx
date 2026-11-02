@@ -17,6 +17,7 @@ import { removeStorageOnError } from '@trainer-log/shared/lib/storageCleanup'
 // dev 전용 — 회원 변화 공유(비포애프터) (배포엔 미노출, import.meta.env.DEV 게이팅)
 import TransformationsShare from './member/TransformationsShare'
 import MemberAttendanceView from './member/MemberAttendanceView'
+import MemberBooking from './member/MemberBooking'
 import '../styles/member.css'
 
 Chart.register(...registerables)
@@ -386,6 +387,13 @@ export default function MemberPortal() {
   useEffect(() => {
     if (tab === 'health' && healthRecords.length) setTimeout(renderChart, 200)
   }, [tab, healthRecords])
+
+  // 수업 신청(096) — 트레이너가 예약 받기를 켰을 때만 탭 노출
+  const [bookingInfo, setBookingInfo] = useState(null)
+  useEffect(() => {
+    if (!member?.id) return
+    supabase.rpc('get_booking_info').then(({ data, error }) => { if (!error) setBookingInfo(data) })
+  }, [member?.id])
 
   useEffect(() => {
     if (tab === 'workout' && member) {
@@ -1229,6 +1237,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
     { key: 'health',  label: '체중관리', icon: 'scale' },
     { key: 'diet',    label: '식단',     icon: 'utensils' },
     { key: 'workout', label: '운동',     icon: 'dumbbell' },
+    ...(bookingInfo?.enabled ? [{ key: 'booking', label: '수업신청', icon: 'calendar' }] : []),
   ]
 
   return (
@@ -2339,6 +2348,8 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
       })()}
 
       {/* 개인운동 */}
+      {tab === 'booking' && bookingInfo?.enabled && <MemberBooking info={bookingInfo} showToast={showToast} />}
+
       {tab === 'workout' && (() => {
         const now = new Date()
         const thisMonth = now.toISOString().slice(0,7)
