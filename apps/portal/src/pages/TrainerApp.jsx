@@ -2312,11 +2312,13 @@ export default function TrainerApp() {
     try {
       // 활성 구독의 plan → 티어 판정. 활성 구독이 여럿이면 가장 늦게 끝나는 것 기준.
       // (maybeSingle 은 2개+ 에서 에러 → 유료인데 무료 처리 버그였음. 최신 valid_until 1건.)
+      // 관리자가 '무효 처리'한 구독(voided_at, 098)은 권한에서 제외.
       const now = new Date().toISOString()
       const { data: subs, error: subErr } = await supabase
         .from('subscriptions')
         .select('plan, valid_until')
         .eq('trainer_id', trainerId)
+        .is('voided_at', null)
         .gt('valid_until', now)
         .order('valid_until', { ascending: false })
         .limit(1)
