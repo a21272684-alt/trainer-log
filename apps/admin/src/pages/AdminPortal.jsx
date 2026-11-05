@@ -2,6 +2,14 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import Modal from '@trainer-log/shared/components/common/Modal'
 import CommunityReportsTab from './CommunityReportsTab'
+import TrainersPage from './TrainersPage'
+import SubscriptionsPage from './SubscriptionsPage'
+import AdminSidebar, { NAV_LABEL, NAV_GROUP_LABEL } from '../components/AdminSidebar'
+import AdminIcon from '../components/AdminIcon'
+import GlobalSearch from '../components/GlobalSearch'
+import TrainerDrawer from '../components/TrainerDrawer'
+import { SubscriptionEditor, SubscriptionStopDialog, AddSubscriptionDialog } from '../components/SubscriptionDialogs'
+import { adminRpc, seoulToday, subStatus } from '../lib/adminRpc'
 import '../styles/admin.css'
 
 // ── 관리자 자격 (Vite 환경변수) ───────────────────────────────
@@ -55,17 +63,20 @@ function parseSettingValue(raw) {
   try { return JSON.parse(raw) } catch { return raw }
 }
 
+// 개편 1차: 상단 탭은 커뮤니티만. 트레이너·회원 화면은 사이드바 메뉴가 직접 연결 (CRM 권한은 트레이너 상세 패널로).
+// 1:1 문의(support)·자유게시판 관리는 예전에 폐기됨.
 const PORTAL_TABS = {
-  // 1:1 문의(support) 탭은 카카오 채널 외부 우회로 완전 폐기 — admin 관리 항목 0건.
-  // 자유게시판(free_board) 모더레이션도 제거 — 운영 단순화.
-  trainer:   [{ id: 'list', label: '트레이너 목록' }, { id: 'pending', label: '가입 승인 대기' }, { id: 'logs', label: '수업일지' }, { id: 'subs', label: '구독 관리' }, { id: 'plans', label: '플랜 관리' }],
-  member:    [{ id: 'status', label: '회원 현황' }, { id: 'notices', label: '공지사항 관리' }],
   community: [{ id: 'reports', label: '신고함' }, { id: 'posts', label: '게시글' }, { id: 'users', label: '유저' }, { id: 'contacts', label: '연락 요청' }, { id: 'market', label: '마켓 거래 관리' }],
-  crm:       [{ id: 'permissions', label: '권한 관리' }],
   // landing 은 아래 LANDING_PORTALS / LANDING_TABS 로 2단계 관리
 }
 
-const DEFAULT_TAB = { trainer: 'list', member: 'status', community: 'reports', crm: 'permissions', landing: 'hero' }
+// 사이드바 메뉴(개편 1차) → 기존 화면(page, subTab). trainers·subscriptions 는 새 화면.
+const NAV_TARGET = {
+  home: ['dashboard'], trainers: ['trainers'], signups: ['trainer', 'pending'], members: ['member', 'status'],
+  subs: ['subscriptions'], plans: ['trainer', 'plans'], logs: ['trainer', 'logs'], notices: ['member', 'notices'],
+  community: ['community', 'reports'], landing: ['landing', 'hero'], settings: ['system'],
+}
+const NEW_PAGES = ['trainers', 'subscriptions']
 
 // 후기 사진 세로 포커스(0~100%) → object-position. 옛 photo_position(top/center/bottom) 자동 매핑.
 const reviewFocusY = (r) =>
@@ -298,17 +309,6 @@ const CAT_COLOR = {
   trainer_seeks_gym: { bg: 'rgba(255,92,92,0.12)', color: '#ff5c5c' },
 }
 
-// CRM 의 실제 PERM_DEFS (apps/crm/src/pages/crm/tabs/SettingsTab.jsx:1137-1142) 와
-// TAB_PERMISSIONS (apps/crm/src/pages/crm/GymOwnerPortal.jsx:39-49) 를 1:1 매핑.
-// 그동안 admin 에는 lead_management/client_notes/follow_up/data_export 4개 키를
-// 토글했으나 CRM 어디에서도 읽히지 않아 모든 토글이 silent fail 이었음.
-// crm_access 가 master 토글 (포털 접근 자체) 역할 — CRM 활성화 컬럼이 이 키를 토글.
-const CRM_FEATURES = [
-  { key: 'view_all_members', label: '전체 회원 열람', desc: '소속 모든 트레이너의 회원 조회' },
-  { key: 'manage_products',  label: '상품 관리',     desc: '센터 상품 등록·수정·삭제' },
-  { key: 'view_settlement',  label: '정산 열람',     desc: '직원 정산 내역 조회' },
-]
-
 export default function AdminPortal() {
   // ─── 자체 Toast 시스템 (admin-main.jsx 진입점은 ToastProvider 미포함 → 자체 구현) ───
   const [toast, setToast] = useState({ show: false, message: '', type: 'info' })
@@ -360,9 +360,17 @@ export default function AdminPortal() {
   const [marketPurchases, setMarketPurchases] = useState([])
 
   const [logPeriod, setLogPeriod] = useState('day')
-  const [subModal, setSubModal] = useState(false)
-  const [trainerModal, setTrainerModal] = useState(null)
-  const [subForm, setSubForm] = useState({ trainer_id: '', plan: 'pro', amount: '', payment_method: '카카오페이', paid_at: '', valid_until: '', memo: '' })
+  // 개편 1차 — 메뉴 · 통합 검색 · 상세 패널 · 구독 창
+  const [nav, setNav] = useState('home')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [drawer, setDrawer] = useState(null)        // { id, tab } 트레이너 상세 패널
+  const [subEditor, setSubEditor] = useState(null)  // { sub, name }
+  const [subStop, setSubStop] = useState(null)      // { sub, name }
+  const [subAdd, setSubAdd] = useState(null)        // { preset } — preset 없으면 트레이너 검색부터
+  const [refreshKey, setRefreshKey] = useState(0)   // 변경 후 목록·패널 다시 불러오기
+  const [trainerPreset, setTrainerPreset] = useState(null) // 통합 검색 '전체 보기' → { q, key }
+  const [trainerTotal, setTrainerTotal] = useState(null)
+  const [subsSoonLive, setSubsSoonLive] = useState(null)
 
   // 트레이너 사전 등록 (화이트리스트)
   const [trainerRegModal, setTrainerRegModal] = useState(false)
@@ -423,7 +431,6 @@ export default function AdminPortal() {
   const [featureGates, setFeatureGates] = useState(DEFAULT_FEATURE_GATES)
 
   // 크레딧 / API 키 관리
-  const [creditAmount, setCreditAmount] = useState('10')
   const [centralApiKey, setCentralApiKey] = useState('')
   const [apiKeyLoaded, setApiKeyLoaded] = useState(false)
   const [urgentInquiryUrl, setUrgentInquiryUrl] = useState('')   // 긴급문의 카카오 오픈채팅 링크
@@ -439,11 +446,19 @@ export default function AdminPortal() {
   const [legalRefund,  setLegalRefund]  = useState('')
   const [legalSaving,  setLegalSaving]  = useState({ terms: false, privacy: false, refund: false })
 
-  const navigate = (portalId) => {
-    setPage(portalId)
-    if (DEFAULT_TAB[portalId]) setSubTab(DEFAULT_TAB[portalId])
-    if (portalId === 'landing') { setLandingSite('main'); setSubTab('hero') }
+  const go = (navId, q) => {
+    const [p, t] = NAV_TARGET[navId] || ['dashboard']
+    setNav(navId); setPage(p); setSubTab(t || '')
+    if (navId === 'landing') setLandingSite('main')
+    if (navId === 'trainers' && q != null) setTrainerPreset({ q, key: Date.now() })
+    window.scrollTo(0, 0)
   }
+  const bump = useCallback(() => setRefreshKey(k => k + 1), [])
+  const openTrainer = useCallback((id, tab = 'overview') => setDrawer({ id, tab }), [])
+  const closeDrawer = useCallback(() => setDrawer(null), [])
+  const closeSubEditor = useCallback(() => setSubEditor(null), [])
+  const closeSubStop = useCallback(() => setSubStop(null), [])
+  const closeSubAdd = useCallback(() => setSubAdd(null), [])
   const switchLandingSite = (site) => {
     setLandingSite(site)
     setSubTab(LANDING_TABS[site][0].id)
@@ -469,6 +484,22 @@ export default function AdminPortal() {
   }
 
   useEffect(() => { if (loggedIn) loadAll() }, [loggedIn])
+
+  // 어느 화면에서든 Ctrl K (맥은 ⌘K) → 통합 검색
+  useEffect(() => {
+    if (!loggedIn) return
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'k') { e.preventDefault(); setSearchOpen(true) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [loggedIn])
+
+  // 사이드바 트레이너 수 — 서버 집계 (예전 목록은 100명까지만 불러와 숫자가 틀려질 수 있음)
+  useEffect(() => {
+    if (!loggedIn) return
+    adminRpc('admin_search_trainers', { p_limit: 1 }).then(r => setTrainerTotal(r?.total ?? null)).catch(() => {})
+  }, [loggedIn, refreshKey])
 
   async function loadAll() {
     try {
@@ -625,20 +656,6 @@ export default function AdminPortal() {
   // 하므로 저장 실패 시 입력값 그대로 남음. 새로고침 시 DB 값으로 복원됨. 베타 OK.
   // 후속 개선: lastSavedFeatureGates 별도 추적 → 저장 실패 시 그쪽으로 정확히 롤백.
   function saveMemberLimit() { saveFeatureGates(featureGates) }
-
-  // 크레딧 충전
-  async function addTrainerCredits(trainerId, amount) {
-    try {
-      const { data, error } = await supabase.rpc('admin_add_credits', {
-        p_trainer_id: trainerId,
-        p_amount: amount,
-        p_admin_token: ADMIN_TOKEN,
-      })
-      if (error) throw error
-      setTrainers(prev => prev.map(t => t.id === trainerId ? { ...t, credits: data } : t))
-      showToast(`✓ ${amount}크레딧 충전 완료 (잔액: ${data}개)`)
-    } catch (e) { showToast('오류: ' + e.message) }
-  }
 
   // 중앙 API 키 저장 (RPC 경유)
   async function saveCentralApiKey() {
@@ -867,37 +884,6 @@ export default function AdminPortal() {
 
   // (제거됨) 1:1 문의 답변(submitAnswer) — 카카오 채널 외부 우회로 폐기.
 
-  // ===== CRM =====
-  // 050 RLS strict 후 trainers UPDATE 정책 부여 안 됨 → admin RPC (052) 경유.
-  // P0 fix: 그동안 'enabled' 키를 토글했으나 CRM 코드 어디에서도 'enabled' 를
-  // 읽지 않아 silent fail. CRM 의 실제 게이트 키 'crm_access' 를 토글하도록 변경
-  // (legacy 'enabled' 도 동시 set 하여 backward compat 유지 — 이전 데이터 호환).
-  async function updateCrmEnabled(trainerId, on) {
-    const trainer = trainers.find(t => t.id === trainerId)
-    const current = trainer?.crm_permissions || {}
-    const updated = { ...current, crm_access: on, enabled: on }
-    const { error } = await supabase.rpc('admin_update_trainer_crm_permissions', {
-      p_admin_token: ADMIN_TOKEN,
-      p_trainer_id: trainerId,
-      p_permissions: updated,
-    })
-    if (error) { showToast('오류: ' + error.message); return }
-    setTrainers(prev => prev.map(t => t.id === trainerId ? { ...t, crm_permissions: updated } : t))
-    showToast(on ? 'CRM 포털 접근이 활성화됐어요' : 'CRM 포털 접근이 비활성화됐어요')
-  }
-  async function updateCrmFeature(trainerId, featureKey, value) {
-    const trainer = trainers.find(t => t.id === trainerId)
-    const current = trainer?.crm_permissions || {}
-    const updated = { ...current, [featureKey]: value }
-    const { error } = await supabase.rpc('admin_update_trainer_crm_permissions', {
-      p_admin_token: ADMIN_TOKEN,
-      p_trainer_id: trainerId,
-      p_permissions: updated,
-    })
-    if (error) { showToast('오류: ' + error.message); return }
-    setTrainers(prev => prev.map(t => t.id === trainerId ? { ...t, crm_permissions: updated } : t))
-  }
-
   // ===== 플랜 관리 (RPC 경유) =====
   // RPC value 컬럼이 text 기대 시 boolean 직삽입은 P0001 unauthorized/타입 오류를 유발 → 문자열로 강제 변환.
   async function savePlanVisibility(visible) {
@@ -966,6 +952,7 @@ export default function AdminPortal() {
       alert('✓ 트레이너가 사전 등록됐어요')
       setTrainerRegModal(false)
       setTrainerRegForm({ name: '', email: '' })
+      bump()
       await loadAll()
     } catch (e) {
       alert('오류: ' + e.message)
@@ -1031,31 +1018,6 @@ export default function AdminPortal() {
     }
   }
 
-  // ===== SUBSCRIPTION =====
-  const openAddSub = () => {
-    const today = new Date().toISOString().split('T')[0]
-    const next = new Date(); next.setMonth(next.getMonth() + 1)
-    setSubForm({ ...subForm, paid_at: today, valid_until: next.toISOString().split('T')[0], trainer_id: trainers[0]?.id || '' })
-    setSubModal(true)
-  }
-  const addSubscription = async () => {
-    try {
-      // anon 직접 INSERT 는 RLS 차단 → _admin_assert 가드 SECURITY DEFINER RPC 경유 (마이그 077)
-      const { error } = await supabase.rpc('admin_add_subscription', {
-        p_admin_token: ADMIN_TOKEN,
-        p_trainer_id: subForm.trainer_id,
-        p_plan: subForm.plan,
-        p_payment_method: subForm.payment_method,
-        p_amount: parseInt(subForm.amount) || 0,
-        p_paid_at: subForm.paid_at || null,
-        p_valid_until: subForm.valid_until || null,
-        p_memo: subForm.memo.trim(),
-      })
-      if (error) throw error
-      await loadAll(); setSubModal(false); showToast('✓ 결제가 추가됐어요')
-    } catch (e) { showToast('오류: ' + e.message) }
-  }
-
   // ===== LOGIN =====
   if (!loggedIn) {
     return (
@@ -1110,10 +1072,18 @@ export default function AdminPortal() {
   const filteredLogs = filterLogsByPeriod(logs, logPeriod)
   const periodLabel = { day: '오늘', week: '이번 주', month: '이번 달' }[logPeriod]
 
-  const selectedTrainer = trainerModal ? trainers.find(t => t.id === trainerModal) : null
-  const stMembers = selectedTrainer ? members.filter(m => m.trainer_id === selectedTrainer.id) : []
-  const stLogs = selectedTrainer ? logs.filter(l => l.trainer_id === selectedTrainer.id) : []
-  const stSubs = selectedTrainer ? subs.filter(s => s.trainer_id === selectedTrainer.id).sort((a, b) => new Date(b.paid_at) - new Date(a.paid_at)) : []
+  // 사이드바 배지 — 곧 만료되는 구독(30일 이내) 트레이너 수. 구독 화면을 열면 그 화면 값으로 갱신.
+  const subsSoonFromList = (() => {
+    const latest = {}
+    for (const s of subs) {
+      if (s.voided_at) continue
+      if (!latest[s.trainer_id] || String(s.valid_until) > String(latest[s.trainer_id].valid_until)) latest[s.trainer_id] = s
+    }
+    const t = seoulToday()
+    return Object.values(latest).filter(s => subStatus(s, t).key === 'soon').length
+  })()
+  const subsSoon = subsSoonLive ?? subsSoonFromList
+  const signupsPending = signupRequests.filter(r => r.status === 'pending').length
 
   // ── 랜딩 저장 헬퍼 (단일 landing_v1 객체 통합 저장) ─────────
   // 17개 파편 키 개별 upsert를 모두 단일 키 1회 upsert로 통합한다.
@@ -1275,75 +1245,65 @@ export default function AdminPortal() {
     else if (type === 'crm_roadmap') await saveLandingCrmRoadmap(landingCrmRoadmap.filter((_, i) => i !== index))
   }
 
-  // 카테고리 기반 네비게이션 — 도메인별 4그룹 (대시보드 / 포털 제어 / 운영 설정 / 시스템 & 법적 고지)
-  const navGroups = [
-    {
-      id: 'overview',
-      label: '대시보드',
-      items: [
-        { id: 'dashboard', icon: '📊', label: '통계 / 요약' },
-      ],
-    },
-    {
-      id: 'portals',
-      label: '포털 제어',
-      items: [
-        { id: 'trainer',   icon: '💪', label: '트레이너 포털' },
-        { id: 'member',    icon: '👥', label: '회원 포털' },
-        { id: 'community', icon: '🤝', label: '커뮤니티 포털' },
-        { id: 'crm',       icon: '🗂️', label: 'CRM 포털' },
-      ],
-    },
-    {
-      id: 'operations',
-      label: '운영 설정',
-      items: [
-        { id: 'landing',  icon: '🌐', label: '랜딩 페이지' },
-        { id: 'features', icon: '🔐', label: '기능 게이트 / 플랜' },
-      ],
-    },
-    {
-      id: 'system',
-      label: '시스템 & 법적 고지',
-      items: [
-        { id: 'system', icon: '⚙️', label: 'API 키 · 운영 채널' },
-        { id: 'legal',  icon: '📜', label: '법적 고지 관리' },
-      ],
-    },
-  ]
-
   return (
-    <div>
-      {/* TOPBAR */}
-      <div className="topbar">
-        <div className="topbar-left">
-          <div className="topbar-title">오운</div>
-          <div className="admin-badge">ADMIN</div>
-        </div>
-        <button className="logout-btn" onClick={logout}>로그아웃</button>
-      </div>
+    <div className="adm-shell">
+      {/* 최초 로그인 1회 등 공통 모달은 아래쪽. 사이드바 = 개편 1차 메뉴 (5묶음 11메뉴) */}
+      <AdminSidebar
+        active={nav}
+        onNavigate={go}
+        counts={{ trainers: trainerTotal, members: members.length < ADMIN_LOAD_LIMIT ? members.length : undefined }}
+        alerts={{ signups: signupsPending, subs: subsSoon }}
+        onLogout={logout}
+      />
 
-      <div className="layout">
-        {/* SIDEBAR — 카테고리 그룹별 렌더 */}
-        <div className="sidebar">
-          {navGroups.map((group, gIdx) => (
-            <div key={group.id} style={{ marginBottom: gIdx === navGroups.length - 1 ? 0 : '12px' }}>
-              <div className="sidebar-group-label">{group.label}</div>
-              {group.items.map(n => (
-                <div
-                  key={n.id}
-                  className={`nav-item${page === n.id ? ' active' : ''}`}
-                  onClick={() => navigate(n.id)}
-                >
-                  <span className="nav-icon">{n.icon}</span>{n.label}
-                </div>
-              ))}
+      <div className="adm-main">
+        <header className="adm-topbar">
+          <div className="adm-topbar-crumb">{NAV_GROUP_LABEL[nav] ? `${NAV_GROUP_LABEL[nav]} › ` : ''}<b>{NAV_LABEL[nav]}</b></div>
+          <button type="button" className="adm-search-btn" onClick={() => setSearchOpen(true)}>
+            <AdminIcon name="search" size={16} strokeWidth={2.2} />
+            <span>트레이너 · 회원 · 메뉴 검색</span>
+            <kbd className="adm-kbd">Ctrl K</kbd>
+          </button>
+        </header>
+
+        <div className="adm-content">
+          {page === 'trainers' && (
+            <TrainersPage
+              onOpenTrainer={openTrainer}
+              onRegister={() => { setTrainerRegForm({ name: '', email: '' }); setTrainerRegModal(true) }}
+              refreshKey={refreshKey}
+              preset={trainerPreset}
+              showToast={showToast}
+            />
+          )}
+          {page === 'subscriptions' && (
+            <SubscriptionsPage
+              refreshKey={refreshKey}
+              onOpenTrainer={openTrainer}
+              onEditSub={(sub, name) => setSubEditor({ sub, name })}
+              onStopSub={(sub, name) => setSubStop({ sub, name })}
+              onAddSub={(preset) => setSubAdd({ preset })}
+              onChanged={bump}
+              onSoonCount={setSubsSoonLive}
+              showToast={showToast}
+            />
+          )}
+
+          {/* ── 2차 개편 전 화면: 기존 내용 그대로 새 뼈대 안에 ── */}
+          {!NEW_PAGES.includes(page) && (<div className="adm-legacy">
+          {nav === 'plans' && (
+            <div className="adm-legacy-tabs" role="tablist" aria-label="플랜 · 기능 권한">
+              <button type="button" role="tab" aria-selected={page === 'trainer'} className={page === 'trainer' ? 'is-active' : ''} onClick={() => { setPage('trainer'); setSubTab('plans') }}>플랜 안내</button>
+              <button type="button" role="tab" aria-selected={page === 'features'} className={page === 'features' ? 'is-active' : ''} onClick={() => setPage('features')}>기능 권한</button>
             </div>
-          ))}
-        </div>
+          )}
+          {nav === 'settings' && (
+            <div className="adm-legacy-tabs" role="tablist" aria-label="시스템 설정">
+              <button type="button" role="tab" aria-selected={page === 'system'} className={page === 'system' ? 'is-active' : ''} onClick={() => setPage('system')}>운영 설정 · 로그인 공지</button>
+              <button type="button" role="tab" aria-selected={page === 'legal'} className={page === 'legal' ? 'is-active' : ''} onClick={() => setPage('legal')}>법적 고지</button>
+            </div>
+          )}
 
-        {/* CONTENT */}
-        <div className="content">
 
           {/* PORTAL SUB-TABS (landing 제외) */}
           {page !== 'dashboard' && page !== 'landing' && PORTAL_TABS[page] && (
@@ -1434,48 +1394,6 @@ export default function AdminPortal() {
           )}
 
           {/* ==================== 트레이너 포털 ==================== */}
-          {page === 'trainer' && subTab === 'list' && (
-            <div>
-              {/* (이전) 중앙 Gemini API 키 / 긴급문의 카드는 [시스템 & 법적 고지 → API 키·운영 채널] 페이지로 이관됨 */}
-              <div className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                트레이너 목록
-                <button className="btn btn-primary btn-sm" onClick={openAddSub}>+ 구독 추가</button>
-                <button
-                  className="btn btn-sm"
-                  style={{ background: 'rgba(200,241,53,0.12)', color: '#c8f135', border: '1px solid rgba(200,241,53,0.3)', fontWeight: 700 }}
-                  onClick={() => { setTrainerRegForm({ name: '', email: '' }); setTrainerRegModal(true) }}
-                >+ 트레이너 사전 등록</button>
-              </div>
-              <div className="card table-wrap">
-                <table>
-                  <thead><tr><th>트레이너</th><th>회원수</th><th>일지 발송</th><th>크레딧</th><th>가입일</th><th>구독상태</th><th></th></tr></thead>
-                  <tbody>
-                    {!trainers.length && <tr><td colSpan={6} className="empty">등록된 트레이너가 없어요</td></tr>}
-                    {trainers.map(t => {
-                      const mc = members.filter(m => m.trainer_id === t.id).length
-                      const lc = logs.filter(l => l.trainer_id === t.id).length
-                      const sub = subs.filter(s => s.trainer_id === t.id).sort((a, b) => new Date(b.paid_at) - new Date(a.paid_at))[0]
-                      const isActive = sub && sub.valid_until && new Date(sub.valid_until) > new Date()
-                      const joinDate = new Date(t.created_at)
-                      return (
-                        <tr key={t.id}>
-                          <td><div className="name-cell"><div className="avatar">{t.name[0]}</div><div><div style={{ color: 'var(--text)', fontWeight: 500, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>{t.name}{!t.auth_id && <span style={{ backgroundColor: '#F0FDF4', color: '#10B981', border: '1px solid #A7F3D0', borderRadius: '4px', padding: '2px 6px', fontSize: '0.8rem', marginLeft: '8px', fontWeight: 500 }}>사전등록</span>}</div></div></div></td>
-                          <td>{mc}명</td>
-                          <td>{lc}건</td>
-                          <td><span style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: 'var(--accent)' }}>{t.credits ?? 0}</span></td>
-                          <td style={{ fontFamily: "'DM Mono',monospace", fontSize: '12px' }}>{joinDate.toLocaleDateString('ko-KR', { year: '2-digit', month: 'short', day: 'numeric' })}<br /><span style={{ color: 'var(--text-dim)', fontSize: '11px' }}>{joinDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</span></td>
-                          <td>{isActive ? <span className="badge badge-green">{sub.plan}</span> : <span className="badge badge-red">미구독</span>}</td>
-                          <td><button className="btn btn-ghost btn-sm" onClick={() => setTrainerModal(t.id)}>상세</button></td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* ==================== 가입 승인 대기열 (053 화이트리스트) ==================== */}
           {page === 'trainer' && subTab === 'pending' && (() => {
             const filtered = signupRequests.filter(r => !signupFilter || r.status === signupFilter)
             const pendingCount = signupRequests.filter(r => r.status === 'pending').length
@@ -1593,36 +1511,6 @@ export default function AdminPortal() {
                           <td><div className="name-cell"><div className="avatar">{t.name[0]}</div><span style={{ color: 'var(--text)' }}>{t.name}</span></div></td>
                           <td><span style={{ color: 'var(--accent)', fontWeight: 700, fontFamily: "'DM Mono',monospace" }}>{tLogs.length}건</span></td>
                           <td style={{ fontSize: '12px', color: 'var(--text-dim)' }}>{lastDate ? lastDate.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }) + ' ' + lastDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '없음'}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {page === 'trainer' && subTab === 'subs' && (
-            <div>
-              <div className="section-title">구독 · 결제 관리 <button className="btn btn-primary btn-sm" onClick={openAddSub}>+ 결제 추가</button></div>
-              <div className="card table-wrap">
-                <table>
-                  <thead><tr><th>트레이너</th><th>플랜</th><th>결제수단</th><th>금액</th><th>결제일</th><th>만료일</th><th>메모</th></tr></thead>
-                  <tbody>
-                    {!subs.length && <tr><td colSpan={7} className="empty">결제 내역이 없어요</td></tr>}
-                    {subs.map(s => {
-                      const trainer = trainers.find(t => t.id === s.trainer_id)
-                      const isActive = s.valid_until && new Date(s.valid_until) > new Date()
-                      const methodBadge = { '카카오페이': 'badge-yellow', '카드': 'badge-blue', '계좌이체': 'badge-green', '현금': 'badge-blue' }[s.payment_method] || 'badge-blue'
-                      return (
-                        <tr key={s.id}>
-                          <td style={{ color: 'var(--text)', fontWeight: 500 }}>{trainer?.name || '?'}</td>
-                          <td><span className={`badge ${isActive ? 'badge-green' : 'badge-red'}`}>{s.plan}</span></td>
-                          <td><span className={`badge ${methodBadge}`}>{s.payment_method}</span></td>
-                          <td style={{ fontFamily: "'DM Mono',monospace" }}>{s.amount?.toLocaleString()}원</td>
-                          <td style={{ fontSize: '12px', color: 'var(--text-dim)' }}>{s.paid_at?.split('T')[0] || '-'}</td>
-                          <td style={{ fontSize: '12px', color: isActive ? 'var(--accent)' : 'var(--danger)' }}>{s.valid_until || '-'}</td>
-                          <td style={{ fontSize: '12px', color: 'var(--text-dim)' }}>{s.memo || '-'}</td>
                         </tr>
                       )
                     })}
@@ -1888,64 +1776,6 @@ export default function AdminPortal() {
 
 
           {/* ==================== CRM 포털 ==================== */}
-          {page === 'crm' && subTab === 'permissions' && (
-            <div>
-              <div className="section-title">CRM 권한 관리</div>
-              <div className="stat-grid" style={{ marginBottom: '20px' }}>
-                <div className="stat-card"><div className="stat-num" style={{ color: '#a78bfa' }}>{trainers.filter(t => (t.crm_permissions?.crm_access || t.crm_permissions?.enabled)).length}</div><div className="stat-label">CRM 활성 트레이너</div></div>
-                <div className="stat-card"><div className="stat-num" style={{ color: 'var(--text-dim)' }}>{trainers.length - trainers.filter(t => (t.crm_permissions?.crm_access || t.crm_permissions?.enabled)).length}</div><div className="stat-label">CRM 비활성</div></div>
-              </div>
-              <div className="card table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>트레이너</th>
-                      <th style={{ textAlign: 'center' }}>CRM 활성화</th>
-                      {CRM_FEATURES.map(f => <th key={f.key} style={{ textAlign: 'center' }}>{f.label}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {!trainers.length && <tr><td colSpan={2 + CRM_FEATURES.length} className="empty">트레이너가 없어요</td></tr>}
-                    {trainers.map(t => {
-                      const perms = t.crm_permissions || {}
-                      // P0 fix: crm_access 가 실제 CRM 게이트 키. 이전 데이터의 enabled 도 alias 로 인정 (마이그레이션).
-                      const enabled = !!(perms.crm_access || perms.enabled)
-                      return (
-                        <tr key={t.id}>
-                          <td>
-                            <div className="name-cell">
-                              <div className="avatar">{t.name[0]}</div>
-                              <span style={{ color: 'var(--text)', fontWeight: 500 }}>{t.name}</span>
-                            </div>
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            <button
-                              className={`crm-toggle${enabled ? ' on' : ''}`}
-                              onClick={() => updateCrmEnabled(t.id, !enabled)}
-                            >
-                              {enabled ? 'ON' : 'OFF'}
-                            </button>
-                          </td>
-                          {CRM_FEATURES.map(f => (
-                            <td key={f.key} style={{ textAlign: 'center' }}>
-                              <button
-                                className={`crm-toggle crm-toggle-sm${perms[f.key] ? ' on' : ''}`}
-                                disabled={!enabled}
-                                onClick={() => updateCrmFeature(t.id, f.key, !perms[f.key])}
-                              >
-                                {perms[f.key] ? '허용' : '차단'}
-                              </button>
-                            </td>
-                          ))}
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
           {/* ==================== 랜딩페이지 관리 ==================== */}
 
           {/* ── 히어로 ── */}
@@ -2998,8 +2828,49 @@ export default function AdminPortal() {
             </div>
           )}
 
+          </div>)}
         </div>
       </div>
+
+      {/* ── 개편 1차 공통 창 ── */}
+      <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} onOpenTrainer={openTrainer} onNavigate={go} />
+      {drawer && (
+        <TrainerDrawer
+          trainerId={drawer.id}
+          initialTab={drawer.tab}
+          refreshKey={refreshKey}
+          onClose={closeDrawer}
+          onChanged={bump}
+          onEditSub={(sub, name) => setSubEditor({ sub, name })}
+          onStopSub={(sub, name) => setSubStop({ sub, name })}
+          onAddSub={(preset) => setSubAdd({ preset })}
+          showToast={showToast}
+        />
+      )}
+      {subEditor && (
+        <SubscriptionEditor
+          sub={subEditor.sub}
+          trainerName={subEditor.name}
+          onClose={closeSubEditor}
+          onSaved={() => { setSubEditor(null); bump() }}
+          onStop={(sub, name) => { setSubEditor(null); setSubStop({ sub, name }) }}
+          showToast={showToast}
+        />
+      )}
+      <SubscriptionStopDialog
+        sub={subStop?.sub}
+        trainerName={subStop?.name}
+        onClose={closeSubStop}
+        onDone={() => { setSubStop(null); bump() }}
+        showToast={showToast}
+      />
+      <AddSubscriptionDialog
+        open={!!subAdd}
+        preset={subAdd?.preset}
+        onClose={closeSubAdd}
+        onDone={() => { setSubAdd(null); bump() }}
+        showToast={showToast}
+      />
 
       {/* LANDING EDIT MODAL */}
       <Modal open={!!landingEditModal} onClose={closeLandingEdit} title={
@@ -3407,40 +3278,6 @@ export default function AdminPortal() {
         })()}
       </Modal>
 
-      {/* ADD SUBSCRIPTION MODAL */}
-      <Modal open={subModal} onClose={() => setSubModal(false)} title="결제 추가">
-        <div className="form-group">
-          <label>트레이너</label>
-          <select value={subForm.trainer_id} onChange={e => setSubForm({ ...subForm, trainer_id: e.target.value })}>
-            {trainers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
-        </div>
-        <div className="form-row">
-          <div className="form-group">
-            <label>플랜</label>
-            <select value={subForm.plan} onChange={e => setSubForm({ ...subForm, plan: e.target.value })}>
-              <option value="pro">Pro</option><option value="premium">Premium</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label>결제 금액 (원)</label>
-            <input type="number" value={subForm.amount} onChange={e => setSubForm({ ...subForm, amount: e.target.value })} placeholder="99000" />
-          </div>
-        </div>
-        <div className="form-group">
-          <label>결제 수단</label>
-          <select value={subForm.payment_method} onChange={e => setSubForm({ ...subForm, payment_method: e.target.value })}>
-            <option value="카카오페이">카카오페이</option><option value="카드">카드</option><option value="계좌이체">계좌이체</option><option value="현금">현금</option>
-          </select>
-        </div>
-        <div className="form-row">
-          <div className="form-group"><label>결제일</label><input type="date" value={subForm.paid_at} onChange={e => setSubForm({ ...subForm, paid_at: e.target.value })} /></div>
-          <div className="form-group"><label>만료일</label><input type="date" value={subForm.valid_until} onChange={e => setSubForm({ ...subForm, valid_until: e.target.value })} /></div>
-        </div>
-        <div className="form-group"><label>메모 (선택)</label><input type="text" value={subForm.memo} onChange={e => setSubForm({ ...subForm, memo: e.target.value })} placeholder="특이사항" /></div>
-        <button className="btn btn-primary btn-full" onClick={addSubscription}>저장</button>
-      </Modal>
-
       {/* TRAINER PRE-REGISTER MODAL */}
       <Modal open={trainerRegModal} onClose={() => setTrainerRegModal(false)} title="트레이너 사전 등록">
         <div style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '18px', lineHeight: 1.7 }}>
@@ -3482,57 +3319,6 @@ export default function AdminPortal() {
             disabled={trainerRegLoading}
           >{trainerRegLoading ? '등록 중...' : '등록하기'}</button>
         </div>
-      </Modal>
-
-      {/* TRAINER DETAIL MODAL */}
-      <Modal open={!!trainerModal} onClose={() => setTrainerModal(null)} title={selectedTrainer ? `${selectedTrainer.name} 트레이너` : '트레이너 상세'}>
-        {selectedTrainer && (
-          <>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '16px' }}>
-              <div className="stat-card"><div className="stat-num" style={{ fontSize: '20px' }}>{stMembers.length}</div><div className="stat-label">회원수</div></div>
-              <div className="stat-card"><div className="stat-num" style={{ fontSize: '20px' }}>{stLogs.length}</div><div className="stat-label">총 일지</div></div>
-              <div className="stat-card"><div className="stat-num" style={{ fontSize: '20px' }}>{stSubs.length}</div><div className="stat-label">결제 건</div></div>
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '8px' }}>가입일: {new Date(selectedTrainer.created_at).toLocaleString('ko-KR')}</div>
-            <div className="divider" />
-            {/* 크레딧 관리 */}
-            <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>AI 크레딧 관리</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', padding: '12px', background: 'rgba(255,255,255,0.04)', borderRadius: '10px', border: '1px solid var(--border)' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '22px', fontWeight: 800, fontFamily: "'DM Mono',monospace", color: 'var(--accent)' }}>{selectedTrainer.credits ?? 0}</div>
-                <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>보유 크레딧</div>
-              </div>
-              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                <input
-                  type="number" min="1" max="1000"
-                  value={creditAmount}
-                  onChange={e => setCreditAmount(e.target.value)}
-                  style={{ width: '70px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: '13px', fontFamily: 'inherit' }}
-                />
-                <button
-                  className="btn btn-primary btn-sm"
-                  onClick={() => addTrainerCredits(selectedTrainer.id, parseInt(creditAmount) || 0)}
-                >충전</button>
-              </div>
-            </div>
-            <div className="divider" />
-            <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>회원 목록</div>
-            {stMembers.length ? stMembers.map(m => (
-              <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: '13px' }}>
-                <span style={{ color: 'var(--text)' }}>{m.name}</span>
-                <span style={{ color: 'var(--text-dim)', fontSize: '11px' }}>{m.lesson_purpose || '-'} · {m.done_sessions}/{m.total_sessions}회</span>
-              </div>
-            )) : <div style={{ color: 'var(--text-dim)', fontSize: '13px' }}>회원 없음</div>}
-            <div className="divider" />
-            <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>결제 이력</div>
-            {stSubs.length ? stSubs.map(s => (
-              <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: '13px' }}>
-                <div><span className="badge badge-blue" style={{ marginRight: '6px' }}>{s.plan}</span>{s.payment_method}</div>
-                <div style={{ textAlign: 'right' }}><div style={{ color: 'var(--text)' }}>{s.amount?.toLocaleString()}원</div><div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>{s.paid_at?.split('T')[0]}</div></div>
-              </div>
-            )) : <div style={{ color: 'var(--text-dim)', fontSize: '13px' }}>결제 이력 없음</div>}
-          </>
-        )}
       </Modal>
 
       {/* Toast 레이어 — 메인 화면용 */}
