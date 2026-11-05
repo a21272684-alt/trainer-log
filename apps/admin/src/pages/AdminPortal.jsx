@@ -479,7 +479,8 @@ export default function AdminPortal() {
         supabase.rpc('admin_list_trainers', { p_admin_token: ADMIN_TOKEN }),
         supabase.rpc('admin_list_members', { p_admin_token: ADMIN_TOKEN }),
         supabase.rpc('admin_list_logs', { p_admin_token: ADMIN_TOKEN, p_limit: ADMIN_LOAD_LIMIT }),
-        supabase.from('subscriptions').select('*').order('paid_at', { ascending: false }).limit(ADMIN_LOAD_LIMIT),
+        // subscriptions 는 RLS 로 anon 읽기 차단 → 토큰 가드 RPC (097)
+        supabase.rpc('admin_list_subscriptions', { p_admin_token: ADMIN_TOKEN, p_limit: ADMIN_LOAD_LIMIT }),
         supabase.from('community_users').select('*').order('created_at', { ascending: false }).limit(ADMIN_LOAD_LIMIT),
         supabase.from('community_posts').select('*, author:community_users(name,role)').order('created_at', { ascending: false }).limit(ADMIN_LOAD_LIMIT),
         supabase.from('community_contacts').select('*, requester:community_users(name,role), post:community_posts(title)').order('created_at', { ascending: false }).limit(ADMIN_LOAD_LIMIT),
