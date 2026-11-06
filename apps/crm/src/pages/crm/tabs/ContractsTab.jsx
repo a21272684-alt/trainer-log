@@ -120,9 +120,9 @@ function SignatureCanvas({ onSave, onCancel }) {
   useEffect(() => {
     const canvas = canvasRef.current
     const ctx = canvas.getContext('2d')
-    ctx.fillStyle = '#1e2329'
+    ctx.fillStyle = '#FFFFFF'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
-    ctx.strokeStyle = '#e8ecf0'
+    ctx.strokeStyle = '#111827'
     ctx.lineWidth = 2
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
@@ -163,7 +163,7 @@ function SignatureCanvas({ onSave, onCancel }) {
   function clearCanvas() {
     const canvas = canvasRef.current
     const ctx    = canvas.getContext('2d')
-    ctx.fillStyle = '#1e2329'
+    ctx.fillStyle = '#FFFFFF'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
     setHasStrokes(false)
   }
@@ -436,7 +436,7 @@ export default function ContractsTab({ gymId, trainers = [], members = [], curre
                   value={form.special_terms}
                   onChange={e => setForm(v=>({...v, special_terms:e.target.value}))}
                   style={{ resize:'vertical', minHeight:'160px', fontSize:'12px', lineHeight:1.65,
-                    fontFamily:"'DM Mono', 'Noto Sans KR', monospace" }} />
+                    fontVariantNumeric:'tabular-nums', }} />
               </Field>
 
               {/* 8. 결제 담당자 (서명 시 결제 연동에 사용 — 초안 단계엔 선택 가능) */}
@@ -516,8 +516,8 @@ export default function ContractsTab({ gymId, trainers = [], members = [], curre
                     <td style={{ fontSize:'11px', color:'var(--text-muted)' }}>
                       {c.start_date || '—'} ~<br />{c.end_date || '—'}
                     </td>
-                    <td style={{ textAlign:'right', fontFamily:"'DM Mono',monospace",
-                      fontSize:'12px', color:'var(--accent)', fontWeight:700 }}>
+                    <td style={{ textAlign:'right', fontVariantNumeric:'tabular-nums',
+                      fontSize:'12px', color:'var(--accent-text)', fontWeight:700 }}>
                       {c.amount ? c.amount.toLocaleString() + '원' : '—'}
                     </td>
                     <td style={{ fontSize:'11px', color:'var(--text-dim)' }}>{processedName}</td>

@@ -8,7 +8,7 @@ import { todayStr } from '../lib/ticketDateCalc'
 // 기간권을 뒤로 미루고(진행 중 = 만료일만, 대기 중 = 시작·만료 모두), 취소 시 정확히 복구.
 // 횟수권(시작·만료일 없음)은 날짜 영향 없음.
 
-const mono = { fontFamily: "'DM Mono', monospace" }
+const mono = { fontVariantNumeric: 'tabular-nums' }
 const fmt  = d => format(d, 'yyyy-MM-dd')
 
 const ERRORS = {

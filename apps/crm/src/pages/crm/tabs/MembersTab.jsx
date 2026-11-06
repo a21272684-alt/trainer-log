@@ -14,7 +14,7 @@ import {
   filterTags, daysSince,
 } from '../lib/memberFilters'
 
-const mono = { fontFamily: "'DM Mono', monospace" }
+const mono = { fontVariantNumeric: 'tabular-nums' }
 const krw  = n => Number(n||0).toLocaleString() + '원'
 
 // ── RBAC: 환불 허용 역할 ──────────────────────────────────────
@@ -252,15 +252,24 @@ function RefundModal({ payment, memberId, executorRole, onRefunded, onClose }) {
   )
 }
 
+// 밝은 바탕에서 읽히는 위험 등급 색 — 공용 RISK_LEVELS 는 트레이너 앱도 쓰므로 CRM 에서만 덮어쓴다
+const RISK_TONE = {
+  safe:     { color: '#3F6212', bg: '#ECFCCB', bar: '#65A30D' },
+  watch:    { color: '#92400E', bg: '#FEF3C7', bar: '#D97706' },
+  risk:     { color: '#C2410C', bg: '#FFEDD5', bar: '#EA580C' },
+  critical: { color: '#BE123C', bg: '#FFE4E6', bar: '#E11D48' },
+}
+
 function RiskBadge({ riskRow }) {
   if (!riskRow) return <span style={{ color:'var(--text-dim)', fontSize:'11px' }}>미분석</span>
   const lvl = RISK_LEVELS[riskRow.risk_level]
-  if (!lvl) return null
+  const tn  = RISK_TONE[riskRow.risk_level]
+  if (!lvl || !tn) return null
   return (
     <div>
-      <span className="badge" style={{ background:lvl.bg, color:lvl.color, border:`1px solid ${lvl.color}33` }}>{lvl.emoji} {lvl.label}</span>
+      <span className="badge" style={{ background:tn.bg, color:tn.color }}>{lvl.label}</span>
       <div className="risk-bar" style={{ width:'60px', marginTop:'4px' }}>
-        <div className="risk-bar-fill" style={{ width:`${riskRow.risk_score}%`, background:lvl.color }} />
+        <div className="risk-bar-fill" style={{ width:`${riskRow.risk_score}%`, background:tn.bar }} />
       </div>
     </div>
   )
@@ -372,10 +381,10 @@ function MemberDetailModal({ member, trainer, gymId, trainers = [], currentTrain
             <div className="card-title">세션 현황</div>
             <div style={{ display:'flex', justifyContent:'space-between', fontSize:'12px', marginBottom:'8px' }}>
               <span style={{ color:'var(--text-muted)' }}>{member.done_sessions}회 완료 / {member.total_sessions}회 전체</span>
-              <span style={{ ...mono, color: remain===0?'var(--text-dim)':remain<=3?'var(--orange)':'var(--accent)', fontWeight:700 }}>잔여 {remain}회</span>
+              <span style={{ ...mono, color: remain===0?'var(--text-dim)':remain<=3?'var(--orange)':'var(--accent-text)', fontWeight:700 }}>잔여 {remain}회</span>
             </div>
             <div style={{ height:'6px', borderRadius:'3px', background:'var(--border)' }}>
-              <div style={{ height:'100%', borderRadius:'3px', width:`${pct}%`, background: remain===0?'var(--text-dim)':'var(--accent)', transition:'width 0.4s' }} />
+              <div style={{ height:'100%', borderRadius:'3px', width:`${pct}%`, background: remain===0?'var(--text-dim)':'var(--accent-text)', transition:'width 0.4s' }} />
             </div>
           </div>
         </div>
@@ -437,7 +446,7 @@ function MemberDetailModal({ member, trainer, gymId, trainers = [], currentTrain
                           : <span style={{ color: 'var(--text-dim)' }}>—</span>}
                       </td>
                       <td style={{ textAlign: 'right', ...mono,
-                        color: isRefunded ? 'var(--text-dim)' : 'var(--accent)', fontWeight: 700 }}>
+                        color: isRefunded ? 'var(--text-dim)' : 'var(--accent-text)', fontWeight: 700 }}>
                         <span style={{ textDecoration: isRefunded ? 'line-through' : 'none' }}>
                           {krw(p.amount)}
                         </span>
@@ -513,7 +522,7 @@ function MemberDetailModal({ member, trainer, gymId, trainers = [], currentTrain
                       <div style={{ fontWeight:700, fontSize:'13px' }}>
                         {l.number}번 <span style={{ fontWeight:400, fontSize:'11px', color:'var(--text-muted)' }}>{l.product_name || ''}</span>
                       </div>
-                      <div style={{ fontSize:'11px', color:'var(--text-muted)', fontFamily:"'DM Mono', monospace", marginTop:'3px' }}>
+                      <div style={{ fontSize:'11px', color:'var(--text-muted)', fontVariantNumeric:'tabular-nums', marginTop:'3px' }}>
                         {l.start_date} ~ {l.end_date}
                       </div>
                     </div>
@@ -535,12 +544,12 @@ function MemberDetailModal({ member, trainer, gymId, trainers = [], currentTrain
         <div>
           {riskData ? (() => {
             const lvl = RISK_LEVELS[riskData.risk_level]
-            return lvl ? (
+            const tn  = RISK_TONE[riskData.risk_level]
+            return lvl && tn ? (
               <div>
-                <div style={{ background:lvl.bg, border:`1px solid ${lvl.color}44`, borderRadius:'10px', padding:'16px', marginBottom:'12px', textAlign:'center' }}>
-                  <div style={{ fontSize:'28px', marginBottom:'4px' }}>{lvl.emoji}</div>
-                  <div style={{ ...mono, fontSize:'32px', fontWeight:800, color:lvl.color }}>{riskData.risk_score}<span style={{ fontSize:'13px', color:'var(--text-dim)' }}>/100</span></div>
-                  <div style={{ fontSize:'13px', fontWeight:700, color:lvl.color, marginTop:'2px' }}>{lvl.label}</div>
+                <div style={{ background:tn.bg, borderRadius:'12px', padding:'16px', marginBottom:'12px', textAlign:'center' }}>
+                  <div style={{ ...mono, fontSize:'32px', fontWeight:800, color:tn.color }}>{riskData.risk_score}<span style={{ fontSize:'13px', color:'var(--text-dim)' }}>/100</span></div>
+                  <div style={{ fontSize:'13px', fontWeight:700, color:tn.color, marginTop:'2px' }}>{lvl.label}</div>
                 </div>
                 {[['출석 위험도', riskData.attend_score, 40, 'var(--orange)'],
                   ['건강기록 중단', riskData.health_score, 30, 'var(--yellow)'],
@@ -573,7 +582,7 @@ function MemberDetailModal({ member, trainer, gymId, trainers = [], currentTrain
   )
 }
 
-export default function MembersTab({ members: membersProp, trainers, gymId, currentTrainer }) {
+export default function MembersTab({ members: membersProp, trainers, gymId, currentTrainer, focus, onFocusDone }) {
   const showToast = useToast()
   const [localMembers, setLocalMembers] = useState(membersProp)
   const [filter,        setFilter]       = useState('all')
@@ -602,6 +611,17 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
 
   // 부모에서 members prop이 교체되면 동기화
   useEffect(() => { setLocalMembers(membersProp) }, [membersProp])
+
+  // 대시보드에서 넘어올 때 — 특정 회원 상세 열기 · 상태 필터 적용
+  useEffect(() => {
+    if (!focus) return
+    if (focus.filter) setFilter(focus.filter)
+    if (focus.memberId) {
+      const m = membersProp.find(x => x.id === focus.memberId)
+      if (m) setSelected(m)
+    }
+    onFocusDone?.()
+  }, [focus]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 회원 목록 변경·탭 진입 시 risk + retention 병렬 로드
   useEffect(() => {
@@ -813,7 +833,7 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
 
         {tags.map(t => (
           <button key={t.text} className="filter-chip"
-            style={{ borderColor: 'rgba(200,241,53,0.35)', color: 'var(--accent)' }}
+            style={{ borderColor: 'rgba(200,241,53,0.35)', color: 'var(--accent-text)' }}
             aria-label={`${t.text} 조건 해제`}
             onClick={() => removeTag(t.keys)}>
             {t.text} ×
@@ -928,19 +948,19 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
                         <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>결제 전</span>
                       ) : (
                         <>
-                          <div style={{ fontFamily:"'DM Mono',monospace", fontSize:'12px' }}>
+                          <div style={{ fontVariantNumeric:'tabular-nums', fontSize:'12px' }}>
                             {m.done_sessions} / {m.total_sessions}회
                           </div>
                           <div style={{ height:'3px', background:'var(--border)', borderRadius:'2px',
                             marginTop:'4px', width:'60px', marginLeft:'auto' }}>
                             <div style={{ height:'100%', borderRadius:'2px', width:`${pct}%`,
-                              background: remain===0?'var(--text-dim)':'var(--accent)' }} />
+                              background: remain===0?'var(--text-dim)':'var(--accent-text)' }} />
                           </div>
                         </>
                       )}
                     </td>
 
-                    <td style={{ textAlign:'right', fontFamily:"'DM Mono',monospace",
+                    <td style={{ textAlign:'right', fontVariantNumeric:'tabular-nums',
                       color: remain===0?'var(--text-dim)':remain<=3?'var(--orange)':'var(--green)',
                       fontWeight:600 }}>
                       {isLead ? '—' : `${remain}회`}
@@ -1058,13 +1078,13 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
                     style={{
                       flex: 1, padding: '9px 12px', borderRadius: '8px',
                       border: isActive
-                        ? (v === 'lead' ? '2px solid var(--purple)' : '2px solid var(--accent)')
+                        ? (v === 'lead' ? '2px solid var(--purple)' : '2px solid var(--accent-text)')
                         : '1px solid var(--border)',
                       background: isActive
                         ? (v === 'lead' ? 'rgba(167,139,250,0.1)' : 'rgba(200,241,53,0.08)')
                         : 'var(--surface2)',
                       color: isActive
-                        ? (v === 'lead' ? 'var(--purple)' : 'var(--accent)')
+                        ? (v === 'lead' ? 'var(--purple)' : 'var(--accent-text)')
                         : 'var(--text-muted)',
                       fontWeight: 600, fontSize: '12px', cursor: 'pointer',
                       fontFamily: 'inherit', transition: 'all 0.12s',
@@ -1102,7 +1122,7 @@ export default function MembersTab({ members: membersProp, trainers, gymId, curr
           {addError && (
             <div style={{
               padding:'8px 12px', borderRadius:'8px', fontSize:'12px',
-              background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.25)', color:'#ef4444',
+              background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.25)', color:'#DC2626',
             }}>
               ⚠️ {addError}
             </div>

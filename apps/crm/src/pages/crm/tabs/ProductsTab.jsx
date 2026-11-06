@@ -5,16 +5,16 @@ import Modal from '../components/CrmModal'
 
 // ── 카테고리 정의 ──────────────────────────────────────────────
 const CATEGORIES = [
-  { key: '회원권', label: '회원권',     color: '#60a5fa', bg: 'rgba(96,165,250,0.15)',  border: 'rgba(96,165,250,0.3)'  },
-  { key: '레슨',   label: '레슨 / PT', color: '#fb923c', bg: 'rgba(251,146,60,0.15)',  border: 'rgba(251,146,60,0.3)'  },
-  { key: '대여권', label: '대여권',     color: '#4ade80', bg: 'rgba(74,222,128,0.15)',  border: 'rgba(74,222,128,0.3)'  },
-  { key: '구독권', label: '구독권',     color: '#2dd4bf', bg: 'rgba(45,212,191,0.15)',  border: 'rgba(45,212,191,0.3)'  },
-  { key: '패키지', label: '패키지',     color: '#c084fc', bg: 'rgba(192,132,252,0.15)', border: 'rgba(192,132,252,0.3)' },
-  { key: '일반',   label: '일반 상품', color: '#94a3b8', bg: 'rgba(148,163,184,0.15)', border: 'rgba(148,163,184,0.3)' },
+  { key: '회원권', label: '회원권',     color: '#1D4ED8', bg: 'rgba(96,165,250,0.15)',  border: 'rgba(96,165,250,0.3)'  },
+  { key: '레슨',   label: '레슨 / PT', color: '#C2410C', bg: 'rgba(251,146,60,0.15)',  border: 'rgba(251,146,60,0.3)'  },
+  { key: '대여권', label: '대여권',     color: '#15803D', bg: 'rgba(74,222,128,0.15)',  border: 'rgba(74,222,128,0.3)'  },
+  { key: '구독권', label: '구독권',     color: '#0F766E', bg: 'rgba(45,212,191,0.15)',  border: 'rgba(45,212,191,0.3)'  },
+  { key: '패키지', label: '패키지',     color: '#7E22CE', bg: 'rgba(192,132,252,0.15)', border: 'rgba(192,132,252,0.3)' },
+  { key: '일반',   label: '일반 상품', color: '#475569', bg: 'rgba(148,163,184,0.15)', border: 'rgba(148,163,184,0.3)' },
 ]
 
 const CAT_MAP = Object.fromEntries(CATEGORIES.map(c => [c.key, c]))
-const mono = { fontFamily: "'DM Mono', monospace" }
+const mono = { fontVariantNumeric: 'tabular-nums' }
 
 // payment_prices JSONB ↔ 폼 상태 변환 헬퍼
 function pricesFromProduct(p) {
@@ -220,9 +220,9 @@ function ProductForm({ form, setForm }) {
 
           {/* 현금 / 카드 / 계좌이체 — 단일 가격 행 */}
           {[
-            ['현금',     'price_cash',     '#c8f135'],
-            ['카드',     'price_card',     '#60a5fa'],
-            ['계좌이체', 'price_transfer', '#4ade80'],
+            ['현금',     'price_cash',     '#4D7C0F'],
+            ['카드',     'price_card',     '#1D4ED8'],
+            ['계좌이체', 'price_transfer', '#15803D'],
           ].map(([label, key, color]) => (
             <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{
@@ -252,7 +252,7 @@ function ProductForm({ form, setForm }) {
           {/* 지역화폐 — 확장 가능 */}
           <ExtendablePaymentRow
             label="지역화폐"
-            color="#2dd4bf"
+            color="#0F766E"
             items={form.local_currency_items}
             onAddItem={lcAdd}
             onChangeItem={lcChange}
@@ -262,7 +262,7 @@ function ProductForm({ form, setForm }) {
           {/* 페이먼츠 — 확장 가능 */}
           <ExtendablePaymentRow
             label="페이먼츠"
-            color="#a78bfa"
+            color="#6D28D9"
             items={form.payments_items}
             onAddItem={pmAdd}
             onChangeItem={pmChange}
@@ -282,7 +282,7 @@ function ProductForm({ form, setForm }) {
               type="checkbox"
               checked={form[key]}
               onChange={e => setForm(v => ({ ...v, [key]: e.target.checked }))}
-              style={{ accentColor: 'var(--accent)', width: '14px', height: '14px' }}
+              style={{ accentColor: 'var(--accent-text)', width: '14px', height: '14px' }}
             />
             {label}
           </label>
@@ -360,7 +360,7 @@ function ProductCard({ product, onEdit, onDelete }) {
               position: 'absolute', right: 0, top: '100%', zIndex: 50,
               background: 'var(--surface2)', border: '1px solid var(--border)',
               borderRadius: '8px', padding: '4px', minWidth: '100px',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+              boxShadow: '0 8px 24px rgba(17,24,39,0.14)',
             }}>
               {[
                 { label: '✏️ 편집', color: 'var(--text)',   hoverBg: 'var(--surface3)',             action: () => { setMenuOpen(false); onEdit(product) } },
@@ -416,14 +416,14 @@ function ProductCard({ product, onEdit, onDelete }) {
         {/* 지역화폐 항목 */}
         {(pp.local_currency || []).map((item, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-            <span style={{ fontSize: '10px', color: '#2dd4bf' }}>지역화폐 · {item.label}</span>
+            <span style={{ fontSize: '10px', color: '#0F766E' }}>지역화폐 · {item.label}</span>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)', ...mono }}>{Number(item.price).toLocaleString()}원</span>
           </div>
         ))}
         {/* 페이먼츠 항목 */}
         {(pp.payments || []).map((item, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-            <span style={{ fontSize: '10px', color: '#a78bfa' }}>페이먼츠 · {item.label}</span>
+            <span style={{ fontSize: '10px', color: '#6D28D9' }}>페이먼츠 · {item.label}</span>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)', ...mono }}>{Number(item.price).toLocaleString()}원</span>
           </div>
         ))}

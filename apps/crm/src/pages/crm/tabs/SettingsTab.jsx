@@ -18,7 +18,7 @@ function useSessionTab(storageKey, defaultVal) {
   return [val, save]
 }
 
-const mono = { fontFamily: "'DM Mono', monospace" }
+const mono = { fontVariantNumeric: 'tabular-nums' }
 
 // ── 공용 서브탭 바 ────────────────────────────────────────────────
 function SubTabBar({ tabs, active, onChange, variant = 'pill' }) {
@@ -31,8 +31,8 @@ function SubTabBar({ tabs, active, onChange, variant = 'pill' }) {
         {tabs.map(t => (
           <button key={t.key} onClick={() => onChange(t.key)} style={{
             padding: '9px 18px', border: 'none', borderBottom: '2px solid',
-            borderBottomColor: active === t.key ? 'var(--accent)' : 'transparent',
-            background: 'none', color: active === t.key ? 'var(--accent)' : 'var(--text-dim)',
+            borderBottomColor: active === t.key ? 'var(--accent-text)' : 'transparent',
+            background: 'none', color: active === t.key ? 'var(--accent-text)' : 'var(--text-dim)',
             fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
             transition: 'all 0.15s', marginBottom: '-1px',
           }}>
@@ -55,7 +55,7 @@ function SubTabBar({ tabs, active, onChange, variant = 'pill' }) {
           fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
           background: active === t.key ? 'var(--surface3)' : 'none',
           color: active === t.key ? 'var(--text)' : 'var(--text-dim)',
-          boxShadow: active === t.key ? '0 1px 4px rgba(0,0,0,0.25)' : 'none',
+          boxShadow: active === t.key ? '0 1px 3px rgba(17,24,39,0.10)' : 'none',
           transition: 'all 0.15s',
         }}>
           {t.icon && <span style={{ marginRight: '5px' }}>{t.icon}</span>}
@@ -149,24 +149,24 @@ function RankEditModal({ trainer, gymRanks, onClose, onSaved }) {
             <button onClick={() => setRankId('')}
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit',
-                border: `1px solid ${rankId === '' ? 'var(--accent)' : 'var(--border)'}`,
+                border: `1px solid ${rankId === '' ? 'var(--accent-text)' : 'var(--border)'}`,
                 background: rankId === '' ? 'rgba(200,241,53,0.08)' : 'var(--surface2)' }}>
-              <span style={{ fontSize: '13px', color: rankId === '' ? 'var(--accent)' : 'var(--text-muted)' }}>미설정</span>
-              {rankId === '' && <span style={{ color: 'var(--accent)' }}>✓</span>}
+              <span style={{ fontSize: '13px', color: rankId === '' ? 'var(--accent-text)' : 'var(--text-muted)' }}>미설정</span>
+              {rankId === '' && <span style={{ color: 'var(--accent-text)' }}>✓</span>}
             </button>
             {gymRanks.map(r => (
               <button key={r.id} onClick={() => setRankId(r.id)}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-                  border: `1px solid ${rankId === r.id ? 'var(--accent)' : 'var(--border)'}`,
+                  border: `1px solid ${rankId === r.id ? 'var(--accent-text)' : 'var(--border)'}`,
                   background: rankId === r.id ? 'rgba(200,241,53,0.08)' : 'var(--surface2)' }}>
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: rankId === r.id ? 'var(--accent)' : 'var(--text)' }}>{r.label}</div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: rankId === r.id ? 'var(--accent-text)' : 'var(--text)' }}>{r.label}</div>
                   <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '2px' }}>
                     기본급 {Number(r.base_salary).toLocaleString()}원 · 인센티브 {Math.round(r.default_incentive_rate * 100)}%
                   </div>
                 </div>
-                {rankId === r.id && <span style={{ color: 'var(--accent)', fontSize: '12px' }}>✓</span>}
+                {rankId === r.id && <span style={{ color: 'var(--accent-text)', fontSize: '12px' }}>✓</span>}
               </button>
             ))}
           </div>
@@ -181,9 +181,9 @@ function RankEditModal({ trainer, gymRanks, onClose, onSaved }) {
             <button key={v} onClick={() => setEmpType(v)}
               style={{ flex: 1, minWidth: '60px', padding: '8px 6px', borderRadius: '8px',
                 fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                border: `1px solid ${empType === v ? (v === 'rental' ? 'rgba(250,204,21,0.6)' : 'var(--accent)') : 'var(--border)'}`,
+                border: `1px solid ${empType === v ? (v === 'rental' ? 'rgba(250,204,21,0.6)' : 'var(--accent-text)') : 'var(--border)'}`,
                 background: empType === v ? (v === 'rental' ? 'rgba(250,204,21,0.1)' : 'rgba(200,241,53,0.08)') : 'var(--surface2)',
-                color: empType === v ? (v === 'rental' ? 'var(--yellow)' : 'var(--accent)') : 'var(--text-muted)' }}>
+                color: empType === v ? (v === 'rental' ? 'var(--yellow)' : 'var(--accent-text)') : 'var(--text-muted)' }}>
               {l}
             </button>
           ))}
@@ -260,7 +260,7 @@ function RankEditModal({ trainer, gymRanks, onClose, onSaved }) {
               style={{ flex: 1 }} />
             <span style={{
               fontSize: '14px', fontWeight: 700, minWidth: '22px', textAlign: 'right',
-              color: isRatio ? 'var(--blue)' : 'var(--accent)',
+              color: isRatio ? 'var(--blue)' : 'var(--accent-text)',
             }}>
               {isRatio ? '%' : '₩'}
             </span>
@@ -348,7 +348,7 @@ function RankEditModal({ trainer, gymRanks, onClose, onSaved }) {
           <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>%</span>
         </div>
         {customRate !== '' && (
-          <div style={{ fontSize: '11px', color: 'var(--accent)', marginTop: '4px' }}>✓ 직급 기본값 대신 {customRate}% 적용</div>
+          <div style={{ fontSize: '11px', color: 'var(--accent-text)', marginTop: '4px' }}>✓ 직급 기본값 대신 {customRate}% 적용</div>
         )}
       </div>
 
@@ -522,7 +522,7 @@ function StaffPanel({ gymId }) {
             <div style={{ fontSize: '14px', fontWeight: 700 }}>⏳ 가입 대기열</div>
             <span style={{
               fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px',
-              background: 'rgba(250,204,21,0.15)', color: '#facc15',
+              background: 'rgba(250,204,21,0.15)', color: '#92400E',
               border: '1px solid rgba(250,204,21,0.3)',
             }}>{pendingTrainers.length}명 대기 중</span>
           </div>
@@ -539,7 +539,7 @@ function StaffPanel({ gymId }) {
                   width: '34px', height: '34px', borderRadius: '50%', flexShrink: 0,
                   background: 'rgba(250,204,21,0.12)', border: '1px solid rgba(250,204,21,0.25)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '13px', fontWeight: 700, color: '#facc15',
+                  fontSize: '13px', fontWeight: 700, color: '#92400E',
                 }}>{t.name?.[0] || '?'}</div>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -556,7 +556,7 @@ function StaffPanel({ gymId }) {
                     disabled={approving === t.id}
                     style={{
                       padding: '5px 12px', borderRadius: '7px',
-                      background: 'rgba(74,222,128,0.15)', color: '#4ade80',
+                      background: 'rgba(74,222,128,0.15)', color: '#3F6212',
                       fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
                       border: '1px solid rgba(74,222,128,0.3)', outline: 'none',
                       opacity: approving === t.id ? 0.5 : 1,
@@ -568,7 +568,7 @@ function StaffPanel({ gymId }) {
                     disabled={approving === t.id}
                     style={{
                       padding: '5px 12px', borderRadius: '7px',
-                      background: 'rgba(248,113,113,0.08)', color: '#f87171',
+                      background: 'rgba(248,113,113,0.08)', color: '#BE123C',
                       fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
                       border: '1px solid rgba(248,113,113,0.25)',
                       opacity: approving === t.id ? 0.5 : 1,
@@ -633,7 +633,7 @@ function StaffPanel({ gymId }) {
                           width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0,
                           background: 'rgba(200,241,53,0.12)', border: '1px solid rgba(200,241,53,0.2)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '12px', fontWeight: 700, color: 'var(--accent)',
+                          fontSize: '12px', fontWeight: 700, color: 'var(--accent-text)',
                         }}>{t.name[0]}</div>
                         <span style={{ fontWeight: 600, fontSize: '13px' }}>{t.name}</span>
                       </div>
@@ -641,7 +641,7 @@ function StaffPanel({ gymId }) {
                     <td style={{ ...mono, fontSize: '12px', color: 'var(--text-muted)' }}>{t.phone}</td>
                     <td>
                       {rank
-                        ? <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '5px', background: 'rgba(200,241,53,0.1)', color: 'var(--accent)', border: '1px solid rgba(200,241,53,0.25)' }}>{rank.label}</span>
+                        ? <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '5px', background: 'rgba(200,241,53,0.1)', color: 'var(--accent-text)', border: '1px solid rgba(200,241,53,0.25)' }}>{rank.label}</span>
                         : <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>—</span>}
                     </td>
                     <td>
@@ -655,7 +655,7 @@ function StaffPanel({ gymId }) {
                     <td>
                       <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end' }}>
                         <button className="btn btn-secondary"
-                          style={{ padding: '3px 8px', fontSize: '10px', color: 'var(--accent)', borderColor: 'rgba(200,241,53,0.3)' }}
+                          style={{ padding: '3px 8px', fontSize: '10px', color: 'var(--accent-text)', borderColor: 'rgba(200,241,53,0.3)' }}
                           onClick={() => setRankModal(t)}>직급/계약</button>
                         <button className="btn btn-secondary"
                           style={{ padding: '3px 8px', fontSize: '10px' }}
@@ -739,7 +739,7 @@ function StaffPanel({ gymId }) {
                             disabled={resigning === t.id}
                             style={{
                               padding: '3px 8px', fontSize: '10px', borderRadius: '6px',
-                              background: 'rgba(74,222,128,0.08)', color: '#4ade80',
+                              background: 'rgba(74,222,128,0.08)', color: '#3F6212',
                               border: '1px solid rgba(74,222,128,0.25)', cursor: 'pointer',
                               fontFamily: 'inherit', fontWeight: 600,
                               opacity: resigning === t.id ? 0.5 : 1,
@@ -803,7 +803,7 @@ function StaffPanel({ gymId }) {
               <div style={{
                 padding: '8px 12px', borderRadius: '8px', fontSize: '12px',
                 background: 'rgba(200,241,53,0.08)', border: '1px solid rgba(200,241,53,0.2)',
-                color: 'var(--accent)', fontWeight: 600,
+                color: 'var(--accent-text)', fontWeight: 600,
               }}>
                 👑 대표 (변경 불가)
               </div>
@@ -907,7 +907,7 @@ function CenterLogPanel({ gymId, trainers }) {
         return {
           id: 'pay_' + p.id,
           type: 'payment',
-          icon: '💰', color: 'var(--accent)', bg: 'rgba(200,241,53,0.10)',
+          icon: '💰', color: 'var(--accent-text)', bg: 'rgba(200,241,53,0.10)',
           title: '결제',
           desc:  `${p.product_name} · ${Number(p.amount).toLocaleString()}원`,
           sub:   `${mIcon}${memo} · ${trainerMap[p.trainer_id] || '—'}`,
@@ -1135,7 +1135,7 @@ function GymInfoPanel({ gymId, gym, onGymUpdate }) {
 // ③-B 권한 설정
 // ────────────────────────────────────────────────────────────────
 const PERM_DEFS = [
-  { key: 'crm_access',       label: 'CRM 포털 접근', desc: '이 포털에 로그인 가능',          color: 'var(--accent)',  bg: 'rgba(200,241,53,0.12)' },
+  { key: 'crm_access',       label: 'CRM 포털 접근', desc: '이 포털에 로그인 가능',          color: 'var(--accent-text)',  bg: 'rgba(200,241,53,0.12)' },
   { key: 'view_all_members', label: '전체 회원 열람', desc: '모든 트레이너의 회원 조회',      color: 'var(--blue)',    bg: 'rgba(96,165,250,0.12)' },
   { key: 'manage_products',  label: '상품 관리',      desc: '상품 등록·수정·삭제',           color: 'var(--purple)',  bg: 'rgba(167,139,250,0.12)' },
   { key: 'view_settlement',  label: '정산 열람',      desc: '직원 정산 내역 조회',           color: 'var(--green)',   bg: 'rgba(74,222,128,0.12)' },
@@ -1243,7 +1243,7 @@ function PermissionsPanel({ gymId }) {
         borderRadius: '10px', padding: '12px 16px', marginBottom: '20px',
         maxWidth: '720px', fontSize: '11px', color: 'var(--text-dim)', lineHeight: 1.7,
       }}>
-        <span style={{ fontWeight: 700, color: 'var(--accent)' }}>💡 권한 설정</span>
+        <span style={{ fontWeight: 700, color: 'var(--accent-text)' }}>💡 권한 설정</span>
         {'  '}각 직원에게 허용할 기능을 설정해요. 권한은 향후 앱 업데이트에서 실제 접근 제어에 적용돼요.
       </div>
 
@@ -1268,7 +1268,7 @@ function PermissionsPanel({ gymId }) {
                     width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0,
                     background: 'rgba(200,241,53,0.1)', border: '1px solid rgba(200,241,53,0.25)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '14px', fontWeight: 700, color: 'var(--accent)',
+                    fontSize: '14px', fontWeight: 700, color: 'var(--accent-text)',
                   }}>{t.name[0]}</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: '13px', fontWeight: 700 }}>{t.name}</div>

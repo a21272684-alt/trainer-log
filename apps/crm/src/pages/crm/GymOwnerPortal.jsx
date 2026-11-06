@@ -1,27 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-
-// sessionStorage 기반 탭 상태 — 외부 요인으로 컴포넌트가 리마운트돼도 탭 위치 유지
-function useSessionTab(storageKey, defaultVal) {
-  const [val, setVal] = useState(() => {
-    try { const s = sessionStorage.getItem(storageKey); return s || defaultVal }
-    catch { return defaultVal }
-  })
-  const save = useCallback((v) => {
-    setVal(v)
-    try { sessionStorage.setItem(storageKey, v) } catch {}
-  }, [storageKey])
-  return [val, save]
-}
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@trainer-log/shared/lib/supabase'
-import { useToast } from './components/CrmToast'
-import Modal from './components/CrmModal'
 import TermsAgreementModal from '@trainer-log/shared/components/common/TermsAgreementModal'
-import { computeRiskScore, getRiskLevel, RISK_LEVELS } from '@trainer-log/shared/lib/churnRisk'
-import {
-  generateWeeklyReport, checkAndEnsurePendingReport,
-  fetchRecentReports, parseReportSections, getPrevMondayStr,
-} from '@trainer-log/shared/lib/gymReport'
-import DashboardTab        from './tabs/DashboardTab'
+import DashboardTab, { DashboardSubtitle } from './tabs/DashboardTab'
 import MembersTab          from './tabs/MembersTab'
 import CenterSettlementTab from './tabs/CenterSettlementTab'
 import ReportsTab          from './tabs/ReportsTab'
@@ -37,6 +17,21 @@ import BenefitsTab         from './tabs/BenefitsTab'
 import KioskMode           from './components/KioskMode'
 import KioskLauncher       from './components/KioskLauncher'
 import AccessDenied        from './components/AccessDenied'
+import CrmIcon             from './components/CrmIcon'
+import QuickActions        from './components/QuickActions'
+
+// sessionStorage 기반 탭 상태 — 외부 요인으로 컴포넌트가 리마운트돼도 탭 위치 유지
+function useSessionTab(storageKey, defaultVal) {
+  const [val, setVal] = useState(() => {
+    try { const s = sessionStorage.getItem(storageKey); return s || defaultVal }
+    catch { return defaultVal }
+  })
+  const save = useCallback((v) => {
+    setVal(v)
+    try { sessionStorage.setItem(storageKey, v) } catch {}
+  }, [storageKey])
+  return [val, save]
+}
 
 // ── 탭별 필요 권한 매핑 ────────────────────────────────────────────
 // null            → 무제한 (모든 직원 접근 가능)
@@ -58,34 +53,53 @@ const TAB_PERMISSIONS = {
   settings:      '__owner_only__',    // 직원 관리 · 급여 정산 포함 → 대표 전용
 }
 
-const NAV_ITEMS = [
-  { key: 'dashboard',     icon: '📊', label: '대시보드' },
-  { key: 'members',       icon: '👥', label: '회원 관리' },
-  { key: 'attendance',    icon: '✅', label: '출석 관리' },
-  { key: 'lockers',       icon: '🔐', label: '락커 관리' },
-  { key: 'benefits',      icon: '🎟️', label: '쿠폰·마일리지' },
-  { key: 'revenue',       icon: '📈', label: '매출 분석' },
-  { key: 'settlement',    icon: '💵', label: '센터 정산' },
-  { key: 'products',      icon: '📦', label: '상품 관리' },
-  { key: 'schedule',      icon: '📅', label: '수업 예약' },
-  { key: 'contracts',     icon: '📝', label: '전자 계약서' },
-  { key: 'notifications', icon: '🔔', label: '알림 발송' },
-  { key: 'reports',       icon: '📋', label: '주간 리포트' },
-  { key: 'settings',      icon: '⚙️', label: '센터 설정',  divider: true },
+// 메뉴 묶음 — 운영 / 회원 / 매출·정산 / 리포트·설정
+const NAV_GROUPS = [
+  { key: 'top', items: [
+    { key: 'dashboard',     icon: 'home',      label: '대시보드' },
+  ] },
+  { key: 'ops', title: '운영', items: [
+    { key: 'schedule',      icon: 'calendar',  label: '수업 예약' },
+    { key: 'attendance',    icon: 'clipboard', label: '출석 관리' },
+  ] },
+  { key: 'member', title: '회원', items: [
+    { key: 'members',       icon: 'users',     label: '회원 관리' },
+    { key: 'lockers',       icon: 'locker',    label: '락커 관리' },
+    { key: 'benefits',      icon: 'ticket',    label: '쿠폰 · 마일리지' },
+    { key: 'notifications', icon: 'send',      label: '알림 발송' },
+    { key: 'contracts',     icon: 'contract',  label: '전자 계약서' },
+  ] },
+  { key: 'money', title: '매출 · 정산', items: [
+    { key: 'revenue',       icon: 'chart',     label: '매출 분석' },
+    { key: 'settlement',    icon: 'cash',      label: '센터 정산' },
+    { key: 'products',      icon: 'box',       label: '상품 관리' },
+  ] },
+  { key: 'etc', title: '리포트 · 설정', items: [
+    { key: 'reports',       icon: 'star',      label: '주간 리포트' },
+    { key: 'settings',      icon: 'gear',      label: '센터 설정' },
+  ] },
 ]
+const TAB_KEYS = NAV_GROUPS.flatMap(g => g.items.map(i => i.key))
+
+const ROLE_LABEL = { owner: '대표', staff: '직원' }
 
 export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
-  const [activeTab,    setActiveTab]    = useSessionTab('crm_activeTab', 'dashboard')
+  const [activeTab,    setActiveTabRaw] = useSessionTab('crm_activeTab', 'dashboard')
   const [trainers,     setTrainers]     = useState([])
   const [members,      setMembers]      = useState([])
   const [loading,      setLoading]      = useState(true)
   const [gym,          setGym]          = useState(initialGym)
-  const [apiKey,       setApiKey]       = useState(() => localStorage.getItem('crm_gemini_key') || '')
-  const [showApiModal, setShowApiModal] = useState(false)
-  const [apiKeyInput,  setApiKeyInput]  = useState('')
   // 태블릿 터치 출석
   const [kioskMenu,    setKioskMenu]    = useState(false)
   const [kioskOn,      setKioskOn]      = useState(false)
+  // 대시보드 → 회원 관리로 넘길 때 (특정 회원 열기 · 상태 필터)
+  const [membersFocus, setMembersFocus] = useState(null)
+  // 사이드바 배지 — 대시보드가 불러온 숫자
+  const [summary,      setSummary]      = useState(null)
+  const [dashKey,      setDashKey]      = useState(0)
+
+  const setActiveTab = useCallback((key) => setActiveTabRaw(TAB_KEYS.includes(key) ? key : 'dashboard'), [setActiveTabRaw])
+  const tab = TAB_KEYS.includes(activeTab) ? activeTab : 'dashboard'
 
   // 현재 로그인 트레이너의 탭 접근 권한 검사 — DB 재조회 없이 동기 판단
   // trainer.role === 'owner' 이면 전체 탭 패스, 그 외는 crm_permissions 키 확인
@@ -97,8 +111,12 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
     if (required === '__owner_only__') return false
     return (trainer?.crm_permissions || {})[required] === true
   }
+  const canManageAttendance = trainer?.role === 'owner' || (trainer?.crm_permissions || {}).manage_attendance === true
 
-  useEffect(() => { loadData() }, [initialGym.id])
+  useEffect(() => { loadData() }, [initialGym.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 예전 'AI 설정' 에 저장하던 개인 Gemini 키 정리 — AI 는 서버(gemini-proxy)를 거친다
+  useEffect(() => { try { localStorage.removeItem('crm_gemini_key') } catch {} }, [])
 
   async function loadData() {
     setLoading(true)
@@ -125,118 +143,154 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
     setLoading(false)
   }
 
-  function saveApiKey() {
-    localStorage.setItem('crm_gemini_key', apiKeyInput)
-    setApiKey(apiKeyInput)
-    setShowApiModal(false)
+  function openMember(m) {
+    setMembersFocus({ memberId: m.id })
+    setActiveTab('members')
+  }
+  function navigate(key, opts) {
+    if (key === 'members' && opts?.filter) setMembersFocus({ filter: opts.filter })
+    setActiveTab(key)
   }
 
   const TAB_TITLES = {
-    dashboard:     { title: '대시보드',  sub: `${gym.name} 운영 현황` },
-    members:       { title: '회원 관리', sub: `전체 ${members.length}명` },
-    attendance:    { title: '출석 관리', sub: '입장 기록 · 수동 출석 · 장기 미출석 · 직원 근태' },
-    lockers:       { title: '락커 관리', sub: '락커 현황 · 배정 · 연장 · 회수' },
-    benefits:      { title: '쿠폰·마일리지', sub: '쿠폰 만들기·발급 · 마일리지 규칙 · 내역' },
-    revenue:       { title: '매출 분석', sub: '기간별 순매출 · 상품 · 결제 수단 · 환불' },
-    settlement:    { title: '센터 정산', sub: '월별 매출 · 트레이너 정산 · 엑셀 내보내기' },
-    products:      { title: '상품 관리',   sub: '센터 판매 상품 등록 및 조회' },
-    schedule:      { title: '수업 예약',   sub: '센터 전체 수업 일정' },
-    contracts:     { title: '전자 계약서', sub: '디지털 계약 관리' },
-    notifications: { title: '알림 발송',   sub: '회원 알림 관리' },
-    reports:       { title: '주간 리포트', sub: 'AI 센터 운영 분석' },
-    settings:      { title: '센터 설정',   sub: '직원 관리 · 급여 정산 · 로그 · 고급 설정' },
+    dashboard:     { title: '대시보드',      sub: <DashboardSubtitle /> },
+    members:       { title: '회원 관리',     sub: `전체 ${members.length}명 · 줄을 누르면 상세가 열려요` },
+    attendance:    { title: '출석 관리',     sub: '입장 기록 · 직접 출석 · 오래 안 온 회원 · 직원 근태' },
+    lockers:       { title: '락커 관리',     sub: '락커 현황 · 배정 · 연장 · 회수' },
+    benefits:      { title: '쿠폰 · 마일리지', sub: '쿠폰 만들기 · 회원에게 발급 · 마일리지 규칙 · 내역' },
+    revenue:       { title: '매출 분석',     sub: '환불을 뺀 순매출 · 상품 · 트레이너 · 결제 수단' },
+    settlement:    { title: '센터 정산',     sub: '월별 매출 · 트레이너 정산 · 엑셀 내보내기' },
+    products:      { title: '상품 관리',     sub: '센터에서 파는 상품 · 결제 등록 창에 이 목록이 나와요' },
+    schedule:      { title: '수업 예약',     sub: '센터 전체 수업 일정 · 트레이너 앱 시간표 그대로' },
+    contracts:     { title: '전자 계약서',   sub: '계약서 작성 · 서명 · 보관' },
+    notifications: { title: '알림 발송',     sub: '회원에게 보낼 안내 고르기' },
+    reports:       { title: '주간 리포트',   sub: 'AI가 지난주 센터 운영을 정리해요' },
+    settings:      { title: '센터 설정',     sub: '대표만 볼 수 있어요 · 직원 · 급여 · 기록 · 센터 정보' },
   }
-  const current = TAB_TITLES[activeTab] ?? TAB_TITLES.dashboard
+  const current = TAB_TITLES[tab]
+
+  // 메뉴 오른쪽 숫자 — 대시보드에서 받은 값
+  function badgeFor(key) {
+    if (!summary) return null
+    if (key === 'schedule' && summary.todayLessons > 0)
+      return <span className="sb-count plain" title={`오늘 수업 ${summary.todayLessons}건`}>{summary.todayLessons}</span>
+    if (key === 'attendance' && summary.rejected > 0)
+      return <span className="sb-count rose" title={`오늘 입장 거부 ${summary.rejected}건`}>{summary.rejected}</span>
+    if (key === 'members' && summary.expiring > 0)
+      return <span className="sb-count" title={`만료 임박 ${summary.expiring}명`}>{summary.expiring}</span>
+    return null
+  }
 
   return (
     <div className="crm-layout">
       {/* 최초 로그인 1회 약관 동의 모달 (user_metadata.terms_agreed 미설정 시 강제 노출) */}
       <TermsAgreementModal />
-      {/* 사이드바 */}
-      <aside className="sidebar">
-        <div className="sidebar-brand">
-          <div className="sidebar-brand-title">🏢 CRM 포털</div>
-          <div className="sidebar-brand-sub">센터 경영 관리 시스템</div>
+
+      {/* ── 사이드바 ── */}
+      <aside className="sidebar" aria-label="CRM 메뉴">
+        <div className="sb-brand">
+          <span className="sb-logo">오<b>운</b></span>
+          <span className="sb-tag">CRM</span>
         </div>
-        <div className="sidebar-gym">
-          <div className="sidebar-gym-label">센터</div>
-          <div className="sidebar-gym-name">{gym.name}</div>
+        <div className="sb-gym" title={gym.name}>
+          <span className="sb-gym-mark" aria-hidden="true">{(gym.name || '센').trim()[0]}</span>
+          <span className="sb-gym-text">
+            <span className="sb-gym-name">{gym.name}</span>
+            <span className="sb-gym-sub">트레이너 {trainers.length}명 · 회원 {members.length}명</span>
+          </span>
         </div>
-        <nav className="sidebar-nav">
-          {NAV_ITEMS.map(item => (
-            <div key={item.key}>
-              {item.divider && (
-                <div style={{ height: '1px', background: 'var(--border)', margin: '6px 12px' }} />
-              )}
-              <button
-                className={`sidebar-nav-item ${activeTab === item.key ? 'active' : ''}`}
-                onClick={() => setActiveTab(item.key)}
-              >
-                <span className="nav-icon">{item.icon}</span>
-                <span>{item.label}</span>
-              </button>
+
+        <nav>
+          {NAV_GROUPS.map(g => (
+            <div key={g.key} role="group" aria-label={g.title || '대시보드'}>
+              {g.title && <div className="sb-group">{g.title}</div>}
+              {g.items.map(item => (
+                <button key={item.key} type="button"
+                  className={`sb-item${tab === item.key ? ' active' : ''}`}
+                  aria-current={tab === item.key ? 'page' : undefined}
+                  title={item.label}
+                  onClick={() => setActiveTab(item.key)}>
+                  <span className="sb-ic"><CrmIcon name={item.icon} /></span>
+                  <span className="sb-label">{item.label}</span>
+                  {badgeFor(item.key)}
+                </button>
+              ))}
             </div>
           ))}
         </nav>
-        <div className="sidebar-footer">
-          <div className="sidebar-footer-trainer">{trainer.name}</div>
-          <button className="logout-btn" onClick={onLogout}>로그아웃</button>
+
+        <div className="sb-spacer" />
+        <button type="button" className="sb-kiosk" onClick={() => setKioskMenu(true)} title="출석 모드 켜기">
+          <CrmIcon name="tablet" size={16} stroke={2.1} /><span className="sb-kiosk-label">출석 모드 켜기</span>
+        </button>
+        <div className="sb-user">
+          <span className="sb-avatar" aria-hidden="true">{(trainer.name || '?')[0]}</span>
+          <span className="sb-user-text">
+            <span className="sb-user-name">{trainer.name}</span>
+            <span className="sb-user-role">{ROLE_LABEL[trainer.role] || '직원'}</span>
+          </span>
+          <button type="button" className="sb-logout" aria-label="로그아웃" title="로그아웃" onClick={onLogout}>
+            <CrmIcon name="logout" />
+          </button>
         </div>
       </aside>
 
-      {/* 메인 */}
-      <div className="crm-main">
-        <div className="crm-topbar">
-          <div>
-            <div className="crm-topbar-title">{current.title}</div>
-            <div className="crm-topbar-sub">{current.sub}</div>
+      {/* ── 메인 ── */}
+      <main className="crm-main">
+        <header className="crm-topbar">
+          <div style={{ minWidth: 0 }}>
+            <h1 className="crm-topbar-title">{current.title}</h1>
+            <p className="crm-topbar-sub">{current.sub}</p>
           </div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            {apiKey && <span style={{ fontSize: '10px', color: 'var(--green)', background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', padding: '3px 8px', borderRadius: '6px' }}>AI 연결됨</span>}
-            <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '11px' }} onClick={() => { setApiKeyInput(apiKey); setShowApiModal(true) }}>
-              ⚙️ AI 설정
-            </button>
-            <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '11px' }} onClick={loadData}>
-              🔄 새로고침
+          <div className="crm-topbar-actions">
+            {tab === 'dashboard' && !loading && (
+              <QuickActions members={members} trainers={trainers} gymId={gym.id} currentTrainer={trainer}
+                onOpenMember={openMember} onPaid={() => setDashKey(k => k + 1)} />
+            )}
+            <button type="button" className="btn btn-secondary btn-lg" onClick={loadData} disabled={loading}>
+              <CrmIcon name="refresh" size={16} />새로고침
             </button>
           </div>
-        </div>
+        </header>
 
         <div className="crm-content">
           {loading ? (
             <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-dim)' }}>
               <span className="spinner" style={{ fontSize: '28px', display: 'block', marginBottom: '12px' }}>✦</span>
-              센터 데이터를 불러오는 중...
+              센터 정보를 불러오는 중이에요
             </div>
           ) : (
             <>
-              {activeTab === 'dashboard'     && <DashboardTab        gym={gym} gymId={gym.id} trainers={trainers} members={members} />}
-              {activeTab === 'members'       && <MembersTab          members={members} trainers={trainers} gymId={gym.id} currentTrainer={trainer} />}
-              {activeTab === 'attendance'    && <AttendanceTab gymId={gym.id} gymName={gym.name} members={members}
-                  canManageAttendance={trainer?.role === 'owner' || (trainer?.crm_permissions || {}).manage_attendance === true}
+              {tab === 'dashboard'     && <DashboardTab key={dashKey} gymId={gym.id} trainers={trainers} members={members}
+                  canManageAttendance={canManageAttendance}
+                  onNavigate={navigate} onOpenMember={openMember} onSummary={setSummary} />}
+              {tab === 'members'       && <MembersTab          members={members} trainers={trainers} gymId={gym.id} currentTrainer={trainer}
+                  focus={membersFocus} onFocusDone={() => setMembersFocus(null)} />}
+              {tab === 'attendance'    && <AttendanceTab gymId={gym.id} gymName={gym.name} members={members}
+                  canManageAttendance={canManageAttendance}
                   onOpenKiosk={() => setKioskMenu(true)} />}
-              {activeTab === 'lockers'       && <LockersTab gymId={gym.id} members={members} trainers={trainers} currentTrainer={trainer} />}
-              {activeTab === 'benefits'      && (canAccess('benefits')
+              {tab === 'lockers'       && <LockersTab gymId={gym.id} members={members} trainers={trainers} currentTrainer={trainer} />}
+              {tab === 'benefits'      && (canAccess('benefits')
                 ? <BenefitsTab gymId={gym.id} members={members} />
                 : <AccessDenied />)}
-              {activeTab === 'revenue'       && <RevenueTab gymId={gym.id} gymName={gym.name} />}
-              {activeTab === 'settlement'    && (canAccess('settlement')
+              {tab === 'revenue'       && <RevenueTab gymId={gym.id} gymName={gym.name} />}
+              {tab === 'settlement'    && (canAccess('settlement')
                 ? <CenterSettlementTab gymId={gym.id} trainers={trainers} />
                 : <AccessDenied />)}
-              {activeTab === 'products'      && (canAccess('products')
+              {tab === 'products'      && (canAccess('products')
                 ? <ProductsTab gymId={gym.id} />
                 : <AccessDenied />)}
-              {activeTab === 'schedule'      && <ScheduleTab         gymId={gym.id} trainers={trainers} members={members} />}
-              {activeTab === 'contracts'     && <ContractsTab        gymId={gym.id} trainers={trainers} members={members} currentTrainer={trainer} />}
-              {activeTab === 'notifications' && <NotificationsTab    gymId={gym.id} members={members} trainers={trainers} />}
-              {activeTab === 'reports'       && <ReportsTab          gymId={gym.id} apiKey={apiKey} />}
-              {activeTab === 'settings'      && (canAccess('settings')
+              {tab === 'schedule'      && <ScheduleTab         gymId={gym.id} trainers={trainers} members={members} onOpenMember={openMember} />}
+              {tab === 'contracts'     && <ContractsTab        gymId={gym.id} trainers={trainers} members={members} currentTrainer={trainer} />}
+              {tab === 'notifications' && <NotificationsTab    gymId={gym.id} members={members} trainers={trainers} />}
+              {tab === 'reports'       && <ReportsTab          gymId={gym.id} />}
+              {tab === 'settings'      && (canAccess('settings')
                 ? <SettingsTab gymId={gym.id} gym={gym} trainers={trainers} members={members} onGymUpdate={g => setGym(g)} />
                 : <AccessDenied />)}
             </>
           )}
         </div>
-      </div>
+      </main>
 
       <KioskLauncher
         open={kioskMenu}
@@ -246,26 +300,6 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
         onStart={() => { setKioskMenu(false); setKioskOn(true) }}
       />
       {kioskOn && <KioskMode gymId={gym.id} gymName={gym.name} onExit={() => setKioskOn(false)} />}
-
-      {/* Gemini API 키 설정 모달 */}
-      <Modal open={showApiModal} onClose={() => setShowApiModal(false)} title="Gemini API 키 설정" maxWidth="400px">
-        <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '14px', lineHeight: 1.6 }}>
-          AI 주간 리포트 생성에 사용됩니다.<br />
-          Google AI Studio에서 무료로 발급받을 수 있어요.
-        </p>
-        <input
-          className="input"
-          type="password"
-          placeholder="AIza..."
-          value={apiKeyInput}
-          onChange={e => setApiKeyInput(e.target.value)}
-          style={{ marginBottom: '12px' }}
-        />
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowApiModal(false)}>취소</button>
-          <button className="btn btn-primary"   style={{ flex: 1, justifyContent: 'center' }} onClick={saveApiKey}>저장</button>
-        </div>
-      </Modal>
     </div>
   )
 }
