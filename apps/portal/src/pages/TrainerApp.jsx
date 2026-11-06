@@ -1302,7 +1302,7 @@ function AiInsightPanel({ member, apiKey }) {
       // ── Gemini 호출 ──────────────────────────────────────────
       setStatus('AI가 인사이트를 생성하는 중...')
       const prompt = buildInsightPrompt(member, computed)
-      const text   = await callGeminiInsight(apiKey, GEMINI_MODEL, prompt)
+      const text   = await callGeminiInsight(apiKey, GEMINI_MODEL, prompt, { purpose: 'insight' })
       setInsight(text)
       setPhase('done')
 
@@ -1892,7 +1892,8 @@ export default function TrainerApp() {
   const [centralApiKey, setCentralApiKey] = useState('')  // 중앙화된 Gemini API 키
   const [credits, setCredits] = useState(0)               // 트레이너 크레딧 잔액
   // 무료 AI 일지 월 횟수 (079). mode:'quota' 면 신규 가입자 월 15회 적용, 'credits' 면 크레딧만 사용.
-  const [aiQuota, setAiQuota] = useState(null)            // { mode, quota, used, remaining, resets_at }
+  const [aiQuota, setAiQuota] = useState(null)            // { plan, mode(unlimited|quota|credits), quota, used, remaining, resets_at, member_limit }
+  const [regenInfo, setRegenInfo] = useState(null)        // { key: '회원id:회차', left } 같은 수업 다시 만들기 남은 횟수
   const [urgentInquiryUrl, setUrgentInquiryUrl] = useState('') // 긴급문의 카카오 오픈채팅 링크
 
   // Schedule
@@ -1954,9 +1955,18 @@ export default function TrainerApp() {
   function canUse(key) {
     return featureGates[tier]?.[key] !== false
   }
-  // AI 일지 사용 가능 횟수 = 무료 월 잔여(신규 가입자) + 크레딧
+  // AI 일지 사용 가능 횟수 = 유료면 무제한, 아니면 무료 월 잔여(신규 가입자) + 크레딧 (판정은 서버 ai_plan_status, 101)
+  const aiUnlimited = aiQuota?.mode === 'unlimited'
   const aiQuotaLeft = aiQuota?.mode === 'quota' ? Math.max(0, aiQuota.remaining ?? 0) : 0
-  const aiRemaining = aiQuotaLeft + Math.max(0, credits || 0)
+  const aiRemaining = aiUnlimited ? Infinity : aiQuotaLeft + Math.max(0, credits || 0)
+  // 같은 수업 = 회원 + 다음 회차 (서버 ai_gate_begin 과 같은 기준)
+  const sessionKeyOf = (m) => (m?.id ? `${m.id}:${(m.done_sessions || 0) + 1}` : null)
+  // 서버가 돌려준 사용량으로 화면 갱신 (남은 횟수 · 다시 만들기 남은 횟수)
+  function applyAiGate(g, sessionKey) {
+    if (!g) return
+    if (g.plan) { setAiQuota(g.plan); if (typeof g.plan.credits === 'number') setCredits(g.plan.credits) }
+    if (sessionKey && typeof g.regen_left === 'number') setRegenInfo({ key: sessionKey, left: g.regen_left })
+  }
   function fmtResetDate(iso) {
     if (!iso) return '다음 지급일'
     const d = new Date(iso)
@@ -2313,13 +2323,14 @@ export default function TrainerApp() {
       // 활성 구독의 plan → 티어 판정. 활성 구독이 여럿이면 가장 늦게 끝나는 것 기준.
       // (maybeSingle 은 2개+ 에서 에러 → 유료인데 무료 처리 버그였음. 최신 valid_until 1건.)
       // 관리자가 '무효 처리'한 구독(voided_at, 098)은 권한에서 제외.
-      const now = new Date().toISOString()
+      // 만료일 당일까지 유효 — 서울 날짜 기준 (서버 _trainer_paid_tier 와 같은 규칙)
+      const todaySeoul = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10)
       const { data: subs, error: subErr } = await supabase
         .from('subscriptions')
         .select('plan, valid_until')
         .eq('trainer_id', trainerId)
         .is('voided_at', null)
-        .gt('valid_until', now)
+        .gte('valid_until', todaySeoul)
         .order('valid_until', { ascending: false })
         .limit(1)
       if (subErr) { console.warn('[loadFeatureGates] 구독 조회 실패:', subErr.message) }
@@ -2342,7 +2353,9 @@ export default function TrainerApp() {
 
   async function refreshAiQuota(trainerId) {
     if (!trainerId) return
-    const { data, error } = await supabase.rpc('ai_journal_status', { p_trainer_id: trainerId })
+    // 101: 서버가 판정한 상태 (유료 무제한 / 무료 월 횟수 / 크레딧 + 회원 수 상한). 없으면 예전 함수로.
+    let { data, error } = await supabase.rpc('ai_plan_status')
+    if (error || !data) ({ data, error } = await supabase.rpc('ai_journal_status', { p_trainer_id: trainerId }))
     if (error) { console.warn('[refreshAiQuota] 조회 실패:', error.message); return }
     setAiQuota(data)
     if (typeof data?.credits === 'number') setCredits(data.credits)
@@ -3073,7 +3086,7 @@ export default function TrainerApp() {
   async function addMember() {
     if (!addForm.name || !addForm.phone) { showToast('이름과 전화번호를 입력해주세요'); return }
     try {
-      await supabase.from('members').insert({
+      const { error: insErr } = await supabase.from('members').insert({
         trainer_id: trainer.id, name: addForm.name, kakao_phone: addForm.kakao_phone, phone: addForm.phone,
         birthdate: addForm.birthdate || null, address: addForm.address || null,
         email: addForm.email || null, special_notes: addForm.special_notes || null,
@@ -3083,8 +3096,9 @@ export default function TrainerApp() {
         total_sessions: parseInt(addForm.total)||0, done_sessions: parseInt(addForm.done)||0,
         session_price: parseInt(addForm.price)||0, memo: addForm.memo
       })
+      if (insErr) throw insErr
       await loadMembers(); setActivePage('page-members'); setTab('members'); showToast('✓ 회원이 추가됐어요')
-    } catch(e) { showToast('오류: ' + e.message) }
+    } catch(e) { showToast(e?.hint === 'member_limit' ? e.message : '오류: ' + e.message) }
   }
 
   // openRecord — 회원 카드 onClick 에서 호출되는 음성 일지 기록 진입점.
@@ -3513,13 +3527,27 @@ export default function TrainerApp() {
   }
 
   // === GENERATE ===
+  // 미리보기에서 '다시 만들기' — 직접 고친 내용이 사라지므로 한 번 확인
+  function regenerateLog() {
+    if (finalContent && previewContent && finalContent !== previewContent
+        && !window.confirm('직접 고친 내용이 사라져요. 다시 만들까요?')) return
+    generateLog()
+  }
   async function generateLog() {
     if (!rawInput.trim() && !exercises.length) { showToast('수업 내용을 입력해주세요'); return }
     const key = centralApiKey
     if (!key) { showToast('AI 서비스 준비 중이에요. 잠시 후 다시 시도해주세요'); return }
 
-    // ── 사용 가능 횟수 체크 (무료 월 횟수 → 크레딧 순) ──────────
-    if (aiRemaining <= 0) {
+    // ── 같은 수업 다시 만들기인지 (회원 + 다음 회차가 같으면 같은 수업, 서버 판정과 같은 기준) ──
+    const sessionKey = sessionKeyOf(currentMember)
+    const isRegen = !!sessionKey && regenInfo?.key === sessionKey
+    if (isRegen && regenInfo.left <= 0) {
+      showToast('같은 수업은 다시 만들기 3번까지 할 수 있어요. 직접 수정하기로 다듬어 주세요')
+      return
+    }
+
+    // ── 사용 가능 횟수 체크 (유료 무제한 / 무료 월 횟수 → 크레딧). 다시 만들기는 차감 없음 ──
+    if (!isRegen && aiRemaining <= 0) {
       if (aiQuota?.mode === 'quota') showToast(`이번 달 무료 AI 일지 ${aiQuota.quota}회를 모두 사용했어요. ${fmtResetDate(aiQuota.resets_at)}에 다시 충전돼요.`)
       setShowLimitModal(true)
       return
@@ -3538,22 +3566,6 @@ export default function TrainerApp() {
     setGenerating(true); setShowPreview(false); setShowSend(false); setEditingLog(false)
     setAiStatus('AI가 회원님을 위한 맞춤형 리포트를 작성하고 있습니다...')
     try {
-      // P0 fix (비용 폭탄 방지): Gemini 호출 전 트레이너 월 한도 확인.
-      // 그동안 AI 일지는 use_ai_credit (post-call) 만 있고 사전 한도 체크가 없어
-      // ai_monthly_limit 도달 후에도 호출 가능했음.
-      try {
-        if (trainer?.id) {
-          const { data: usage } = await supabase.rpc('get_ai_usage', { p_trainer_id: trainer.id })
-          if (usage?.blocked) {
-            showToast('AI 월 한도를 모두 사용했어요. 다음달에 다시 시도해주세요.')
-            setGenerating(false); setAiStatus('')
-            return
-          }
-        }
-      } catch (e) {
-        console.warn('[generateLog] get_ai_usage 실패 — 한도 체크 skip:', e?.message)
-      }
-
       const combinedInput = extraInstruction?.trim()
         ? (rawInput || '') + '\n\n[추가 지시사항]\n' + extraInstruction.trim()
         : (rawInput || '')
@@ -3566,31 +3578,24 @@ export default function TrainerApp() {
         perspective: perspectiveChip || 'rehab',
       })
 
-      const text = await callGemini(key, GEMINI_MODEL, prompt, { timeoutMs: 45000 })
+      // 사용 횟수 확인·차감은 서버가 함 (gemini-proxy → ai_gate_begin/finish, 101).
+      // 유료 무제한 / 무료 월 횟수 → 크레딧 / 같은 수업 다시 만들기 3번(차감 없음)
+      const text = await callGemini(key, GEMINI_MODEL, prompt, {
+        timeoutMs: 45000, purpose: 'journal', memberId: m.id,
+        onGate: (g) => applyAiGate(g, sessionKey),
+      })
 
       setShowPreview(true); setPreviewContent(text); setFinalContent(text); setShowSend(true)
       // mediaFiles 는 state에 보관됨. 미디어 Storage 업로드 + DB logs INSERT는
       // sendKakao() 에서 수행됨 (생성 미리보기 → 확인 → 전송 흐름)
 
       showToast('✦ 수업일지 생성 완료!')
-
-      // ── 1회 차감 (변환 1회 = 1회, 발송 여부 무관. 무료 월 횟수 → 크레딧 순) ──
-      try {
-        const { data: result, error: creditErr } = await supabase.rpc('ai_journal_consume', { p_trainer_id: trainer.id })
-        if (creditErr) {
-          showToast('사용 횟수 차감에 실패했어요')
-          console.warn('[generateLog] ai_journal_consume 오류:', creditErr.message)
-        } else if (result) {
-          if (typeof result.credits === 'number') setCredits(result.credits)
-          setAiQuota(prev => ({ ...(prev || {}), ...result }))
-        }
-      } catch(e) {
-        showToast('사용 횟수 차감 중 오류가 발생했어요')
-        console.warn('[generateLog] ai_journal_consume catch:', e.message)
-      }
-      // ─────────────────────────────────────────────────────
     } catch(e) {
-      showToast('오류: ' + e.message)
+      // 서버가 막은 경우엔 안내 문구를 그대로 (횟수 소진 → 안내 창)
+      if (e?.reason === 'regen_limit' && sessionKey) setRegenInfo({ key: sessionKey, left: 0 })
+      if (e?.reason === 'limit') setShowLimitModal(true)
+      else if (e?.reason) showToast(e.message)
+      else showToast('오류: ' + e.message)
       // rawInput 유지 — 에러 시 입력 내용 보존됨 (state 그대로)
     } finally {
       setGenerating(false)
@@ -4986,7 +4991,7 @@ export default function TrainerApp() {
   // 하단 탭 아이콘 — components/Icon 의 선 아이콘 이름
   const TAB_ICON_NAMES = { members:'users', history:'file', schedule:'calendar', revenue:'chart', settings:'settings', support:'message' }
   // 상단 AI 칩 — 남은 AI 일지 횟수(무료 월 잔여 + 크레딧). 눌러서 상세 확인
-  const aiChipLabel = aiQuota?.mode === 'quota' ? `AI 일지 ${aiRemaining}회` : (credits > 0 ? `AI 일지 ${credits}회` : 'AI 일지')
+  const aiChipLabel = aiUnlimited ? 'AI 일지 무제한' : aiQuota?.mode === 'quota' ? `AI 일지 ${aiRemaining}회` : (credits > 0 ? `AI 일지 ${credits}회` : 'AI 일지')
   return (
     <div style={{paddingBottom: MAIN_PAGES.includes(activePage) ? 'calc(84px + env(safe-area-inset-bottom))' : '0'}}>
       {/* 최초 로그인 1회 약관 동의 모달 (user_metadata.terms_agreed 미설정 시 강제 노출) */}
@@ -5067,7 +5072,10 @@ export default function TrainerApp() {
               <button className="btn btn-primary" style={{height:'44px',padding:'0 16px',borderRadius:'14px',fontSize:'14px',fontWeight:800,
                 display:'flex',alignItems:'center',gap:'6px'}} onClick={()=>{
                 // 게이트는 free/pro/premium 3단계 — 옛 'paid' 키는 없어서 유료가 항상 무제한으로 떨어지던 것 수정
-                const limit = featureGates[tier]?.member_limit ?? 9999
+                // 서버 판정(ai_plan_status.member_limit, null = 제한 없음) 우선. 무료 플랜(신규 가입자)만 5명, 기존 트레이너는 제한 없음
+                const limit = aiQuota && 'member_limit' in aiQuota
+                  ? (aiQuota.member_limit ?? Infinity)
+                  : (featureGates[tier]?.member_limit ?? 9999)
                 if (members.length >= limit) { showToast(HIDE_PURCHASE ? `회원은 최대 ${limit}명까지 등록할 수 있어요.` : `현재 플랜에서는 최대 ${limit}명까지 등록 가능해요. 플랜 업그레이드 후 이용하세요.`); return }
                 setAddForm({name:'',kakao_phone:'',phone:'',birthdate:'',address:'',email:'',special_notes:'',purpose:'체형교정',visit_source:'',visit_source_memo:'',total:'',done:'0',price:'',memo:''});setActivePage('page-add-member')
               }}><Icon name="plus" size={16} strokeWidth={2.6} />회원 추가</button>
@@ -6908,23 +6916,37 @@ export default function TrainerApp() {
                     style={{width:'100%',minHeight:'44px',borderRadius:'12px',border:'1px solid #E6E8E0',background:'#fff',fontSize:'14px',fontWeight:700,color:'var(--text)',cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:'6px'}}>
                     <Icon name={editingLog ? 'check' : 'pencil'} size={16} />{editingLog ? '수정 완료' : '직접 수정하기'}
                   </button>
+                  {/* 같은 수업 다시 만들기 — 3번까지, 차감 없음 (서버 규칙과 같음) */}
+                  {!editingLog && (() => {
+                    const key = sessionKeyOf(currentMember)
+                    const left = regenInfo?.key === key ? regenInfo.left : null
+                    const none = left !== null && left <= 0
+                    return (
+                      <button onClick={regenerateLog} disabled={none || generating}
+                        style={{width:'100%',minHeight:'44px',marginTop:'8px',borderRadius:'12px',border:'1px solid #E6E8E0',background:'#fff',fontSize:'14px',fontWeight:700,color: none ? 'var(--text-muted)' : 'var(--text)',cursor: none ? 'not-allowed' : 'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:'6px'}}>
+                        <Icon name="refresh" size={16} />
+                        {none ? '다시 만들기를 모두 썼어요' : `다시 만들기${left !== null ? ` · ${left}번 남음` : ''}`}
+                      </button>
+                    )
+                  })()}
                 </div>
               )}
               {/* 크레딧 표시 — 남은 횟수 한 줄 + 얇은 막대 */}
               {(() => {
                 const quota = aiQuota?.mode === 'quota'
-                const empty = aiRemaining <= 0
-                const label = quota
+                const empty = !aiUnlimited && aiRemaining <= 0
+                const label = aiUnlimited ? 'AI 수업일지 무제한' : quota
                   ? (empty ? '이번 달 무료 AI 일지를 모두 썼어요' : `무료 AI 일지 ${aiQuotaLeft} / ${aiQuota.quota}회 남음${credits > 0 ? ` + 크레딧 ${credits}` : ''}`)
                   : (credits <= 0 ? '크레딧이 없어요' : `크레딧 ${credits}개 남음`)
-                const ratio = quota ? aiQuotaLeft / Math.max(1, aiQuota.quota || 1) : Math.min(1, credits / 10)
+                const ratio = aiUnlimited ? 1 : quota ? aiQuotaLeft / Math.max(1, aiQuota.quota || 1) : Math.min(1, credits / 10)
                 return (
                   <div style={{background:'#fff',borderRadius:'16px',padding:'12px 14px',marginBottom:'12px',boxShadow:'0 1px 2px rgba(17,24,39,0.04)'}}>
                     <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
                       <Icon name="sparkle" size={16} color={empty ? '#B91C1C' : '#4D7C0F'} strokeWidth={2.2} />
                       <span style={{flex:1,fontSize:'14px',fontWeight:700,color: empty ? '#B91C1C' : 'var(--text)',fontVariantNumeric:'tabular-nums'}}>{label}</span>
                       {quota && <span style={{fontSize:'12px',color:'var(--text-muted)'}}>{fmtResetDate(aiQuota.resets_at)} 충전</span>}
-                      {!HIDE_PURCHASE && !quota && (
+                      {aiUnlimited && <span style={{fontSize:'12px',color:'var(--text-muted)'}}>같은 수업 다시 만들기 3번</span>}
+                      {!HIDE_PURCHASE && !quota && !aiUnlimited && (
                         <button onClick={()=>setSettingsModal(true)}
                           style={{background:'none',border:'1px solid #E6E8E0',borderRadius:'8px',color:'var(--text)',fontSize:'12px',fontWeight:700,padding:'4px 10px',cursor:'pointer',fontFamily:'inherit'}}>
                           충전
@@ -7810,9 +7832,9 @@ export default function TrainerApp() {
           <div style={{fontSize:'12px',color:'#9CA3AF'}}>지금 쓸 수 있는 AI 일지</div>
           <div style={{display:'flex',alignItems:'baseline',gap:'4px',marginTop:'4px'}}>
             <span style={{fontSize:'34px',fontWeight:900,letterSpacing:'-1px',fontVariantNumeric:'tabular-nums',color:'#C8F135'}}>
-              {aiQuota?.mode === 'quota' ? aiRemaining : credits}
+              {aiUnlimited ? '무제한' : aiQuota?.mode === 'quota' ? aiRemaining : credits}
             </span>
-            <span style={{fontSize:'15px',fontWeight:700,color:'#9CA3AF'}}>회</span>
+            {!aiUnlimited && <span style={{fontSize:'15px',fontWeight:700,color:'#9CA3AF'}}>회</span>}
           </div>
           {aiQuota?.mode === 'quota' && (
             <>
@@ -7827,8 +7849,10 @@ export default function TrainerApp() {
           )}
         </div>
         <div style={{fontSize:'13px',color:'var(--text-muted)',lineHeight:1.7}}>
-          AI로 일지를 한 번 만들 때마다 1회씩 차감돼요.
-          {!HIDE_PURCHASE && aiQuota?.mode !== 'quota' && <><br/>크레딧이 부족하면 관리자에게 충전을 요청하세요.</>}
+          {aiUnlimited
+            ? '유료 플랜은 AI 수업일지를 횟수 제한 없이 만들 수 있어요. 같은 수업은 다시 만들기 3번까지 돼요.'
+            : '수업 1번에 AI 일지 1회가 차감돼요. 같은 수업을 다시 만들 때는 차감되지 않아요(3번까지).'}
+          {!HIDE_PURCHASE && aiQuota?.mode === 'credits' && <><br/>크레딧이 부족하면 관리자에게 충전을 요청하세요.</>}
         </div>
         <button className="btn btn-primary" style={{width:'100%',marginTop:'16px'}} onClick={()=>setSettingsModal(false)}>닫기</button>
       </Modal>

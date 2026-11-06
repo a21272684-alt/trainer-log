@@ -490,7 +490,7 @@ export default function MemberPortal() {
           const mimeType = file.type || 'image/jpeg'
           const parts = buildFoodVisionParts(base64, mimeType)
           const GEMINI_MODEL = 'gemini-2.5-flash-lite'
-          const text = await callGeminiMultipart(trainerApiKey, GEMINI_MODEL, parts, { timeoutMs: 45000 })
+          const text = await callGeminiMultipart(trainerApiKey, GEMINI_MODEL, parts, { timeoutMs: 45000, purpose: 'food_vision' })
           const result = parseFoodVisionResult(text)
 
           // C-101: 호출 성공 시 ai_usage 차감 (트레이너 quota)
