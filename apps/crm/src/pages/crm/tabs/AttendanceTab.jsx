@@ -4,13 +4,14 @@ import * as XLSX from 'xlsx'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import Modal from '../components/CrmModal'
 import { todayStr } from '../lib/ticketDateCalc'
+import { LONG_ABSENT_DAYS } from '../lib/memberFilters'
 
 // ── 출석 관리 ───────────────────────────────────────────────────
 // 회원 출석: 날짜별 입장 기록(089·090 RPC), 수동 출석, 기록 취소(직원 누구나), 장기 미출석(14일).
 // 직원 근태: 대표 또는 '근태 관리' 권한자만 — 태블릿 출퇴근 기록 조회·직접 입력·수정·삭제.
 
-const mono = { fontFamily: "'DM Mono', monospace" }
-const ABSENT_DAYS = 14
+const mono = { fontVariantNumeric: 'tabular-nums' }
+const ABSENT_DAYS = LONG_ABSENT_DAYS
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토']
 const hm  = iso => new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
 const dur = min => `${Math.floor(min / 60)}시간 ${String(min % 60).padStart(2, '0')}분`

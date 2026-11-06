@@ -1,6 +1,6 @@
 // ── 회원 관리 고급 필터 ─────────────────────────────────────────
 // 원장/직원이 직접 고른 조건으로 회원 목록을 좁히는 순수 함수 모음.
-// stat = crm_member_stats RPC 결과 행 { total_paid, payment_count, last_paid_at, last_attended }
+// stat = crm_member_stats RPC 결과 행 { total_paid, payment_count, last_paid_at, last_attended, membership_end }
 
 export const EMPTY_FILTERS = {
   trainerId:  '',
@@ -60,12 +60,30 @@ export function daysSince(dateLike, today = new Date()) {
   return Math.round((t - d) / 86400000)
 }
 
-// 결제 이력도 세션도 없으면 미등록, 잔여 0 = 마감, 1~3 = 만료 임박
-export function memberStatus(m, stat) {
-  const remain = remainOf(m)
+// 오늘부터 남은 날 (오늘 = 0, 지난 날 = 음수)
+export function daysUntil(dateLike, today = new Date()) {
+  const d = daysSince(dateLike, today)
+  return d == null ? null : -d
+}
+
+// 만료 임박 기준 — 횟수 3회 이하 또는 이용권이 14일 안에 끝남
+export const EXPIRING_SESSIONS = 3
+export const EXPIRING_DAYS     = 14
+// 오래 안 온 회원 기준 (대시보드 · 출석 관리 공통)
+export const LONG_ABSENT_DAYS  = 14
+
+// 결제 이력도 세션도 없으면 미등록.
+// 남은 횟수도 없고 오늘 이후 끝나는 이용권(stat.membership_end)도 없으면 마감.
+// 횟수가 3회 이하로 남았거나 이용권이 14일 안에 끝나면 만료 임박.
+export function memberStatus(m, stat, today = new Date()) {
+  const remain  = remainOf(m)
+  const endLeft = daysUntil(stat?.membership_end, today)
+  const hasPass = endLeft != null && endLeft >= 0
   if (!(stat?.payment_count > 0) && !(m.total_sessions > 0)) return 'none'
-  if (remain === 0) return 'expired'
-  if (remain <= 3)  return 'expiring'
+  if (remain === 0 && !hasPass) return 'expired'
+  const fewLeft = m.total_sessions > 0 && remain > 0 && remain <= EXPIRING_SESSIONS
+  const endSoon = hasPass && endLeft <= EXPIRING_DAYS
+  if (fewLeft || endSoon) return 'expiring'
   return 'active'
 }
 

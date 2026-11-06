@@ -1,315 +1,231 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@trainer-log/shared/lib/supabase'
-import { useToast } from '../components/CrmToast'
-import Modal from '../components/CrmModal'
+import CrmIcon from '../components/CrmIcon'
 
-const CLASS_TYPES = { pt:'PT', group:'그룹', pilates:'필라테스', yoga:'요가', other:'기타' }
-const COLORS = ['blue','green','purple','yellow','red']
-const COLOR_MAP = {
-  blue:   { bg:'rgba(96,165,250,0.15)',  border:'rgba(96,165,250,0.5)',  dot:'#60a5fa' },
-  green:  { bg:'rgba(74,222,128,0.15)',  border:'rgba(74,222,128,0.5)',  dot:'#4ade80' },
-  purple: { bg:'rgba(167,139,250,0.15)', border:'rgba(167,139,250,0.5)', dot:'#a78bfa' },
-  yellow: { bg:'rgba(250,204,21,0.15)',  border:'rgba(250,204,21,0.5)',  dot:'#facc15' },
-  red:    { bg:'rgba(248,113,113,0.15)', border:'rgba(248,113,113,0.5)', dot:'#f87171' },
+// ── 수업 예약 (센터 전체 시간표) ───────────────────────────────────
+// 트레이너가 오운 앱 시간표에 넣은 수업을 crm_gym_schedule(102) 로 읽어 주간 · 목록으로 보여준다.
+// 읽기 전용 — 수업 추가 · 변경은 트레이너 앱에서 한다.
+
+const pad = n => String(n).padStart(2, '0')
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+const toMin = hm => {
+  const [h, m] = String(hm || '').split(':').map(Number)
+  return Number.isFinite(h) ? h * 60 + (Number.isFinite(m) ? m : 0) : null
+}
+const DOW = ['월', '화', '수', '목', '금', '토', '일']
+const DOW_SUN = ['일', '월', '화', '수', '목', '금', '토']
+
+// 트레이너 순서대로 고정 색 (카드 바탕 · 글자 · 점)
+const TONES = [
+  ['#F3F8E3', '#2F4A0B', '#65A30D'], ['#EEF2FF', '#312E81', '#6366F1'], ['#ECFEFF', '#164E63', '#0891B2'],
+  ['#FFFBEB', '#78350F', '#D97706'], ['#FDF2F8', '#831843', '#DB2777'], ['#F2F3EF', '#374151', '#6B7280'],
+]
+
+function mondayOf(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7))
 }
 
-const pad = n => String(n).padStart(2,'0')
-const toLocal = d => {
-  const dt = new Date(d)
-  return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`
-}
+export default function ScheduleTab({ gymId, trainers, members, onOpenMember }) {
+  const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()))
+  const [lessons,   setLessons]   = useState([])
+  const [loading,   setLoading]   = useState(true)
+  const [error,     setError]     = useState('')
+  const [only,      setOnly]      = useState('')        // 트레이너 필터
+  const [view,      setView]      = useState('week')    // week | list
+  const [selId,     setSelId]     = useState(null)
+  const [now,       setNow]       = useState(() => new Date())
 
-export default function ScheduleTab({ gymId, trainers, members }) {
-  const showToast = useToast()
-  const [schedules,  setSchedules]  = useState([])
-  const [bookings,   setBookings]   = useState([])
-  const [loading,    setLoading]    = useState(false)
-  const [showForm,   setShowForm]   = useState(false)
-  const [selected,   setSelected]   = useState(null)  // 선택된 일정 (상세 모달)
-  const [viewMode,   setViewMode]   = useState('week') // week | list
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60 * 1000)
+    return () => clearInterval(t)
+  }, [])
 
-  // 현재 주 월요일
-  const today = new Date()
-  const dayOfWeek = today.getDay() // 0=일, 1=월...
-  const monday = new Date(today)
-  monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1))
-  const [weekStart, setWeekStart] = useState(monday)
+  const days = useMemo(() => Array.from({ length: 7 }, (_, i) =>
+    new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + i)), [weekStart])
+  const from = ymd(days[0]), to = ymd(days[6])
 
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(weekStart)
-    d.setDate(weekStart.getDate() + i)
-    return d
-  })
+  useEffect(() => {
+    let alive = true
+    setLoading(true); setError(''); setSelId(null)
+    supabase.rpc('crm_gym_schedule', { p_gym_id: gymId, p_from: from, p_to: to })
+      .then(({ data, error }) => {
+        if (!alive) return
+        if (error) { setError(error.message); setLessons([]) } else setLessons(data || [])
+        setLoading(false)
+      })
+    return () => { alive = false }
+  }, [gymId, from, to])
 
-  const [form, setForm] = useState({
-    trainer_id: '', class_type: 'pt', title: '', description: '',
-    start_at: '', end_at: '', max_capacity: 1, color: 'blue',
-  })
+  const tIndex  = useMemo(() => Object.fromEntries(trainers.map((t, i) => [t.id, i])), [trainers])
+  const tName   = id => trainers.find(t => t.id === id)?.name || '트레이너'
+  const tone    = id => TONES[(tIndex[id] ?? 0) % TONES.length]
+  const todayS  = ymd(now)
+  const nowMin  = now.getHours() * 60 + now.getMinutes()
 
-  useEffect(() => { loadSchedules() }, [gymId, weekStart])
+  const rows = useMemo(() => lessons
+    .filter(l => !only || l.trainer_id === only)
+    .map(l => ({ ...l, s: toMin(l.start) }))
+    .filter(l => l.s != null)
+    .sort((a, b) => (a.date === b.date ? a.s - b.s : a.date < b.date ? -1 : 1)), [lessons, only])
 
-  // class_schedules / class_bookings 테이블은 DB 미배포 — 호출 차단 후 빈 데이터 폴백.
-  // 테이블 도입 시 본 함수 본문을 다시 활성화한다.
-  async function loadSchedules() {
-    if (!gymId) return
-    setSchedules([])
-    setBookings([])
-    setLoading(false)
+  const live = rows.filter(l => !l.cancelled)
+  const byDay = useMemo(() => {
+    const m = {}
+    for (const l of rows) (m[l.date] ||= []).push(l)
+    return m
+  }, [rows])
+  const sel = rows.find(l => l.id === selId) || null
+  const isPast = l => l.date < todayS || (l.date === todayS && (toMin(l.end) ?? l.s + 50) <= nowMin)
+
+  const weekLabel = `${days[0].getMonth() + 1}월 ${days[0].getDate()}일 – ${days[6].getMonth() !== days[0].getMonth() ? `${days[6].getMonth() + 1}월 ` : ''}${days[6].getDate()}일`
+  const thisWeek = ymd(mondayOf(new Date())) === from
+
+  function shiftWeek(n) {
+    setWeekStart(w => new Date(w.getFullYear(), w.getMonth(), w.getDate() + n * 7))
   }
 
-  async function handleCreate(e) {
-    e.preventDefault()
-    showToast('수업 일정 기능은 준비 중이에요')
-    setShowForm(false)
-    setForm({ trainer_id:'', class_type:'pt', title:'', description:'', start_at:'', end_at:'', max_capacity:1, color:'blue' })
+  function cardStyle(l) {
+    const [bg, fg] = tone(l.trainer_id)
+    if (l.cancelled) return { background: 'var(--surface2)', color: 'var(--text-dim)' }
+    if (isPast(l))   return { background: 'var(--bg)', color: 'var(--text-dim)' }
+    return { background: bg, color: fg }
   }
 
-  async function handleCancel(id) {
-    showToast('수업 일정 기능은 준비 중이에요')
-    setSelected(null)
-  }
-
-  async function handleBook(scheduleId, memberId) {
-    showToast('수업 일정 기능은 준비 중이에요')
-  }
-
-  async function handleCancelBooking(bookingId) {
-    // class_bookings 테이블 미배포 — 차단. 테이블 도입 시 재활성화.
-    showToast('수업 일정 기능은 준비 중이에요')
-  }
-
-  function prevWeek() { const d = new Date(weekStart); d.setDate(d.getDate()-7); setWeekStart(d) }
-  function nextWeek() { const d = new Date(weekStart); d.setDate(d.getDate()+7); setWeekStart(d) }
-
-  const DAYS = ['월','화','수','목','금','토','일']
-
-  const schedulesForDay = (day) => {
-    const ds = day.toDateString()
-    return schedules.filter(s => new Date(s.start_at).toDateString() === ds)
-  }
-
-  const bookingsForSchedule = (scheduleId) =>
-    bookings.filter(b => b.schedule_id === scheduleId && b.status !== 'cancelled')
-
-  const trainerName = id => trainers.find(t => t.id === id)?.name ?? '—'
+  const detailMember = sel?.member_id ? members.find(m => m.id === sel.member_id) : null
+  const stateTag = l => l.cancelled ? ['gray', '취소'] : isPast(l) ? ['olive', '끝남'] : ['indigo', '예정']
 
   return (
-    <div>
-      {/* 헤더 */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'16px' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-          <button onClick={prevWeek} className="btn btn-secondary" style={{ padding:'5px 10px' }}>‹</button>
-          <span style={{ fontWeight:700, fontSize:'14px' }}>
-            {weekDays[0].getMonth()+1}/{weekDays[0].getDate()} ~ {weekDays[6].getMonth()+1}/{weekDays[6].getDate()}
-          </span>
-          <button onClick={nextWeek} className="btn btn-secondary" style={{ padding:'5px 10px' }}>›</button>
-          <button className="btn btn-secondary" style={{ padding:'5px 10px', fontSize:'11px' }} onClick={() => setWeekStart(monday)}>오늘</button>
+    <div className="sc">
+      <div className="sc-bar">
+        <div className="sc-nav">
+          <button type="button" className="sc-icon-btn" aria-label="지난주" onClick={() => shiftWeek(-1)}>‹</button>
+          <span className="sc-week">{weekLabel}</span>
+          <button type="button" className="sc-icon-btn" aria-label="다음 주" onClick={() => shiftWeek(1)}>›</button>
+          {!thisWeek && <button type="button" className="sc-text-btn" onClick={() => setWeekStart(mondayOf(new Date()))}>이번 주</button>}
+          <span className="sc-count">수업 {live.length}건</span>
         </div>
-        <div style={{ display:'flex', gap:'8px' }}>
-          {['week','list'].map(m => (
-            <button key={m} onClick={() => setViewMode(m)}
-              style={{ padding:'5px 12px', borderRadius:'6px', border:'1px solid', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'inherit',
-                background: viewMode===m ? 'var(--accent)' : 'var(--surface2)',
-                color: viewMode===m ? '#0a0a0a' : 'var(--text-muted)',
-                borderColor: viewMode===m ? 'var(--accent)' : 'var(--border)' }}
-            >{m==='week' ? '주간' : '목록'}</button>
+        <div className="sc-chips" role="group" aria-label="트레이너">
+          <button type="button" className={`sc-chip${!only ? ' on' : ''}`} aria-pressed={!only} onClick={() => setOnly('')}>전체</button>
+          {trainers.map(t => (
+            <button key={t.id} type="button" className={`sc-chip${only === t.id ? ' on' : ''}`} aria-pressed={only === t.id}
+              onClick={() => setOnly(only === t.id ? '' : t.id)}>
+              <i style={{ background: tone(t.id)[2] }} />{t.name}
+            </button>
           ))}
-          <button className="btn btn-primary" style={{ padding:'5px 14px', fontSize:'12px' }} onClick={() => setShowForm(v=>!v)}>+ 수업 등록</button>
+        </div>
+        <div className="rev-seg" role="group" aria-label="보기">
+          <button type="button" className={view === 'week' ? 'on' : ''} aria-pressed={view === 'week'} onClick={() => setView('week')}>주간</button>
+          <button type="button" className={view === 'list' ? 'on' : ''} aria-pressed={view === 'list'} onClick={() => setView('list')}>목록</button>
         </div>
       </div>
 
-      {/* 수업 등록 폼 */}
-      {showForm && (
-        <div className="card" style={{ marginBottom:'16px' }}>
-          <div className="card-title">수업 일정 등록</div>
-          <form onSubmit={handleCreate}>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px', marginBottom:'8px' }}>
-              <div>
-                <div style={{ fontSize:'11px', color:'var(--text-muted)', marginBottom:'4px' }}>수업 종류</div>
-                <select className="input" value={form.class_type} onChange={e => setForm(v=>({...v,class_type:e.target.value}))}>
-                  {Object.entries(CLASS_TYPES).map(([k,l]) => <option key={k} value={k}>{l}</option>)}
-                </select>
-              </div>
-              <div>
-                <div style={{ fontSize:'11px', color:'var(--text-muted)', marginBottom:'4px' }}>담당 트레이너</div>
-                <select className="input" value={form.trainer_id} onChange={e => setForm(v=>({...v,trainer_id:e.target.value}))}>
-                  <option value="">전체</option>
-                  {trainers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <div style={{ fontSize:'11px', color:'var(--text-muted)', marginBottom:'4px' }}>최대 정원</div>
-                <input className="input" type="number" min={1} value={form.max_capacity} onChange={e => setForm(v=>({...v,max_capacity:e.target.value}))} />
-              </div>
-            </div>
-            <input className="input" placeholder="수업 제목" value={form.title} onChange={e => setForm(v=>({...v,title:e.target.value}))} style={{ marginBottom:'8px' }} />
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'8px' }}>
-              <div>
-                <div style={{ fontSize:'11px', color:'var(--text-muted)', marginBottom:'4px' }}>시작 시간</div>
-                <input className="input" type="datetime-local" value={form.start_at} onChange={e => setForm(v=>({...v,start_at:e.target.value}))} />
-              </div>
-              <div>
-                <div style={{ fontSize:'11px', color:'var(--text-muted)', marginBottom:'4px' }}>종료 시간</div>
-                <input className="input" type="datetime-local" value={form.end_at} onChange={e => setForm(v=>({...v,end_at:e.target.value}))} />
-              </div>
-            </div>
-            <div style={{ display:'flex', gap:'6px', marginBottom:'12px' }}>
-              {COLORS.map(c => (
-                <button key={c} type="button" onClick={() => setForm(v=>({...v,color:c}))}
-                  style={{ width:'24px', height:'24px', borderRadius:'50%', border: form.color===c ? '3px solid white' : '2px solid transparent', background: COLOR_MAP[c].dot, cursor:'pointer' }} />
-              ))}
-            </div>
-            <div style={{ display:'flex', gap:'8px' }}>
-              <button type="button" className="btn btn-secondary" style={{ flex:1, justifyContent:'center' }} onClick={() => setShowForm(false)}>취소</button>
-              <button type="submit" className="btn btn-primary" style={{ flex:1, justifyContent:'center' }}>등록</button>
-            </div>
-          </form>
-        </div>
-      )}
+      <p className="sc-note">
+        <CrmIcon name="calendar" size={15} />
+        트레이너가 오운 앱 시간표에 넣은 수업이에요. 수업 추가 · 변경은 트레이너 앱에서 해요.
+      </p>
 
-      {/* 주간 뷰 */}
-      {viewMode === 'week' && (
-        <div style={{ display:'grid', gridTemplateColumns:`repeat(7, 1fr)`, gap:'8px' }}>
-          {weekDays.map((day, i) => {
-            const isToday = day.toDateString() === today.toDateString()
-            const daySchedules = schedulesForDay(day)
-            return (
-              <div key={i}>
-                <div style={{ textAlign:'center', padding:'6px 0', fontSize:'11px', fontWeight:600,
-                  color: isToday ? 'var(--accent)' : i >= 5 ? 'var(--red)' : 'var(--text-muted)',
-                  borderBottom:`2px solid ${isToday ? 'var(--accent)' : 'var(--border)'}`, marginBottom:'8px' }}>
-                  {DAYS[i]} <span style={{ display:'block', fontSize:'14px', fontWeight:700 }}>{day.getDate()}</span>
-                </div>
-                <div style={{ display:'flex', flexDirection:'column', gap:'4px', minHeight:'120px' }}>
-                  {daySchedules.length === 0 ? (
-                    <div style={{ fontSize:'10px', color:'var(--text-dim)', textAlign:'center', paddingTop:'12px' }}>—</div>
-                  ) : daySchedules.map(s => {
-                    const cm = COLOR_MAP[s.color] || COLOR_MAP.blue
-                    const bk = bookingsForSchedule(s.id)
-                    const startH = new Date(s.start_at).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false})
+      {error ? (
+        <div className="card db-empty">시간표를 불러오지 못했어요. 새로고침을 눌러 주세요.</div>
+      ) : (
+        <div className="sc-body">
+          <section className="sc-main" aria-label={view === 'week' ? '주간 시간표' : '수업 목록'}>
+            {view === 'week' ? (
+              <div className="sc-week-scroll">
+                <div className={`sc-grid${loading ? ' loading' : ''}`}>
+                  {days.map((d, i) => {
+                    const ds = ymd(d)
+                    const isToday = ds === todayS
+                    const list = byDay[ds] || []
+                    const nowAt = isToday ? list.findIndex(l => l.s > nowMin) : -2
+                    const nowLine = <div className="sc-now" aria-hidden="true"><span>{pad(now.getHours())}:{pad(now.getMinutes())}</span></div>
                     return (
-                      <button key={s.id} onClick={() => setSelected(s)}
-                        style={{ background: s.is_cancelled ? 'var(--surface2)' : cm.bg, border:`1px solid ${s.is_cancelled ? 'var(--border)' : cm.border}`,
-                          borderRadius:'8px', padding:'6px 8px', cursor:'pointer', textAlign:'left', fontFamily:'inherit', opacity: s.is_cancelled ? 0.5 : 1 }}>
-                        <div style={{ fontSize:'10px', color: s.is_cancelled ? 'var(--text-dim)' : cm.dot, fontWeight:700 }}>{startH}</div>
-                        <div style={{ fontSize:'11px', fontWeight:600, color:'var(--text)', marginTop:'2px', lineHeight:1.2,
-                          whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{s.title}</div>
-                        <div style={{ fontSize:'10px', color:'var(--text-dim)', marginTop:'2px' }}>
-                          {bk.length}/{s.max_capacity}명 {s.is_cancelled && '· 취소됨'}
+                      <div key={ds} className={`sc-col${isToday ? ' today' : ''}`}>
+                        <div className={`sc-head${isToday ? ' today' : ''}${i >= 5 ? ' weekend' : ''}`}>
+                          <span>{DOW[i]}</span><b>{d.getDate()}</b>
                         </div>
-                      </button>
+                        <div className="sc-items">
+                          {list.length === 0 && <span className="sc-none">—</span>}
+                          {list.map((l, k) => (
+                            <div key={l.id} className="sc-slot">
+                              {k === nowAt && nowLine}
+                              <button type="button" className={`sc-card${sel?.id === l.id ? ' sel' : ''}`}
+                                style={cardStyle(l)} aria-pressed={sel?.id === l.id}
+                                onClick={() => setSelId(sel?.id === l.id ? null : l.id)}
+                                title={`${l.start}–${l.end || ''} ${l.member_name || '회원'} · ${tName(l.trainer_id)}`}>
+                                <span className="sc-card-top"><b>{l.start}</b>{l.cancelled && <em>취소</em>}</span>
+                                <span className={`sc-card-who${l.cancelled ? ' strike' : ''}`}>{l.member_name || '회원'}</span>
+                                <span className="sc-card-sub">{tName(l.trainer_id)}</span>
+                              </button>
+                            </div>
+                          ))}
+                          {isToday && list.length > 0 && nowAt === -1 && nowLine}
+                        </div>
+                      </div>
                     )
                   })}
                 </div>
               </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* 목록 뷰 */}
-      {viewMode === 'list' && (
-        <div className="card" style={{ padding:0, overflow:'hidden' }}>
-          {schedules.length === 0 ? (
-            <div className="empty-state"><div className="empty-state-icon">📅</div><div className="empty-state-text">이번 주 수업이 없어요</div></div>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-            <table className="data-table">
-              <thead><tr><th>일시</th><th>수업</th><th>트레이너</th><th style={{textAlign:'right'}}>예약/정원</th><th>상태</th><th></th></tr></thead>
-              <tbody>
-                {schedules.map(s => {
-                  const cm = COLOR_MAP[s.color] || COLOR_MAP.blue
-                  const bk = bookingsForSchedule(s.id)
-                  return (
-                    <tr key={s.id} style={{ opacity: s.is_cancelled ? 0.5 : 1 }}>
-                      <td style={{ fontSize:'11px', color:'var(--text-muted)' }}>
-                        {new Date(s.start_at).toLocaleDateString('ko-KR',{month:'short',day:'numeric',weekday:'short'})}<br />
-                        {new Date(s.start_at).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false})}
-                      </td>
-                      <td>
-                        <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
-                          <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:cm.dot, flexShrink:0 }} />
-                          <div>
-                            <div style={{ fontWeight:600, fontSize:'13px' }}>{s.title}</div>
-                            <div style={{ fontSize:'11px', color:'var(--text-dim)' }}>{CLASS_TYPES[s.class_type]}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td style={{ fontSize:'12px', color:'var(--text-muted)' }}>{s.trainer_id ? trainerName(s.trainer_id) : '—'}</td>
-                      <td style={{ textAlign:'right', fontFamily:"'DM Mono',monospace", fontSize:'12px' }}>{bk.length} / {s.max_capacity}</td>
-                      <td>{s.is_cancelled ? <span className="badge" style={{background:'rgba(248,113,113,0.1)',color:'var(--red)'}}>취소됨</span> : <span className="badge" style={{background:'rgba(74,222,128,0.1)',color:'var(--green)'}}>진행 예정</span>}</td>
-                      <td><button className="btn btn-secondary" style={{padding:'4px 10px',fontSize:'11px'}} onClick={() => setSelected(s)}>상세</button></td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 수업 상세 모달 */}
-      <Modal open={!!selected} onClose={() => setSelected(null)} title={selected?.title || ''} maxWidth="480px">
-        {selected && (() => {
-          const cm = COLOR_MAP[selected.color] || COLOR_MAP.blue
-          const bk = bookingsForSchedule(selected.id)
-          const alreadyBooked = bk.map(b => b.member_id)
-          return (
-            <div>
-              <div style={{ background:cm.bg, border:`1px solid ${cm.border}`, borderRadius:'10px', padding:'12px', marginBottom:'16px' }}>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', fontSize:'12px' }}>
-                  {[['수업 종류', CLASS_TYPES[selected.class_type]],
-                    ['담당 트레이너', selected.trainer_id ? trainerName(selected.trainer_id) : '—'],
-                    ['시작', new Date(selected.start_at).toLocaleString('ko-KR',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})],
-                    ['종료', new Date(selected.end_at).toLocaleString('ko-KR',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})],
-                  ].map(([k,v]) => (
-                    <div key={k} style={{ background:'rgba(0,0,0,0.15)', borderRadius:'6px', padding:'8px 10px' }}>
-                      <div style={{ fontSize:'10px', color:cm.dot, marginBottom:'2px' }}>{k}</div>
-                      <div style={{ fontWeight:600 }}>{v}</div>
-                    </div>
-                  ))}
-                </div>
-                {selected.description && <div style={{ marginTop:'8px', fontSize:'12px', color:'var(--text-muted)' }}>{selected.description}</div>}
+            ) : (
+              <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+                <table className="data-table">
+                  <thead><tr><th>날짜</th><th>시간</th><th>회원</th><th>트레이너</th><th>이용권</th><th style={{ textAlign: 'right' }}>잔여</th><th>상태</th></tr></thead>
+                  <tbody>
+                    {rows.length === 0 && <tr><td colSpan={7} className="rev-empty">{loading ? '불러오는 중이에요' : '이번 주 수업이 없어요'}</td></tr>}
+                    {rows.map(l => {
+                      const d = new Date(l.date + 'T00:00:00')
+                      const [cls, label] = stateTag(l)
+                      return (
+                        <tr key={l.id} className="member-row" onClick={() => setSelId(l.id)} style={{ opacity: l.cancelled ? 0.6 : 1 }}>
+                          <td>{d.getMonth() + 1}/{d.getDate()} ({DOW_SUN[d.getDay()]})</td>
+                          <td>{l.start}{l.end ? `–${l.end}` : ''}</td>
+                          <td style={{ fontWeight: 700 }}>{l.member_name || '회원'}</td>
+                          <td>{tName(l.trainer_id)}</td>
+                          <td style={{ color: 'var(--text-muted)' }}>{l.product || '—'}</td>
+                          <td style={{ textAlign: 'right' }}>{l.remain != null ? `${l.remain}회` : '—'}</td>
+                          <td><span className={`db-tag ${cls}`}>{label}</span></td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
+            )}
+          </section>
 
-              {/* 예약 현황 */}
-              <div className="card" style={{ marginBottom:'12px' }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
-                  <div className="card-title" style={{ marginBottom:0 }}>예약 현황 ({bk.length}/{selected.max_capacity})</div>
+          <aside className="sc-side" aria-label="고른 수업">
+            {!sel ? (
+              <div className="sc-side-empty">
+                <CrmIcon name="calendar" size={22} />
+                <p>수업을 누르면 여기에 자세히 보여요</p>
+              </div>
+            ) : (
+              <>
+                <div className="sc-side-head">
+                  <div className="sc-side-when">
+                    <span>{sel.date === todayS ? '오늘' : `${Number(sel.date.slice(5, 7))}월 ${Number(sel.date.slice(8))}일`} {sel.start}{sel.end ? ` – ${sel.end}` : ''}</span>
+                    <button type="button" className="sc-icon-btn plain" aria-label="닫기" onClick={() => setSelId(null)}><CrmIcon name="close" size={16} /></button>
+                  </div>
+                  <h2>{sel.member_name || '회원'}</h2>
+                  <div className="sc-tags">
+                    <span className="db-tag" style={{ background: tone(sel.trainer_id)[0], color: tone(sel.trainer_id)[1] }}>담당 {tName(sel.trainer_id)}</span>
+                    <span className={`db-tag ${stateTag(sel)[0]}`}>{stateTag(sel)[1]}</span>
+                  </div>
                 </div>
-                {bk.length === 0 ? (
-                  <div style={{ fontSize:'12px', color:'var(--text-dim)', textAlign:'center', padding:'12px' }}>예약한 회원이 없어요</div>
-                ) : (
-                  <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                    {bk.map(b => (
-                      <div key={b.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid var(--border)' }}>
-                        <span style={{ fontSize:'13px', fontWeight:500 }}>{b.members?.name || '—'}</span>
-                        <button className="btn btn-secondary" style={{ padding:'3px 8px', fontSize:'10px' }} onClick={() => handleCancelBooking(b.id)}>취소</button>
-                      </div>
-                    ))}
+                <dl className="sc-facts">
+                  <div><dt>이용권</dt><dd>{sel.product || '—'}</dd></div>
+                  <div><dt>남은 횟수</dt><dd>{sel.remain != null ? `${sel.remain}회` : '—'}</dd></div>
+                </dl>
+                {detailMember && onOpenMember && (
+                  <div className="sc-side-foot">
+                    <button type="button" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}
+                      onClick={() => onOpenMember(detailMember)}>회원 상세 열기</button>
                   </div>
                 )}
-                {!selected.is_cancelled && bk.length < selected.max_capacity && (
-                  <div style={{ marginTop:'10px' }}>
-                    <div style={{ fontSize:'11px', color:'var(--text-muted)', marginBottom:'4px' }}>회원 추가 예약</div>
-                    <select className="input" onChange={e => { if(e.target.value) handleBook(selected.id, e.target.value); e.target.value='' }} defaultValue="">
-                      <option value="">회원 선택...</option>
-                      {members.filter(m => !alreadyBooked.includes(m.id)).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                    </select>
-                  </div>
-                )}
-              </div>
-
-              {!selected.is_cancelled && (
-                <button className="btn btn-secondary" style={{ width:'100%', justifyContent:'center', color:'var(--red)', borderColor:'rgba(248,113,113,0.3)' }} onClick={() => handleCancel(selected.id)}>
-                  🚫 수업 취소 처리
-                </button>
-              )}
-            </div>
-          )
-        })()}
-      </Modal>
+              </>
+            )}
+          </aside>
+        </div>
+      )}
     </div>
   )
 }

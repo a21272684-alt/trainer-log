@@ -7,7 +7,7 @@ import { pt, couponCond, errText, LEDGER_KIND } from '../lib/benefits'
 // ── 회원 상세 · 혜택 ─────────────────────────────────────────────
 // 보유 마일리지·쿠폰·마일리지 내역. 쿠폰 발급·직접 조정은 권한자만 (RPC 가 다시 검사).
 
-const mono = { fontFamily: "'DM Mono', monospace" }
+const mono = { fontVariantNumeric: 'tabular-nums' }
 const md = d => String(d).slice(5, 10).replace('-', '/')
 const mdAt = iso => { const d = new Date(iso); return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}` }
 

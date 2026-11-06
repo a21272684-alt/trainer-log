@@ -21,7 +21,7 @@ import { calculatePayroll, getSessionPtAmount, ZERO_PAYROLL } from '../lib/payro
   ─────────────────────────────────────────────────────────────────────────
 */
 
-const mono = { fontFamily: "'DM Mono', monospace" }
+const mono = { fontVariantNumeric: 'tabular-nums' }
 const fmt  = n => Number(n || 0).toLocaleString()
 const fmtW = n => fmt(n) + '원'
 
@@ -58,7 +58,7 @@ function PtBadge({ sc }) {
   const val     = sc?.pt_value
   return isFixed
     ? <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: 600,
-        background: 'rgba(200,241,53,0.1)', color: 'var(--accent)',
+        background: 'rgba(200,241,53,0.1)', color: 'var(--accent-text)',
         border: '1px solid rgba(200,241,53,0.25)' }}>
         고정 {val != null ? fmt(val) + '₩/회' : '미설정'}
       </span>
@@ -79,7 +79,7 @@ function AmountInput({ value, onChange, onBlur, color, placeholder }) {
       style={{ width: '88px', textAlign: 'right', fontSize: '12px', outline: 'none',
         background: 'var(--surface2)', border: '1px solid var(--border)',
         borderRadius: '6px', padding: '4px 8px', color,
-        fontFamily: "'DM Mono', monospace" }} />
+        fontVariantNumeric:'tabular-nums', }} />
   )
 }
 
@@ -458,7 +458,7 @@ export default function StaffPayrollTab({ gymId, trainers = [] }) {
                               width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0,
                               background: 'rgba(200,241,53,0.1)', border: '1px solid rgba(200,241,53,0.2)',
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              fontSize: '11px', fontWeight: 700, color: 'var(--accent)',
+                              fontSize: '11px', fontWeight: 700, color: 'var(--accent-text)',
                             }}>{(t.name || '?')[0]}</div>
                             <div>
                               <div style={{ fontWeight: 600, fontSize: '13px' }}>{t.name || '—'}</div>
@@ -504,7 +504,7 @@ export default function StaffPayrollTab({ gymId, trainers = [] }) {
                         </td>
 
                         {/* 영업 인센티브 */}
-                        <td style={{ textAlign: 'right', ...mono, fontSize: '12px', color: 'var(--accent)' }}>
+                        <td style={{ textAlign: 'right', ...mono, fontSize: '12px', color: 'var(--accent-text)' }}>
                           {p.salesInc > 0
                             ? <>{fmtW(p.salesInc)}
                                 <div style={{ fontSize: '9px', color: 'var(--text-dim)', marginTop: '1px' }}>
@@ -591,7 +591,7 @@ export default function StaffPayrollTab({ gymId, trainers = [] }) {
                       </td>
                       <td style={{ textAlign: 'right', ...mono, fontWeight: 700, color: 'var(--text-muted)' }}>{fmtW(totals.baseSalary)}</td>
                       <td style={{ textAlign: 'right', ...mono, fontWeight: 700, color: 'var(--blue)'       }}>{fmtW(totals.ptPayout)}</td>
-                      <td style={{ textAlign: 'right', ...mono, fontWeight: 700, color: 'var(--accent)'     }}>{fmtW(totals.salesInc)}</td>
+                      <td style={{ textAlign: 'right', ...mono, fontWeight: 700, color: 'var(--accent-text)'     }}>{fmtW(totals.salesInc)}</td>
                       <td style={{ textAlign: 'center',...mono, fontWeight: 700, color: 'var(--green)'      }}>{fmtW(totals.bonus)}</td>
                       <td style={{ textAlign: 'center',...mono, fontWeight: 700, color: 'var(--red)'        }}>{fmtW(totals.deduction)}</td>
                       <td style={{ textAlign: 'right', ...mono, fontWeight: 700,

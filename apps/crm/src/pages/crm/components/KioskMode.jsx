@@ -7,7 +7,7 @@ import { supabase } from '@trainer-log/shared/lib/supabase'
 // 자동문: 추후 'ok' 응답 시 서버에서 열림 명령을 보내도록 연결 예정 (gym_checkins.door_opened).
 // 직원도 본인 전화번호 뒤 4자리 → 출근 / 다시 누르면 퇴근 (090 crm_kiosk_staff_punch).
 
-const mono = { fontFamily: "'DM Mono', monospace" }
+const mono = { fontVariantNumeric: 'tabular-nums' }
 const RESET_MS = { ok: 5000, already: 5000, expired: 8000, notfound: 4000, error: 5000, staff: 5000 }
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '<']
 const MAX_PIN_FAILS = 5
