@@ -1,9 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import Modal from '@trainer-log/shared/components/common/Modal'
-import CommunityReportsTab from './CommunityReportsTab'
 import TrainersPage from './TrainersPage'
 import SubscriptionsPage from './SubscriptionsPage'
+import HomePage from './HomePage'
+import SignupsPage from './SignupsPage'
+import MembersPage from './MembersPage'
+import LogsPage from './LogsPage'
+import NoticesPage from './NoticesPage'
+import CommunityPage from './CommunityPage'
+import PlansPage from './PlansPage'
 import AdminSidebar, { NAV_LABEL, NAV_GROUP_LABEL } from '../components/AdminSidebar'
 import AdminIcon from '../components/AdminIcon'
 import GlobalSearch from '../components/GlobalSearch'
@@ -28,7 +34,7 @@ const ADMIN_PW = import.meta.env.VITE_ADMIN_PASSWORD || FALLBACK_ADMIN_PW
 // 함수 본문 토큰과 정확히 일치해야 함. 토큰 회전 시 053 마이그레이션 + 본 변수 동시 갱신.
 const ADMIN_TOKEN = import.meta.env.VITE_ADMIN_DB_TOKEN || ''
 
-// 무제한 fetch 방어용 페이지 상한
+// 설정 조회 상한
 const ADMIN_LOAD_LIMIT = 100
 
 // app_settings 쓰기는 모두 SECURITY DEFINER RPC 경유 (RLS 정책상 anon 직접 upsert 차단됨)
@@ -63,20 +69,13 @@ function parseSettingValue(raw) {
   try { return JSON.parse(raw) } catch { return raw }
 }
 
-// 개편 1차: 상단 탭은 커뮤니티만. 트레이너·회원 화면은 사이드바 메뉴가 직접 연결 (CRM 권한은 트레이너 상세 패널로).
-// 1:1 문의(support)·자유게시판 관리는 예전에 폐기됨.
-const PORTAL_TABS = {
-  community: [{ id: 'reports', label: '신고함' }, { id: 'posts', label: '게시글' }, { id: 'users', label: '유저' }, { id: 'contacts', label: '연락 요청' }, { id: 'market', label: '마켓 거래 관리' }],
-  // landing 은 아래 LANDING_PORTALS / LANDING_TABS 로 2단계 관리
-}
-
-// 사이드바 메뉴(개편 1차) → 기존 화면(page, subTab). trainers·subscriptions 는 새 화면.
+// 사이드바 메뉴 → 화면(page, subTab). 랜딩·시스템 설정만 예전 편집 화면을 새 뼈대 안에서 그대로 씀.
 const NAV_TARGET = {
-  home: ['dashboard'], trainers: ['trainers'], signups: ['trainer', 'pending'], members: ['member', 'status'],
-  subs: ['subscriptions'], plans: ['trainer', 'plans'], logs: ['trainer', 'logs'], notices: ['member', 'notices'],
-  community: ['community', 'reports'], landing: ['landing', 'hero'], settings: ['system'],
+  home: ['home'], trainers: ['trainers'], signups: ['signups'], members: ['members'],
+  subs: ['subscriptions'], plans: ['plans'], logs: ['logs'], notices: ['notices'],
+  community: ['community'], landing: ['landing', 'hero'], settings: ['system'],
 }
-const NEW_PAGES = ['trainers', 'subscriptions']
+const NEW_PAGES = ['home', 'trainers', 'signups', 'members', 'subscriptions', 'plans', 'logs', 'notices', 'community']
 
 // 후기 사진 세로 포커스(0~100%) → object-position. 옛 photo_position(top/center/bottom) 자동 매핑.
 const reviewFocusY = (r) =>
@@ -135,10 +134,11 @@ function normGates(g) {
 
 // ── 랜딩 2단계 네비 ──────────────────────────────────────────
 const LANDING_PORTALS = [
-  { id: 'main', label: '🌐 메인 랜딩' },
-  { id: 'community', label: '🤝 커뮤니티 랜딩' },
-  { id: 'crm', label: '🏢 CRM 랜딩' },
+  { id: 'main', label: '메인' },
+  { id: 'community', label: '커뮤니티' },
+  { id: 'crm', label: 'CRM' },
 ]
+const LANDING_SITE_URL = { main: 'https://ownapp.kr', community: 'https://community.ownapp.kr' }
 const LANDING_TABS = {
   main: [
     { id: 'hero', label: '히어로' },
@@ -284,30 +284,6 @@ const DEFAULT_LANDING_PLANS_LANDING = [
   { name: 'Pro 플랜', price: '준비 중', period: '출시 예정', highlight: true, tag: '곧 출시', features: ['AI 수업일지 무제한', '회원 관리 무제한', '이탈위험 자동 감지', '고용형태별 세금 계산', '주간 센터 리포트', '우선 고객 지원'], cta: '출시 알림 받기', ctaLink: 'mailto:support@trainerlog.app?subject=Pro 플랜 출시 알림 신청', note: '얼리어답터 할인 예정' },
 ]
 
-const COMM_CAT_LABEL = {
-  trainer_lesson_recruit: '레슨 회원 모집',
-  member_seeks_trainer: '나만의 트레이너 찾기',
-  instructor_seeks_student: '수강생 구인',
-  gym_seeks_trainer: '트레이너 채용',
-  trainer_seeks_gym: '센터 구직',
-}
-
-// 커뮤니티 역할 옵션 (권한 설정 모달에서 사용)
-const COMM_ROLE_OPTIONS = [
-  { key: 'trainer', label: '트레이너', emoji: '💪', color: '#c8f135', desc: '수업일지·구인 작성' },
-  { key: 'member', label: '회원', emoji: '🏃', color: '#4fc3f7', desc: '트레이너 찾기 작성' },
-  { key: 'gym_owner', label: '헬스장 대표', emoji: '🏢', color: '#e040fb', desc: '채용공고·제휴 작성' },
-  { key: 'educator', label: '교육강사', emoji: '📚', color: '#ff9800', desc: '교육과정·마켓 작성' },
-]
-const COMM_ROLE_LABEL = { trainer: '트레이너', member: '회원', instructor: '교육강사', gym_owner: '헬스장 대표' }
-
-const CAT_COLOR = {
-  trainer_lesson_recruit: { bg: 'rgba(200,241,53,0.12)', color: '#c8f135' },
-  member_seeks_trainer: { bg: 'rgba(79,195,247,0.12)', color: '#4fc3f7' },
-  instructor_seeks_student: { bg: 'rgba(255,152,0,0.12)', color: '#ff9800' },
-  gym_seeks_trainer: { bg: 'rgba(224,64,251,0.12)', color: '#e040fb' },
-  trainer_seeks_gym: { bg: 'rgba(255,92,92,0.12)', color: '#ff5c5c' },
-}
 
 export default function AdminPortal() {
   // ─── 자체 Toast 시스템 (admin-main.jsx 진입점은 ToastProvider 미포함 → 자체 구현) ───
@@ -342,24 +318,10 @@ export default function AdminPortal() {
   const [loggedIn, setLoggedIn] = useState(readSession)
   const [adminId, setAdminId] = useState('')
   const [pw, setPw] = useState('')
-  const [busyMap, setBusyMap] = useState({}) // 모더레이션 중복 클릭 방어용
-  const isBusy = (k) => !!busyMap[k]
-  const startBusy = (k) => setBusyMap(prev => ({ ...prev, [k]: true }))
-  const endBusy = (k) => setBusyMap(prev => { const n = { ...prev }; delete n[k]; return n })
-  const [page, setPage] = useState('dashboard')
+  const [page, setPage] = useState('home')
   const [subTab, setSubTab] = useState('')
   const [landingSite, setLandingSite] = useState('main') // 'main' | 'community' | 'crm'
 
-  const [trainers, setTrainers] = useState([])
-  const [members, setMembers] = useState([])
-  const [logs, setLogs] = useState([])
-  const [subs, setSubs] = useState([])
-  const [commUsers, setCommUsers] = useState([])
-  const [commPosts, setCommPosts] = useState([])
-  const [commContacts, setCommContacts] = useState([])
-  const [marketPurchases, setMarketPurchases] = useState([])
-
-  const [logPeriod, setLogPeriod] = useState('day')
   // 개편 1차 — 메뉴 · 통합 검색 · 상세 패널 · 구독 창
   const [nav, setNav] = useState('home')
   const [searchOpen, setSearchOpen] = useState(false)
@@ -369,8 +331,9 @@ export default function AdminPortal() {
   const [subAdd, setSubAdd] = useState(null)        // { preset } — preset 없으면 트레이너 검색부터
   const [refreshKey, setRefreshKey] = useState(0)   // 변경 후 목록·패널 다시 불러오기
   const [trainerPreset, setTrainerPreset] = useState(null) // 통합 검색 '전체 보기' → { q, key }
-  const [trainerTotal, setTrainerTotal] = useState(null)
+  const [navCounts, setNavCounts] = useState({})      // 사이드바 숫자 (서버 집계)
   const [subsSoonLive, setSubsSoonLive] = useState(null)
+  const [subsSoonBase, setSubsSoonBase] = useState(0)
 
   // 트레이너 사전 등록 (화이트리스트)
   const [trainerRegModal, setTrainerRegModal] = useState(false)
@@ -387,17 +350,10 @@ export default function AdminPortal() {
   const [plans, setPlans] = useState(DEFAULT_PLANS)
   const [planEditModal, setPlanEditModal] = useState(null)
 
-  // 커뮤니티 유저 권한 관리
-  const [commPermModal, setCommPermModal] = useState(null) // community_users row
 
   // (제거됨) 1:1 문의 관리 — 카카오 채널 외부 우회로 폐기. inquiries 테이블 호출 0건.
   // (제거됨) 자유게시판 관리(freePosts) — admin 모더레이션 폐기.
 
-  // 공지사항 관리
-  const [notices, setNotices] = useState([])
-  const [noticeModal, setNoticeModal] = useState(false)
-  const [noticeEditId, setNoticeEditId] = useState(null)
-  const [noticeForm, setNoticeForm] = useState({ title: '', content: '', is_pinned: false })
 
   // 랜딩페이지 관리
   const [landingStats, setLandingStats] = useState(DEFAULT_LANDING_STATS)
@@ -431,8 +387,6 @@ export default function AdminPortal() {
   const [featureGates, setFeatureGates] = useState(DEFAULT_FEATURE_GATES)
 
   // 크레딧 / API 키 관리
-  const [centralApiKey, setCentralApiKey] = useState('')
-  const [apiKeyLoaded, setApiKeyLoaded] = useState(false)
   const [urgentInquiryUrl, setUrgentInquiryUrl] = useState('')   // 긴급문의 카카오 오픈채팅 링크
   // 로그인 후 공지 (app_settings.login_notice). 트레이너/회원 앱 로그인 시 모달 노출.
   const [loginNotice, setLoginNotice] = useState({
@@ -495,43 +449,34 @@ export default function AdminPortal() {
     return () => window.removeEventListener('keydown', onKey)
   }, [loggedIn])
 
-  // 사이드바 트레이너 수 — 서버 집계 (예전 목록은 100명까지만 불러와 숫자가 틀려질 수 있음)
+  // 사이드바 숫자 — 서버 집계 (예전 목록은 100명까지만 불러와 숫자가 틀려질 수 있었음)
   useEffect(() => {
     if (!loggedIn) return
-    adminRpc('admin_search_trainers', { p_limit: 1 }).then(r => setTrainerTotal(r?.total ?? null)).catch(() => {})
+    adminRpc('admin_home_overview').then(r => setNavCounts(r?.counts || {})).catch(() => {})
+    adminRpc('admin_subscription_overview').then(r => {
+      const t = r?.today || seoulToday()
+      setSubsSoonBase((r?.rows || []).filter(x => x.sub && subStatus(x.sub, t).key === 'soon').length)
+    }).catch(() => {})
   }, [loggedIn, refreshKey])
 
   async function loadAll() {
     try {
-      // inquiries / member_posts 조회 제거 — 1:1 문의·자유게시판 관리 기능 폐기
-      // RLS strict (050/051) 적용 후 trainers/members/logs 직접 SELECT 가 anon key 로
-      // 0행 반환 → SECURITY DEFINER admin RPC (052) 경유. 정렬·페이징은 함수 내부 처리.
-      const [t, m, l, s, cu, cp, cc, settings, ntc, sigReq] = await Promise.all([
-        supabase.rpc('admin_list_trainers', { p_admin_token: ADMIN_TOKEN }),
-        supabase.rpc('admin_list_members', { p_admin_token: ADMIN_TOKEN }),
-        supabase.rpc('admin_list_logs', { p_admin_token: ADMIN_TOKEN, p_limit: ADMIN_LOAD_LIMIT }),
-        // subscriptions 는 RLS 로 anon 읽기 차단 → 토큰 가드 RPC (097)
-        supabase.rpc('admin_list_subscriptions', { p_admin_token: ADMIN_TOKEN, p_limit: ADMIN_LOAD_LIMIT }),
-        supabase.from('community_users').select('*').order('created_at', { ascending: false }).limit(ADMIN_LOAD_LIMIT),
-        supabase.from('community_posts').select('*, author:community_users(name,role)').order('created_at', { ascending: false }).limit(ADMIN_LOAD_LIMIT),
-        supabase.from('community_contacts').select('*, requester:community_users(name,role), post:community_posts(title)').order('created_at', { ascending: false }).limit(ADMIN_LOAD_LIMIT),
+      // 목록 화면(트레이너·회원·일지·구독·커뮤니티·공지)은 각 화면이 서버 검색 RPC 로 직접 불러옴.
+      // 여기서는 설정값과 가입 요청만.
+      const [settings, sigReq] = await Promise.all([
         // 랜딩 17개 파편 키 → landing_v1 단일 객체로 통합 (N+1 설정 렌더링 폭탄 제거)
         // 'plan_guide_visible', 'plans', 'gemini_api_key', 'feature_gates', 'urgent_inquiry_url'
         // 위 5개는 도메인이 다른 일반 설정이므로 그대로 유지.
         supabase.from('app_settings').select('key, value').in('key', [
-          'plan_guide_visible', 'plans', 'gemini_api_key',
+          'plan_guide_visible', 'plans',
           'landing_v1',
           'feature_gates', 'urgent_inquiry_url',
           'legal_terms', 'legal_privacy', 'legal_refund',
           'login_notice',
         ]).limit(ADMIN_LOAD_LIMIT),
-        supabase.from('notices').select('*').order('is_pinned', { ascending: false }).order('created_at', { ascending: false }).limit(ADMIN_LOAD_LIMIT),
         // 053 — 트레이너 가입 승인 대기열. p_status=NULL 로 전체 페치 후 UI 측에서 필터.
         supabase.rpc('admin_list_signup_requests', { p_admin_token: ADMIN_TOKEN, p_status: null }),
       ])
-      setTrainers(t.data || []); setMembers(m.data || []); setLogs(l.data || []); setSubs(s.data || [])
-      setCommUsers(cu.data || []); setCommPosts(cp.data || []); setCommContacts(cc.data || [])
-      setNotices(ntc.data || [])
       setSignupRequests(sigReq.data || [])
       if (settings.data) {
         // 일반 설정 (도메인 분리)
@@ -584,10 +529,6 @@ export default function AdminPortal() {
         const fGatesParsed = parseSettingValue(fGatesRaw?.value)
         if (fGatesParsed?.free) setFeatureGates(normGates(fGatesParsed))
 
-        const apiKeyRow = settings.data.find(r => r.key === 'gemini_api_key')
-        const apiKeyParsed = parseSettingValue(apiKeyRow?.value)
-        if (apiKeyParsed) setCentralApiKey(String(apiKeyParsed).replace(/^"|"$/g, ''))
-
         const urgentRow = settings.data.find(r => r.key === 'urgent_inquiry_url')
         const urgentParsed = parseSettingValue(urgentRow?.value)
         if (urgentParsed) setUrgentInquiryUrl(String(urgentParsed).replace(/^"|"$/g, ''))
@@ -622,7 +563,6 @@ export default function AdminPortal() {
         if (legalPrivacyRow?.value != null) setLegalPrivacy(pickLegalText(legalPrivacyRow.value))
         if (legalRefundRow?.value  != null) setLegalRefund( pickLegalText(legalRefundRow.value))
 
-        setApiKeyLoaded(true)
       }
     } catch (e) { showToast('데이터 로드 오류: ' + e.message) }
   }
@@ -656,17 +596,6 @@ export default function AdminPortal() {
   // 하므로 저장 실패 시 입력값 그대로 남음. 새로고침 시 DB 값으로 복원됨. 베타 OK.
   // 후속 개선: lastSavedFeatureGates 별도 추적 → 저장 실패 시 그쪽으로 정확히 롤백.
   function saveMemberLimit() { saveFeatureGates(featureGates) }
-
-  // 중앙 API 키 저장 (RPC 경유)
-  async function saveCentralApiKey() {
-    try {
-      await adminUpsertSetting('gemini_api_key', centralApiKey)
-      showToast('✓ API 키가 저장됐어요')
-    } catch (e) {
-      console.error('API 키 저장 오류:', e)
-      showToast('오류: ' + (e?.message || '저장 실패'))
-    }
-  }
 
   // 긴급문의 링크 저장 (RPC 경유)
   async function saveUrgentInquiryUrl() {
@@ -721,169 +650,6 @@ export default function AdminPortal() {
     }
   }
 
-  // ===== COMMUNITY =====
-  async function commClosePost(postId) {
-    const k = `commClose:${postId}`
-    if (isBusy(k)) return
-    startBusy(k)
-    try {
-      const { error } = await supabase.from('community_posts').update({ status: 'closed' }).eq('id', postId)
-      if (error) throw error
-      setCommPosts(prev => prev.map(p => p.id === postId ? { ...p, status: 'closed' } : p))
-      showToast('마감 처리했습니다')
-    } catch (e) {
-      console.error('마감 처리 오류:', e)
-      showToast('마감 처리 실패: ' + (e?.message || '네트워크 오류'))
-    } finally {
-      endBusy(k)
-    }
-  }
-
-  async function commDeletePost(postId) {
-    const k = `commDeletePost:${postId}`
-    if (isBusy(k)) return
-    if (!window.confirm('게시글을 삭제할까요?')) return
-    startBusy(k)
-    try {
-      const { error } = await supabase.from('community_posts').delete().eq('id', postId)
-      if (error) throw error
-      setCommPosts(prev => prev.filter(p => p.id !== postId))
-      showToast('삭제했습니다')
-    } catch (e) {
-      console.error('게시글 삭제 오류:', e)
-      showToast('삭제 실패: ' + (e?.message || '네트워크 오류'))
-    } finally {
-      endBusy(k)
-    }
-  }
-
-  async function commDeleteUser(userId) {
-    const k = `commDeleteUser:${userId}`
-    if (isBusy(k)) return
-    if (!window.confirm('이 유저를 삭제할까요? 작성한 글과 연락 요청도 모두 삭제됩니다.')) return
-    startBusy(k)
-    try {
-      const { error } = await supabase.from('community_users').delete().eq('id', userId)
-      if (error) throw error
-      setCommUsers(prev => prev.filter(u => u.id !== userId))
-      setCommPosts(prev => prev.filter(p => p.author?.id !== userId))
-      showToast('유저를 삭제했습니다')
-    } catch (e) {
-      console.error('유저 삭제 오류:', e)
-      showToast('유저 삭제 실패: ' + (e?.message || '네트워크 오류'))
-    } finally {
-      endBusy(k)
-    }
-  }
-  async function loadMarketPurchases() {
-    try {
-      const { data, error } = await supabase
-        .from('market_purchases')
-        .select('*, buyer:community_users!buyer_id(name, role), seller:community_users!seller_id(name, role), item:community_posts!post_id(title, price)')
-        .order('purchased_at', { ascending: false })
-        .limit(200)
-      if (error) throw new Error(error.message)
-      setMarketPurchases(data || [])
-    } catch (e) {
-      showToast('마켓 거래 내역 로드 실패: ' + e.message)
-    }
-  }
-
-  useEffect(() => {
-    if (loggedIn && page === 'community' && subTab === 'market' && marketPurchases.length === 0) {
-      loadMarketPurchases()
-    }
-  }, [loggedIn, page, subTab])
-
-  // ===== 공지사항 =====
-  async function saveNotice() {
-    if (!noticeForm.title.trim()) { showToast('제목을 입력해주세요'); return }
-    if (!noticeForm.content.trim()) { showToast('내용을 입력해주세요'); return }
-    try {
-      if (noticeEditId) {
-        const { error } = await supabase.from('notices')
-          .update({ title: noticeForm.title.trim(), content: noticeForm.content.trim(), is_pinned: noticeForm.is_pinned })
-          .eq('id', noticeEditId)
-        if (error) throw error
-        setNotices(prev => prev.map(n => n.id === noticeEditId ? { ...n, ...noticeForm } : n).sort((a, b) => b.is_pinned - a.is_pinned || new Date(b.created_at) - new Date(a.created_at)))
-        showToast('✓ 공지사항이 수정됐어요')
-      } else {
-        const { data, error } = await supabase.from('notices').insert({
-          title: noticeForm.title.trim(), content: noticeForm.content.trim(),
-          is_pinned: noticeForm.is_pinned, author_name: '관리자',
-        }).select().single()
-        if (error) throw error
-        setNotices(prev => [data, ...prev].sort((a, b) => b.is_pinned - a.is_pinned || new Date(b.created_at) - new Date(a.created_at)))
-        showToast('✓ 공지사항이 등록됐어요')
-      }
-      setNoticeModal(false); setNoticeForm({ title: '', content: '', is_pinned: false }); setNoticeEditId(null)
-    } catch (e) { showToast('오류: ' + e.message) }
-  }
-  async function deleteNotice(noticeId) {
-    const k = `deleteNotice:${noticeId}`
-    if (isBusy(k)) return
-    if (!window.confirm('공지사항을 삭제할까요?')) return
-    startBusy(k)
-    try {
-      const { error } = await supabase.from('notices').delete().eq('id', noticeId)
-      if (error) throw error
-      setNotices(prev => prev.filter(n => n.id !== noticeId))
-      showToast('삭제됐어요')
-    } catch (e) {
-      console.error('공지사항 삭제 오류:', e)
-      showToast('삭제 실패: ' + (e?.message || '네트워크 오류'))
-    } finally {
-      endBusy(k)
-    }
-  }
-  function openNoticeEdit(notice) {
-    setNoticeEditId(notice.id)
-    setNoticeForm({ title: notice.title, content: notice.content, is_pinned: notice.is_pinned })
-    setNoticeModal(true)
-  }
-
-  // (제거됨) 자유게시판 모더레이션(deleteFreeBoardPost) — admin 모더레이션 폐기.
-
-  // ===== 커뮤니티 유저 권한 =====
-  async function saveCommUserPerms(userId, newPerms) {
-    // admin_permissions 는 jsonb 컬럼 — supabase-js 가 자동 직렬화하므로 객체 그대로 전달.
-    // 다만 잘못된 입력(string/array 등)이 들어오면 jsonb 캐스팅 실패하므로 객체로 강제 정규화.
-    const safePerms = (newPerms && typeof newPerms === 'object' && !Array.isArray(newPerms))
-      ? newPerms
-      : {}
-    try {
-      const { error } = await supabase
-        .from('community_users')
-        .update({ admin_permissions: safePerms })
-        .eq('id', userId)
-      if (error) throw error
-      setCommUsers(prev => prev.map(u => u.id === userId ? { ...u, admin_permissions: safePerms } : u))
-      // 모달 데이터도 동기화
-      setCommPermModal(prev => prev ? { ...prev, admin_permissions: safePerms } : null)
-      return true
-    } catch (e) {
-      console.error('권한 저장 오류:', e)
-      showToast('오류: ' + (e?.message || '권한 저장 실패'))
-      return false
-    }
-  }
-  async function toggleCommBan(userId, banned) {
-    const user = commUsers.find(u => u.id === userId)
-    const newPerms = { ...(user?.admin_permissions || {}), banned }
-    const ok = await saveCommUserPerms(userId, newPerms)
-    if (ok) showToast(banned ? '🚫 접근이 차단됐습니다' : '✓ 접근이 허용됐습니다')
-  }
-  async function toggleExtraRole(userId, roleKey, hasRole) {
-    const user = commUsers.find(u => u.id === userId)
-    const current = user?.admin_permissions || {}
-    const extras = current.extra_roles || []
-    const newExtras = hasRole ? extras.filter(r => r !== roleKey) : [...extras, roleKey]
-    const newPerms = { ...current, extra_roles: newExtras }
-    await saveCommUserPerms(userId, newPerms)
-  }
-
-  // (제거됨) 1:1 문의 답변(submitAnswer) — 카카오 채널 외부 우회로 폐기.
-
   // ===== 플랜 관리 (RPC 경유) =====
   // RPC value 컬럼이 text 기대 시 boolean 직삽입은 P0001 unauthorized/타입 오류를 유발 → 문자열로 강제 변환.
   async function savePlanVisibility(visible) {
@@ -916,18 +682,6 @@ export default function AdminPortal() {
   const openPlanEdit = (plan) => setPlanEditModal({ ...plan, featuresText: plan.features.join('\n') })
   const closePlanEdit = () => setPlanEditModal(null)
 
-  // ===== LOGS FILTER =====
-  const filterLogsByPeriod = (allL, period) => {
-    const now = new Date()
-    return allL.filter(l => {
-      const d = new Date(l.created_at)
-      if (period === 'day') return d.toDateString() === now.toDateString()
-      if (period === 'week') { const w = new Date(now); w.setDate(now.getDate() - 7); return d >= w }
-      if (period === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-      return true
-    })
-  }
-
   // ===== 트레이너 사전 등록 (화이트리스트) =====
   async function registerTrainer() {
     const name = trainerRegForm.name.trim()
@@ -953,7 +707,6 @@ export default function AdminPortal() {
       setTrainerRegModal(false)
       setTrainerRegForm({ name: '', email: '' })
       bump()
-      await loadAll()
     } catch (e) {
       alert('오류: ' + e.message)
     } finally {
@@ -972,7 +725,7 @@ export default function AdminPortal() {
       })
       if (error) { alert('승인 실패: ' + error.message); return }
       alert('✓ 승인됐어요. 트레이너로 등록되었습니다.')
-      await loadAll()
+      await loadAll(); bump()
     } catch (e) {
       alert('오류: ' + e.message)
     } finally {
@@ -1065,24 +818,8 @@ export default function AdminPortal() {
   }
 
   // ===== COMPUTED =====
-  const today = new Date().toDateString()
-  const todayLogs = logs.filter(l => new Date(l.created_at).toDateString() === today)
-  const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7)
-  const activeTrainers = new Set(logs.filter(l => new Date(l.created_at) > weekAgo).map(l => l.trainer_id)).size
-  const filteredLogs = filterLogsByPeriod(logs, logPeriod)
-  const periodLabel = { day: '오늘', week: '이번 주', month: '이번 달' }[logPeriod]
-
   // 사이드바 배지 — 곧 만료되는 구독(30일 이내) 트레이너 수. 구독 화면을 열면 그 화면 값으로 갱신.
-  const subsSoonFromList = (() => {
-    const latest = {}
-    for (const s of subs) {
-      if (s.voided_at) continue
-      if (!latest[s.trainer_id] || String(s.valid_until) > String(latest[s.trainer_id].valid_until)) latest[s.trainer_id] = s
-    }
-    const t = seoulToday()
-    return Object.values(latest).filter(s => subStatus(s, t).key === 'soon').length
-  })()
-  const subsSoon = subsSoonLive ?? subsSoonFromList
+  const subsSoon = subsSoonLive ?? subsSoonBase
   const signupsPending = signupRequests.filter(r => r.status === 'pending').length
 
   // ── 랜딩 저장 헬퍼 (단일 landing_v1 객체 통합 저장) ─────────
@@ -1251,7 +988,7 @@ export default function AdminPortal() {
       <AdminSidebar
         active={nav}
         onNavigate={go}
-        counts={{ trainers: trainerTotal, members: members.length < ADMIN_LOAD_LIMIT ? members.length : undefined }}
+        counts={{ trainers: navCounts.trainers, members: navCounts.members }}
         alerts={{ signups: signupsPending, subs: subsSoon }}
         onLogout={logout}
       />
@@ -1267,6 +1004,31 @@ export default function AdminPortal() {
         </header>
 
         <div className="adm-content">
+          {page === 'home' && (
+            <HomePage onNavigate={go} onOpenTrainer={openTrainer} refreshKey={refreshKey} showToast={showToast} />
+          )}
+          {page === 'signups' && (
+            <SignupsPage requests={signupRequests} busyId={signupActionId}
+              onApprove={approveSignupRequest} onReject={rejectSignupRequest} onDelete={deleteSignupRequest} />
+          )}
+          {page === 'members' && (
+            <MembersPage onOpenTrainer={openTrainer} refreshKey={refreshKey} showToast={showToast} />
+          )}
+          {page === 'plans' && (
+            <PlansPage plans={plans} planGuideVisible={planGuideVisible} onToggleVisible={savePlanVisibility}
+              onTogglePlan={togglePlanEnabled} onEditPlan={openPlanEdit}
+              featureGates={featureGates} featureDefs={FEATURE_DEFS} onToggleGate={toggleGate}
+              onSetMemberLimit={setMemberLimit} onSaveMemberLimit={saveMemberLimit} />
+          )}
+          {page === 'logs' && (
+            <LogsPage onOpenTrainer={openTrainer} refreshKey={refreshKey} showToast={showToast} />
+          )}
+          {page === 'notices' && (
+            <NoticesPage loginNotice={loginNotice} setLoginNotice={setLoginNotice} onSaveLogin={saveLoginNotice} showToast={showToast} />
+          )}
+          {page === 'community' && (
+            <CommunityPage refreshKey={refreshKey} showToast={showToast} />
+          )}
           {page === 'trainers' && (
             <TrainersPage
               onOpenTrainer={openTrainer}
@@ -1289,491 +1051,50 @@ export default function AdminPortal() {
             />
           )}
 
-          {/* ── 2차 개편 전 화면: 기존 내용 그대로 새 뼈대 안에 ── */}
-          {!NEW_PAGES.includes(page) && (<div className="adm-legacy">
-          {nav === 'plans' && (
-            <div className="adm-legacy-tabs" role="tablist" aria-label="플랜 · 기능 권한">
-              <button type="button" role="tab" aria-selected={page === 'trainer'} className={page === 'trainer' ? 'is-active' : ''} onClick={() => { setPage('trainer'); setSubTab('plans') }}>플랜 안내</button>
-              <button type="button" role="tab" aria-selected={page === 'features'} className={page === 'features' ? 'is-active' : ''} onClick={() => setPage('features')}>기능 권한</button>
-            </div>
-          )}
+          {/* ── 랜딩 · 시스템 설정: 기존 편집 화면을 새 뼈대 안에 ── */}
+          {!NEW_PAGES.includes(page) && (<div className={`adm-legacy${page === 'landing' ? ' adm-legacy--landing' : ''}`}>
           {nav === 'settings' && (
-            <div className="adm-legacy-tabs" role="tablist" aria-label="시스템 설정">
-              <button type="button" role="tab" aria-selected={page === 'system'} className={page === 'system' ? 'is-active' : ''} onClick={() => setPage('system')}>운영 설정 · 로그인 공지</button>
-              <button type="button" role="tab" aria-selected={page === 'legal'} className={page === 'legal' ? 'is-active' : ''} onClick={() => setPage('legal')}>법적 고지</button>
-            </div>
+            <header className="adm-page-head" style={{ marginBottom: 14 }}>
+              <div>
+                <p className="adm-page-crumb">사이트·설정</p>
+                <h1 className="adm-page-title">시스템 설정</h1>
+              </div>
+              <div className="adm-legacy-tabs" role="tablist" aria-label="시스템 설정" style={{ marginBottom: 0 }}>
+                <button type="button" role="tab" aria-selected={page === 'system'} className={page === 'system' ? 'is-active' : ''} onClick={() => setPage('system')}>운영 설정</button>
+                <button type="button" role="tab" aria-selected={page === 'legal'} className={page === 'legal' ? 'is-active' : ''} onClick={() => setPage('legal')}>약관 · 개인정보 · 환불</button>
+              </div>
+            </header>
           )}
 
-
-          {/* PORTAL SUB-TABS (landing 제외) */}
-          {page !== 'dashboard' && page !== 'landing' && PORTAL_TABS[page] && (
-            <div className="portal-tab-bar">
-              {PORTAL_TABS[page].map(tab => (
-                <button key={tab.id} className={`portal-tab-btn${subTab === tab.id ? ' active' : ''}`} onClick={() => setSubTab(tab.id)}>
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* LANDING 2단계 네비 */}
+          {/* 랜딩: 왼쪽 = 사이트 선택 + 섹션 목록, 오른쪽 = 고르는 섹션 편집 */}
           {page === 'landing' && (
-            <>
-              {/* Level 1: 포털 선택 */}
-              <div className="portal-tab-bar" style={{ background: 'var(--surface-2,#1a1a24)', borderBottom: '2px solid var(--border)' }}>
+            <aside className="adm-landing-nav" aria-label="랜딩 섹션">
+              <p className="adm-page-crumb" style={{ padding: '0 4px' }}>사이트·설정</p>
+              <h1 className="adm-page-title" style={{ padding: '0 4px', margin: '2px 0 12px' }}>랜딩 페이지</h1>
+              <div className="adm-landing-sites" role="tablist" aria-label="사이트">
                 {LANDING_PORTALS.map(p => (
-                  <button
-                    key={p.id}
-                    className={`portal-tab-btn${landingSite === p.id ? ' active' : ''}`}
-                    style={landingSite === p.id ? { fontWeight: 800 } : {}}
-                    onClick={() => switchLandingSite(p.id)}
-                  >
+                  <button key={p.id} type="button" role="tab" aria-selected={landingSite === p.id}
+                    className={landingSite === p.id ? 'is-active' : ''} onClick={() => switchLandingSite(p.id)}>
                     {p.label}
                   </button>
                 ))}
               </div>
-              {/* Level 2: 섹션 탭 */}
-              <div className="portal-tab-bar">
-                {LANDING_TABS[landingSite].map(tab => (
-                  <button key={tab.id} className={`portal-tab-btn${subTab === tab.id ? ' active' : ''}`} onClick={() => setSubTab(tab.id)}>
-                    {tab.label}
+              <nav className="adm-landing-sections">
+                {LANDING_TABS[landingSite].map((tab, i) => (
+                  <button key={tab.id} type="button" aria-current={subTab === tab.id ? 'true' : undefined}
+                    className={subTab === tab.id ? 'is-active' : ''} onClick={() => setSubTab(tab.id)}>
+                    <span className="adm-landing-no">{i + 1}</span>{tab.label}
                   </button>
                 ))}
-              </div>
-            </>
-          )}
-
-          {/* ==================== DASHBOARD ==================== */}
-          {page === 'dashboard' && (
-            <div>
-              <div className="section-title">대시보드</div>
-              <div className="section-label">트레이너 · 회원 현황</div>
-              <div className="stat-grid">
-                <div className="stat-card"><div className="stat-num">{trainers.length}</div><div className="stat-label">전체 트레이너</div><div className="stat-sub">활성 {activeTrainers}명 / 7일</div></div>
-                <div className="stat-card"><div className="stat-num">{members.length}</div><div className="stat-label">전체 회원</div></div>
-                <div className="stat-card"><div className="stat-num">{logs.length}</div><div className="stat-label">총 수업일지</div><div className="stat-sub">오늘 {todayLogs.length}건</div></div>
-                <div className="stat-card"><div className="stat-num">{subs.length}</div><div className="stat-label">총 결제 건수</div></div>
-              </div>
-              <div className="section-label">커뮤니티 현황</div>
-              <div className="stat-grid">
-                <div className="stat-card"><div className="stat-num" style={{ color: '#4fc3f7' }}>{commUsers.length}</div><div className="stat-label">커뮤니티 유저</div></div>
-                <div className="stat-card"><div className="stat-num" style={{ color: '#4fc3f7' }}>{commPosts.filter(p => p.status === 'active').length}</div><div className="stat-label">활성 게시글</div><div className="stat-sub">전체 {commPosts.length}건</div></div>
-                <div className="stat-card"><div className="stat-num" style={{ color: '#4fc3f7' }}>{commContacts.filter(c => c.status === 'pending').length}</div><div className="stat-label">대기 연락 요청</div></div>
-                <div className="stat-card"><div className="stat-num" style={{ color: '#4fc3f7' }}>{commContacts.filter(c => c.status === 'accepted').length}</div><div className="stat-label">매칭 성사</div></div>
-              </div>
-              <div className="section-label">CRM 현황</div>
-              <div className="stat-grid">
-                <div className="stat-card"><div className="stat-num" style={{ color: '#a78bfa' }}>{trainers.filter(t => (t.crm_permissions?.crm_access || t.crm_permissions?.enabled)).length}</div><div className="stat-label">CRM 활성 트레이너</div></div>
-                <div className="stat-card"><div className="stat-num" style={{ color: '#a78bfa' }}>{trainers.length - trainers.filter(t => (t.crm_permissions?.crm_access || t.crm_permissions?.enabled)).length}</div><div className="stat-label">CRM 미사용</div></div>
-              </div>
-              <div className="section-label">오늘의 활동</div>
-              <div className="card">
-                <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-                  <div><div style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>오늘 수업일지</div><div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--accent)', fontFamily: "'DM Mono',monospace" }}>{todayLogs.length}건</div></div>
-                  <div><div style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>이번주 활성 트레이너</div><div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--accent)', fontFamily: "'DM Mono',monospace" }}>{activeTrainers}명</div></div>
-                  <div><div style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>전체 회원 평균 세션</div><div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--accent)', fontFamily: "'DM Mono',monospace" }}>{members.length ? Math.round(members.reduce((s, m) => s + m.done_sessions, 0) / members.length) : 0}회</div></div>
-                </div>
-              </div>
-              <div className="section-label">최근 수업일지</div>
-              {logs.slice(0, 5).map(l => {
-                const trainer = trainers.find(t => t.id === l.trainer_id)
-                const member = members.find(m => m.id === l.member_id)
-                const d = new Date(l.created_at)
-                return (
-                  <div className="card" key={l.id} style={{ marginBottom: '8px', padding: '12px 16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 500 }}>{member?.name || '?'} 회원님 · {l.session_number}회차</span>
-                      <span style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: "'DM Mono',monospace" }}>{d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} {d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</span>
-                    </div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>트레이너: {trainer?.name || '?'}</div>
-                  </div>
-                )
-              })}
-              {!logs.length && <div className="empty">수업일지가 없어요</div>}
-            </div>
-          )}
-
-          {/* ==================== 트레이너 포털 ==================== */}
-          {page === 'trainer' && subTab === 'pending' && (() => {
-            const filtered = signupRequests.filter(r => !signupFilter || r.status === signupFilter)
-            const pendingCount = signupRequests.filter(r => r.status === 'pending').length
-            const rejectedCount = signupRequests.filter(r => r.status === 'rejected').length
-            const approvedCount = signupRequests.filter(r => r.status === 'approved').length
-            return (
-              <div>
-                <div className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                  트레이너 가입 승인 대기열
-                  <span style={{ fontSize: '12px', color: 'var(--text-dim)', fontWeight: 400 }}>
-                    pending {pendingCount}건 · rejected {rejectedCount}건 · approved {approvedCount}건
-                  </span>
-                </div>
-                <div style={{ marginBottom: '14px', fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.7 }}>
-                  사용자가 OAuth 로그인 후 '가입 요청' 을 보내면 여기 표시됩니다.<br />
-                  <strong>승인</strong> 시 free 플랜(AI 월 20회) 으로 자동 등록 · <strong>거부</strong> 시 사용자에게 사유 표시 + 같은 이메일 재요청 차단.
-                </div>
-                <div className="period-tabs" style={{ marginBottom: '14px' }}>
-                  {[
-                    { id: 'pending', label: `대기 (${pendingCount})` },
-                    { id: 'rejected', label: `거부 (${rejectedCount})` },
-                    { id: 'approved', label: `승인됨 (${approvedCount})` },
-                    { id: null, label: '전체' },
-                  ].map(f => (
-                    <button
-                      key={String(f.id)}
-                      className={`period-tab${signupFilter === f.id ? ' active' : ''}`}
-                      onClick={() => setSignupFilter(f.id)}
-                    >{f.label}</button>
-                  ))}
-                </div>
-                <div className="card table-wrap">
-                  <table>
-                    <thead>
-                      <tr><th>이름</th><th>이메일</th><th>요청일</th><th>상태</th><th>사유 / 검토일</th><th></th></tr>
-                    </thead>
-                    <tbody>
-                      {!filtered.length && (
-                        <tr><td colSpan={6} className="empty">{signupFilter === 'pending' ? '대기 중인 가입 요청이 없어요' : '해당 상태의 요청이 없어요'}</td></tr>
-                      )}
-                      {filtered.map(req => {
-                        const reqDate = new Date(req.requested_at)
-                        const revDate = req.reviewed_at ? new Date(req.reviewed_at) : null
-                        const statusStyle = req.status === 'pending'
-                          ? { bg: 'rgba(217,119,6,0.12)', color: '#d97706', border: 'rgba(217,119,6,0.3)', label: '대기' }
-                          : req.status === 'approved'
-                          ? { bg: 'rgba(16,185,129,0.12)', color: '#10b981', border: 'rgba(16,185,129,0.3)', label: '승인됨' }
-                          : { bg: 'rgba(239,68,68,0.12)', color: '#ef4444', border: 'rgba(239,68,68,0.3)', label: '거부' }
-                        const busy = signupActionId === req.id
-                        return (
-                          <tr key={req.id}>
-                            <td><div className="name-cell"><div className="avatar">{req.name?.[0] || '?'}</div><span style={{ color: 'var(--text)', fontWeight: 500 }}>{req.name}</span></div></td>
-                            <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{req.email}</td>
-                            <td style={{ fontSize: '12px', fontFamily: "'DM Mono',monospace", color: 'var(--text-dim)' }}>
-                              {reqDate.toLocaleDateString('ko-KR', { year: '2-digit', month: 'short', day: 'numeric' })}<br />
-                              <span style={{ fontSize: '11px' }}>{reqDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</span>
-                            </td>
-                            <td>
-                              <span style={{ background: statusStyle.bg, color: statusStyle.color, border: `1px solid ${statusStyle.border}`, padding: '3px 10px', borderRadius: '5px', fontSize: '11px', fontWeight: 700 }}>{statusStyle.label}</span>
-                            </td>
-                            <td style={{ fontSize: '11px', color: 'var(--text-dim)', maxWidth: '200px' }}>
-                              {req.rejection_reason && <div style={{ marginBottom: '2px', color: '#991b1b' }}>“{req.rejection_reason}”</div>}
-                              {revDate && <div style={{ fontFamily: "'DM Mono',monospace" }}>{revDate.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} {revDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</div>}
-                            </td>
-                            <td style={{ whiteSpace: 'nowrap' }}>
-                              {req.status === 'pending' && (
-                                <>
-                                  <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => approveSignupRequest(req)} style={{ marginRight: '6px' }}>승인</button>
-                                  <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => rejectSignupRequest(req)} style={{ color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}>거부</button>
-                                </>
-                              )}
-                              {req.status === 'rejected' && (
-                                <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => deleteSignupRequest(req)} style={{ fontSize: '11px' }}>기록 삭제 (재요청 허용)</button>
-                              )}
-                              {req.status === 'approved' && (
-                                <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>완료</span>
-                              )}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )
-          })()}
-
-          {page === 'trainer' && subTab === 'logs' && (
-            <div>
-              <div className="section-title">수업일지 현황</div>
-              <div className="period-tabs">
-                {['day', 'week', 'month'].map(p => (
-                  <button key={p} className={`period-tab${logPeriod === p ? ' active' : ''}`} onClick={() => setLogPeriod(p)}>
-                    {{ day: '오늘', week: '이번 주', month: '이번 달' }[p]}
-                  </button>
-                ))}
-              </div>
-              <div className="stat-grid">
-                <div className="stat-card"><div className="stat-num">{filteredLogs.length}</div><div className="stat-label">{periodLabel} 발송</div></div>
-                <div className="stat-card"><div className="stat-num">{new Set(filteredLogs.map(l => l.trainer_id)).size}</div><div className="stat-label">활성 트레이너</div></div>
-                <div className="stat-card"><div className="stat-num">{new Set(filteredLogs.map(l => l.member_id)).size}</div><div className="stat-label">수업 회원</div></div>
-              </div>
-              <div className="section-label">트레이너별 발송 현황</div>
-              <div className="card table-wrap">
-                <table>
-                  <thead><tr><th>트레이너</th><th>발송 건수</th><th>마지막 발송</th></tr></thead>
-                  <tbody>
-                    {trainers.map(t => {
-                      const tLogs = filteredLogs.filter(l => l.trainer_id === t.id)
-                      const lastLog = logs.filter(l => l.trainer_id === t.id)[0]
-                      const lastDate = lastLog ? new Date(lastLog.created_at) : null
-                      return (
-                        <tr key={t.id}>
-                          <td><div className="name-cell"><div className="avatar">{t.name[0]}</div><span style={{ color: 'var(--text)' }}>{t.name}</span></div></td>
-                          <td><span style={{ color: 'var(--accent)', fontWeight: 700, fontFamily: "'DM Mono',monospace" }}>{tLogs.length}건</span></td>
-                          <td style={{ fontSize: '12px', color: 'var(--text-dim)' }}>{lastDate ? lastDate.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }) + ' ' + lastDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '없음'}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* ==================== 회원 포털 ==================== */}
-          {page === 'member' && subTab === 'status' && (
-            <div>
-              <div className="section-title">회원 현황</div>
-              {!trainers.length && <div className="empty">트레이너가 없어요</div>}
-              {trainers.map(t => {
-                const tMembers = members.filter(m => m.trainer_id === t.id)
-                return (
-                  <div className="card" key={t.id}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div className="avatar">{t.name[0]}</div>
-                        <span style={{ fontWeight: 500 }}>{t.name} 트레이너</span>
-                      </div>
-                      <span className="badge badge-green">{tMembers.length}명</span>
-                    </div>
-                    {tMembers.length ? (
-                      <div className="table-wrap"><table>
-                        <thead><tr><th>이름</th><th>레슨목적</th><th>세션</th><th>전화</th></tr></thead>
-                        <tbody>{tMembers.map(m => (
-                          <tr key={m.id}>
-                            <td style={{ color: 'var(--text)', fontWeight: 500 }}>{m.name}</td>
-                            <td><span className="badge badge-blue">{m.lesson_purpose || '미설정'}</span></td>
-                            <td style={{ fontFamily: "'DM Mono',monospace" }}>{m.done_sessions}/{m.total_sessions}</td>
-                            <td style={{ color: 'var(--text-dim)' }}>***{m.phone}</td>
-                          </tr>
-                        ))}</tbody>
-                      </table></div>
-                    ) : <div style={{ color: 'var(--text-dim)', fontSize: '13px', padding: '8px 0' }}>회원이 없어요</div>}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {/* ==================== 회원 포털 > 공지사항 관리 ==================== */}
-          {page === 'member' && subTab === 'notices' && (
-            <div>
-              <div className="section-title">
-                공지사항 관리
-                <button className="btn btn-primary btn-sm" style={{ marginLeft: '12px' }}
-                  onClick={() => { setNoticeEditId(null); setNoticeForm({ title: '', content: '', is_pinned: false }); setNoticeModal(true) }}>
-                  + 공지 작성
-                </button>
-              </div>
-              {!notices.length && <div className="empty">등록된 공지사항이 없어요</div>}
-              {notices.map(notice => {
-                const d = new Date(notice.created_at)
-                return (
-                  <div className="card" key={notice.id} style={{ marginBottom: '10px', borderLeft: notice.is_pinned ? '3px solid var(--accent)' : '3px solid transparent' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                          {notice.is_pinned && <span className="badge badge-yellow" style={{ fontSize: '10px' }}>📌 고정</span>}
-                          <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>{notice.title}</div>
-                        </div>
-                        <div style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.6', marginBottom: '8px', whiteSpace: 'pre-wrap' }}>{notice.content}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: "'DM Mono',monospace" }}>
-                          {notice.author_name} · {d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} {d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                        <button className="btn btn-ghost btn-sm" onClick={() => openNoticeEdit(notice)}>수정</button>
-                        <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }} disabled={isBusy(`deleteNotice:${notice.id}`)} onClick={() => deleteNotice(notice.id)}>삭제</button>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {/* (제거됨) 회원 포털 > 자유게시판 관리 — admin 모더레이션 폐기 */}
-
-          {/* (제거됨) 트레이너 포털 > 1:1 문의 — 카카오 채널 외부 우회로 폐기 */}
-
-          {/* ==================== 커뮤니티 포털 ==================== */}
-          {page === 'community' && (
-            <div>
-              <div className="stat-grid" style={{ marginBottom: '20px' }}>
-                <div className="stat-card"><div className="stat-num" style={{ color: '#4fc3f7' }}>{commUsers.length}</div><div className="stat-label">전체 유저</div></div>
-                <div className="stat-card"><div className="stat-num" style={{ color: '#4fc3f7' }}>{commPosts.filter(p => p.status === 'active').length}</div><div className="stat-label">활성 게시글</div><div className="stat-sub">전체 {commPosts.length}건</div></div>
-                <div className="stat-card"><div className="stat-num" style={{ color: '#4fc3f7' }}>{commContacts.filter(c => c.status === 'pending').length}</div><div className="stat-label">대기 연락</div><div className="stat-sub">수락 {commContacts.filter(c => c.status === 'accepted').length}건</div></div>
-                <div className="stat-card"><div className="stat-num" style={{ color: '#4fc3f7' }}>{commContacts.filter(c => c.status === 'accepted').length}</div><div className="stat-label">매칭 성사</div></div>
-              </div>
-
-              {subTab === 'reports' && <CommunityReportsTab showToast={showToast} />}
-
-              {subTab === 'posts' && (
-                <div className="card table-wrap">
-                  <table>
-                    <thead><tr><th>제목</th><th>카테고리</th><th>작성자</th><th>연락수</th><th>상태</th><th>작성일</th><th></th></tr></thead>
-                    <tbody>
-                      {!commPosts.length && <tr><td colSpan={7} className="empty">게시글이 없어요</td></tr>}
-                      {commPosts.map(p => {
-                        const d = new Date(p.created_at)
-                        const isActive = p.status === 'active'
-                        const cc = CAT_COLOR[p.category] || { bg: 'rgba(136,136,136,0.1)', color: '#888' }
-                        return (
-                          <tr key={p.id}>
-                            <td style={{ maxWidth: '180px' }}>
-                              <div style={{ color: 'var(--text)', fontWeight: 500, fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title}</div>
-                              {p.location && <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>📍 {p.location}</div>}
-                            </td>
-                            <td><span style={{ display: 'inline-block', padding: '2px 7px', borderRadius: '100px', fontSize: '10px', fontWeight: 700, background: cc.bg, color: cc.color }}>{COMM_CAT_LABEL[p.category] || p.category}</span></td>
-                            <td>
-                              <div style={{ color: 'var(--text)', fontSize: '13px' }}>{p.author?.name || '?'}</div>
-                              <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>{COMM_ROLE_LABEL[p.author?.role] || p.author?.role}</div>
-                            </td>
-                            <td style={{ textAlign: 'center', fontFamily: "'DM Mono',monospace" }}>{p.contact_count || 0}</td>
-                            <td>{isActive ? <span className="badge badge-green">활성</span> : <span className="badge" style={{ background: 'rgba(136,136,136,0.1)', color: '#888', border: '1px solid #333' }}>마감</span>}</td>
-                            <td style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: "'DM Mono',monospace" }}>{d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}<br />{d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</td>
-                            <td>
-                              <div style={{ display: 'flex', gap: '4px', flexDirection: 'column' }}>
-                                {isActive && <button className="btn btn-ghost btn-sm" style={{ fontSize: '10px' }} disabled={isBusy(`commClose:${p.id}`)} onClick={() => commClosePost(p.id)}>마감</button>}
-                                <button className="btn btn-danger btn-sm" style={{ fontSize: '10px' }} disabled={isBusy(`commDeletePost:${p.id}`)} onClick={() => commDeletePost(p.id)}>삭제</button>
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+              </nav>
+              {LANDING_SITE_URL[landingSite] && (
+                <a className="adm-btn adm-btn--sm" href={LANDING_SITE_URL[landingSite]} target="_blank" rel="noreferrer" style={{ marginTop: 12 }}>
+                  실제 페이지 열어 보기 <AdminIcon name="arrowRight" size={14} />
+                </a>
               )}
-
-              {subTab === 'users' && (
-                <div className="card table-wrap">
-                  <table>
-                    <thead><tr><th>이름</th><th>역할</th><th>지역</th><th>소개</th><th>게시글</th><th>가입일</th><th>상태</th><th></th></tr></thead>
-                    <tbody>
-                      {!commUsers.length && <tr><td colSpan={8} className="empty">유저가 없어요</td></tr>}
-                      {commUsers.map(u => {
-                        const userPostCount = commPosts.filter(p => p.user_id === u.id).length
-                        const d = new Date(u.created_at)
-                        const perms = u.admin_permissions || {}
-                        const isBanned = !!perms.banned
-                        const extraCount = (perms.extra_roles || []).length
-                        return (
-                          <tr key={u.id}>
-                            <td><div className="name-cell"><div className="avatar" style={{ background: '#4fc3f7', color: '#0a0a0a' }}>{u.name[0]}</div><span style={{ color: 'var(--text)', fontWeight: 500 }}>{u.name}</span></div></td>
-                            <td><span className="badge badge-blue">{COMM_ROLE_LABEL[u.role] || u.role}</span></td>
-                            <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{u.location || '-'}</td>
-                            <td style={{ fontSize: '12px', color: 'var(--text-muted)', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.bio || '-'}</td>
-                            <td style={{ textAlign: 'center', fontFamily: "'DM Mono',monospace" }}>{userPostCount}건</td>
-                            <td style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: "'DM Mono',monospace'" }}>{d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}</td>
-                            <td>
-                              {isBanned
-                                ? <span className="badge badge-red">차단</span>
-                                : extraCount > 0
-                                  ? <span className="badge badge-green">+{extraCount}권한</span>
-                                  : <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>기본</span>
-                              }
-                            </td>
-                            <td>
-                              <div style={{ display: 'flex', gap: '4px' }}>
-                                <button className="btn btn-ghost btn-sm" onClick={() => setCommPermModal(u)}>권한</button>
-                                <button className="btn btn-danger btn-sm" disabled={isBusy(`commDeleteUser:${u.id}`)} onClick={() => commDeleteUser(u.id)}>삭제</button>
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {subTab === 'contacts' && (
-                <div className="card table-wrap">
-                  <table>
-                    <thead><tr><th>요청자</th><th>대상 게시글</th><th>메시지</th><th>상태</th><th>요청일</th></tr></thead>
-                    <tbody>
-                      {!commContacts.length && <tr><td colSpan={5} className="empty">연락 요청이 없어요</td></tr>}
-                      {commContacts.map(c => {
-                        const d = new Date(c.created_at)
-                        const statusStyle = {
-                          pending: { bg: 'rgba(245,166,35,0.1)', color: '#f5a623', border: 'rgba(245,166,35,0.2)', label: '대기중' },
-                          accepted: { bg: 'rgba(200,241,53,0.1)', color: '#c8f135', border: 'rgba(200,241,53,0.2)', label: '수락됨' },
-                          rejected: { bg: 'rgba(255,92,92,0.1)', color: '#ff5c5c', border: 'rgba(255,92,92,0.2)', label: '거절됨' },
-                        }[c.status] || {}
-                        return (
-                          <tr key={c.id}>
-                            <td>
-                              <div style={{ color: 'var(--text)', fontWeight: 500, fontSize: '13px' }}>{c.requester?.name || '?'}</div>
-                              <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>{COMM_ROLE_LABEL[c.requester?.role] || c.requester?.role}</div>
-                            </td>
-                            <td style={{ fontSize: '12px', color: 'var(--text-muted)', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.post?.title || '-'}</td>
-                            <td style={{ fontSize: '12px', color: 'var(--text-dim)', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.message || '-'}</td>
-                            <td><span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: '100px', fontSize: '10px', fontWeight: 700, background: statusStyle.bg, color: statusStyle.color, border: `1px solid ${statusStyle.border}` }}>{statusStyle.label}</span></td>
-                            <td style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: "'DM Mono',monospace" }}>{d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}<br />{d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+              <p className="adm-foot-note" style={{ marginTop: 10, padding: '0 4px' }}>위에서부터 실제 페이지에 나오는 순서예요. 저장하면 바로 반영돼요.</p>
+            </aside>
           )}
-          {subTab === 'market' && (
-            <div className="card table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>거래 일시</th>
-                    <th>상품명</th>
-                    <th>판매자</th>
-                    <th>구매자</th>
-                    <th style={{ textAlign: 'right' }}>거래 금액</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {!marketPurchases.length && (
-                    <tr><td colSpan={5} className="empty">거래 내역이 없어요</td></tr>
-                  )}
-                  {marketPurchases.map(p => {
-                    const d = new Date(p.purchased_at)
-                    return (
-                      <tr key={p.id}>
-                        <td style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: "'DM Mono',monospace", whiteSpace: 'nowrap' }}>
-                          {d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}<br />
-                          {d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-                        </td>
-                        <td>
-                          <div style={{ color: 'var(--text)', fontWeight: 500, fontSize: '13px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {p.item?.title || '(삭제된 상품)'}
-                          </div>
-                          {p.item?.price != null && (
-                            <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
-                              정가 {Number(p.item.price).toLocaleString('ko-KR')}원
-                            </div>
-                          )}
-                        </td>
-                        <td>
-                          <div style={{ color: 'var(--text)', fontSize: '13px', fontWeight: 500 }}>{p.seller?.name || '—'}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>{COMM_ROLE_LABEL[p.seller?.role] || p.seller?.role || ''}</div>
-                        </td>
-                        <td>
-                          <div style={{ color: 'var(--text)', fontSize: '13px', fontWeight: 500 }}>{p.buyer?.name || '—'}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>{COMM_ROLE_LABEL[p.buyer?.role] || p.buyer?.role || ''}</div>
-                        </td>
-                        <td style={{ textAlign: 'right', fontFamily: "'DM Mono',monospace", fontWeight: 700, color: '#c8f135', whiteSpace: 'nowrap' }}>
-                          {Number(p.amount_paid).toLocaleString('ko-KR')}원
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-
 
           {/* ==================== CRM 포털 ==================== */}
           {/* ==================== 랜딩페이지 관리 ==================== */}
@@ -2435,197 +1756,11 @@ export default function AdminPortal() {
             </div>
           )}
 
-          {page === 'trainer' && subTab === 'plans' && (
-            <div>
-              <div className="section-title">플랜 관리</div>
-
-              {/* 노출 토글 */}
-              <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '14px' }}>플랜 안내 노출</div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '3px' }}>트레이너 포털 설정 탭에서 플랜 안내 섹션 표시 여부</div>
-                </div>
-                <button
-                  className={`crm-toggle${planGuideVisible ? ' on' : ''}`}
-                  style={{ fontSize: '13px', padding: '6px 18px' }}
-                  onClick={() => savePlanVisibility(!planGuideVisible)}
-                >
-                  {planGuideVisible ? 'ON' : 'OFF'}
-                </button>
-              </div>
-
-              {/* 플랜 카드 */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                {plans.map(plan => {
-                  const isOn = plan.enabled !== false
-                  return (
-                    <div key={plan.id} className="card" style={{
-                      border: `1px solid ${isOn ? (plan.highlight ? 'rgba(200,241,53,0.35)' : 'var(--border)') : 'rgba(136,136,136,0.2)'}`,
-                      background: isOn ? (plan.highlight ? 'rgba(200,241,53,0.03)' : 'var(--surface)') : 'rgba(136,136,136,0.04)',
-                      position: 'relative',
-                      opacity: isOn ? 1 : 0.6,
-                    }}>
-                      {plan.current && (
-                        <span style={{ position: 'absolute', top: '-9px', left: '12px', background: '#9ca3af', color: '#0f0f0f', fontSize: '9px', fontWeight: 700, padding: '2px 7px', borderRadius: '8px' }}>현재 플랜</span>
-                      )}
-                      {plan.badge && !plan.current && (
-                        <span style={{ position: 'absolute', top: '-9px', left: '12px', background: plan.highlight ? 'var(--accent)' : '#60a5fa', color: '#0f0f0f', fontSize: '9px', fontWeight: 700, padding: '2px 7px', borderRadius: '8px' }}>{plan.badge}</span>
-                      )}
-                      {/* 플랜 ON/OFF 토글 */}
-                      <button
-                        className={`crm-toggle crm-toggle-sm${isOn ? ' on' : ''}`}
-                        style={{ position: 'absolute', top: '10px', right: '10px' }}
-                        onClick={() => togglePlanEnabled(plan.id)}
-                      >
-                        {isOn ? 'ON' : 'OFF'}
-                      </button>
-                      <div style={{ fontWeight: 700, color: isOn ? plan.color : 'var(--text-dim)', fontSize: '15px', marginBottom: '4px', marginTop: '4px' }}>{plan.name}</div>
-                      <div style={{ fontWeight: 700, fontSize: '12px', marginBottom: '8px', color: 'var(--text)' }}>{plan.price}</div>
-                      {plan.features.map(f => (
-                        <div key={f} style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.9 }}>· {f}</div>
-                      ))}
-                      <button className="btn btn-ghost btn-sm" style={{ marginTop: '12px', width: '100%' }} onClick={() => openPlanEdit(plan)}>수정</button>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {page === 'features' && (
-            <div>
-              <div className="section-title">🔐 기능별 플랜 설정</div>
-              <div style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '20px' }}>
-                무료/유료 트레이너가 사용할 수 있는 기능을 ON/OFF로 관리합니다. 변경 즉시 저장됩니다.
-              </div>
-
-              {/* 기능 토글 테이블 */}
-              <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: '20px' }}>
-                {/* 헤더 */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.1fr 64px 64px 64px', gap: 0, background: 'rgba(255,255,255,0.04)', padding: '10px 18px', fontSize: '11px', fontWeight: 700, color: 'var(--text-dim)', borderBottom: '1px solid var(--border)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  <div>기능</div>
-                  <div>설명</div>
-                  <div style={{ textAlign: 'center' }}>무료</div>
-                  <div style={{ textAlign: 'center' }}>Pro</div>
-                  <div style={{ textAlign: 'center' }}>Premium</div>
-                </div>
-                {FEATURE_DEFS.map((fd, i) => (
-                  <div key={fd.key} style={{
-                    display: 'grid', gridTemplateColumns: '1fr 1.1fr 64px 64px 64px', gap: 0,
-                    padding: '13px 18px', alignItems: 'center',
-                    borderBottom: i < FEATURE_DEFS.length - 1 ? '1px solid var(--border)' : 'none',
-                    background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '13px' }}>
-                      <span style={{ fontSize: '16px' }}>{fd.icon}</span>
-                      {fd.label}
-                    </div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-dim)', paddingRight: '12px' }}>{fd.desc}</div>
-                    {['free', 'pro', 'premium'].map(plan => {
-                      const isOn = !!featureGates[plan]?.[fd.key]
-                      return (
-                        <div key={plan} style={{ textAlign: 'center' }}>
-                          <button
-                            className={`crm-toggle crm-toggle-sm${isOn ? ' on' : ''}`}
-                            onClick={() => toggleGate(plan, fd.key)}
-                          >
-                            {isOn ? 'ON' : 'OFF'}
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
-                ))}
-              </div>
-
-              {/* 회원 수 제한 */}
-              <div className="card">
-                <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '14px' }}>👥 관리 가능한 최대 회원 수</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-                  {[{ plan: 'free', label: '무료' }, { plan: 'pro', label: 'Pro' }, { plan: 'premium', label: 'Premium' }].map(({ plan, label }) => (
-                    <div key={plan}>
-                      <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '6px' }}>{label}</div>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <input
-                          type="number"
-                          min="0"
-                          className="input"
-                          style={{ width: '100px' }}
-                          value={featureGates[plan]?.member_limit ?? 0}
-                          onChange={e => setMemberLimit(plan, e.target.value)}
-                          onBlur={saveMemberLimit}
-                        />
-                        <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>명 (9999 = 무제한)</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <button className="btn btn-primary btn-sm" style={{ marginTop: '16px' }} onClick={saveMemberLimit}>
-                  저장
-                </button>
-              </div>
-
-              {/* 현재 설정 미리보기 */}
-              <div className="card" style={{ marginTop: '20px' }}>
-                <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '12px' }}>📋 현재 설정 요약</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                  {[{ plan: 'free', label: '무료', color: '#9ca3af' }, { plan: 'pro', label: 'Pro', color: '#60a5fa' }, { plan: 'premium', label: 'Premium', color: 'var(--accent)' }].map(({ plan, label, color }) => (
-                    <div key={plan} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '14px' }}>
-                      <div style={{ fontWeight: 700, color, marginBottom: '10px', fontSize: '13px' }}>{label} 플랜</div>
-                      {FEATURE_DEFS.map(fd => {
-                        const isOn = !!featureGates[plan]?.[fd.key]
-                        return (
-                          <div key={fd.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                            <span style={{ color: 'var(--text-dim)' }}>{fd.icon} {fd.label}</span>
-                            <span style={{ color: isOn ? '#4ade80' : '#f87171', fontWeight: 700, fontSize: '11px' }}>{isOn ? 'ON' : 'OFF'}</span>
-                          </div>
-                        )
-                      })}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', paddingTop: '6px' }}>
-                        <span style={{ color: 'var(--text-dim)' }}>👥 최대 회원</span>
-                        <span style={{ fontWeight: 700 }}>{featureGates[plan]?.member_limit >= 9999 ? '무제한' : featureGates[plan]?.member_limit + '명'}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
           {page === 'system' && (
             <div>
-              <div className="section-title">⚙️ 시스템 운영 — API 키 · 운영 채널</div>
-              <div style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '20px' }}>
-                중앙 AI API 키와 외부 채널 링크를 한 곳에서 관리합니다. 변경 사항은 보안 RPC(<code>app_settings_admin_upsert</code>) 경유로 즉시 박제됩니다.
-              </div>
-
-              {/* 중앙 Gemini API 키 카드 */}
-              <div className="card" style={{ padding: '18px', marginBottom: '18px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                  <div style={{ fontSize: '14px', fontWeight: 800 }}>🔑 중앙 Gemini API 키 (gemini_api_key)</div>
-                  <button className="btn btn-primary" onClick={saveCentralApiKey} style={{ fontSize: '12px', padding: '6px 14px' }}>💾 저장</button>
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '10px', lineHeight: 1.6 }}>
-                  유료 트레이너가 AI 수업일지를 생성할 때 사용하는 중앙 API 키입니다. 키가 비어 있으면 AI 기능은 트레이너의 개별 키로 폴백합니다.
-                </div>
-                <input
-                  type="text"
-                  value={centralApiKey}
-                  onChange={e => setCentralApiKey(e.target.value)}
-                  placeholder="AIza..."
-                  style={{
-                    width: '100%', padding: '10px 12px', fontSize: '13px',
-                    fontFamily: 'monospace', borderRadius: '8px',
-                    border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)',
-                    boxSizing: 'border-box',
-                  }}
-                />
-                {centralApiKey && (
-                  <div style={{ fontSize: '11px', color: '#4ade80', marginTop: '8px' }}>
-                    ✓ API 키 설정됨 — 모든 유료 트레이너가 이 키를 공유합니다.
-                  </div>
-                )}
-              </div>
+              <p className="adm-foot-note" style={{ marginBottom: 14 }}>
+                문의 채널 링크 같은 운영 설정이에요. 저장하면 바로 반영돼요. (로그인 팝업은 '공지' 메뉴로 옮겼어요. AI 키는 서버에서 관리해서 여기서 바꿀 필요가 없어요.)
+              </p>
 
               {/* 긴급문의 링크 카드 */}
               <div className="card" style={{ padding: '18px', marginBottom: '18px' }}>
@@ -2652,77 +1787,6 @@ export default function AdminPortal() {
                   ? <div style={{ fontSize: '11px', color: '#4ade80', marginTop: '8px' }}>✓ 채널 링크 설정됨 — 4대 포털의 1:1 문의 버튼에 즉시 반영됩니다.</div>
                   : <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '8px' }}>링크 미설정 시 일부 포털은 카카오 오픈채팅 메인으로 폴백합니다.</div>
                 }
-              </div>
-
-              {/* 로그인 공지 카드 (login_notice) */}
-              <div className="card" style={{ padding: '18px', marginBottom: '18px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                  <div style={{ fontSize: '14px', fontWeight: 800 }}>📢 로그인 공지 (login_notice)</div>
-                  <button className="btn btn-primary" onClick={saveLoginNotice} style={{ fontSize: '12px', padding: '6px 14px' }}>💾 저장</button>
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '12px', lineHeight: 1.6 }}>
-                  트레이너·회원 앱 로그인 직후 1회 모달로 표시됩니다. 저장 시 보안 RPC(<code>app_settings_admin_upsert</code>) 경유 즉시 반영. 저장하면 자동으로 새 공지로 인식되어 "N일 보지않기" 누른 사용자에게도 다시 노출됩니다.
-                </div>
-
-                {/* ON-OFF + 대상 + 스누즈 */}
-                <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '12px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={loginNotice.enabled}
-                      onChange={e => setLoginNotice(p => ({ ...p, enabled: e.target.checked }))}
-                      style={{ width: '15px', height: '15px', accentColor: '#84cc16' }} />
-                    공지 활성화
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
-                    대상
-                    <select value={loginNotice.target}
-                      onChange={e => setLoginNotice(p => ({ ...p, target: e.target.value }))}
-                      style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: '12px' }}>
-                      <option value="all">전체 (트레이너+회원)</option>
-                      <option value="trainer">트레이너만</option>
-                      <option value="member">회원만</option>
-                    </select>
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
-                    "N일 보지않기"
-                    <input type="number" min="1" max="60" value={loginNotice.snoozeDays}
-                      onChange={e => setLoginNotice(p => ({ ...p, snoozeDays: e.target.value }))}
-                      style={{ width: '56px', padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: '12px' }} />
-                    일
-                  </label>
-                </div>
-
-                {/* 제목 */}
-                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '4px' }}>제목</div>
-                <input type="text" value={loginNotice.title}
-                  onChange={e => setLoginNotice(p => ({ ...p, title: e.target.value }))}
-                  placeholder="업데이트 안내"
-                  style={{ width: '100%', padding: '9px 12px', fontSize: '13px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', boxSizing: 'border-box', marginBottom: '12px' }} />
-
-                {/* 신규 기능 */}
-                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '4px' }}>
-                  신규 기능 <span style={{ fontWeight: 400 }}>(한 줄 = 한 항목, <code>날짜 | 내용</code> 형식 권장)</span>
-                </div>
-                <textarea value={loginNotice.newItems}
-                  onChange={e => setLoginNotice(p => ({ ...p, newItems: e.target.value }))}
-                  rows={4}
-                  placeholder={'2026-05-19 | 시간표가 모바일에 맞게 개선되었습니다\n2026-05-17 | 개인운동 세트 추가 시 이전 세트가 복사됩니다'}
-                  style={{ width: '100%', padding: '10px 12px', fontSize: '13px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', boxSizing: 'border-box', marginBottom: '12px', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 }} />
-
-                {/* 업데이트 예정 */}
-                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '4px' }}>
-                  업데이트 예정 <span style={{ fontWeight: 400 }}>(한 줄 = 한 항목)</span>
-                </div>
-                <textarea value={loginNotice.plannedItems}
-                  onChange={e => setLoginNotice(p => ({ ...p, plannedItems: e.target.value }))}
-                  rows={3}
-                  placeholder={'카카오 로그인 추가 예정\nPlay 스토어 앱 출시 예정'}
-                  style={{ width: '100%', padding: '10px 12px', fontSize: '13px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 }} />
-
-                <div style={{ fontSize: '11px', color: loginNotice.enabled ? '#4ade80' : 'var(--text-dim)', marginTop: '10px' }}>
-                  {loginNotice.enabled
-                    ? `✓ 활성 — ${loginNotice.target === 'all' ? '트레이너+회원' : loginNotice.target === 'trainer' ? '트레이너' : '회원'} 로그인 시 노출`
-                    : '비활성 — 저장해도 아무에게도 안 보입니다 (체크박스 ON 필요)'}
-                </div>
               </div>
 
               {/* 운영 안내 카드 (정보성) */}
@@ -3138,27 +2202,6 @@ export default function AdminPortal() {
         })()}
       </Modal>
 
-      {/* 공지사항 작성/수정 MODAL */}
-      <Modal open={noticeModal} onClose={() => setNoticeModal(false)} title={noticeEditId ? '공지사항 수정' : '공지사항 작성'}>
-        <div className="form-group">
-          <label>제목</label>
-          <input value={noticeForm.title} onChange={e => setNoticeForm(f => ({ ...f, title: e.target.value }))} placeholder="공지 제목을 입력해주세요" />
-        </div>
-        <div className="form-group">
-          <label>내용</label>
-          <textarea rows={6} style={{ resize: 'vertical' }} value={noticeForm.content}
-            onChange={e => setNoticeForm(f => ({ ...f, content: e.target.value }))}
-            placeholder="공지 내용을 입력해주세요" />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-          <input type="checkbox" id="adminNoticePinned" checked={noticeForm.is_pinned}
-            onChange={e => setNoticeForm(f => ({ ...f, is_pinned: e.target.checked }))}
-            style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
-          <label htmlFor="adminNoticePinned" style={{ cursor: 'pointer', fontSize: '13px', fontWeight: 500, marginBottom: 0 }}>📌 상단 고정</label>
-        </div>
-        <button className="btn btn-primary btn-full" onClick={saveNotice}>{noticeEditId ? '수정 완료' : '공지 등록'}</button>
-      </Modal>
-
       {/* PLAN EDIT MODAL */}
       <Modal open={!!planEditModal} onClose={closePlanEdit} title={planEditModal ? `${planEditModal.name} 플랜 수정` : ''}>
         {planEditModal && (
@@ -3209,74 +2252,6 @@ export default function AdminPortal() {
       </Modal>
 
       {/* (제거됨) 1:1 문의 답변 MODAL — 카카오 채널 외부 우회로 폐기 */}
-
-      {/* COMMUNITY USER PERMISSION MODAL */}
-      <Modal open={!!commPermModal} onClose={() => setCommPermModal(null)} title={commPermModal ? `${commPermModal.name} 접근 권한 설정` : ''}>
-        {commPermModal && (() => {
-          const perms = commPermModal.admin_permissions || {}
-          const isBanned = !!perms.banned
-          const extraRoles = perms.extra_roles || []
-          const baseRole = commPermModal.role
-          const baseMeta = COMM_ROLE_OPTIONS.find(r => r.key === baseRole)
-          return (
-            <>
-              {/* 기본 역할 */}
-              <div style={{ marginBottom: '16px' }}>
-                <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '1px' }}>기본 역할</div>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px 12px' }}>
-                  <span>{baseMeta?.emoji}</span>
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: baseMeta?.color || 'var(--text)' }}>{baseMeta?.label || baseRole}</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>· {baseMeta?.desc}</span>
-                </div>
-              </div>
-
-              <div className="divider" />
-
-              {/* 접근 차단 */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '13px', color: isBanned ? 'var(--danger)' : 'var(--text)' }}>커뮤니티 접근 차단</div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '2px' }}>차단 시 로그인해도 피드에 접근할 수 없습니다</div>
-                </div>
-                <button
-                  className={`crm-toggle${isBanned ? ' on' : ''}`}
-                  style={{ fontSize: '12px', padding: '5px 14px', background: isBanned ? 'rgba(239,68,68,0.12)' : '', borderColor: isBanned ? 'rgba(239,68,68,0.3)' : '', color: isBanned ? 'var(--danger)' : '' }}
-                  onClick={() => toggleCommBan(commPermModal.id, !isBanned)}
-                >
-                  {isBanned ? '차단 중' : '허용'}
-                </button>
-              </div>
-
-              <div className="divider" />
-
-              {/* 추가 권한 */}
-              <div style={{ marginBottom: '8px' }}>
-                <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>추가 권한 부여</div>
-                <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: '12px' }}>체크한 역할의 카테고리 열람·작성 권한이 추가됩니다</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {COMM_ROLE_OPTIONS.filter(r => r.key !== baseRole).map(r => {
-                    const hasExtra = extraRoles.includes(r.key)
-                    return (
-                      <div key={r.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${hasExtra ? `${r.color}33` : 'var(--border)'}`, background: hasExtra ? `${r.color}0a` : 'transparent', cursor: 'pointer' }} onClick={() => toggleExtraRole(commPermModal.id, r.key, hasExtra)}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '16px' }}>{r.emoji}</span>
-                          <div>
-                            <div style={{ fontSize: '13px', fontWeight: 600, color: hasExtra ? r.color : 'var(--text)' }}>{r.label}</div>
-                            <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>{r.desc}</div>
-                          </div>
-                        </div>
-                        <div style={{ width: '18px', height: '18px', borderRadius: '5px', border: `2px solid ${hasExtra ? r.color : 'var(--border)'}`, background: hasExtra ? r.color : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          {hasExtra && <span style={{ fontSize: '11px', color: '#0a0a0a', fontWeight: 900 }}>✓</span>}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </>
-          )
-        })()}
-      </Modal>
 
       {/* TRAINER PRE-REGISTER MODAL */}
       <Modal open={trainerRegModal} onClose={() => setTrainerRegModal(false)} title="트레이너 사전 등록">
