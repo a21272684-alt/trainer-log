@@ -104,7 +104,8 @@ export async function generateWeeklyReport({
 
     // ④ Gemini 호출 (ai_templates.callGemini)
     onStatus('🤖 AI 리포트 생성 중...')
-    const reportText = await callGemini(apiKey, model, prompt)
+    // 중앙키(트레이너 앱)면 서버가 목적별 횟수를 확인 — BYO 키(CRM)는 직접 호출이라 무시됨
+    const reportText = await callGemini(apiKey, model, prompt, { purpose: 'weekly_report' })
 
     // ⑤ 결과 저장
     onStatus('💾 리포트 저장 중...')

@@ -51,16 +51,38 @@ async function callGeminiDirect(apiKey, model, contents, generationConfig, timeo
   }
 }
 
+// 서버가 막은 이유를 담은 오류 (reason: limit | regen_limit | too_fast | daily_limit | app_update | login_required …)
+function aiError(message, reason = null, plan = null) {
+  const err = new Error(message)
+  err.reason = reason
+  err.plan = plan
+  return err
+}
+
 // 중앙 키 — gemini-proxy 엣지함수 경유(키는 서버에만). 로그인 세션 토큰으로 호출.
-async function callGeminiViaProxy(model, contents, generationConfig, timeoutMs) {
-  const invokePromise = supabase.functions.invoke('gemini-proxy', {
-    body: generationConfig ? { model, contents, generationConfig } : { model, contents },
-  })
+// 사용 횟수 확인·차감은 서버(엣지함수 → ai_gate_begin/finish, 101)가 한다.
+//   purpose  : journal | insight | weekly_report | food_vision  (없으면 서버가 예전 앱으로 취급)
+//   memberId : 수업일지일 때 회원 id (같은 수업 판정용)
+//   onGate   : 서버가 돌려준 { charge, regen_left, plan } 를 받는 콜백 (남은 횟수 표시 갱신용)
+async function callGeminiViaProxy(model, contents, generationConfig, timeoutMs, { purpose, memberId, onGate } = {}) {
+  const body = { model, contents }
+  if (generationConfig) body.generationConfig = generationConfig
+  if (purpose) body.purpose = purpose
+  if (memberId) body.member_id = memberId
+  const invokePromise = supabase.functions.invoke('gemini-proxy', { body })
   const timeoutPromise = new Promise((_, reject) =>
     setTimeout(() => reject(new Error('AI 응답이 지연되어 요청을 종료했습니다. 다시 시도해주세요')), timeoutMs))
   const { data, error } = await Promise.race([invokePromise, timeoutPromise])
-  if (error) throw new Error(error.message || 'AI 호출 오류')
-  if (data?.error) throw new Error(data.error.message || 'Gemini API 오류')
+  if (error) {
+    // 2xx 가 아니면 본문에 서버가 보낸 안내 문구·사유가 있음
+    let payload = null
+    try { payload = await error.context?.json?.() } catch { payload = null }
+    const e = payload?.error
+    if (e?.plan || payload?.gate) onGate?.({ plan: e?.plan ?? payload?.gate?.plan ?? null })
+    throw aiError(e?.message || error.message || 'AI 호출 오류', e?.reason ?? null, e?.plan ?? null)
+  }
+  if (data?.gate) onGate?.(data.gate)
+  if (data?.error) throw aiError(data.error.message || 'Gemini API 오류', data.error.reason ?? null)
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
   if (!text?.trim()) throw new Error('AI 응답이 비어 있습니다')
   return text
@@ -74,15 +96,18 @@ async function callGeminiViaProxy(model, contents, generationConfig, timeoutMs) 
  * @param {object}  [opts]
  * @param {number}  [opts.timeoutMs=30000]
  * @param {object}  [opts.generationConfig]  - temperature, maxOutputTokens 등
+ * @param {string}  [opts.purpose]   - 중앙키 사용 시 AI 사용 목적 (journal | insight | weekly_report)
+ * @param {string}  [opts.memberId]  - purpose 가 journal 이면 회원 id
+ * @param {Function} [opts.onGate]   - 서버 사용량 정보 콜백
  * @returns {Promise<string>} AI 응답 텍스트
  */
 export async function callGemini(apiKey, model, prompt, opts = {}) {
-  const { timeoutMs = 30000, generationConfig } = opts
+  const { timeoutMs = 30000, generationConfig, purpose, memberId, onGate } = opts
   const contents = [{ parts: [{ text: prompt }] }]
   // BYO 키(CRM 등)면 직접 호출, 아니면(중앙키) 프록시 경유
   if (apiKey && apiKey !== PROXY_SENTINEL)
     return callGeminiDirect(apiKey, model, contents, generationConfig, timeoutMs)
-  return callGeminiViaProxy(model, contents, generationConfig, timeoutMs)
+  return callGeminiViaProxy(model, contents, generationConfig, timeoutMs, { purpose, memberId, onGate })
 }
 
 /**
@@ -94,12 +119,12 @@ export async function callGemini(apiKey, model, prompt, opts = {}) {
  * @returns {Promise<string>}
  */
 export async function callGeminiMultipart(apiKey, model, parts, opts = {}) {
-  const { timeoutMs = 45000 } = opts
+  const { timeoutMs = 45000, purpose, memberId, onGate } = opts
   const contents = [{ parts }]
   try {
     if (apiKey && apiKey !== PROXY_SENTINEL)
       return await callGeminiDirect(apiKey, model, contents, undefined, timeoutMs)
-    return await callGeminiViaProxy(model, contents, undefined, timeoutMs)
+    return await callGeminiViaProxy(model, contents, undefined, timeoutMs, { purpose, memberId, onGate })
   } catch (e) {
     if (e.name === 'AbortError') throw new Error('AI 응답이 지연되어 요청을 종료했습니다. 다시 시도해주세요')
     throw e
