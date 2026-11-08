@@ -6,7 +6,7 @@ import { supabase } from '@trainer-log/shared/lib/supabase'
 // 집계는 crm_revenue_report RPC(085). 대표는 센터 전체, 그 외 직원은 본인 매출만.
 // 순매출 = 기간 내 결제 - 기간 내 환불 처리. 비교 = 같은 길이의 직전 기간.
 
-const mono = { fontFamily: "'DM Mono', monospace" }
+const mono = { fontVariantNumeric: 'tabular-nums' }
 const won  = n => Number(n || 0).toLocaleString() + '원'
 const man  = n => {
   const v = Number(n || 0)

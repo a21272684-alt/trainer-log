@@ -4,7 +4,7 @@ import { useToast } from '../components/CrmToast'
 import Modal from '../components/CrmModal'
 import * as XLSX from 'xlsx'
 
-const mono = { fontFamily: "'DM Mono', monospace" }
+const mono = { fontVariantNumeric: 'tabular-nums' }
 
 const METHOD_LABEL = {
   cash: '현금', card: '카드', transfer: '계좌이체',
@@ -19,7 +19,7 @@ const METHOD_COLOR = {
   card:           { color: 'var(--blue)',   bg: 'rgba(96,165,250,0.12)'  },
   transfer:       { color: 'var(--purple)', bg: 'rgba(167,139,250,0.12)' },
   local_currency: { color: 'var(--yellow)', bg: 'rgba(250,204,21,0.12)'  },
-  payments_app:   { color: 'var(--accent)', bg: 'rgba(200,241,53,0.12)'  },
+  payments_app:   { color: 'var(--accent-text)', bg: 'rgba(200,241,53,0.12)'  },
 }
 
 function fmt(n) { return Number(n || 0).toLocaleString() }
@@ -267,7 +267,7 @@ function RentalSection({ gymId, rentalTrainers, year, month }) {
                           <span style={{
                             fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '5px',
                             background: fType === 'fixed' ? 'rgba(167,139,250,0.1)' : 'rgba(200,241,53,0.1)',
-                            color:      fType === 'fixed' ? 'var(--purple)'         : 'var(--accent)',
+                            color:      fType === 'fixed' ? 'var(--purple)'         : 'var(--accent-text)',
                             border:     `1px solid ${fType === 'fixed' ? 'rgba(167,139,250,0.25)' : 'rgba(200,241,53,0.25)'}`,
                           }}>
                             {fType === 'fixed' ? '월 고정' : '건별 차감'}
@@ -391,7 +391,7 @@ function RentalSection({ gymId, rentalTrainers, year, month }) {
                 {cfgForm.rental_fee_type === 'per_session' && (
                   <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '4px' }}>
                     이달 완료 수업 {attendCounts[cfgModal.id] || 0}회 기준 예상 청구액:{' '}
-                    <strong style={{ color: 'var(--accent)' }}>
+                    <strong style={{ color: 'var(--accent-text)' }}>
                       {fmt((attendCounts[cfgModal.id] || 0) * (Number(cfgForm.rental_fee_amount) || 0))}원
                     </strong>
                   </div>
@@ -616,7 +616,7 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
           {/* ── 요약 카드 4개 ── */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '16px' }}>
             <SummaryCard label="총 매출" value={totalSales} sub={`${payments.length}건`} color="var(--blue)" bg="rgba(96,165,250,0.10)" />
-            <SummaryCard label="센터 귀속 금액" value={totalICenter} sub="매출 − 인센티브 합계" color="var(--accent)" bg="rgba(200,241,53,0.10)" />
+            <SummaryCard label="센터 귀속 금액" value={totalICenter} sub="매출 − 인센티브 합계" color="var(--accent-text)" bg="rgba(200,241,53,0.10)" />
             <SummaryCard label="직원 총 지급 예정" value={totalIPayout} sub="기본급 + 인센티브" color="var(--purple)" bg="rgba(167,139,250,0.10)" />
             <SummaryCard label="세금 3.3% 합계" value={Math.round(totalIPayout * 0.033)} sub="예상 원천징수액" color="var(--red)" bg="rgba(248,113,113,0.10)" />
           </div>
@@ -649,7 +649,7 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
                       <tr key={t.id} style={{ opacity: t.totalSales === 0 ? 0.45 : 1 }}>
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'rgba(200,241,53,0.12)', border: '1px solid rgba(200,241,53,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: 'var(--accent)', flexShrink: 0 }}>
+                            <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'rgba(200,241,53,0.12)', border: '1px solid rgba(200,241,53,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: 'var(--accent-text)', flexShrink: 0 }}>
                               {(t.name || '?')[0]}
                             </div>
                             <span style={{ fontWeight: 600, fontSize: '13px' }}>{t.name || '—'}</span>
@@ -657,12 +657,12 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
                         </td>
                         <td>
                           {t.rankLabel !== '—'
-                            ? <span style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '5px', background: 'rgba(200,241,53,0.1)', color: 'var(--accent)', border: '1px solid rgba(200,241,53,0.25)', fontWeight: 600 }}>{t.rankLabel}</span>
+                            ? <span style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '5px', background: 'rgba(200,241,53,0.1)', color: 'var(--accent-text)', border: '1px solid rgba(200,241,53,0.25)', fontWeight: 600 }}>{t.rankLabel}</span>
                             : <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>—</span>}
                         </td>
                         <td style={{ textAlign: 'right', ...mono, fontWeight: 600, color: 'var(--blue)' }}>{fmt(t.totalSales)}</td>
                         <td style={{ textAlign: 'center', ...mono, fontSize: '12px', color: 'var(--text-muted)' }}>{Math.round(t.iRate * 100)}%</td>
-                        <td style={{ textAlign: 'right', ...mono, fontSize: '12px', color: 'var(--accent)' }}>{fmt(t.iAmt)}</td>
+                        <td style={{ textAlign: 'right', ...mono, fontSize: '12px', color: 'var(--accent-text)' }}>{fmt(t.iAmt)}</td>
                         <td style={{ textAlign: 'right', ...mono, fontSize: '12px', color: 'var(--text-muted)' }}>{fmt(t.cPortion)}</td>
                         <td style={{ textAlign: 'right', ...mono, fontSize: '12px', color: 'var(--text-dim)' }}>{fmt(t.baseSalary)}</td>
                         <td style={{ textAlign: 'right', ...mono, fontWeight: 700, color: 'var(--purple)' }}>{fmt(t.totalPayout)}</td>
@@ -676,7 +676,7 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
                         <td colSpan={2} style={{ fontWeight: 700, fontSize: '12px', color: 'var(--text-muted)', padding: '10px 14px' }}>합계</td>
                         <td style={{ textAlign: 'right', ...mono, fontWeight: 700, color: 'var(--blue)' }}>{fmt(totalSales)}</td>
                         <td />
-                        <td style={{ textAlign: 'right', ...mono, fontWeight: 700, color: 'var(--accent)' }}>{fmt(activeStats.reduce((s, t) => s + t.iAmt, 0))}</td>
+                        <td style={{ textAlign: 'right', ...mono, fontWeight: 700, color: 'var(--accent-text)' }}>{fmt(activeStats.reduce((s, t) => s + t.iAmt, 0))}</td>
                         <td style={{ textAlign: 'right', ...mono, fontWeight: 700, color: 'var(--text-muted)' }}>{fmt(totalICenter)}</td>
                         <td style={{ textAlign: 'right', ...mono, fontWeight: 700, color: 'var(--text-dim)' }}>{fmt(totalBase)}</td>
                         <td style={{ textAlign: 'right', ...mono, fontWeight: 700, color: 'var(--purple)' }}>{fmt(totalIPayout)}</td>
@@ -733,10 +733,10 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
                             <span style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
                             <span style={{ fontSize: '10px', color: 'var(--text-dim)', fontWeight: 400 }}>{s.count}건</span>
                           </span>
-                          <span style={{ ...mono, fontSize: '12px', fontWeight: 700, color: 'var(--accent)' }}>{fmt(s.amount)}원</span>
+                          <span style={{ ...mono, fontSize: '12px', fontWeight: 700, color: 'var(--accent-text)' }}>{fmt(s.amount)}원</span>
                         </div>
                         <div style={{ height: '5px', borderRadius: '3px', background: 'var(--surface2)', overflow: 'hidden' }}>
-                          <div style={{ height: '100%', width: `${pct}%`, background: 'var(--accent)', borderRadius: '3px', transition: 'width 0.4s' }} />
+                          <div style={{ height: '100%', width: `${pct}%`, background: 'var(--accent-text)', borderRadius: '3px', transition: 'width 0.4s' }} />
                         </div>
                         <div style={{ fontSize: '10px', color: 'var(--text-dim)', textAlign: 'right', marginTop: '2px' }}>{Math.round(pct)}%</div>
                       </div>

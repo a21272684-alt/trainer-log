@@ -14,7 +14,7 @@ import { couponDiscount, priceBreakdown, rateOf, pt, errText } from '../lib/bene
 // lockerExtend = { assignment, number } 이면 락커 연장 결제 모드.
 // 쿠폰·마일리지: 화면은 미리보기만, 저장은 crm_pay_with_benefits RPC 가 검증·계산·기록 (091).
 
-const mono = { fontFamily: "'DM Mono', monospace" }
+const mono = { fontVariantNumeric: 'tabular-nums' }
 const won  = n => Number(n || 0).toLocaleString() + '원'
 
 const CATEGORIES = ['회원권', '레슨', '대여권', '구독권', '패키지', '일반']

@@ -8,7 +8,7 @@ import { todayStr } from '../lib/ticketDateCalc'
 // ── 락커 관리 ───────────────────────────────────────────────────
 // 현황판 + 칸 상세. 쓰기는 087 RPC. 만료돼도 자동으로 비우지 않음 → "회수" 를 눌러야 빈 칸.
 
-const mono = { fontFamily: "'DM Mono', monospace" }
+const mono = { fontVariantNumeric: 'tabular-nums' }
 
 const STATES = {
   empty: { label: '빈 칸',       cls: 's-empty', dot: 'transparent', ring: '#9CA3AF' },

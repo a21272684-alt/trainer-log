@@ -148,7 +148,7 @@ export default function NotificationsTab({ gymId, members, trainers }) {
           <div style={{ padding:'10px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
             <span style={{ fontSize:'12px', color:'var(--text-muted)' }}>대상 {targetMembers.length}명</span>
             <div style={{ display:'flex', gap:'6px' }}>
-              <button onClick={selectAll}  style={{ fontSize:'11px', color:'var(--accent)', background:'none', border:'none', cursor:'pointer' }}>전체 선택</button>
+              <button onClick={selectAll}  style={{ fontSize:'11px', color:'var(--accent-text)', background:'none', border:'none', cursor:'pointer' }}>전체 선택</button>
               <button onClick={clearAll}   style={{ fontSize:'11px', color:'var(--text-dim)', background:'none', border:'none', cursor:'pointer' }}>해제</button>
             </div>
           </div>
@@ -167,7 +167,7 @@ export default function NotificationsTab({ gymId, members, trainers }) {
                     style={{ display:'flex', alignItems:'center', gap:'12px', padding:'10px 16px',
                       borderBottom:'1px solid var(--border)', cursor:'pointer',
                       background: isSelected ? 'rgba(200,241,53,0.04)' : 'none', transition:'background 0.1s' }}>
-                    <div style={{ width:'18px', height:'18px', borderRadius:'4px', border:`2px solid ${isSelected?'var(--accent)':'var(--border)'}`,
+                    <div style={{ width:'18px', height:'18px', borderRadius:'4px', border:`2px solid ${isSelected?'var(--accent-text)':'var(--border)'}`,
                       background: isSelected ? 'var(--accent)' : 'none', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                       {isSelected && <span style={{ fontSize:'10px', color:'#0a0a0a', fontWeight:900 }}>✓</span>}
                     </div>
@@ -195,7 +195,7 @@ export default function NotificationsTab({ gymId, members, trainers }) {
         <div className="card" style={{ marginBottom:'16px' }}>
           <div className="card-title">알림 메시지</div>
           <div style={{ marginBottom:'8px', padding:'8px 10px', background:'var(--surface2)', borderRadius:'8px', fontSize:'11px', color:'var(--text-dim)' }}>
-            선택된 회원: <span style={{ color:'var(--accent)', fontWeight:700 }}>{selected.size}명</span>
+            선택된 회원: <span style={{ color:'var(--accent-text)', fontWeight:700 }}>{selected.size}명</span>
           </div>
           <textarea
             className="input"

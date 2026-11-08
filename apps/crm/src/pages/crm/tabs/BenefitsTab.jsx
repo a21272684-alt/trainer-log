@@ -14,7 +14,7 @@ import {
 // 마일리지 규칙: 사용 여부·포인트 가치·기본 적립률·최소/최대 사용·유효기간 + 상품별 적립률
 // 내역: 적립·사용·쿠폰 발급·환불 되돌림·직접 조정
 
-const mono = { fontFamily: "'DM Mono', monospace" }
+const mono = { fontVariantNumeric: 'tabular-nums' }
 const CATEGORIES = ['회원권', '레슨', '대여권', '구독권', '패키지', '일반']
 const fmtAt = iso => {
   const d = new Date(iso)

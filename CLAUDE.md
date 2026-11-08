@@ -50,7 +50,7 @@ Vite 6 는 보통 `.env` 변경을 감지해 자동 재시작하지만, **worktr
 trainer-log/
 ├── apps/
 │   ├── portal/  (port 3030, Landing/Trainer/Member/정책 페이지 — iOS/안드로이드 앱이 띄우는 곳)
-│   ├── crm/     (port 3020, GymPortal + 11개 탭 — 헬스장 대표/직원)
+│   ├── crm/     (port 3020, GymPortal + 13개 메뉴 5묶음 — 헬스장 대표/직원)
 │   ├── admin/   (port 3010, AdminPortal — 시스템 관리자)
 │   └── community/ (port 3040, CommunityPortal — 웹 전용, community.ownapp.kr)
 ├── packages/
@@ -90,7 +90,7 @@ shared 항목:
 ## 앱별 라우트 매핑
 **portal (3030):** `/`, `/trainer`, `/member`, `/report`, `/terms`, `/privacy`, `/refund`. `/crm` 과 `/gym` 은 `CrmRedirect` 컴포넌트로 dev 시 localhost:3020, prod 시 crm.example.com 으로 이동.
 
-**crm (3020):** 단일 라우트 `/` → GymPortal (OAuth 로그인) → GymOwnerPortal (11 탭).
+**crm (3020):** 단일 라우트 `/` → GymPortal (OAuth 로그인) → GymOwnerPortal (13개 메뉴 · 운영/회원/매출·정산/리포트·설정 5묶음). 밝은 테마 — 색 토큰은 `crm.css` `:root`, 라임은 채움에만 · 글자는 올리브(`--accent-text`).
 
 **admin (3010):** 단일 컴포넌트 AdminPortal (라우터 없음, ID/PW 로그인).
 

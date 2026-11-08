@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import { useToast } from './CrmToast'
 
-const mono = { fontFamily: "'DM Mono', monospace" }
+const mono = { fontVariantNumeric: 'tabular-nums' }
 
 const EMPTY_FORM = { label: '', base_salary: '', default_incentive_rate: '', sort_order: '' }
 
@@ -184,7 +184,7 @@ ALTER TABLE trainers
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600, fontSize: '13px' }}>{r.label}</div>
                   <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '2px' }}>
-                    기본급 <span style={{ ...mono, color: 'var(--accent)' }}>{Number(r.base_salary).toLocaleString()}원</span>
+                    기본급 <span style={{ ...mono, color: 'var(--accent-text)' }}>{Number(r.base_salary).toLocaleString()}원</span>
                     {' · '}
                     인센티브 <span style={{ ...mono, color: 'var(--blue)' }}>{Math.round(r.default_incentive_rate * 100)}%</span>
                   </div>
@@ -213,7 +213,7 @@ function RankForm({ form, setForm, onSave, onCancel, saving, isNew }) {
   const f = (k) => ({ value: form[k], onChange: e => setForm(v => ({ ...v, [k]: e.target.value })) })
   return (
     <div style={{ background: 'rgba(200,241,53,0.05)', border: '1px solid rgba(200,241,53,0.2)', borderRadius: '10px', padding: '12px' }}>
-      <div style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 600, marginBottom: '10px' }}>
+      <div style={{ fontSize: '11px', color: 'var(--accent-text)', fontWeight: 600, marginBottom: '10px' }}>
         {isNew ? '+ 새 직급' : '직급 편집'}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '8px', alignItems: 'end' }}>
