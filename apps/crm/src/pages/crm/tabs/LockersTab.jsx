@@ -3,6 +3,8 @@ import { parseISO, differenceInCalendarDays } from 'date-fns'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import Modal from '../components/CrmModal'
 import PaymentDialog from '../components/PaymentDialog'
+import CrmIcon from '../components/CrmIcon'
+import TopbarActions from '../components/TopbarActions'
 import { todayStr } from '../lib/ticketDateCalc'
 
 // ── 락커 관리 ───────────────────────────────────────────────────
@@ -12,9 +14,9 @@ const mono = { fontVariantNumeric: 'tabular-nums' }
 
 const STATES = {
   empty: { label: '빈 칸',       cls: 's-empty', dot: 'transparent', ring: '#9CA3AF' },
-  use:   { label: '사용 중',     cls: 's-use',   dot: '#9CC22A' },
-  soon:  { label: '만료 임박',   cls: 's-soon',  dot: '#F59E0B' },
-  over:  { label: '만료·미회수', cls: 's-over',  dot: '#E5484D' },
+  use:   { label: '사용 중',     cls: 's-use',   dot: '#65A30D' },
+  soon:  { label: '만료 임박',   cls: 's-soon',  dot: '#D97706' },
+  over:  { label: '만료 · 미회수', cls: 's-over',  dot: '#E11D48' },
   off:   { label: '사용 불가',   cls: 's-off',   dot: '#9CA3AF' },
 }
 
@@ -136,6 +138,13 @@ export default function LockersTab({ gymId, members = [], trainers = [], current
     })
   }
 
+  // 빈 칸을 골라 둔 상태면 바로 배정, 아니면 가장 앞 번호의 빈 칸을 먼저 골라 보여 준다
+  function pickOrAssign(p) {
+    if (sel?.st === 'empty') { assignPending(p); return }
+    if (!emptyLockers.length) { setError('빈 칸이 없어요. 락커를 추가하거나 회수한 뒤 배정해 주세요.'); return }
+    setFilter('all'); setSelId(emptyLockers[0].id); setMoving(false); setError('')
+  }
+
   function openExtend() {
     const a = sel.assignment
     const member = members.find(m => m.id === a.member_id) || { id: a.member_id, name: a.member_name }
@@ -143,72 +152,87 @@ export default function LockersTab({ gymId, members = [], trainers = [], current
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-          락커 {rows.length}개 · 사용률 {rate}%{pending.length > 0 && ` · 칸 배정 대기 ${pending.length}건`}
-        </div>
-        <button className="btn btn-secondary" style={{ padding: '7px 12px', fontSize: '12px' }}
-          onClick={() => { setAddOpen(true); setError('') }}>+ 락커 추가</button>
-      </div>
+    <div className="lk-page">
+      <TopbarActions>
+        <button type="button" className="btn btn-primary btn-lg" onClick={() => { setAddOpen(true); setError('') }}>
+          <CrmIcon name="plus" size={16} stroke={2.4} />락커 추가
+        </button>
+      </TopbarActions>
 
-      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-        {[['all', '전체'], ...Object.entries(STATES).map(([k, v]) => [k, v.label])].map(([k, l]) => (
-          <button key={k} className={`filter-chip ${filter === k ? 'active' : ''}`} onClick={() => setFilter(k)}>
-            {k !== 'all' && <span className="lk-dot" style={{ background: STATES[k].dot, borderColor: STATES[k].ring || STATES[k].dot }} />}
-            {l} <span style={{ ...mono, fontSize: '10px', opacity: 0.7 }}>{counts[k]}</span>
-          </button>
-        ))}
+      <div className="lk-head">
+        <div className="mb-chips" role="group" aria-label="상태">
+          {[['all', '전체'], ...Object.entries(STATES).map(([k, v]) => [k, v.label])].map(([k, l]) => (
+            <button key={k} type="button" className={`mb-chip ${filter === k ? 'on' : ''}`} aria-pressed={filter === k} onClick={() => setFilter(k)}>
+              {k !== 'all' && <span className="lk-dot" style={{ background: STATES[k].dot, borderColor: STATES[k].ring || STATES[k].dot }} />}
+              {l} <b style={mono}>{counts[k]}</b>
+            </button>
+          ))}
+        </div>
+        <span className="lk-stat" style={mono}>락커 {rows.length}칸 · 사용률 {rate}%</span>
       </div>
 
       {error && <div className="pause-error" role="alert">{error}</div>}
 
       <div className="lk-layout">
-        <div className="card lk-board">
-          {loading ? <div className="rev-empty">불러오는 중…</div>
-            : rows.length === 0 ? (
-              <div className="rev-empty">
-                아직 락커가 없어요. 오른쪽 위 <b>+ 락커 추가</b>로 번호 범위를 만들어주세요. (예: 1 ~ 40)
+        <div className="lk-left">
+          <section className="lk-board" aria-label="락커 칸">
+            {loading ? <div className="rev-empty">불러오는 중…</div>
+              : rows.length === 0 ? (
+                <div className="rev-empty">아직 락커가 없어요. 오른쪽 위 <b>락커 추가</b>로 번호 범위를 만들어 주세요. (예: 1 ~ 40)</div>
+              ) : shown.length === 0 ? <div className="rev-empty">해당하는 칸이 없어요</div>
+              : (
+                <div className="lk-grid">
+                  {shown.map(r => (
+                    <button key={r.id} type="button" className={`lk-tile ${STATES[r.st].cls} ${selId === r.id ? 'sel' : ''}`}
+                      title={[`${r.number}번`, STATES[r.st].label, r.assignment?.member_name, r.period].filter(Boolean).join(' · ')}
+                      aria-label={`${r.number}번 ${STATES[r.st].label}${r.assignment ? ' ' + r.assignment.member_name : ''}`}
+                      onClick={() => { setSelId(r.id); setMoving(false); setError('') }}>
+                      <span className="lk-tile-no">{r.number}</span>
+                      <span className="lk-tile-who">{r.assignment ? r.assignment.member_name : r.st === 'empty' ? '빈 칸' : '고장'}</span>
+                      {(r.st === 'soon' || r.st === 'over') && <span className="lk-tile-d">{r.status}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+          </section>
+
+          {pending.length > 0 && (
+            <section className="lk-wait" aria-label="칸 배정을 기다리는 결제">
+              <div className="lk-wait-head">
+                <h2>칸 배정을 기다리는 결제 <span style={mono}>{pending.length}</span></h2>
+                <small>대여권은 결제했는데 칸을 아직 안 고른 회원</small>
               </div>
-            ) : shown.length === 0 ? <div className="rev-empty">해당하는 칸이 없어요</div>
-            : (
-              <div className="lk-grid">
-                {shown.map(r => (
-                  <button key={r.id} type="button" className={`lk-tile ${STATES[r.st].cls} ${selId === r.id ? 'sel' : ''}`}
-                    aria-label={`${r.number}번 ${STATES[r.st].label}${r.assignment ? ' ' + r.assignment.member_name : ''}`}
-                    onClick={() => { setSelId(r.id); setMoving(false); setError('') }}>
-                    <span style={{ ...mono, fontSize: '14px', fontWeight: 700 }}>{r.number}</span>
-                    <span className="lk-tile-sub">
-                      {r.assignment && <span className="lk-tile-name">{r.assignment.member_name}</span>}
-                      {r.period && <span style={{ ...mono, fontSize: '10px' }}>{r.period}</span>}
-                      {r.status && <span style={{ ...mono, fontSize: '10px', fontWeight: 700 }}>{r.status}</span>}
-                    </span>
+              {pending.map(p => (
+                <div key={p.payment_id} className="lk-wait-row">
+                  <span style={{ minWidth: 0 }}><b>{p.member_name}</b><small>{p.product_name} · {md(p.end_date)}까지</small></span>
+                  <button type="button" className="lk-wait-btn" disabled={busy} onClick={() => pickOrAssign(p)}>
+                    {sel?.st === 'empty' ? `${sel.number}번에 배정` : '빈 칸 고르기'}
                   </button>
-                ))}
-              </div>
-            )}
+                </div>
+              ))}
+            </section>
+          )}
         </div>
 
-        <div className="card lk-panel">
+        <aside className="lk-panel" aria-label={sel ? `락커 ${sel.number}번` : '락커 상세'}>
           {!sel ? (
             <div className="rev-empty">칸을 누르면 상세가 보여요</div>
           ) : (
             <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <span style={{ ...mono, fontSize: '22px', fontWeight: 700 }}>{sel.number}번</span>
-                <span className={`lk-badge ${STATES[sel.st].cls}`}>{STATES[sel.st].label}</span>
+              <div className="lk-panel-head">
+                <span className="lk-panel-no">{sel.number}번</span>
+                <span className={`lk-state ${STATES[sel.st].cls}`}>
+                  {STATES[sel.st].label}{(sel.st === 'soon' || sel.st === 'over') && sel.status ? ` · ${sel.status}` : ''}
+                </span>
               </div>
 
               {sel.assignment && (
                 <>
-                  <div className="lk-info">
-                    <div><span>회원</span><b>{sel.assignment.member_name}</b></div>
-                    <div><span>기간</span><span style={mono}>{sel.assignment.start_date} ~ {sel.assignment.end_date}</span></div>
-                    <div><span>결제</span><span>{sel.assignment.product_name ? `${sel.assignment.product_name} · ${Number(sel.assignment.amount || 0).toLocaleString()}원` : '결제 연결 없음'}</span></div>
-                  </div>
-                  {sel.st === 'over' && (
-                    <div style={{ fontSize: '12px', color: '#7F1D16' }}>기간이 끝났어요. 짐을 정리한 뒤 회수하거나 연장해주세요.</div>
-                  )}
+                  <dl className="lk-info">
+                    <dt>회원</dt><dd>{sel.assignment.member_name}</dd>
+                    <dt>기간</dt><dd style={mono}>{sel.assignment.start_date.replace(/-/g, '.')} – {sel.assignment.end_date.slice(5).replace('-', '.')}</dd>
+                    <dt>결제</dt><dd>{sel.assignment.product_name ? `${sel.assignment.product_name} · ${Number(sel.assignment.amount || 0).toLocaleString()}원` : '결제 연결 없음'}</dd>
+                  </dl>
                   {moving ? (
                     <div>
                       <div className="pay-label">옮길 빈 칸 고르기</div>
@@ -218,44 +242,28 @@ export default function LockersTab({ gymId, members = [], trainers = [], current
                           <button key={t.id} type="button" className="lk-pick-btn" disabled={busy} onClick={() => moveTo(t)}>{t.number}</button>
                         ))}
                       </div>
-                      <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', marginTop: '8px' }}
-                        onClick={() => setMoving(false)}>취소</button>
+                      <button type="button" className="lk-act" style={{ width: '100%', marginTop: '8px' }} onClick={() => setMoving(false)}>취소</button>
                     </div>
                   ) : (
-                    <div className="lk-actions">
-                      <button className="btn btn-primary" disabled={busy} onClick={openExtend}>연장 결제</button>
-                      <button className="btn btn-secondary" disabled={busy} onClick={() => setMoving(true)}>다른 칸으로 이동</button>
-                      <button className="pause-cancel" style={{ padding: '9px' }} disabled={busy} onClick={returnLocker}>회수 (비우기)</button>
+                    <div className="lk-acts">
+                      <button type="button" className="lk-act primary" disabled={busy} onClick={openExtend}>연장 결제</button>
+                      <button type="button" className="lk-act" disabled={busy} onClick={() => setMoving(true)}>다른 칸으로 옮기기</button>
+                      <button type="button" className="lk-act danger" disabled={busy} onClick={returnLocker}>회수하고 비우기</button>
                     </div>
                   )}
+                  <div className="lk-note">기간이 끝나면 칸이 붉은색으로 바뀌어요. 짐을 정리한 뒤 회수하거나 연장해 주세요.</div>
                 </>
               )}
 
               {sel.st === 'empty' && (
                 <>
-                  {pending.length > 0 ? (
-                    <div>
-                      <div className="pay-label">칸 배정을 기다리는 결제</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        {pending.map(p => (
-                          <div key={p.payment_id} className="lk-pending">
-                            <div style={{ minWidth: 0 }}>
-                              <b style={{ fontSize: '13px' }}>{p.member_name}</b>
-                              <div style={{ fontSize: '11px', color: 'var(--text-muted)', ...mono }}>{p.product_name} · ~{p.end_date}</div>
-                            </div>
-                            <button className="btn btn-primary" style={{ padding: '5px 10px', fontSize: '11px' }}
-                              disabled={busy} onClick={() => assignPending(p)}>{sel.number}번 배정</button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                      비어 있는 칸이에요. 회원 상세 → <b>결제</b>에서 대여권을 고르면 이 칸을 배정할 수 있어요.
-                    </div>
-                  )}
-                  <div className="lk-actions">
-                    <button className="btn btn-secondary" disabled={busy}
+                  <div className="lk-note">
+                    {pending.length > 0
+                      ? '왼쪽 아래 목록에서 이 칸에 배정할 회원을 고를 수 있어요.'
+                      : '비어 있는 칸이에요. 회원 상세의 결제 등록에서 대여권을 고르면 이 칸을 배정할 수 있어요.'}
+                  </div>
+                  <div className="lk-acts">
+                    <button type="button" className="lk-act" disabled={busy}
                       onClick={() => run('crm_set_locker_status', { p_locker_id: sel.id, p_status: 'disabled' })}>
                       사용 불가로 표시 (고장 등)
                     </button>
@@ -264,8 +272,8 @@ export default function LockersTab({ gymId, members = [], trainers = [], current
               )}
 
               {sel.st === 'off' && (
-                <div className="lk-actions">
-                  <button className="btn btn-secondary" disabled={busy}
+                <div className="lk-acts">
+                  <button type="button" className="lk-act" disabled={busy}
                     onClick={() => run('crm_set_locker_status', { p_locker_id: sel.id, p_status: 'available' })}>
                     다시 사용 가능으로
                   </button>
@@ -273,7 +281,7 @@ export default function LockersTab({ gymId, members = [], trainers = [], current
               )}
             </>
           )}
-        </div>
+        </aside>
       </div>
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="락커 추가" maxWidth="380px">

@@ -1,17 +1,18 @@
 import { useState, useEffect, useRef } from 'react'
 import CrmIcon from '../components/CrmIcon'
+import TopbarActions from '../components/TopbarActions'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import { useToast } from '../components/CrmToast'
 import Modal from '../components/CrmModal'
 
 // ── 카테고리 정의 ──────────────────────────────────────────────
 const CATEGORIES = [
-  { key: '회원권', label: '회원권',     color: '#1D4ED8', bg: 'rgba(96,165,250,0.15)',  border: 'rgba(96,165,250,0.3)'  },
-  { key: '레슨',   label: '레슨 / PT', color: '#C2410C', bg: 'rgba(251,146,60,0.15)',  border: 'rgba(251,146,60,0.3)'  },
-  { key: '대여권', label: '대여권',     color: '#15803D', bg: 'rgba(74,222,128,0.15)',  border: 'rgba(74,222,128,0.3)'  },
-  { key: '구독권', label: '구독권',     color: '#0F766E', bg: 'rgba(45,212,191,0.15)',  border: 'rgba(45,212,191,0.3)'  },
-  { key: '패키지', label: '패키지',     color: '#7E22CE', bg: 'rgba(192,132,252,0.15)', border: 'rgba(192,132,252,0.3)' },
-  { key: '일반',   label: '일반 상품', color: '#475569', bg: 'rgba(148,163,184,0.15)', border: 'rgba(148,163,184,0.3)' },
+  { key: '회원권', label: '회원권',     color: '#3730A3', bg: '#E0E7FF', border: '#C7D2FE' },
+  { key: '레슨',   label: '레슨 · PT',  color: '#3F6212', bg: '#ECFCCB', border: '#D9F99D' },
+  { key: '대여권', label: '대여권',     color: '#92400E', bg: '#FEF3C7', border: '#FDE68A' },
+  { key: '구독권', label: '구독권',     color: '#6B21A8', bg: '#F3E8FF', border: '#E9D5FF' },
+  { key: '패키지', label: '패키지',     color: '#155E75', bg: '#CFFAFE', border: '#A5F3FC' },
+  { key: '일반',   label: '일반 상품',  color: '#374151', bg: '#F2F3EF', border: '#E4E7DC' },
 ]
 
 const CAT_MAP = Object.fromEntries(CATEGORIES.map(c => [c.key, c]))
@@ -318,130 +319,49 @@ function ProductCard({ product, onEdit, onDelete }) {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  const duration = product.duration_days ? `${product.duration_days}일` : '무제한'
-  const sessions = product.session_limit  ? `${product.session_limit}회` : '무제한'
   const pp = product.payment_prices || {}
-
-  // 설정된 결제 수단 목록 (카드에 표시용 요약)
-  const paymentSummary = [
-    product.price_cash  ? '현금'     : null,
-    product.price_card  ? '카드'     : null,
-    pp.transfer         ? '계좌이체' : null,
-    (pp.local_currency?.length > 0) ? '지역화폐' : null,
-    (pp.payments?.length > 0)       ? '페이먼츠' : null,
+  const methods = [
+    product.price_cash > 0 && { name: '현금', price: Number(product.price_cash) },
+    product.price_card > 0 && { name: '카드', price: Number(product.price_card) },
+    pp.transfer > 0 && { name: '계좌이체', price: Number(pp.transfer) },
+    ...(pp.local_currency || []).map(i => ({ name: `지역화폐 ${i.label}`, price: Number(i.price) })),
+    ...(pp.payments || []).map(i => ({ name: `페이먼츠 ${i.label}`, price: Number(i.price) })),
   ].filter(Boolean)
+  const main = methods[0]?.price ?? 0
+  const others = methods.filter(m => m.price !== main)   // 대표 가격과 다른 결제 수단만 따로 보여 준다
+  const payNames = [...new Set(methods.map(m => m.name.split(' ')[0]))]
 
   return (
-    <div
-      style={{
-        background: 'var(--surface)', border: '1px solid var(--border)',
-        borderRadius: '12px', padding: '14px',
-        display: 'flex', flexDirection: 'column', gap: '8px',
-        opacity: product.is_active ? 1 : 0.5,
-        position: 'relative', transition: 'border-color 0.15s',
-      }}
-      onMouseEnter={e => e.currentTarget.style.borderColor = cat.color}
-      onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-    >
-      {/* 카테고리 배지 + 메뉴 */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{
-          fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '5px',
-          background: cat.bg, color: cat.color, border: `1px solid ${cat.border}`,
-        }}>
-          {product.category}
-        </span>
-        <div ref={menuRef} style={{ position: 'relative' }}>
-          <button
-            onClick={() => setMenuOpen(o => !o)}
-            style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: '14px', padding: '2px 6px' }}
-          >⋯</button>
+    <article className={`pd-card ${product.is_active ? '' : 'off'}`}>
+      <div className="pd-top">
+        <span className="pd-cat" style={{ background: cat.bg, color: cat.color }}>{cat.label}</span>
+        {!product.is_active && <span className="pd-off">판매 중단</span>}
+        <div ref={menuRef} className="pd-menu">
+          <button type="button" aria-label={`${product.name} 메뉴`} aria-expanded={menuOpen} onClick={() => setMenuOpen(o => !o)}>⋯</button>
           {menuOpen && (
-            <div style={{
-              position: 'absolute', right: 0, top: '100%', zIndex: 50,
-              background: 'var(--surface2)', border: '1px solid var(--border)',
-              borderRadius: '8px', padding: '4px', minWidth: '100px',
-              boxShadow: '0 8px 24px rgba(17,24,39,0.14)',
-            }}>
-              {[
-                { label: '편집', color: 'var(--text)',   hoverBg: 'var(--surface3)',             action: () => { setMenuOpen(false); onEdit(product) } },
-                { label: '삭제', color: 'var(--red)',    hoverBg: 'rgba(248,113,113,0.08)',      action: () => { setMenuOpen(false); onDelete(product) } },
-              ].map(({ label, color, hoverBg, action }) => (
-                <button key={label} onClick={action}
-                  style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', color, fontSize: '12px', padding: '7px 10px', cursor: 'pointer', borderRadius: '5px' }}
-                  onMouseEnter={e => e.currentTarget.style.background = hoverBg}
-                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                >{label}</button>
-              ))}
+            <div className="pd-menu-list">
+              <button type="button" onClick={() => { setMenuOpen(false); onEdit(product) }}>편집</button>
+              <button type="button" className="danger" onClick={() => { setMenuOpen(false); onDelete(product) }}>삭제</button>
             </div>
           )}
         </div>
       </div>
-
-      {/* 상품명 */}
-      <div style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1.3, minHeight: '36px' }}>
-        {product.name}
-        {!product.is_active && <span style={{ marginLeft: '6px', fontSize: '10px', color: 'var(--text-dim)', fontWeight: 400 }}>[판매중단]</span>}
+      <div className="pd-name">{product.name}</div>
+      <div className="pd-price" style={mono}>{main.toLocaleString()}원</div>
+      <div className="pd-cond" style={mono}>
+        <span>{product.duration_days ? `${product.duration_days}일` : '기간 제한 없음'}</span>
+        <span>{product.session_limit ? `${product.session_limit}회` : '횟수 제한 없음'}</span>
       </div>
-
-      {/* 이용 조건 */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-        {[['이용기간', duration], ['입장횟수', sessions]].map(([l, v]) => (
-          <div key={l} style={{ background: 'var(--surface2)', borderRadius: '6px', padding: '5px 8px' }}>
-            <div style={{ fontSize: '9px', color: 'var(--text-dim)', marginBottom: '2px' }}>{l}</div>
-            <div style={{ fontSize: '11px', fontWeight: 600, ...mono }}>{v}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* 가격 — 현금 메인, 나머지 요약 */}
-      <div style={{ borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-          <span style={{ fontSize: '10px', color: 'var(--text-dim)' }}>현금</span>
-          <span style={{ fontSize: '13px', fontWeight: 700, color: cat.color, ...mono }}>
-            {Number(product.price_cash).toLocaleString()}원
-          </span>
+      {others.length > 0 && (
+        <div className="pd-others" style={mono}>
+          {others.map(m => <div key={m.name}><span>{m.name}</span><span>{m.price.toLocaleString()}원</span></div>)}
         </div>
-        {product.price_card > 0 && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-            <span style={{ fontSize: '10px', color: 'var(--text-dim)' }}>카드</span>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)', ...mono }}>{Number(product.price_card).toLocaleString()}원</span>
-          </div>
-        )}
-        {pp.transfer > 0 && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-            <span style={{ fontSize: '10px', color: 'var(--text-dim)' }}>계좌이체</span>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)', ...mono }}>{Number(pp.transfer).toLocaleString()}원</span>
-          </div>
-        )}
-        {/* 지역화폐 항목 */}
-        {(pp.local_currency || []).map((item, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-            <span style={{ fontSize: '10px', color: '#0F766E' }}>지역화폐 · {item.label}</span>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)', ...mono }}>{Number(item.price).toLocaleString()}원</span>
-          </div>
-        ))}
-        {/* 페이먼츠 항목 */}
-        {(pp.payments || []).map((item, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-            <span style={{ fontSize: '10px', color: '#6D28D9' }}>페이먼츠 · {item.label}</span>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)', ...mono }}>{Number(item.price).toLocaleString()}원</span>
-          </div>
-        ))}
+      )}
+      <div className="pd-foot">
+        <span>{payNames.join(' · ') || '결제 수단 없음'}</span>
+        {product.is_income_deductible && <span>소득공제</span>}
       </div>
-
-      {/* 소득공제 + 결제수단 뱃지 */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
-        <span style={{ fontSize: '10px', color: product.is_income_deductible ? 'var(--green)' : 'var(--text-dim)' }}>
-          {product.is_income_deductible ? '✓ 소득공제' : '소득공제 해당없음'}
-        </span>
-        {paymentSummary.length > 2 && (
-          <span style={{ fontSize: '9px', color: 'var(--text-dim)', background: 'var(--surface2)', borderRadius: '4px', padding: '2px 5px' }}>
-            {paymentSummary.length}가지 결제
-          </span>
-        )}
-      </div>
-    </div>
+    </article>
   )
 }
 
@@ -605,37 +525,27 @@ CREATE INDEX ON gym_products(gym_id, category);`}
 
   return (
     <div>
-      {/* 툴바 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px', flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', flex: 1, minWidth: '180px', maxWidth: '280px' }}>
-          <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)', fontSize: '13px', pointerEvents: 'none', display: 'flex' }}><CrmIcon name="search" size={15} /></span>
-          <input className="input" style={{ paddingLeft: '32px' }} placeholder="상품명 검색" value={search} onChange={e => setSearch(e.target.value)} />
-        </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>{filtered.length}개 상품</span>
-          <button className="btn btn-primary" onClick={openNew}>+ 상품 등록</button>
-        </div>
-      </div>
-
-      {/* 카테고리 필터 탭 */}
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        <button className={`filter-chip ${catFilter === '전체' ? 'active' : ''}`} onClick={() => setCatFilter('전체')}>
-          전체 <span style={{ opacity: 0.7, marginLeft: '3px' }}>({products.length})</span>
+      <TopbarActions>
+        <button type="button" className="btn btn-primary btn-lg" onClick={openNew}>
+          <CrmIcon name="plus" size={16} stroke={2.4} />상품 등록
         </button>
-        {CATEGORIES.map(cat => (
-          <button key={cat.key} onClick={() => setCatFilter(cat.key)}
-            style={{
-              padding: '5px 12px', borderRadius: '20px', border: '1px solid',
-              fontSize: '12px', fontWeight: catFilter === cat.key ? 700 : 400,
-              cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s',
-              background:  catFilter === cat.key ? cat.bg    : 'none',
-              color:       catFilter === cat.key ? cat.color : 'var(--text-muted)',
-              borderColor: catFilter === cat.key ? cat.color : 'var(--border)',
-            }}>
-            {cat.label}
-            {countByCategory[cat.key] > 0 && <span style={{ opacity: 0.7, marginLeft: '3px' }}>({countByCategory[cat.key]})</span>}
+      </TopbarActions>
+
+      <div className="mb-bar" style={{ marginBottom: '14px' }}>
+        <div className="mb-chips" role="group" aria-label="종류">
+          <button type="button" className={`mb-chip ${catFilter === '전체' ? 'on' : ''}`} aria-pressed={catFilter === '전체'} onClick={() => setCatFilter('전체')}>
+            전체 {products.length}
           </button>
-        ))}
+          {CATEGORIES.map(cat => (
+            <button key={cat.key} type="button" className={`mb-chip ${catFilter === cat.key ? 'on' : ''}`} aria-pressed={catFilter === cat.key} onClick={() => setCatFilter(cat.key)}>
+              {cat.label} {countByCategory[cat.key]}
+            </button>
+          ))}
+        </div>
+        <label className="mb-search">
+          <CrmIcon name="search" size={15} stroke={2.2} />
+          <input type="search" aria-label="상품명 검색" placeholder="상품명" value={search} onChange={e => setSearch(e.target.value)} />
+        </label>
       </div>
 
       {/* 로딩 */}
@@ -659,7 +569,7 @@ CREATE INDEX ON gym_products(gym_id, category);`}
 
       {/* 상품 카드 그리드 */}
       {!loading && filtered.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
+        <div className="pd-grid">
           {filtered.map(p => (
             <ProductCard key={p.id} product={p} onEdit={openEdit} onDelete={setDeleteTarget} />
           ))}

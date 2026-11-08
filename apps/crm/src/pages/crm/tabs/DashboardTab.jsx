@@ -281,7 +281,7 @@ export default function DashboardTab({
         <Kpi label="이용 중인 회원" icon="users"
           value={v.using.length} unit="명" sub={`전체 회원 ${members.length}명`}
           onClick={() => onNavigate('members', { filter: 'active' })} ariaLabel="이용 중인 회원 — 회원 관리로 이동" />
-        <Kpi label="만료 임박" icon="clock" tone="amber"
+        <Kpi label="만료 임박" icon="clock" tone={v.expiring.length ? 'amber' : undefined}
           value={v.expiring.length} unit="명"
           sub={v.expiring.length ? '재등록 안내가 필요해요' : `${EXPIRING_DAYS}일 안 · ${EXPIRING_SESSIONS}회 이하 없음`}
           onClick={() => onNavigate('members', { filter: 'expiring' })} ariaLabel="만료 임박 회원 — 회원 관리로 이동" />

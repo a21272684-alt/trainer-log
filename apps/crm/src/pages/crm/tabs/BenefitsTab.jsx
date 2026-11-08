@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import CrmIcon from '../components/CrmIcon'
+import TopbarActions from '../components/TopbarActions'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import Modal from '../components/CrmModal'
 import { useToast } from '../components/CrmToast'
@@ -252,7 +253,7 @@ function IssueDialog({ open, gymId, coupon, members, onClose, onIssued }) {
 }
 
 // ── 쿠폰 목록 ─────────────────────────────────────────────────────
-function CouponsView({ gymId, members }) {
+function CouponsView({ gymId, members, onCount }) {
   const showToast = useToast()
   const [coupons, setCoupons]   = useState(null)
   const [products, setProducts] = useState([])
@@ -267,6 +268,7 @@ function CouponsView({ gymId, members }) {
       supabase.from('gym_products').select('id, name, category').eq('gym_id', gymId).eq('is_active', true).order('category').order('name'),
     ])
     setCoupons(c.data || [])
+    onCount?.((c.data || []).length)
     setProducts(p.data || [])
   }
 
@@ -279,17 +281,14 @@ function CouponsView({ gymId, members }) {
   }
 
   const byId = Object.fromEntries(products.map(p => [p.id, p]))
-  const issued = (coupons || []).reduce((s, c) => s + Number(c.issued || 0), 0)
-  const used   = (coupons || []).reduce((s, c) => s + Number(c.used || 0), 0)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-          {coupons ? `쿠폰 ${coupons.length}종 · 발급 ${issued}장 · 사용 ${used}장` : ''}
-        </span>
-        <button className="btn btn-primary" style={{ fontSize: '12px' }} onClick={() => setEditing('new')}>+ 쿠폰 만들기</button>
-      </div>
+      <TopbarActions>
+        <button type="button" className="btn btn-primary btn-lg" onClick={() => setEditing('new')}>
+          <CrmIcon name="plus" size={16} stroke={2.4} />쿠폰 만들기
+        </button>
+      </TopbarActions>
       {coupons === null ? <div className="rev-empty">불러오는 중…</div>
         : coupons.length === 0 ? (
           <div className="empty-state"><div className="empty-state-icon"><CrmIcon name="ticket" size={30} /></div><div className="empty-state-text">아직 만든 쿠폰이 없어요</div></div>
@@ -299,26 +298,26 @@ function CouponsView({ gymId, members }) {
               const { big, small } = couponBig(c)
               const expired = c.valid_until && c.valid_until < todayStr()
               return (
-                <div key={c.id} className={`bn-cp ${!c.active || expired ? 'off' : ''}`}>
-                  <div className="bn-cp-l"><span style={{ ...mono, fontSize: '20px', fontWeight: 700, color: '#3F6212' }}>{big}</span><span style={{ fontSize: '11px', color: '#4D6A00' }}>{small}</span></div>
-                  <div className="bn-cp-r">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
-                      <b style={{ fontSize: '14px', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</b>
-                      <span style={{ ...mono, fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>발급 {c.issued} · 사용 {c.used}</span>
+                <article key={c.id} className={`bn-card ${!c.active || expired ? 'off' : ''}`}>
+                  <div className="bn-card-top">
+                    <span className="bn-card-big" style={mono}>{big}</span>
+                    <span className="bn-card-kind">{small}</span>
+                  </div>
+                  <div className="bn-card-body">
+                    <b className="bn-card-name">{c.name}</b>
+                    <span className="bn-card-rule">{couponCond(c, byId)}</span>
+                    <div className="bn-card-stats" style={mono}>
+                      <span>발급 <b>{c.issued}</b></span>
+                      <span>사용 <b>{c.used}</b></span>
+                      <span className="v">{!c.active ? '사용 중지됨' : expired ? '기간 끝남' : couponValid(c)}</span>
                     </div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{couponCond(c, byId)}</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        {!c.active ? '사용 중지됨' : expired ? '기간 끝남' : couponValid(c)}
-                      </span>
-                      <span style={{ display: 'flex', gap: '4px' }}>
-                        <button className="bn-mini" onClick={() => toggleActive(c)}>{c.active ? '중지' : '다시 사용'}</button>
-                        <button className="bn-mini" onClick={() => setEditing(c)}>수정</button>
-                        {c.active && !expired && <button className="bn-mini strong" onClick={() => setIssuing(c)}>회원에게 발급</button>}
-                      </span>
+                    <div className="bn-card-acts">
+                      <button type="button" className="bn-mini" onClick={() => setEditing(c)}>수정</button>
+                      <button type="button" className="bn-mini" onClick={() => toggleActive(c)}>{c.active ? '사용 중지' : '다시 사용'}</button>
+                      {c.active && !expired && <button type="button" className="bn-mini strong" onClick={() => setIssuing(c)}>회원에게 발급</button>}
                     </div>
                   </div>
-                </div>
+                </article>
               )
             })}
           </div>
@@ -472,14 +471,29 @@ function LedgerView({ gymId }) {
 
 export default function BenefitsTab({ gymId, members = [] }) {
   const [view, setView] = useState('coupon')
+  const [couponCount, setCouponCount] = useState(null)
+  const [rule, setRule] = useState(null)
+
+  useEffect(() => {
+    supabase.rpc('crm_benefit_settings', { p_gym_id: gymId })
+      .then(({ data }) => setRule({ ...DEFAULT_SETTINGS, ...(data?.settings || {}) }))
+  }, [gymId, view])
+
+  const ruleText = !rule ? ''
+    : !rule.enabled ? '마일리지 꺼짐'
+    : `마일리지 사용 중 · 결제액의 ${Number(rule.default_rate)}% 적립${Number(rule.expire_months) > 0 ? ` · ${Number(rule.expire_months)}개월 유효` : ''}`
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      <div className="rev-seg" role="tablist" aria-label="쿠폰·마일리지 보기" style={{ alignSelf: 'flex-start' }}>
-        {[['coupon', '쿠폰'], ['rule', '마일리지 규칙'], ['log', '내역']].map(([k, l]) => (
-          <button key={k} role="tab" aria-selected={view === k} className={view === k ? 'on' : ''} onClick={() => setView(k)}>{l}</button>
-        ))}
+      <div className="bn-head">
+        <div className="rev-seg" role="tablist" aria-label="쿠폰·마일리지 보기">
+          {[['coupon', couponCount == null ? '쿠폰' : `쿠폰 ${couponCount}`], ['rule', '마일리지 규칙'], ['log', '내역']].map(([k, l]) => (
+            <button key={k} role="tab" aria-selected={view === k} className={view === k ? 'on' : ''} onClick={() => setView(k)}>{l}</button>
+          ))}
+        </div>
+        <span className="bn-rule">{ruleText}</span>
       </div>
-      {view === 'coupon' && <CouponsView gymId={gymId} members={members} />}
+      {view === 'coupon' && <CouponsView gymId={gymId} members={members} onCount={setCouponCount} />}
       {view === 'rule'   && <RulesView gymId={gymId} />}
       {view === 'log'    && <LedgerView gymId={gymId} />}
     </div>

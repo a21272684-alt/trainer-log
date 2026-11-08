@@ -284,7 +284,7 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
               {tab === 'schedule'      && <ScheduleTab         gymId={gym.id} trainers={trainers} members={members} onOpenMember={openMember} />}
               {tab === 'contracts'     && <ContractsTab        gymId={gym.id} trainers={trainers} members={members} currentTrainer={trainer} />}
               {tab === 'notifications' && <NotificationsTab    gymId={gym.id} gymName={gym.name} members={members} trainers={trainers} />}
-              {tab === 'reports'       && <ReportsTab          gymId={gym.id} />}
+              {tab === 'reports'       && <ReportsTab          gymId={gym.id} gymName={gym.name} />}
               {tab === 'settings'      && (canAccess('settings')
                 ? <SettingsTab gymId={gym.id} gym={gym} trainers={trainers} members={members} onGymUpdate={g => setGym(g)} />
                 : <AccessDenied />)}

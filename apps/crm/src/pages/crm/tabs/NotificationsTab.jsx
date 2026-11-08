@@ -128,7 +128,7 @@ export default function NotificationsTab({ gymId, gymName, members, trainers }) 
             onClick={() => setActive(t.key)}>
             <span className="nt-type-top">
               <b>{t.label}</b>
-              <em style={{ color: t.tone }}>{groups[t.key].length}명</em>
+              <em style={{ color: groups[t.key].length ? t.tone : 'var(--text-dim)' }}>{groups[t.key].length}명</em>
             </span>
             <span className="nt-type-desc">{t.desc}</span>
           </button>
