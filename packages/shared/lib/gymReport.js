@@ -95,27 +95,27 @@ export async function generateWeeklyReport({
 
   try {
     // ② 통계 수집
-    onStatus('📊 운영 데이터 수집 중...')
+    onStatus('운영 데이터 모으는 중...')
     const stats = await collectWeeklyStats(supabase, gymId, weekStart)
 
     // ③ 프롬프트 생성 (ai_templates.buildGymWeeklyReportPrompt)
-    onStatus('✍️ 리포트 프롬프트 생성 중...')
+    onStatus('리포트 준비 중...')
     const prompt = buildGymWeeklyReportPrompt(stats)
 
     // ④ Gemini 호출 (ai_templates.callGemini)
-    onStatus('🤖 AI 리포트 생성 중...')
+    onStatus('AI가 리포트를 쓰는 중...')
     // 중앙키(트레이너 앱)면 서버가 목적별 횟수를 확인 — BYO 키(CRM)는 직접 호출이라 무시됨
     const reportText = await callGemini(apiKey, model, prompt, { purpose: 'weekly_report' })
 
     // ⑤ 결과 저장
-    onStatus('💾 리포트 저장 중...')
+    onStatus('리포트 저장 중...')
     await supabase.rpc('save_weekly_report', {
       p_report_id:   reportId,
       p_report_text: reportText,
       p_stats:       stats,
     })
 
-    onStatus('✅ 완료')
+    onStatus('완료')
     return { reportText, stats }
 
   } catch (err) {

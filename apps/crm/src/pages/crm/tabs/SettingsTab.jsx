@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import CrmIcon from '../components/CrmIcon'
+import TopbarActions from '../components/TopbarActions'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import { useToast } from '../components/CrmToast'
 import Modal from '../components/CrmModal'
@@ -44,22 +45,10 @@ function SubTabBar({ tabs, active, onChange, variant = 'pill' }) {
     )
   }
   return (
-    <div style={{
-      display: 'inline-flex', gap: '3px', marginBottom: '24px',
-      background: 'var(--surface)', borderRadius: '12px',
-      padding: '4px', border: '1px solid var(--border)',
-    }}>
+    <div className="rev-seg" role="tablist" style={{ marginBottom: '18px' }}>
       {tabs.map(t => (
-        <button key={t.key} onClick={() => onChange(t.key)} style={{
-          padding: '7px 18px', borderRadius: '9px', border: 'none',
-          fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-          background: active === t.key ? 'var(--surface3)' : 'none',
-          color: active === t.key ? 'var(--text)' : 'var(--text-dim)',
-          boxShadow: active === t.key ? '0 1px 3px rgba(17,24,39,0.10)' : 'none',
-          transition: 'all 0.15s',
-        }}>
-          {t.label}
-        </button>
+        <button key={t.key} type="button" role="tab" aria-selected={active === t.key}
+          className={active === t.key ? 'on' : ''} onClick={() => onChange(t.key)}>{t.label}</button>
       ))}
     </div>
   )
@@ -513,6 +502,11 @@ function StaffPanel({ gymId }) {
 
   return (
     <div>
+      <TopbarActions>
+        <button type="button" className="btn btn-primary btn-lg" onClick={() => { setForm({ name: '', phone: '' }); setAddModal(true) }}>
+          <CrmIcon name="plus" size={16} stroke={2.4} />직원 추가
+        </button>
+      </TopbarActions>
 
       {/* ── 가입 대기열 ── */}
       {pendingTrainers.length > 0 && (
@@ -550,29 +544,9 @@ function StaffPanel({ gymId }) {
                 </div>
 
                 <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                  <button
-                    onClick={() => handleApprove(t)}
-                    disabled={approving === t.id}
-                    style={{
-                      padding: '5px 12px', borderRadius: '7px',
-                      background: 'rgba(74,222,128,0.15)', color: '#3F6212',
-                      fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                      border: '1px solid rgba(74,222,128,0.3)', outline: 'none',
-                      opacity: approving === t.id ? 0.5 : 1,
-                    }}>
-                    {approving === t.id ? '…' : '✓ 승인'}
-                  </button>
-                  <button
-                    onClick={() => handleReject(t)}
-                    disabled={approving === t.id}
-                    style={{
-                      padding: '5px 12px', borderRadius: '7px',
-                      background: 'rgba(248,113,113,0.08)', color: '#BE123C',
-                      fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                      border: '1px solid rgba(248,113,113,0.25)',
-                      opacity: approving === t.id ? 0.5 : 1,
-                    }}>
-                    거절
+                  <button type="button" className="att-btn" disabled={approving === t.id} onClick={() => handleReject(t)}>거절</button>
+                  <button type="button" className="att-btn strong" disabled={approving === t.id} onClick={() => handleApprove(t)}>
+                    {approving === t.id ? '처리 중…' : '합류 승인'}
                   </button>
                 </div>
               </div>
@@ -591,10 +565,6 @@ function StaffPanel({ gymId }) {
             센터에 소속된 직원 관리
           </div>
         </div>
-        <button className="btn btn-primary" style={{ gap: '5px' }}
-          onClick={() => { setForm({ name: '', phone: '' }); setAddModal(true) }}>
-          + 직원 추가
-        </button>
       </div>
 
       {/* ── 재직 중 직원 테이블 ── */}
@@ -1347,8 +1317,8 @@ export default function SettingsTab({ gymId, gym, trainers, members, onGymUpdate
   const MAIN_TABS = [
     { key: 'staff',      label: '직원 관리' },
     { key: 'settlement', label: '직원 급여 정산' },
-    { key: 'log',        label: '센터 로그' },
-    { key: 'advanced',   label: '고급 설정' },
+    { key: 'log',        label: '센터 기록' },
+    { key: 'advanced',   label: '센터 정보 · 권한' },
   ]
 
   return (

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import CrmIcon from '../components/CrmIcon'
+import TopbarActions from '../components/TopbarActions'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import { useToast } from '../components/CrmToast'
 import Modal from '../components/CrmModal'
@@ -317,7 +318,7 @@ export default function ContractsTab({ gymId, trainers = [], members = [], curre
 
   const filtered = contracts.filter(c => filter === 'all' || c.status === filter)
   const STATUS   = {
-    draft:     { label:'초안',     color:'var(--yellow)', bg:'rgba(250,204,21,0.1)'  },
+    draft:     { label:'서명 기다림',     color:'var(--yellow)', bg:'rgba(250,204,21,0.1)'  },
     signed:    { label:'서명 완료', color:'var(--green)',  bg:'rgba(74,222,128,0.1)' },
     cancelled: { label:'취소됨',   color:'var(--red)',    bg:'rgba(248,113,113,0.1)' },
   }
@@ -325,17 +326,19 @@ export default function ContractsTab({ gymId, trainers = [], members = [], curre
   // ── 렌더 ──────────────────────────────────────────────────────
   return (
     <div>
-      {/* 필터 + 작성 버튼 */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px' }}>
-        <div style={{ display:'flex', gap:'6px' }}>
-          {[['all','전체'],['draft','초안'],['signed','서명 완료'],['cancelled','취소']].map(([v,l]) => (
-            <button key={v} className={`filter-chip ${filter===v?'active':''}`} onClick={() => setFilter(v)}>{l}</button>
-          ))}
-        </div>
-        <button className="btn btn-primary" style={{ padding:'6px 14px', fontSize:'12px' }}
-          onClick={() => { setShowForm(v=>!v); if (!showForm) setForm(emptyForm()) }}>
-          + 계약서 작성
+      <TopbarActions>
+        <button type="button" className="btn btn-primary btn-lg"
+          onClick={() => { setShowForm(v => !v); if (!showForm) setForm(emptyForm()) }}>
+          <CrmIcon name="plus" size={16} stroke={2.4} />계약서 작성
         </button>
+      </TopbarActions>
+
+      <div className="mb-chips" role="group" aria-label="상태" style={{ marginBottom: '14px' }}>
+        {[['all', '전체'], ['draft', '서명 기다림'], ['signed', '서명 완료'], ['cancelled', '취소']].map(([v, l]) => (
+          <button key={v} type="button" className={`mb-chip ${filter === v ? 'on' : ''}`} aria-pressed={filter === v} onClick={() => setFilter(v)}>
+            {l} {v === 'all' ? contracts.length : contracts.filter(c => c.status === v).length}
+          </button>
+        ))}
       </div>
 
       {/* ── 계약서 작성 폼 ── */}

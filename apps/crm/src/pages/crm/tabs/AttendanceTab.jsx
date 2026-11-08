@@ -84,6 +84,7 @@ function MemberAttendance({ gymId, members, head, onOpenMember }) {
   }
   const isToday = date === todayStr()
   const okCount = day?.ok_count ?? 0
+  const rejected = day?.rejected_count ?? 0
   const diff    = okCount - (day?.last_week_ok ?? 0)
   const hours   = (day?.hourly || []).slice(6, 24)   // 06시~23시
   const maxH    = Math.max(1, ...hours)
@@ -146,10 +147,10 @@ function MemberAttendance({ gymId, members, head, onOpenMember }) {
               : <span style={{ fontWeight: 700, color: diff > 0 ? '#3F6212' : '#BE123C' }}>지난주 같은 요일보다 {Math.abs(diff)}명 {diff > 0 ? '많아요' : '적어요'}</span>}
           </div>
         </div>
-        <div className="card rev-kpi rose">
+        <div className={`card rev-kpi ${rejected > 0 ? 'rose' : ''}`}>
           <div className="rev-kpi-label">입장 거부 · 회원권 만료</div>
-          <div className="rev-kpi-value" style={mono}>{day?.rejected_count ?? 0}<small>명</small></div>
-          <div className="rev-kpi-sub">재등록 안내가 필요해요</div>
+          <div className="rev-kpi-value" style={mono}>{rejected}<small>명</small></div>
+          <div className="rev-kpi-sub">{rejected > 0 ? '재등록 안내가 필요해요' : '거부된 회원이 없어요'}</div>
         </div>
         <div className="card rev-kpi">
           <div className="rev-kpi-label">{ABSENT_DAYS}일 넘게 안 온 회원</div>

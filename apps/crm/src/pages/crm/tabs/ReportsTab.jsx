@@ -1,34 +1,68 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import CrmIcon from '../components/CrmIcon'
+import TopbarActions from '../components/TopbarActions'
 import { supabase, GEMINI_MODEL } from '@trainer-log/shared/lib/supabase'
 import { useToast } from '../components/CrmToast'
 import { generateWeeklyReport, fetchRecentReports, parseReportSections, getPrevMondayStr } from '@trainer-log/shared/lib/gymReport'
 
-const man = n => (Number(n||0)/10000).toFixed(0) + '만원'
+// ── 주간 리포트 ─────────────────────────────────────────────────
+// 왼쪽 주 목록 + 오른쪽 문서. AI 호출을 아끼려고 마지막으로 만든 뒤 7일이 지나야 다시 만들 수 있다.
+
+const LOCK_DAYS = 7
+const SECTION_MARKS = ['#4D7C0F', '#B45309', '#4F46E5', '#0891B2', '#BE123C']
+
+const man = n => (Number(n || 0) / 10000).toFixed(0) + '만원'
+const stripMark = line => line.replace(/^[^\p{L}\p{N}]+/u, '').trim()   // 제목 앞 이모지 제거
+const monthDay = d => {
+  if (!d) return ''
+  const [, m, day] = String(d).slice(0, 10).split('-').map(Number)
+  return `${m}월 ${day}일`
+}
+const dotDate = d => String(d || '').slice(5, 10).replace('-', '.')
+
+function weekLabel(r) {
+  const [, m, d] = String(r.week_end || r.week_start).split('-').map(Number)
+  return `${m}월 ${Math.ceil(d / 7)}주`
+}
 
 function StatsGrid({ stats }) {
   if (!stats) return null
   const items = [
-    ['이번 주 출석', (stats.attendance?.this_week ?? '—') + '회', 'var(--blue)'],
-    ['신규 회원',   (stats.members?.new_this_week ?? '—') + '명', 'var(--green)'],
-    ['이번 주 매출', man(stats.revenue?.this_week),               'var(--accent-text)'],
-    ['이탈 위험',   (stats.members?.at_risk ?? '—') + '명',      stats.members?.at_risk > 0 ? 'var(--red)' : 'var(--text-dim)'],
-    ['만료 예정',   (stats.members?.expiring ?? '—') + '명',     stats.members?.expiring > 0 ? 'var(--orange)' : 'var(--text-dim)'],
-    ['수업 완료',   (stats.sessions?.this_week ?? '—') + '회',   'var(--purple)'],
+    ['이번 주 출석', (stats.attendance?.this_week ?? '—') + '회'],
+    ['수업 완료',   (stats.sessions?.this_week ?? '—') + '회'],
+    ['이번 주 매출', man(stats.revenue?.this_week)],
+    ['신규 회원',   (stats.members?.new_this_week ?? '—') + '명'],
+    ['이탈 위험',   (stats.members?.at_risk ?? '—') + '명'],
+    ['만료 예정',   (stats.members?.expiring ?? '—') + '명'],
   ]
   return (
-    <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'6px', marginBottom:'16px' }}>
-      {items.map(([label,val,color]) => (
-        <div key={label} style={{ background:'var(--surface2)', borderRadius:'8px', padding:'8px 10px', textAlign:'center' }}>
-          <div style={{ fontVariantNumeric:'tabular-nums', fontSize:'14px', fontWeight:700, color }}>{val}</div>
-          <div style={{ fontSize:'9px', color:'var(--text-dim)', marginTop:'2px' }}>{label}</div>
-        </div>
-      ))}
+    <div className="rp-kpis">
+      {items.map(([label, val]) => <div key={label}><span>{label}</span><b>{val}</b></div>)}
     </div>
   )
 }
 
-export default function ReportsTab({ gymId }) {
+function ReportBody({ text }) {
+  let mark = 0
+  return parseReportSections(text).map((sec, i) => {
+    if (!sec.emoji) return <p key={i} className="rp-intro">{sec.body}</p>
+    const [head, ...rest] = sec.body.split('\n')
+    const title = stripMark(head)
+    const lines = rest.map(l => l.trim()).filter(Boolean)
+    if (title.includes('한마디')) {
+      return <div key={i} className="rp-note"><b>{title}</b>{lines.map((l, j) => <p key={j}>{l}</p>)}</div>
+    }
+    const color = SECTION_MARKS[mark++ % SECTION_MARKS.length]
+    return (
+      <section key={i} className="rp-sec">
+        <h3><i style={{ background: color }} />{title}</h3>
+        {lines.map((l, j) => <p key={j}>{l}</p>)}
+      </section>
+    )
+  })
+}
+
+export default function ReportsTab({ gymId, gymName }) {
   const [reports,   setReports]  = useState([])
   const [selected,  setSelected] = useState(null)
   const [phase,     setPhase]    = useState('idle')
@@ -44,13 +78,13 @@ export default function ReportsTab({ gymId }) {
       setReports(list)
       if (list.length > 0) setSelected(list[0])
       setPhase('idle')
-    } catch(e) { setPhase('error'); setErrMsg(e.message) }
+    } catch (e) { setPhase('error'); setErrMsg(e.message) }
   }
 
-  useEffect(() => { loadReports() }, [gymId])
+  useEffect(() => { loadReports() }, [gymId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleGenerate(existingReport = null) {
-    if (!gymId)  { showToast('센터 정보가 없어요'); return }
+    if (!gymId) { showToast('센터 정보가 없어요'); return }
     setPhase('loading'); setErrMsg('')
     try {
       let reportRow = existingReport
@@ -60,90 +94,87 @@ export default function ReportsTab({ gymId }) {
           const { data: row } = await supabase.from('gym_weekly_reports').select('*').eq('id', data).single()
           reportRow = row
         }
-        if (!reportRow) { setPhase('error'); setErrMsg('리포트 레코드 생성 실패'); return }
+        if (!reportRow) { setPhase('error'); setErrMsg('리포트를 시작하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); return }
       }
       await generateWeeklyReport({ supabase, apiKey: '', model: GEMINI_MODEL, gymId, reportId: reportRow.id, weekStart: reportRow.week_start || getPrevMondayStr(), onStatus: setStatus })
-      showToast('✓ 주간 리포트 생성 완료')
+      showToast('주간 리포트를 만들었어요')
       await loadReports()
       setPhase('done')
-    } catch(e) { setPhase('error'); setErrMsg(e.message) }
+    } catch (e) { setPhase('error'); setErrMsg(e.message) }
   }
 
-  function renderReport(text) {
-    return parseReportSections(text).map((sec, i) => {
-      if (!sec.emoji) return <p key={i} style={{ fontSize:'12px', color:'var(--text-muted)', marginBottom:'8px' }}>{sec.body}</p>
-      return (
-        <div key={i} style={{ background:sec.style.bg, border:`1px solid ${sec.style.border}`, borderRadius:'10px', padding:'14px', marginBottom:'10px' }}>
-          <pre style={{ margin:0, fontSize:'13px', lineHeight:1.7, color:'var(--text)', whiteSpace:'pre-wrap', fontFamily:"'Noto Sans KR', sans-serif" }}>{sec.body}</pre>
-        </div>
-      )
-    })
-  }
+  const pendingReports = reports.filter(r => r.status === 'pending' || r.status === 'error')
+  const doneReports    = reports.filter(r => r.status === 'done')
 
-  const pendingReports = reports.filter(r => r.status==='pending' || r.status==='error')
-  const doneReports    = reports.filter(r => r.status==='done')
+  const nextAt = useMemo(() => {
+    const last = Math.max(0, ...reports.filter(r => r.status === 'done' && r.generated_at).map(r => new Date(r.generated_at).getTime()))
+    return last ? new Date(last + LOCK_DAYS * 86400000) : null
+  }, [reports])
+  const locked = !!nextAt && nextAt > new Date()
+  const busy = phase === 'loading'
 
   return (
-    <div style={{ maxWidth:'720px' }}>
+    <div className="rp">
+      <TopbarActions>
+        {locked ? (
+          <span className="rp-lock"><CrmIcon name="lock" size={15} stroke={2.1} />다시 만들기는 {nextAt.getMonth() + 1}월 {nextAt.getDate()}일부터</span>
+        ) : selected?.status === 'done' ? (
+          <button type="button" className="btn btn-secondary btn-lg" disabled={busy} onClick={() => handleGenerate({ ...selected, status: 'pending' })}>다시 만들기</button>
+        ) : null}
+      </TopbarActions>
+
       {pendingReports.map(r => (
-        <div key={r.id} style={{ background:'rgba(250,204,21,0.06)', border:'1px solid rgba(250,204,21,0.2)', borderRadius:'10px', padding:'14px', marginBottom:'14px' }}>
-          <div style={{ fontSize:'12px', fontWeight:700, color:'var(--yellow)', marginBottom:'6px' }}>
-            {r.status==='error' ? '만들지 못했어요 — 다시 시도해 주세요' : '새 주간 리포트 대기 중'}
+        <div key={r.id} className="rp-pending">
+          <div style={{ minWidth: 0 }}>
+            <b>{r.status === 'error' ? '만들지 못했어요 — 다시 시도해 주세요' : '새 주간 리포트가 기다리고 있어요'}</b>
+            <small>{monthDay(r.week_start)} – {monthDay(r.week_end)}</small>
+            {r.error_message && <small className="err">{r.error_message}</small>}
           </div>
-          <div style={{ fontSize:'11px', color:'var(--text-muted)', marginBottom:'8px' }}>기준: {r.week_start} ~ {r.week_end || ''}</div>
-          {r.error_message && <div style={{ fontSize:'11px', color:'var(--red)', marginBottom:'8px' }}>{r.error_message}</div>}
-          <button className="btn btn-primary" style={{ width:'100%', justifyContent:'center' }} onClick={() => handleGenerate(r)} disabled={phase==='loading'}>
-            {phase==='loading' ? statusMsg : 'AI 리포트 지금 만들기'}
+          <button type="button" className="btn btn-primary btn-lg" onClick={() => handleGenerate(r)} disabled={busy}>
+            {busy ? statusMsg : 'AI 리포트 지금 만들기'}
           </button>
         </div>
       ))}
-      {reports.length === 0 && phase !== 'loading' && (
-        <div style={{ textAlign:'center', padding:'40px 0', marginBottom:'14px' }}>
-          <div style={{ marginBottom:'10px', color:'var(--text-dim)' }}><CrmIcon name="note" size={36} /></div>
-          <div style={{ fontSize:'12px', color:'var(--text-dim)', marginBottom:'16px' }}>생성된 리포트가 없어요.<br />직전 주 데이터로 첫 리포트를 생성할 수 있어요.</div>
-          <button className="btn btn-primary" onClick={() => handleGenerate()}>첫 리포트 만들기</button>
+
+      {reports.length === 0 && !busy && (
+        <div className="rp-empty">
+          <CrmIcon name="note" size={36} />
+          <p>아직 만든 리포트가 없어요.<br />지난주 데이터로 첫 리포트를 만들 수 있어요.</p>
+          <button type="button" className="btn btn-primary" onClick={() => handleGenerate()}>첫 리포트 만들기</button>
         </div>
       )}
-      {phase==='loading' && (
-        <div style={{ textAlign:'center', padding:'20px', color:'var(--text-dim)', fontSize:'13px', marginBottom:'14px' }}>
-          <span className="spinner" style={{ fontSize:'24px', display:'block', marginBottom:'8px' }}>✦</span>
-          {statusMsg}
-        </div>
-      )}
-      {phase==='error' && errMsg && (
-        <div style={{ background:'rgba(248,113,113,0.08)', border:'1px solid rgba(248,113,113,0.2)', borderRadius:'10px', padding:'12px', marginBottom:'14px', fontSize:'12px', color:'var(--red)' }}>{errMsg}</div>
-      )}
+
+      {busy && <div className="rp-status"><span className="spinner" style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>✦</span>{statusMsg}</div>}
+      {phase === 'error' && errMsg && <div className="pause-error" role="alert">{errMsg}</div>}
+
       {doneReports.length > 0 && (
-        <>
-          <div style={{ display:'flex', gap:'6px', overflowX:'auto', marginBottom:'14px', paddingBottom:'2px' }}>
+        <div className="rp-layout">
+          <nav className="rp-weeks" aria-label="주간 리포트 목록">
             {doneReports.map(r => (
-              <button key={r.id} onClick={() => setSelected(r)}
-                style={{ flexShrink:0, padding:'5px 12px', borderRadius:'8px', border:'1px solid', fontSize:'10px', fontWeight:600, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap',
-                  background: selected?.id===r.id ? 'var(--accent)' : 'var(--surface2)',
-                  color: selected?.id===r.id ? '#0a0a0a' : 'var(--text-muted)',
-                  borderColor: selected?.id===r.id ? 'var(--accent-text)' : 'var(--border)' }}
-              >{r.week_start}</button>
+              <button key={r.id} type="button" className={selected?.id === r.id ? 'on' : ''} aria-current={selected?.id === r.id ? 'page' : undefined} onClick={() => setSelected(r)}>
+                <b>{weekLabel(r)}</b>
+                <span>{dotDate(r.week_start)} – {dotDate(r.week_end)}</span>
+              </button>
             ))}
-          </div>
-          {selected?.status==='done' && (
-            <div>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px' }}>
-                <div>
-                  <div style={{ fontSize:'13px', fontWeight:700 }}>{selected.week_start} ~ {selected.week_end}</div>
-                  <div style={{ fontSize:'10px', color:'var(--text-dim)', marginTop:'2px' }}>생성: {selected.generated_at ? new Date(selected.generated_at).toLocaleString('ko-KR') : '—'}</div>
-                </div>
-                <button className="btn btn-secondary" onClick={() => handleGenerate({ ...selected, status:'pending' })}>다시 만들기</button>
-              </div>
+          </nav>
+
+          {selected?.status === 'done' && (
+            <article className="rp-doc">
+              <header>
+                <p>
+                  {[gymName, selected.generated_at && `AI가 ${new Date(selected.generated_at).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: 'numeric' })}에 작성`].filter(Boolean).join(' · ')}
+                </p>
+                <h2>{monthDay(selected.week_start)} – {monthDay(selected.week_end)} 운영 리포트</h2>
+              </header>
               <StatsGrid stats={selected.stats_snapshot} />
-              {renderReport(selected.report_text || '')}
-            </div>
+              <ReportBody text={selected.report_text || ''} />
+            </article>
           )}
-        </>
+        </div>
       )}
-      {doneReports.length > 0 && pendingReports.length === 0 && phase !== 'loading' && (
-        <button className="btn btn-secondary" style={{ width:'100%', justifyContent:'center', marginTop:'10px' }} onClick={() => handleGenerate()}>
-          + 이번 주 리포트 수동 생성
-        </button>
+
+      {doneReports.length > 0 && pendingReports.length === 0 && !busy && !locked && (
+        <button type="button" className="btn btn-secondary" style={{ alignSelf: 'flex-start' }} onClick={() => handleGenerate()}>이번 주 리포트 만들기</button>
       )}
     </div>
   )

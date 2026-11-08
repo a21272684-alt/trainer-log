@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import CrmIcon from '../components/CrmIcon'
+import TopbarActions from '../components/TopbarActions'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import { useToast } from '../components/CrmToast'
 import Modal from '../components/CrmModal'
@@ -20,17 +21,22 @@ const METHOD_COLOR = {
 }
 
 function fmt(n) { return Number(n || 0).toLocaleString() }
+function fmtMan(n) {
+  const v = Number(n || 0)
+  return Math.abs(v) >= 10000 ? `${(v / 10000).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}만원` : `${v.toLocaleString('ko-KR')}원`
+}
 
 // ── 요약 카드 ─────────────────────────────────────────────────────
-function SummaryCard({ label, value, sub, color, bg }) {
+function SummaryCard({ label, value, sub }) {
+  const v = Number(value || 0)
+  const big = Math.abs(v) >= 10000
   return (
-    <div style={{
-      background: bg, border: `1px solid ${color}30`,
-      borderRadius: '12px', padding: '16px', textAlign: 'center',
-    }}>
-      <div style={{ fontSize: '10px', color, fontWeight: 700, letterSpacing: '0.4px', marginBottom: '8px' }}>{label}</div>
-      <div style={{ ...mono, fontSize: '18px', fontWeight: 700, color }}>{fmt(value)}<span style={{ fontSize: '11px', marginLeft: '2px' }}>원</span></div>
-      {sub && <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '4px' }}>{sub}</div>}
+    <div className="card rev-kpi">
+      <div className="rev-kpi-label">{label}</div>
+      <div className="rev-kpi-value" style={mono}>
+        {big ? (v / 10000).toLocaleString('ko-KR', { maximumFractionDigits: 1 }) : v.toLocaleString('ko-KR')}<small>{big ? '만원' : '원'}</small>
+      </div>
+      {sub && <div className="rev-kpi-sub">{sub}</div>}
     </div>
   )
 }
@@ -38,13 +44,13 @@ function SummaryCard({ label, value, sub, color, bg }) {
 // ── 섹션 제목 ─────────────────────────────────────────────────────
 function Section({ title, children, action }) {
   return (
-    <div className="card" style={{ marginBottom: '16px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <div className="card-title" style={{ marginBottom: 0 }}>{title}</div>
+    <section className="st-sec">
+      <div className="st-sec-head">
+        <h2>{title}</h2>
         {action}
       </div>
       {children}
-    </div>
+    </section>
   )
 }
 
@@ -184,7 +190,13 @@ function RentalSection({ gymId, rentalTrainers, year, month }) {
 
   return (
     <>
-      <Section title={`대관 트레이너 대관료 현황 (${rentalTrainers.length}명)`}>
+      <Section title="대관료" action={
+        <span className="st-tot" style={mono}>
+          <span>청구 <b>{fmtMan(totalBilled)}</b></span>
+          <span>납부 <b>{fmtMan(totalPaid)}</b></span>
+          <span className={totalUnpaid > 0 ? 'due' : ''}>미납 <b>{totalUnpaid > 0 ? fmtMan(totalUnpaid) : '없음'}</b></span>
+        </span>
+      }>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-dim)', fontSize: '12px' }}>
             <span className="spinner" style={{ display: 'block', fontSize: '20px', marginBottom: '8px' }}>✦</span>
@@ -192,28 +204,6 @@ function RentalSection({ gymId, rentalTrainers, year, month }) {
           </div>
         ) : (
           <>
-            {/* ── 소계 3개 ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '20px' }}>
-              <div style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '10px', padding: '14px', textAlign: 'center' }}>
-                <div style={{ fontSize: '10px', color: 'var(--blue)', fontWeight: 700, letterSpacing: '0.4px', marginBottom: '6px' }}>이달 총 청구액</div>
-                <div style={{ ...mono, fontSize: '17px', fontWeight: 700, color: 'var(--blue)' }}>{fmt(totalBilled)}<span style={{ fontSize: '11px', marginLeft: '2px' }}>원</span></div>
-              </div>
-              <div style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '10px', padding: '14px', textAlign: 'center' }}>
-                <div style={{ fontSize: '10px', color: 'var(--green)', fontWeight: 700, letterSpacing: '0.4px', marginBottom: '6px' }}>실제 납부액</div>
-                <div style={{ ...mono, fontSize: '17px', fontWeight: 700, color: 'var(--green)' }}>{fmt(totalPaid)}<span style={{ fontSize: '11px', marginLeft: '2px' }}>원</span></div>
-              </div>
-              <div style={{
-                background: totalUnpaid > 0 ? 'rgba(248,113,113,0.08)' : 'rgba(74,222,128,0.06)',
-                border: `1px solid ${totalUnpaid > 0 ? 'rgba(248,113,113,0.28)' : 'rgba(74,222,128,0.2)'}`,
-                borderRadius: '10px', padding: '14px', textAlign: 'center',
-              }}>
-                <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.4px', marginBottom: '6px', color: totalUnpaid > 0 ? 'var(--red)' : 'var(--green)' }}>미납액</div>
-                <div style={{ ...mono, fontSize: '17px', fontWeight: 700, color: totalUnpaid > 0 ? 'var(--red)' : 'var(--green)' }}>
-                  {totalUnpaid > 0 ? fmt(totalUnpaid) : '없음'}<span style={{ fontSize: '11px', marginLeft: '2px' }}>{totalUnpaid > 0 ? '원' : ''}</span>
-                </div>
-              </div>
-            </div>
-
             {/* ── 트레이너별 상세 테이블 ── */}
             <div style={{ overflowX: 'auto' }}>
               <table className="data-table">
@@ -243,9 +233,9 @@ function RentalSection({ gymId, rentalTrainers, year, month }) {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <div style={{
                               width: '26px', height: '26px', borderRadius: '50%', flexShrink: 0,
-                              background: 'rgba(250,204,21,0.12)', border: '1px solid rgba(250,204,21,0.25)',
+                              background: 'var(--surface2)',
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              fontSize: '11px', fontWeight: 700, color: 'var(--yellow)',
+                              fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)',
                             }}>{(t.name || '?')[0]}</div>
                             <span style={{ fontWeight: 600, fontSize: '13px' }}>{t.name || '—'}</span>
                           </div>
@@ -280,7 +270,7 @@ function RentalSection({ gymId, rentalTrainers, year, month }) {
                             </div>
                           )}
                         </td>
-                        <td style={{ textAlign: 'right', ...mono, fontWeight: 600, color: 'var(--blue)', fontSize: '13px' }}>
+                        <td style={{ textAlign: 'right', ...mono, fontWeight: 600, fontSize: '13px' }}>
                           {billed > 0 ? fmt(billed) : <span style={{ color: 'var(--text-dim)' }}>미설정</span>}
                         </td>
                         <td style={{ textAlign: 'right', ...mono, fontWeight: 600, color: 'var(--green)', fontSize: '13px' }}>
@@ -581,27 +571,17 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
   // ── 렌더 ─────────────────────────────────────────────────────────
   return (
     <div>
-      {/* 상단 기간 선택 + 내보내기 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button onClick={prevMonth} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer', fontSize: '16px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
-          <div style={{ fontWeight: 700, fontSize: '16px', minWidth: '110px', textAlign: 'center' }}>
-            {year}년 {month}월
-          </div>
-          <button onClick={nextMonth} disabled={isCurrent} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '8px', width: '32px', height: '32px', fontSize: '16px', cursor: isCurrent ? 'not-allowed' : 'pointer', color: isCurrent ? 'var(--border)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
-          <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '11px' }} onClick={load}>
-            새로고침
-          </button>
+      <TopbarActions>
+        <div className="st-month">
+          <button type="button" className="sc-icon-btn" aria-label="이전 달" onClick={prevMonth}>‹</button>
+          <b style={mono}>{year}년 {month}월</b>
+          <button type="button" className="sc-icon-btn" aria-label="다음 달" onClick={nextMonth} disabled={isCurrent}>›</button>
+          <button type="button" className="sc-icon-btn" aria-label="정산 다시 불러오기" title="다시 불러오기" onClick={load}><CrmIcon name="refresh" size={15} /></button>
         </div>
-        <button
-          className="btn btn-primary"
-          style={{ padding: '7px 16px', fontSize: '12px', gap: '6px' }}
-          onClick={exportExcel}
-          disabled={exporting || payments.length === 0}
-        >
-          {exporting ? '내보내는 중...' : '엑셀 내보내기'}
+        <button type="button" className="btn btn-secondary btn-lg" onClick={exportExcel} disabled={exporting || payments.length === 0}>
+          <CrmIcon name="download" size={16} />{exporting ? '내보내는 중…' : '엑셀 내보내기'}
         </button>
-      </div>
+      </TopbarActions>
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '80px', color: 'var(--text-dim)' }}>
@@ -611,15 +591,15 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
       ) : (
         <>
           {/* ── 요약 카드 4개 ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '16px' }}>
-            <SummaryCard label="총 매출" value={totalSales} sub={`${payments.length}건`} color="var(--blue)" bg="rgba(96,165,250,0.10)" />
-            <SummaryCard label="센터 귀속 금액" value={totalICenter} sub="매출 − 인센티브 합계" color="var(--accent-text)" bg="rgba(200,241,53,0.10)" />
-            <SummaryCard label="직원 총 지급 예정" value={totalIPayout} sub="기본급 + 인센티브" color="var(--purple)" bg="rgba(167,139,250,0.10)" />
-            <SummaryCard label="세금 3.3% 합계" value={Math.round(totalIPayout * 0.033)} sub="예상 원천징수액" color="var(--red)" bg="rgba(248,113,113,0.10)" />
+          <div className="rev-kpis" style={{ marginBottom: '14px' }}>
+            <SummaryCard label="총 매출" value={totalSales} sub={`${payments.length}건`} />
+            <SummaryCard label="센터에 남는 금액" value={totalICenter} sub="매출 − 인센티브 합계" />
+            <SummaryCard label="직원 지급 예정" value={totalIPayout} sub="기본급 + 인센티브" />
+            <SummaryCard label="세금 3.3% 합계" value={Math.round(totalIPayout * 0.033)} sub="예상 원천징수액" />
           </div>
 
           {/* ── 트레이너별 정산 현황 ── */}
-          <Section title="트레이너별 정산 현황">
+          <Section title="트레이너별 정산" action={<span className="st-hint">인센티브율 · 기본급은 센터 설정의 직원 관리에서 바꿔요</span>}>
             {trainerStats.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-state-icon"><CrmIcon name="chart" size={30} /></div>
@@ -646,7 +626,7 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
                       <tr key={t.id} style={{ opacity: t.totalSales === 0 ? 0.45 : 1 }}>
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'rgba(200,241,53,0.12)', border: '1px solid rgba(200,241,53,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: 'var(--accent-text)', flexShrink: 0 }}>
+                            <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, flexShrink: 0 }}>
                               {(t.name || '?')[0]}
                             </div>
                             <span style={{ fontWeight: 600, fontSize: '13px' }}>{t.name || '—'}</span>
@@ -654,15 +634,15 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
                         </td>
                         <td>
                           {t.rankLabel !== '—'
-                            ? <span style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '5px', background: 'rgba(200,241,53,0.1)', color: 'var(--accent-text)', border: '1px solid rgba(200,241,53,0.25)', fontWeight: 600 }}>{t.rankLabel}</span>
+                            ? <span style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '5px', background: 'rgba(200,241,53,0.1)', border: '1px solid rgba(200,241,53,0.25)', fontWeight: 600 }}>{t.rankLabel}</span>
                             : <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>—</span>}
                         </td>
-                        <td style={{ textAlign: 'right', ...mono, fontWeight: 600, color: 'var(--blue)' }}>{fmt(t.totalSales)}</td>
+                        <td style={{ textAlign: 'right', ...mono, fontWeight: 600 }}>{fmt(t.totalSales)}</td>
                         <td style={{ textAlign: 'center', ...mono, fontSize: '12px', color: 'var(--text-muted)' }}>{Math.round(t.iRate * 100)}%</td>
-                        <td style={{ textAlign: 'right', ...mono, fontSize: '12px', color: 'var(--accent-text)' }}>{fmt(t.iAmt)}</td>
+                        <td style={{ textAlign: 'right', ...mono, fontSize: '12px' }}>{fmt(t.iAmt)}</td>
                         <td style={{ textAlign: 'right', ...mono, fontSize: '12px', color: 'var(--text-muted)' }}>{fmt(t.cPortion)}</td>
                         <td style={{ textAlign: 'right', ...mono, fontSize: '12px', color: 'var(--text-dim)' }}>{fmt(t.baseSalary)}</td>
-                        <td style={{ textAlign: 'right', ...mono, fontWeight: 700, color: 'var(--purple)' }}>{fmt(t.totalPayout)}</td>
+                        <td style={{ textAlign: 'right', ...mono, fontWeight: 700 }}>{fmt(t.totalPayout)}</td>
                         <td style={{ textAlign: 'center', fontSize: '12px', color: 'var(--text-dim)' }}>{t.payCount}</td>
                       </tr>
                     ))}
@@ -671,12 +651,12 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
                     <tfoot>
                       <tr style={{ borderTop: '2px solid var(--border)' }}>
                         <td colSpan={2} style={{ fontWeight: 700, fontSize: '12px', color: 'var(--text-muted)', padding: '10px 14px' }}>합계</td>
-                        <td style={{ textAlign: 'right', ...mono, fontWeight: 700, color: 'var(--blue)' }}>{fmt(totalSales)}</td>
+                        <td style={{ textAlign: 'right', ...mono, fontWeight: 700 }}>{fmt(totalSales)}</td>
                         <td />
-                        <td style={{ textAlign: 'right', ...mono, fontWeight: 700, color: 'var(--accent-text)' }}>{fmt(activeStats.reduce((s, t) => s + t.iAmt, 0))}</td>
+                        <td style={{ textAlign: 'right', ...mono, fontWeight: 700 }}>{fmt(activeStats.reduce((s, t) => s + t.iAmt, 0))}</td>
                         <td style={{ textAlign: 'right', ...mono, fontWeight: 700, color: 'var(--text-muted)' }}>{fmt(totalICenter)}</td>
                         <td style={{ textAlign: 'right', ...mono, fontWeight: 700, color: 'var(--text-dim)' }}>{fmt(totalBase)}</td>
-                        <td style={{ textAlign: 'right', ...mono, fontWeight: 700, color: 'var(--purple)' }}>{fmt(totalIPayout)}</td>
+                        <td style={{ textAlign: 'right', ...mono, fontWeight: 700 }}>{fmt(totalIPayout)}</td>
                         <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--text-dim)' }}>{payments.length}</td>
                       </tr>
                     </tfoot>
@@ -704,7 +684,7 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
                             <span>{METHOD_LABEL[m] || m}</span>
                             <span style={{ fontSize: '10px', color: 'var(--text-dim)', fontWeight: 400 }}>{s.count}건</span>
                           </span>
-                          <span style={{ ...mono, fontSize: '12px', fontWeight: 700, color: mc.color }}>{fmt(s.amount)}원</span>
+                          <span style={{ ...mono, fontSize: '12px', fontWeight: 700 }}>{fmt(s.amount)}원</span>
                         </div>
                         <div style={{ height: '5px', borderRadius: '3px', background: 'var(--surface2)', overflow: 'hidden' }}>
                           <div style={{ height: '100%', width: `${pct}%`, background: mc.color, borderRadius: '3px', transition: 'width 0.4s' }} />
@@ -730,7 +710,7 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
                             <span style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
                             <span style={{ fontSize: '10px', color: 'var(--text-dim)', fontWeight: 400 }}>{s.count}건</span>
                           </span>
-                          <span style={{ ...mono, fontSize: '12px', fontWeight: 700, color: 'var(--accent-text)' }}>{fmt(s.amount)}원</span>
+                          <span style={{ ...mono, fontSize: '12px', fontWeight: 700 }}>{fmt(s.amount)}원</span>
                         </div>
                         <div style={{ height: '5px', borderRadius: '3px', background: 'var(--surface2)', overflow: 'hidden' }}>
                           <div style={{ height: '100%', width: `${pct}%`, background: 'var(--accent-text)', borderRadius: '3px', transition: 'width 0.4s' }} />
@@ -795,7 +775,7 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
                             {trainerMap[p.trainer_id]?.name || '—'}
                           </td>
                           <td style={{ fontSize: '12px' }}>{p.product_name || '—'}</td>
-                          <td style={{ textAlign: 'right', ...mono, fontWeight: 700, color: 'var(--blue)' }}>{fmt(p.amount)}원</td>
+                          <td style={{ textAlign: 'right', ...mono, fontWeight: 700 }}>{fmt(p.amount)}원</td>
                           <td style={{ textAlign: 'center' }}>
                             <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '5px', background: mc.bg, color: mc.color }}>
                               {METHOD_LABEL[p.payment_method] || p.payment_method || '카드'}
