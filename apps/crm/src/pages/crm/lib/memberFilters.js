@@ -146,3 +146,61 @@ export function filterTags(f, trainers) {
   if (f.purpose) tags.push({ keys: ['purpose'], text: `목적 ${f.purpose}` })
   return tags
 }
+
+// ── 화면 표시 공통 ──────────────────────────────────────────────
+// 상태 꼬리표 색 (회원 목록 · 상세 패널 · 알림 대상)
+export const STATUS_TAG = {
+  active:   { label: '이용 중',   bg: '#ECFCCB', color: '#3F6212' },
+  expiring: { label: '만료 임박', bg: '#FEF3C7', color: '#92400E' },
+  expired:  { label: '마감',      bg: '#FFE4E6', color: '#BE123C' },
+  none:     { label: '미등록',    bg: '#F2F3EF', color: '#374151' },
+}
+
+export const fmtDot = d => (d ? String(d).slice(0, 10).replace(/-/g, '.') : '')
+
+// 누적 결제 등 큰 금액 — 1만원 이상은 'N만원'
+export const fmtMan = n => {
+  const v = Number(n || 0)
+  return Math.abs(v) >= 10000 ? `${Math.round(v / 10000).toLocaleString()}만원` : `${v.toLocaleString()}원`
+}
+
+const clamp01 = v => Math.max(0, Math.min(1, v))
+
+// 회원 한 명의 회원권 요약 — 목록의 잔여 막대 · 만료 칸, 상세 패널 카드가 같은 값을 쓴다.
+// 횟수가 남았으면 횟수권 기준, 아니면 기간권 기준으로 보여 준다.
+export function passSummary(m, stat, today = new Date()) {
+  const status  = memberStatus(m, stat, today)
+  const total   = m.total_sessions || 0
+  const remain  = remainOf(m)
+  const msLeft  = daysUntil(stat?.membership_end, today)
+  const hasPass = msLeft != null && msLeft >= 0
+  const useSessions = total > 0 && (remain > 0 || !hasPass)
+
+  let ratio = 0, left = '—', level = 'none'
+  if (status === 'none') {
+    // 결제 전 — 기본값 그대로
+  } else if (useSessions) {
+    ratio = clamp01(remain / total)
+    left  = `${remain} / ${total}회`
+    level = remain === 0 ? 'closed' : remain <= EXPIRING_SESSIONS ? 'low' : 'ok'
+  } else if (hasPass) {
+    const span = stat?.pass_start && stat?.pass_end === stat?.membership_end
+      ? daysSince(stat.pass_start, new Date(stat.pass_end + 'T00:00:00'))
+      : 0
+    ratio = clamp01(span > 0 ? msLeft / span : msLeft / 30)
+    left  = '기간권'
+    level = msLeft <= EXPIRING_DAYS ? 'low' : 'ok'
+  } else {
+    ratio = 1
+    left  = '만료'
+    level = 'closed'
+  }
+
+  // 만료 칸 — 유효한 기간이 있거나, 이용이 끝난 회원만 날짜를 보여 준다
+  const endDate = hasPass ? stat.membership_end : (status === 'expired' ? (stat?.last_end || null) : null)
+  const endLeft = daysUntil(endDate, today)
+  const dLabel  = endLeft == null ? '' : endLeft < 0 ? '만료' : endLeft === 0 ? '오늘까지' : `D-${endLeft}`
+  const dLevel  = endLeft == null ? 'ok' : endLeft < 0 ? 'closed' : endLeft <= EXPIRING_DAYS ? 'low' : 'ok'
+
+  return { status, total, remain, hasPass, useSessions, ratio, left, level, endDate, endLeft, dLabel, dLevel, passName: stat?.pass_name || '' }
+}

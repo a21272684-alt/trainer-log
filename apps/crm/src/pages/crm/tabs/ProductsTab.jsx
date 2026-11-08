@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import CrmIcon from '../components/CrmIcon'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import { useToast } from '../components/CrmToast'
 import Modal from '../components/CrmModal'
@@ -363,8 +364,8 @@ function ProductCard({ product, onEdit, onDelete }) {
               boxShadow: '0 8px 24px rgba(17,24,39,0.14)',
             }}>
               {[
-                { label: '✏️ 편집', color: 'var(--text)',   hoverBg: 'var(--surface3)',             action: () => { setMenuOpen(false); onEdit(product) } },
-                { label: '🗑 삭제', color: 'var(--red)',    hoverBg: 'rgba(248,113,113,0.08)',      action: () => { setMenuOpen(false); onDelete(product) } },
+                { label: '편집', color: 'var(--text)',   hoverBg: 'var(--surface3)',             action: () => { setMenuOpen(false); onEdit(product) } },
+                { label: '삭제', color: 'var(--red)',    hoverBg: 'rgba(248,113,113,0.08)',      action: () => { setMenuOpen(false); onDelete(product) } },
               ].map(({ label, color, hoverBg, action }) => (
                 <button key={label} onClick={action}
                   style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', color, fontSize: '12px', padding: '7px 10px', cursor: 'pointer', borderRadius: '5px' }}
@@ -569,7 +570,7 @@ export default function ProductsTab({ gymId }) {
     return (
       <div style={{ maxWidth: '640px' }}>
         <div style={{ background: 'rgba(250,204,21,0.06)', border: '1px solid rgba(250,204,21,0.25)', borderRadius: '12px', padding: '20px' }}>
-          <div style={{ fontSize: '20px', marginBottom: '10px' }}>⚠️</div>
+          <div style={{ marginBottom: '10px', color: 'var(--yellow)' }}><CrmIcon name="alert" size={22} /></div>
           <div style={{ fontWeight: 700, marginBottom: '8px' }}>gym_products 테이블이 아직 없어요</div>
           <div style={{ fontSize: '12px', color: 'var(--text-dim)', lineHeight: 1.7, marginBottom: '16px' }}>
             Supabase 대시보드 → SQL Editor에서 아래 SQL을 실행한 뒤 새로고침해주세요.
@@ -596,7 +597,7 @@ ALTER TABLE gym_products ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "allow_all" ON gym_products USING (true) WITH CHECK (true);
 CREATE INDEX ON gym_products(gym_id, category);`}
           </pre>
-          <button className="btn btn-primary" style={{ marginTop: '14px' }} onClick={load}>🔄 다시 확인</button>
+          <button className="btn btn-primary" style={{ marginTop: '14px' }} onClick={load}>다시 확인</button>
         </div>
       </div>
     )
@@ -607,7 +608,7 @@ CREATE INDEX ON gym_products(gym_id, category);`}
       {/* 툴바 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px', flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: '180px', maxWidth: '280px' }}>
-          <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)', fontSize: '13px', pointerEvents: 'none' }}>🔍</span>
+          <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)', fontSize: '13px', pointerEvents: 'none', display: 'flex' }}><CrmIcon name="search" size={15} /></span>
           <input className="input" style={{ paddingLeft: '32px' }} placeholder="상품명 검색" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -648,7 +649,7 @@ CREATE INDEX ON gym_products(gym_id, category);`}
       {/* 빈 상태 */}
       {!loading && filtered.length === 0 && (
         <div className="empty-state">
-          <div className="empty-state-icon">📦</div>
+          <div className="empty-state-icon"><CrmIcon name="box" size={30} /></div>
           <div className="empty-state-text" style={{ marginBottom: '16px' }}>
             {search ? `"${search}" 검색 결과가 없어요` : '등록된 상품이 없어요'}
           </div>

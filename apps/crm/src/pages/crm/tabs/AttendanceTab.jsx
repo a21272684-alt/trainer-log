@@ -3,11 +3,13 @@ import { addDays, format, parseISO, startOfWeek, startOfMonth } from 'date-fns'
 import * as XLSX from 'xlsx'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import Modal from '../components/CrmModal'
+import CrmIcon from '../components/CrmIcon'
+import TopbarActions from '../components/TopbarActions'
 import { todayStr } from '../lib/ticketDateCalc'
 import { LONG_ABSENT_DAYS } from '../lib/memberFilters'
 
 // ── 출석 관리 ───────────────────────────────────────────────────
-// 회원 출석: 날짜별 입장 기록(089·090 RPC), 수동 출석, 기록 취소(직원 누구나), 장기 미출석(14일).
+// 회원 출석: 날짜별 입장 기록(089·090·103 RPC), 직접 출석, 기록 취소(직원 누구나), 오래 안 온 회원(14일).
 // 직원 근태: 대표 또는 '근태 관리' 권한자만 — 태블릿 출퇴근 기록 조회·직접 입력·수정·삭제.
 
 const mono = { fontVariantNumeric: 'tabular-nums' }
@@ -15,11 +17,12 @@ const ABSENT_DAYS = LONG_ABSENT_DAYS
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토']
 const hm  = iso => new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
 const dur = min => `${Math.floor(min / 60)}시간 ${String(min % 60).padStart(2, '0')}분`
+const md  = d => { const [, m, day] = String(d).slice(0, 10).split('-').map(Number); return `${m}월 ${day}일` }
 
 const TAG = {
-  ok:      { label: '입장',        cls: 's-use' },
-  staff:   { label: '직원 처리',   cls: 's-off' },
-  rejected:{ label: '거부 · 만료', cls: 's-over' },
+  ok:       { label: '입장',        cls: 'ok' },
+  staff:    { label: '직원 처리',   cls: 'staff' },
+  rejected: { label: '거부 · 만료', cls: 'rej' },
 }
 
 function tagOf(r) {
@@ -27,8 +30,24 @@ function tagOf(r) {
   return r.source === 'staff' ? TAG.staff : TAG.ok
 }
 
+// 회원권 칸 — '이용권 · 4회 남음' / '이용권 · 11월 5일 만료'
+function passText(r) {
+  let t
+  if (r.result === 'rejected_expired') t = [r.pass || '회원권', r.pass_end ? `${md(r.pass_end)} 만료` : '만료'].join(' · ')
+  else if (r.remain > 0) t = [r.pass, `${r.remain}회 남음`].filter(Boolean).join(' · ')
+  else if (r.pass_end) t = [r.pass, `${md(r.pass_end)}까지`].filter(Boolean).join(' · ')
+  else t = r.pass || r.membership || '—'
+  return r.source === 'staff' && r.by ? `${t} · 처리 ${r.by}` : t
+}
+
+function absentSub(a) {
+  const tail = a.remain > 0 ? `${a.remain}회 남음` : a.membership_end ? `${md(a.membership_end)}까지` : ''
+  const text = [a.pass, tail].filter(Boolean).join(' · ')
+  return text || (a.last_visit ? `마지막 방문 ${md(a.last_visit)}` : '방문 기록 없음')
+}
+
 // ── 회원 출석 ───────────────────────────────────────────────────
-function MemberAttendance({ gymId, members }) {
+function MemberAttendance({ gymId, members, head, onOpenMember }) {
   const [date,    setDate]    = useState(todayStr())
   const [day,     setDay]     = useState(null)
   const [absent,  setAbsent]  = useState([])
@@ -63,12 +82,15 @@ function MemberAttendance({ gymId, members }) {
     rej: rows.filter(r => r.result === 'rejected_expired').length,
     staff: rows.filter(r => r.source === 'staff').length,
   }
+  const isToday = date === todayStr()
   const okCount = day?.ok_count ?? 0
-  const diff = okCount - (day?.last_week_ok ?? 0)
-  const hours = (day?.hourly || []).slice(6, 24)
-  const maxH = Math.max(1, ...hours)
-  const peak = hours.indexOf(Math.max(...hours, 0))
-  const d = parseISO(date)
+  const diff    = okCount - (day?.last_week_ok ?? 0)
+  const hours   = (day?.hourly || []).slice(6, 24)   // 06시~23시
+  const maxH    = Math.max(1, ...hours)
+  const peak    = hours.indexOf(Math.max(...hours, 0))
+  const nowH    = new Date().getHours()
+  const d       = parseISO(date)
+  const memberById = id => members.find(m => m.id === id)
 
   async function cancel(r) {
     if (!confirm(`${hm(r.at)} ${r.name} 회원의 ${r.result === 'ok' ? '입장' : '거부'} 기록을 취소할까요?`)) return
@@ -95,70 +117,90 @@ function MemberAttendance({ gymId, members }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-        <div className="att-datenav">
-          <button type="button" aria-label="이전 날" onClick={() => setDate(format(addDays(d, -1), 'yyyy-MM-dd'))}>◀</button>
-          <span style={mono}>{date} ({WEEKDAY[d.getDay()]})</span>
-          <button type="button" aria-label="다음 날" disabled={date >= todayStr()} onClick={() => setDate(format(addDays(d, 1), 'yyyy-MM-dd'))}>▶</button>
-          {date !== todayStr() && <button type="button" onClick={() => setDate(todayStr())}>오늘</button>}
+    <div className="att">
+      <TopbarActions>
+        <button type="button" className="btn btn-primary btn-lg"
+          onClick={() => { setManual(true); setMq(''); setMResult(null) }}>
+          <CrmIcon name="plus" size={16} stroke={2.4} />직접 출석
+        </button>
+      </TopbarActions>
+
+      <div className="att-head">
+        {head}
+        <div className="att-date">
+          <button type="button" className="sc-icon-btn" aria-label="이전 날" onClick={() => setDate(format(addDays(d, -1), 'yyyy-MM-dd'))}>‹</button>
+          <span className="att-date-text">{d.getMonth() + 1}월 {d.getDate()}일 {WEEKDAY[d.getDay()]}요일</span>
+          <button type="button" className="sc-icon-btn" aria-label="다음 날" disabled={isToday} onClick={() => setDate(format(addDays(d, 1), 'yyyy-MM-dd'))}>›</button>
+          {isToday
+            ? <span className="att-today">오늘</span>
+            : <button type="button" className="sc-text-btn" onClick={() => setDate(todayStr())}>오늘로</button>}
         </div>
-        <button className="btn btn-secondary" style={{ fontSize: '12px' }}
-          onClick={() => { setManual(true); setMq(''); setMResult(null) }}>+ 수동 출석</button>
       </div>
 
-      <div className="rev-kpis">
+      <div className="rev-kpis att-kpis">
         <div className="card rev-kpi">
-          <div className="rev-kpi-label">{date === todayStr() ? '오늘' : '이날'} 입장</div>
-          <div className="rev-kpi-value" style={mono}>{okCount}명</div>
+          <div className="rev-kpi-label">{isToday ? '오늘' : '이날'} 입장</div>
+          <div className="rev-kpi-value" style={mono}>{okCount}<small>명</small></div>
           <div className="rev-kpi-sub">
-            {diff === 0 ? '지난주 같은 요일과 같음'
-              : <><span style={{ fontWeight: 700, color: diff > 0 ? '#3F6212' : '#B42318' }}>{diff > 0 ? '▲' : '▼'} {Math.abs(diff)}명</span> 지난주 같은 요일 대비</>}
+            {diff === 0 ? '지난주 같은 요일과 같아요'
+              : <span style={{ fontWeight: 700, color: diff > 0 ? '#3F6212' : '#BE123C' }}>지난주 같은 요일보다 {Math.abs(diff)}명 {diff > 0 ? '많아요' : '적어요'}</span>}
           </div>
         </div>
-        <div className="card rev-kpi">
-          <div className="rev-kpi-label">입장 거부 (회원권 만료)</div>
-          <div className="rev-kpi-value" style={{ ...mono, color: '#B42318' }}>{day?.rejected_count ?? 0}명</div>
-          <div className="rev-kpi-sub">재등록 안내가 필요한 회원</div>
+        <div className="card rev-kpi rose">
+          <div className="rev-kpi-label">입장 거부 · 회원권 만료</div>
+          <div className="rev-kpi-value" style={mono}>{day?.rejected_count ?? 0}<small>명</small></div>
+          <div className="rev-kpi-sub">재등록 안내가 필요해요</div>
         </div>
         <div className="card rev-kpi">
-          <div className="rev-kpi-label">장기 미출석 ({ABSENT_DAYS}일 이상)</div>
-          <div className="rev-kpi-value" style={{ ...mono, color: '#C2410C' }}>{absent.length}명</div>
-          <div className="rev-kpi-sub">회원권은 남아 있는데 안 오는 회원</div>
+          <div className="rev-kpi-label">{ABSENT_DAYS}일 넘게 안 온 회원</div>
+          <div className="rev-kpi-value" style={mono}>{absent.length}<small>명</small></div>
+          <div className="rev-kpi-sub">회원권은 남아 있는데 안 와요</div>
         </div>
       </div>
 
       <div className="lk-layout">
-        <div className="card" style={{ flex: '999 1 560px', minWidth: 0, padding: 0, overflow: 'hidden' }}>
+        <section className="att-log" aria-label="입장 기록">
           <div className="att-toolbar">
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            <div className="mb-chips" role="group" aria-label="결과">
               {[['all', '전체'], ['ok', '입장'], ['rej', '거부'], ['staff', '직원 처리']].map(([k, l]) => (
-                <button key={k} className={`filter-chip ${filter === k ? 'active' : ''}`} onClick={() => setFilter(k)}>
-                  {l} <span style={{ ...mono, fontSize: '10px', opacity: 0.7 }}>{counts[k]}</span>
-                </button>
+                <button key={k} type="button" className={`mb-chip ${k === 'rej' ? 'danger' : ''} ${filter === k ? 'on' : ''}`}
+                  aria-pressed={filter === k} onClick={() => setFilter(k)}>{l} {counts[k]}</button>
               ))}
             </div>
-            <input className="input" style={{ maxWidth: '200px' }} type="search" aria-label="회원 이름 검색"
-              placeholder="회원 이름 검색" value={query} onChange={e => setQuery(e.target.value)} />
+            <label className="mb-search">
+              <CrmIcon name="search" size={15} stroke={2.2} />
+              <input type="search" aria-label="회원 이름 검색" placeholder="회원 이름" value={query} onChange={e => setQuery(e.target.value)} />
+            </label>
           </div>
           <div style={{ overflowX: 'auto' }}>
-            <table className="data-table">
-              <thead><tr><th>시간</th><th>회원</th><th>결과</th><th>회원권</th><th>처리</th><th></th></tr></thead>
+            <table className="att-table">
+              <thead><tr><th>시간</th><th>회원</th><th>결과</th><th>회원권</th><th className="r">처리</th></tr></thead>
               <tbody>
-                {visible.length === 0 && <tr><td colSpan={6} className="rev-empty">기록이 없어요</td></tr>}
+                {visible.length === 0 && <tr><td colSpan={5} className="rev-empty">기록이 없어요</td></tr>}
                 {visible.map(r => {
                   const t = tagOf(r)
+                  const rej = r.result === 'rejected_expired'
+                  const mem = memberById(r.member_id)
                   return (
-                    <tr key={r.id} style={{ opacity: r.canceled ? 0.5 : 1 }}>
-                      <td style={{ ...mono, color: 'var(--text-muted)' }}>{hm(r.at)}</td>
-                      <td style={{ fontWeight: 700, textDecoration: r.canceled ? 'line-through' : 'none' }}>{r.name}</td>
-                      <td><span className={`lk-badge ${t.cls}`}>{t.label}</span></td>
-                      <td style={{ ...mono, fontSize: '12px', color: 'var(--text-muted)' }}>{r.membership || '—'}</td>
-                      <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{r.source === 'staff' ? (r.by || '직원') : '태블릿'}</td>
-                      <td style={{ textAlign: 'right' }}>
+                    <tr key={r.id} className={`${rej && !r.canceled ? 'rej' : ''} ${r.canceled ? 'canceled' : ''}`}>
+                      <td className="t" style={mono}>{hm(r.at)}</td>
+                      <td>
+                        <span className="att-who">
+                          <span className={`att-av ${rej ? 'rej' : ''}`} aria-hidden="true">{(r.name || '?')[0]}</span>
+                          <b className={r.canceled ? 'strike' : ''}>{r.name}</b>
+                        </span>
+                      </td>
+                      <td><span className={`att-tag ${t.cls}`}>{t.label}</span></td>
+                      <td className="p">{passText(r)}</td>
+                      <td className="r">
                         {r.canceled
-                          ? <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>취소됨{r.canceled_by ? ` · ${r.canceled_by}` : ''}</span>
-                          : <button className="btn btn-secondary" style={{ padding: '3px 10px', fontSize: '11px' }} onClick={() => cancel(r)}>취소</button>}
+                          ? <span className="att-canceled">취소됨{r.canceled_by ? ` · ${r.canceled_by}` : ''}</span>
+                          : (
+                            <span className="att-acts">
+                              {rej && mem && <button type="button" className="att-btn strong" onClick={() => onOpenMember?.(mem)}>회원 보기</button>}
+                              <button type="button" className="att-btn" onClick={() => cancel(r)}>취소</button>
+                            </span>
+                          )}
                       </td>
                     </tr>
                   )
@@ -166,54 +208,59 @@ function MemberAttendance({ gymId, members }) {
               </tbody>
             </table>
           </div>
-        </div>
+        </section>
 
-        <div style={{ flex: '1 1 280px', maxWidth: '360px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div className="card">
-            <div className="rev-card-title">시간대별 입장</div>
-            <div className="att-hours">
-              {hours.map((v, i) => (
-                <div key={i} title={`${i + 6}시 ${v}명`} className="att-hour">
-                  <div style={{ height: `${v / maxH * 100}%`, background: i === peak && v > 0 ? '#4D6A00' : '#6B8E0E' }} />
-                </div>
-              ))}
+        <div className="att-side">
+          <section className="card" aria-label="시간대별 입장">
+            <div className="att-card-head">
+              <h2>시간대별 입장</h2>
+              {okCount > 0 && <span>가장 붐빈 때 {String(peak + 6).padStart(2, '0')}시 · {hours[peak]}명</span>}
             </div>
-            <div className="rev-ticks" style={mono}><span>06시</span><span>12시</span><span>18시</span><span>23시</span></div>
-            {okCount > 0 && <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
-              가장 붐빈 시간: <b style={{ color: 'var(--text)' }}>{peak + 6}시 ({hours[peak]}명)</b></div>}
-          </div>
+            <div className="att-hours" role="img"
+              aria-label={`시간대별 입장 수: ${hours.map((v, i) => `${i + 6}시 ${v}명`).join(', ')}`}>
+              {hours.map((v, i) => {
+                const hh = i + 6
+                const future = isToday && hh > nowH
+                const hot = isToday ? hh === nowH : (i === peak && v > 0)
+                return (
+                  <div key={hh} title={future ? `${hh}시 · 아직` : `${hh}시 · ${v}명${isToday && hot ? ' (지금)' : ''}`} className="att-hour">
+                    <div className={future ? 'future' : hot ? 'hot' : ''} style={future ? undefined : { height: `${v / maxH * 100}%` }} />
+                  </div>
+                )
+              })}
+            </div>
+            <div className="rev-ticks" style={mono}><span>06시</span><span>09시</span><span>12시</span><span>15시</span><span>18시</span><span>21시</span><span>23시</span></div>
+          </section>
 
-          <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '6px' }}>
-              <span className="rev-card-title" style={{ margin: 0 }}>장기 미출석</span>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{ABSENT_DAYS}일 이상 · 회원권 유효</span>
+          <section className="card" aria-label="오래 안 온 회원">
+            <div className="att-card-head">
+              <h2>오래 안 온 회원</h2>
+              <span>{ABSENT_DAYS}일 이상 · 회원권 남음</span>
             </div>
             {absent.length === 0 ? <div className="rev-empty">없어요</div> : (
-              <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
-                {absent.map(a => (
-                  <div key={a.member_id} className="att-absent">
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: '13px', fontWeight: 700 }}>{a.name}</div>
-                      <div style={{ ...mono, fontSize: '11px', color: 'var(--text-muted)' }}>
-                        {a.last_visit ? `마지막 ${a.last_visit.slice(5).replace('-', '/')}` : '방문 기록 없음'}
-                        {a.membership_end ? ` · 만료 ${a.membership_end.slice(5).replace('-', '/')}` : ' · PT 회원'}
-                      </div>
-                    </div>
-                    <span style={{ ...mono, fontSize: '12px', fontWeight: 700, color: '#C2410C' }}>{a.days != null ? `${a.days}일` : '—'}</span>
-                  </div>
-                ))}
+              <div className="att-absent-list">
+                {absent.map(a => {
+                  const mem = memberById(a.member_id)
+                  return (
+                    <button key={a.member_id} type="button" className="att-absent" disabled={!mem} onClick={() => mem && onOpenMember?.(mem)}>
+                      <span style={{ minWidth: 0 }}>
+                        <b>{a.name}</b>
+                        <small>{absentSub(a)}</small>
+                      </span>
+                      <em style={mono}>{a.days != null ? `${a.days}일째` : '방문 없음'}</em>
+                    </button>
+                  )
+                })}
               </div>
             )}
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>
-              태블릿 입장과 PT 출석 중 최근 날짜 기준. 도입 초기엔 기록이 쌓일 때까지 많이 잡힐 수 있어요.
-            </div>
-          </div>
+            <p className="att-foot">태블릿 입장과 PT 출석 중 최근 날짜 기준이에요. 도입 초기엔 기록이 쌓일 때까지 많이 잡힐 수 있어요.</p>
+          </section>
         </div>
       </div>
 
-      <Modal open={manual} onClose={() => setManual(false)} title="수동 출석" maxWidth="440px">
+      <Modal open={manual} onClose={() => setManual(false)} title="직접 출석" maxWidth="440px">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          <div style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.55 }}>
             휴대폰을 안 가져왔거나 태블릿이 안 될 때 직원이 대신 입장 처리해요. 회원권 확인은 태블릿과 똑같이 해요.
           </div>
           <input className="input" type="search" placeholder="이름 또는 전화번호" aria-label="회원 검색" autoFocus
@@ -221,13 +268,13 @@ function MemberAttendance({ gymId, members }) {
           {mResult && (
             <div className={mResult.error || mResult.status === 'expired' ? 'pause-error' : 'pause-current'} role="status" style={{ display: 'block' }}>
               {mResult.error ? `처리 실패: ${mResult.error}`
-                : mResult.status === 'ok' ? `✓ ${mResult.name} 입장 처리됐어요${mResult.pause_ended ? ` (정지 ${mResult.paused_days}일 반영 후 해제)` : ''}`
+                : mResult.status === 'ok' ? `${mResult.name} 회원 입장 처리됐어요${mResult.pause_ended ? ` (정지 ${mResult.paused_days}일 반영 후 해제)` : ''}`
                 : mResult.status === 'already' ? `${mResult.name} 회원은 오늘 이미 입장했어요 (${hm(mResult.first_at)})`
                 : mResult.status === 'expired' ? `${mResult.name} 회원은 회원권이 만료돼 입장할 수 없어요 (거부로 기록됨)`
                 : mResult.status === 'paused' ? (
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
                     <span>{mResult.name} 회원은 정지 중이에요 ({mResult.hold.start_date.slice(5)} ~ {mResult.hold.end_date.slice(5)})</span>
-                    <button className="btn btn-primary" style={{ padding: '5px 10px', fontSize: '11px', flexShrink: 0 }} disabled={busy}
+                    <button className="btn btn-primary" style={{ padding: '5px 10px', fontSize: '12px', flexShrink: 0 }} disabled={busy}
                       onClick={() => manualCheckin(mResult.member, mResult.hold.id)}>정지 풀고 입장</button>
                   </div>
                 ) : null}
@@ -246,7 +293,7 @@ function MemberAttendance({ gymId, members }) {
 }
 
 // ── 직원 근태 ───────────────────────────────────────────────────
-function StaffAttendance({ gymId, gymName }) {
+function StaffAttendance({ gymId, gymName, head }) {
   const [range,  setRange]  = useState('week')
   const [data,   setData]   = useState(null)
   const [error,  setError]  = useState('')
@@ -312,20 +359,22 @@ function StaffAttendance({ gymId, gymName }) {
     XLSX.writeFile(wb, `근태_${(gymName || '센터').replace(/\s+/g, '')}_${from}_${to}.xlsx`)
   }
 
-  if (error) return <div className="pause-error">{error}</div>
+  if (error) return <div className="att">{head && <div className="att-head">{head}</div>}<div className="pause-error">{error}</div></div>
   const staff = data?.staff || []
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+      <TopbarActions>
+        <button type="button" className="btn btn-secondary btn-lg" onClick={() => openEdit(null)}><CrmIcon name="plus" size={16} stroke={2.4} />근태 직접 입력</button>
+        <button type="button" className="btn btn-secondary btn-lg" disabled={!data} onClick={exportExcel}><CrmIcon name="download" size={16} />엑셀 내보내기</button>
+      </TopbarActions>
+
+      <div className="att-head">
+        {head}
         <div className="rev-seg">
           {[['today', '오늘'], ['week', '이번 주'], ['month', '이번 달']].map(([k, l]) => (
             <button key={k} className={range === k ? 'on' : ''} aria-pressed={range === k} onClick={() => setRange(k)}>{l}</button>
           ))}
-        </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="btn btn-secondary" style={{ fontSize: '12px' }} onClick={() => openEdit(null)}>+ 근태 직접 입력</button>
-          <button className="btn btn-secondary" style={{ fontSize: '12px' }} disabled={!data} onClick={exportExcel}>엑셀 내보내기</button>
         </div>
       </div>
 
@@ -406,23 +455,26 @@ function StaffAttendance({ gymId, gymName }) {
   )
 }
 
-export default function AttendanceTab({ gymId, gymName, members = [], canManageAttendance, onOpenKiosk }) {
+export default function AttendanceTab({ gymId, gymName, members = [], canManageAttendance, onOpenKiosk, onOpenMember }) {
   const [view, setView] = useState('member')
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-        {canManageAttendance ? (
-          <div className="rev-seg" role="tablist" aria-label="출석 관리 보기">
-            <button role="tab" aria-selected={view === 'member'} className={view === 'member' ? 'on' : ''} onClick={() => setView('member')}>회원 출석</button>
-            <button role="tab" aria-selected={view === 'staff'} className={view === 'staff' ? 'on' : ''} onClick={() => setView('staff')}>직원 근태</button>
-          </div>
-        ) : <span />}
-        <button className="btn btn-primary" style={{ fontSize: '12px' }} onClick={onOpenKiosk}>📲 출석 모드</button>
-      </div>
-      {view === 'staff' && canManageAttendance
-        ? <StaffAttendance gymId={gymId} gymName={gymName} />
-        : <MemberAttendance gymId={gymId} members={members} />}
+  const head = canManageAttendance ? (
+    <div className="rev-seg" role="tablist" aria-label="출석 관리 보기">
+      <button role="tab" aria-selected={view === 'member'} className={view === 'member' ? 'on' : ''} onClick={() => setView('member')}>회원 출석</button>
+      <button role="tab" aria-selected={view === 'staff'} className={view === 'staff' ? 'on' : ''} onClick={() => setView('staff')}>직원 근태</button>
     </div>
+  ) : <span />
+
+  return (
+    <>
+      <TopbarActions>
+        <button type="button" className="btn btn-secondary btn-lg" onClick={onOpenKiosk}>
+          <CrmIcon name="tablet" size={16} stroke={2.1} />출석 모드 켜기
+        </button>
+      </TopbarActions>
+      {view === 'staff' && canManageAttendance
+        ? <StaffAttendance gymId={gymId} gymName={gymName} head={head} />
+        : <MemberAttendance gymId={gymId} members={members} head={head} onOpenMember={onOpenMember} />}
+    </>
   )
 }

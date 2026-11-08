@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import CrmIcon from './CrmIcon'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import { useToast } from './CrmToast'
 
@@ -80,7 +81,7 @@ export default function GymRankManager({ gymId, onChanged }) {
     if (error) {
       // 중복 이름 → 친절한 메시지
       if (error.code === '23505' || error.message?.includes('unique')) {
-        showToast('⚠️ 이미 같은 이름의 직급이 있어요')
+        showToast('이미 같은 이름의 직급이 있어요')
       } else if (error.code === '42P01' || error.message?.includes('does not exist')) {
         setNoTable(true)
       } else {
@@ -115,7 +116,7 @@ export default function GymRankManager({ gymId, onChanged }) {
           background: 'rgba(250,204,21,0.06)', border: '1px solid rgba(250,204,21,0.25)',
           borderRadius: '10px', padding: '16px',
         }}>
-          <div style={{ fontSize: '16px', marginBottom: '8px' }}>⚠️</div>
+          <div style={{ marginBottom: '8px', color: 'var(--yellow)' }}><CrmIcon name="alert" size={20} /></div>
           <div style={{ fontWeight: 700, marginBottom: '6px', fontSize: '13px' }}>
             gym_ranks 테이블이 없어요
           </div>
@@ -147,7 +148,7 @@ ALTER TABLE trainers
   ADD COLUMN IF NOT EXISTS gym_rank_id UUID REFERENCES gym_ranks(id) ON DELETE SET NULL;`}
           </pre>
           <button className="btn btn-primary" style={{ fontSize: '11px' }} onClick={load}>
-            🔄 다시 확인
+            다시 확인
           </button>
         </div>
       </div>

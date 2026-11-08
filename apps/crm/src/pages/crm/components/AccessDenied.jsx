@@ -1,4 +1,5 @@
 // 권한 없는 탭 접근 시 표시되는 화이트 톤 접근 금지 화면
+import CrmIcon from './CrmIcon'
 export default function AccessDenied() {
   return (
     <div style={{
@@ -32,7 +33,7 @@ export default function AccessDenied() {
           margin: '0 auto 24px',
           userSelect: 'none',
         }}>
-          🔒
+          <CrmIcon name="lock" size={32} />
         </div>
 
         {/* 제목 */}
@@ -67,7 +68,7 @@ export default function AccessDenied() {
           color: '#9CA3AF',
           lineHeight: 1.65,
         }}>
-          💡 센터 설정 → 직원 권한 관리에서<br />권한을 부여받을 수 있어요.
+          센터 설정 → 직원 권한 관리에서<br />권한을 부여받을 수 있어요.
         </div>
       </div>
     </div>

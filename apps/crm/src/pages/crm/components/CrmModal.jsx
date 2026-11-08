@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 
 const EXIT_MS = 180
 
@@ -52,7 +53,7 @@ export default function Modal({ open, onClose, title, children, maxWidth = '520p
   if (!mounted) return null
   const { title: t, children: c, headerAction: ha } = open ? { title, children, headerAction } : lastContent.current
 
-  return (
+  return createPortal(
     <div
       className={`crm-modal-backdrop ${shown ? 'shown' : ''}`}
       onMouseDown={(e) => { downOnBackdrop.current = e.target === e.currentTarget }}
@@ -87,6 +88,7 @@ export default function Modal({ open, onClose, title, children, maxWidth = '520p
           {c}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

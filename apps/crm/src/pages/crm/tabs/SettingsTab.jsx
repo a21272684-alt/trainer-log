@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import CrmIcon from '../components/CrmIcon'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import { useToast } from '../components/CrmToast'
 import Modal from '../components/CrmModal'
@@ -36,7 +37,6 @@ function SubTabBar({ tabs, active, onChange, variant = 'pill' }) {
             fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
             transition: 'all 0.15s', marginBottom: '-1px',
           }}>
-            {t.icon && <span style={{ marginRight: '5px' }}>{t.icon}</span>}
             {t.label}
           </button>
         ))}
@@ -58,7 +58,6 @@ function SubTabBar({ tabs, active, onChange, variant = 'pill' }) {
           boxShadow: active === t.key ? '0 1px 3px rgba(17,24,39,0.10)' : 'none',
           transition: 'all 0.15s',
         }}>
-          {t.icon && <span style={{ marginRight: '5px' }}>{t.icon}</span>}
           {t.label}
         </button>
       ))}
@@ -194,7 +193,7 @@ function RankEditModal({ trainer, gymRanks, onClose, onSaved }) {
       {empType === 'rental' && (
         <div style={{ marginBottom: '16px', padding: '14px', borderRadius: '10px',
           border: '1px solid rgba(250,204,21,0.25)', background: 'rgba(250,204,21,0.05)' }}>
-          <div style={{ fontSize: '11px', color: 'var(--yellow)', fontWeight: 700, marginBottom: '12px' }}>🏢 대관 계약 설정</div>
+          <div style={{ fontSize: '11px', color: 'var(--yellow)', fontWeight: 700, marginBottom: '12px' }}>대관 계약 설정</div>
           <div style={{ marginBottom: '10px' }}>
             <FieldLabel>결제 주체</FieldLabel>
             <select className="input" value={rentalCfg.payment_managed_by}
@@ -230,7 +229,7 @@ function RankEditModal({ trainer, gymRanks, onClose, onSaved }) {
       <div style={{ marginBottom: '16px', padding: '14px', borderRadius: '10px',
         border: '1px solid rgba(96,165,250,0.25)', background: 'rgba(96,165,250,0.04)' }}>
         <div style={{ fontSize: '11px', color: 'var(--blue)', fontWeight: 700, marginBottom: '14px', letterSpacing: '0.3px' }}>
-          💰 PT 수당 및 커미션 설정
+          PT 수당 및 커미션 설정
         </div>
 
         {/* PT 정산 방식 선택 */}
@@ -519,7 +518,7 @@ function StaffPanel({ gymId }) {
       {pendingTrainers.length > 0 && (
         <div style={{ marginBottom: '28px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-            <div style={{ fontSize: '14px', fontWeight: 700 }}>⏳ 가입 대기열</div>
+            <div style={{ fontSize: '14px', fontWeight: 700 }}>가입 대기열</div>
             <span style={{
               fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px',
               background: 'rgba(250,204,21,0.15)', color: '#92400E',
@@ -606,7 +605,7 @@ function StaffPanel({ gymId }) {
         </div>
       ) : trainers.length === 0 ? (
         <div className="empty-state" style={{ marginBottom: '24px' }}>
-          <div className="empty-state-icon">👤</div>
+          <div className="empty-state-icon"><CrmIcon name="user" size={30} /></div>
           <div className="empty-state-text">재직 중인 직원이 없어요</div>
         </div>
       ) : (
@@ -805,7 +804,7 @@ function StaffPanel({ gymId }) {
                 background: 'rgba(200,241,53,0.08)', border: '1px solid rgba(200,241,53,0.2)',
                 color: 'var(--accent-text)', fontWeight: 600,
               }}>
-                👑 대표 (변경 불가)
+                대표 (변경 불가)
               </div>
             ) : (
               <select className="input" value={form.role ?? 'staff'}
@@ -887,37 +886,37 @@ function CenterLogPanel({ gymId, trainers }) {
     ])
 
     const trainerMap = Object.fromEntries((trainers || []).map(t => [t.id, t.name]))
-    const METHOD_ICON = {
-      cash: '💵', card: '💳', transfer: '🏦', local_currency: '🪙', payments_app: '📱',
+    const METHOD_NAME = {
+      cash: '현금', card: '카드', transfer: '계좌이체', local_currency: '지역화폐', payments_app: '페이먼츠앱',
     }
 
     const allEvents = [
       ...(membersRes.data || []).map(m => ({
         id: 'member_' + m.id,
         type: 'member',
-        icon: '👤', color: 'var(--blue)', bg: 'rgba(96,165,250,0.12)',
+        icon: 'user', color: 'var(--blue)', bg: 'rgba(96,165,250,0.12)',
         title: '회원 등록',
         desc:  m.name,
         sub:   `담당 · ${trainerMap[m.trainer_id] || '—'}`,
         at:    m.created_at,
       })),
       ...(paymentsRes.data || []).map(p => {
-        const mIcon = METHOD_ICON[p.payment_method] || '💳'
+        const mName = METHOD_NAME[p.payment_method] || '카드'
         const memo  = p.payment_method_memo ? ` (${p.payment_method_memo})` : ''
         return {
           id: 'pay_' + p.id,
           type: 'payment',
-          icon: '💰', color: 'var(--accent-text)', bg: 'rgba(200,241,53,0.10)',
+          icon: 'cash', color: 'var(--accent-text)', bg: 'rgba(200,241,53,0.10)',
           title: '결제',
           desc:  `${p.product_name} · ${Number(p.amount).toLocaleString()}원`,
-          sub:   `${mIcon}${memo} · ${trainerMap[p.trainer_id] || '—'}`,
+          sub:   `${mName}${memo} · ${trainerMap[p.trainer_id] || '—'}`,
           at:    p.paid_at,
         }
       }),
       ...(logsRes.data || []).map(l => ({
         id: 'log_' + l.id,
         type: 'log',
-        icon: '📝', color: 'var(--purple)', bg: 'rgba(167,139,250,0.12)',
+        icon: 'note', color: 'var(--purple)', bg: 'rgba(167,139,250,0.12)',
         title: '수업일지',
         desc:  (l.content || '').slice(0, 60) + ((l.content || '').length > 60 ? '…' : ''),
         sub:   `트레이너 · ${trainerMap[l.trainer_id] || '—'}`,
@@ -962,7 +961,7 @@ function CenterLogPanel({ gymId, trainers }) {
         <button className="btn btn-secondary"
           style={{ marginLeft: 'auto', padding: '5px 12px', fontSize: '11px' }}
           onClick={load}>
-          🔄 새로고침
+          새로고침
         </button>
       </div>
 
@@ -973,7 +972,7 @@ function CenterLogPanel({ gymId, trainers }) {
         </div>
       ) : filtered.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">📋</div>
+          <div className="empty-state-icon"><CrmIcon name="clipboard" size={30} /></div>
           <div className="empty-state-text">아직 활동 로그가 없어요</div>
         </div>
       ) : (
@@ -993,7 +992,7 @@ function CenterLogPanel({ gymId, trainers }) {
                 width: '34px', height: '34px', borderRadius: '8px', flexShrink: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 background: evt.bg, fontSize: '15px',
-              }}>{evt.icon}</div>
+              }}><CrmIcon name={evt.icon} size={15} /></div>
 
               {/* 내용 */}
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -1113,7 +1112,7 @@ function GymInfoPanel({ gymId, gym, onGymUpdate }) {
         <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
           <button className="btn btn-secondary" onClick={loadGym} disabled={loading}>원래대로</button>
           <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-            {saving ? '저장 중...' : '✓ 저장'}
+            {saving ? '저장 중...' : '저장'}
           </button>
         </div>
       </div>
@@ -1214,7 +1213,7 @@ function PermissionsPanel({ gymId }) {
         background: 'rgba(250,204,21,0.06)', border: '1px solid rgba(250,204,21,0.25)',
         borderRadius: '12px', padding: '20px',
       }}>
-        <div style={{ fontSize: '18px', marginBottom: '10px' }}>⚠️</div>
+        <div style={{ marginBottom: '10px', color: 'var(--yellow)' }}><CrmIcon name="alert" size={22} /></div>
         <div style={{ fontWeight: 700, marginBottom: '8px' }}>DB 마이그레이션이 필요해요</div>
         <div style={{ fontSize: '12px', color: 'var(--text-dim)', lineHeight: 1.7, marginBottom: '16px' }}>
           권한 설정을 사용하려면 Supabase SQL Editor에서 아래 SQL을 실행하세요.
@@ -1229,7 +1228,7 @@ function PermissionsPanel({ gymId }) {
   JSONB NOT NULL DEFAULT '{}';`}
         </pre>
         <button className="btn btn-primary" style={{ marginTop: '14px' }} onClick={load}>
-          🔄 다시 확인
+          다시 확인
         </button>
       </div>
     </div>
@@ -1243,13 +1242,13 @@ function PermissionsPanel({ gymId }) {
         borderRadius: '10px', padding: '12px 16px', marginBottom: '20px',
         maxWidth: '720px', fontSize: '11px', color: 'var(--text-dim)', lineHeight: 1.7,
       }}>
-        <span style={{ fontWeight: 700, color: 'var(--accent-text)' }}>💡 권한 설정</span>
+        <span style={{ fontWeight: 700, color: 'var(--accent-text)' }}>권한 설정</span>
         {'  '}각 직원에게 허용할 기능을 설정해요. 권한은 향후 앱 업데이트에서 실제 접근 제어에 적용돼요.
       </div>
 
       {trainers.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">🔐</div>
+          <div className="empty-state-icon"><CrmIcon name="lock" size={30} /></div>
           <div className="empty-state-text">소속 직원이 없어요</div>
         </div>
       ) : (
@@ -1346,10 +1345,10 @@ export default function SettingsTab({ gymId, gym, trainers, members, onGymUpdate
   const [subTab, setSubTab] = useSessionTab('crm_settingsSubTab', 'staff')
 
   const MAIN_TABS = [
-    { key: 'staff',      icon: '👥', label: '직원 관리' },
-    { key: 'settlement', icon: '💰', label: '직원 급여 정산' },
-    { key: 'log',        icon: '📋', label: '센터 로그' },
-    { key: 'advanced',   icon: '⚙️', label: '고급 설정' },
+    { key: 'staff',      label: '직원 관리' },
+    { key: 'settlement', label: '직원 급여 정산' },
+    { key: 'log',        label: '센터 로그' },
+    { key: 'advanced',   label: '고급 설정' },
   ]
 
   return (
