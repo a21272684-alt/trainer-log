@@ -1,57 +1,95 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '@trainer-log/shared/lib/supabase'
-import { useToast } from '../components/CrmToast'
+import CrmIcon from '../components/CrmIcon'
+import TopbarActions from '../components/TopbarActions'
+import { passSummary, fmtDot, LONG_ABSENT_DAYS, EXPIRING_DAYS, EXPIRING_SESSIONS } from '../lib/memberFilters'
 
-const NOTIF_TYPES = {
-  expiring: { label: '만료 임박', emoji: '⚠️', color: 'var(--orange)', bg: 'rgba(251,146,60,0.1)', desc: '잔여 세션 3회 이하' },
-  expired:  { label: '세션 소진', emoji: '🔴', color: 'var(--red)',    bg: 'rgba(248,113,113,0.1)', desc: '잔여 세션 0회' },
-  risk:     { label: '이탈 위험', emoji: '📉', color: 'var(--yellow)', bg: 'rgba(250,204,21,0.1)',  desc: '이탈 위험도 높음' },
-  inactive: { label: '장기 미출석', emoji: '🏃', color: 'var(--purple)', bg: 'rgba(167,139,250,0.1)', desc: '2주 이상 미출석' },
-}
+// ── 알림 발송 ───────────────────────────────────────────────────
+// 챙겨야 할 회원을 골라 회원 앱으로 보낼 안내를 만든다.
+// 아직 발송이 연결되지 않아 보내기 버튼은 잠겨 있다 (회원 앱 알림 연결 후 열 예정).
 
-export default function NotificationsTab({ gymId, members, trainers }) {
-  const showToast = useToast()
-  const [riskMap,       setRiskMap]       = useState({})
-  const [retentionMap,  setRetentionMap]  = useState({})
-  const [activeType,    setActiveType]    = useState('expiring')
-  const [selected,    setSelected]    = useState(new Set())
-  const [message,     setMessage]     = useState('')
-  const [history,     setHistory]     = useState([])
-  const [sending,     setSending]     = useState(false)
-  const [histLoading, setHistLoading] = useState(false)
+const TYPES = [
+  { key: 'expiring', label: '만료 임박', tone: '#92400E',
+    desc: `${EXPIRING_SESSIONS}회 이하로 남았거나 ${EXPIRING_DAYS}일 안에 끝나는 회원`,
+    msg: gym => `${gym}에서 안내드려요. {이름} 회원님의 회원권이 곧 끝나요. 재등록을 원하시면 데스크나 담당 트레이너에게 편하게 말씀해 주세요.` },
+  { key: 'expired', label: '횟수 소진', tone: '#BE123C',
+    desc: '남은 횟수와 기간이 모두 끝난 회원',
+    msg: gym => `${gym}에서 안내드려요. {이름} 회원님, 수업 횟수를 모두 쓰셨어요. 다시 함께 운동하고 싶으시면 편하게 말씀해 주세요.` },
+  { key: 'risk', label: '이탈 위험', tone: '#BE123C',
+    desc: '이탈 위험 분석에서 위험 이상',
+    msg: gym => `${gym}에서 안부 전해요. {이름} 회원님, 요즘 운동은 어떠세요? 궁금하거나 불편한 점이 있으면 편하게 말씀해 주세요.` },
+  { key: 'inactive', label: '오래 안 옴', tone: 'var(--text)',
+    desc: `${LONG_ABSENT_DAYS}일 넘게 출석이 없는 회원`,
+    msg: gym => `${gym}에서 안부 전해요. {이름} 회원님, 오랫동안 뵙지 못했네요. 건강하게 지내고 계신가요? 다시 함께 운동해요.` },
+]
 
-  useEffect(() => { loadData() }, [members])
+const TOKENS = [
+  ['{이름}', '회원 이름'],
+  ['{남은횟수}', '남은 횟수'],
+  ['{만료일}', '만료일'],
+]
 
-  async function loadData() {
-    if (!members.length || !gymId) return
-    const mIds = members.map(m => m.id)
-    // get_member_retention RPC 는 DB 미배포로 호출 차단 — 빈 맵으로 폴백.
-    // 추후 RPC 배포 시 retentionRes 라인을 복구한다.
-    const { data: riskData } = await supabase
-      .from('member_risk_scores')
-      .select('member_id, risk_level, risk_score')
-      .in('member_id', mIds)
-    const rm = {}; (riskData || []).forEach(r => { rm[r.member_id] = r })
-    setRiskMap(rm)
-    setRetentionMap({})
-  }
+export default function NotificationsTab({ gymId, gymName, members, trainers }) {
+  const [statsMap,  setStatsMap]  = useState({})
+  const [riskMap,   setRiskMap]   = useState({})
+  const [absentMap, setAbsentMap] = useState({})
+  const [active,    setActive]    = useState('expiring')
+  const [selected,  setSelected]  = useState(new Set())
+  const [message,   setMessage]   = useState('')
+  const textRef = useRef(null)
+  const center  = gymName || '센터'
 
-  function getTargetMembers() {
-    return members.filter(m => {
-      const remain = Math.max(0, (m.total_sessions||0) - (m.done_sessions||0))
-      const risk   = riskMap[m.id]
-      const ret    = retentionMap[m.id]
-      // 'expiring': 기간권 만료 14일 이내 — DashboardTab과 동일 기준 (get_member_retention 플래그)
-      if (activeType === 'expiring') return ret?.expiry_warning === true
-      if (activeType === 'expired')  return remain === 0
-      if (activeType === 'risk')     return risk && (risk.risk_level === 'risk' || risk.risk_level === 'critical')
-      // 'inactive': 2주 이상 미출석 — get_member_retention absence_warning 플래그 사용
-      if (activeType === 'inactive') return ret?.absence_warning === true
-      return false
+  useEffect(() => {
+    if (!gymId) return
+    let alive = true
+    Promise.all([
+      supabase.rpc('crm_member_stats', { p_gym_id: gymId }),
+      supabase.rpc('crm_long_absent', { p_gym_id: gymId, p_days: LONG_ABSENT_DAYS }),
+      members.length
+        ? supabase.from('member_risk_scores').select('member_id, risk_level, risk_score').in('member_id', members.map(m => m.id))
+        : Promise.resolve({ data: [] }),
+    ]).then(([s, a, r]) => {
+      if (!alive) return
+      if (s.error) console.error('[crm_member_stats]', s.error)
+      if (a.error) console.error('[crm_long_absent]', a.error)
+      setStatsMap(Object.fromEntries((s.data || []).map(x => [x.member_id, x])))
+      setAbsentMap(Object.fromEntries((a.data || []).map(x => [x.member_id, x])))
+      setRiskMap(Object.fromEntries((r.data || []).map(x => [x.member_id, x])))
     })
-  }
+    return () => { alive = false }
+  }, [gymId, members])
 
-  function toggleMember(id) {
+  const groups = useMemo(() => {
+    const trainerName = id => trainers.find(t => t.id === id)?.name
+    const out = { expiring: [], expired: [], risk: [], inactive: [] }
+    members.forEach(m => {
+      const p = passSummary(m, statsMap[m.id])
+      const sub = [p.passName || (p.status === 'none' ? '결제 전' : '회원권'), trainerName(m.trainer_id) && `담당 ${trainerName(m.trainer_id)}`].filter(Boolean).join(' · ')
+      const base = { m, p, sub }
+      if (p.status === 'expiring') {
+        out.expiring.push({ ...base, sort: p.endLeft ?? 999, right: p.dLabel || `${p.remain}회 남음` })
+      }
+      if (p.status === 'expired') out.expired.push({ ...base, sort: 0, right: '끝남' })
+      const risk = riskMap[m.id]
+      if (risk && (risk.risk_level === 'risk' || risk.risk_level === 'critical')) {
+        out.risk.push({ ...base, sort: -risk.risk_score, right: `${risk.risk_score}점` })
+      }
+      const away = absentMap[m.id]
+      if (away) out.inactive.push({ ...base, sort: -(away.days ?? 9999), right: away.days != null ? `${away.days}일째` : '방문 없음' })
+    })
+    Object.values(out).forEach(list => list.sort((a, b) => (a.sort - b.sort) || (a.m.name || '').localeCompare(b.m.name || '', 'ko')))
+    return out
+  }, [members, trainers, statsMap, riskMap, absentMap])
+
+  const targets  = groups[active]
+  const type     = TYPES.find(t => t.key === active)
+  const picked   = targets.filter(t => selected.has(t.m.id))
+
+  // 대상 묶음이 바뀌면 안내 문구를 바꾸고 전체를 고른다
+  useEffect(() => { setMessage(type.msg(center)) }, [active, center]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setSelected(new Set(targets.map(t => t.m.id))) }, [targets])
+
+  function toggle(id) {
     setSelected(prev => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
@@ -59,184 +97,107 @@ export default function NotificationsTab({ gymId, members, trainers }) {
     })
   }
 
-  function selectAll() {
-    const targets = getTargetMembers()
-    setSelected(new Set(targets.map(m => m.id)))
+  function insertToken(token) {
+    const el = textRef.current
+    const at = el ? el.selectionStart : message.length
+    const end = el ? el.selectionEnd : message.length
+    setMessage(message.slice(0, at) + token + message.slice(end))
+    requestAnimationFrame(() => {
+      if (!el) return
+      el.focus()
+      el.selectionStart = el.selectionEnd = at + token.length
+    })
   }
 
-  function clearAll() { setSelected(new Set()) }
-
-  function getDefaultMessage() {
-    const nt = NOTIF_TYPES[activeType]
-    const messages = {
-      expiring: '안녕하세요! 회원님의 수업 잔여 횟수가 얼마 남지 않았습니다. 재등록을 원하시면 언제든지 연락주세요 😊',
-      expired:  '안녕하세요! 회원님의 수업 횟수가 모두 소진되었습니다. 재등록하시고 운동을 계속하세요 💪',
-      risk:     '안녕하세요! 최근 운동 참여율이 낮아 걱정됩니다. 궁금한 점이 있으시면 편하게 연락주세요 🙏',
-      inactive: '안녕하세요! 오랫동안 뵙지 못했네요. 건강하게 잘 지내고 계신가요? 다시 함께 운동해요 🏋️',
-    }
-    return messages[activeType] || ''
-  }
-
-  async function handleSend() {
-    if (selected.size === 0) { showToast('알림을 보낼 회원을 선택해주세요'); return }
-    if (!message.trim()) { showToast('메시지를 입력해주세요'); return }
-    setSending(true)
-    try {
-      // notification_logs 테이블 미배포 — DB INSERT 차단. 발송 히스토리는 클라이언트 state 만 유지.
-      const count = selected.size
-      alert('해당 기능은 준비 중입니다.')
-      setSelected(new Set())
-      setHistory(prev => [{
-        id: Date.now(), type: activeType, count,
-        message: message.trim(), sent_at: new Date().toISOString(),
-      }, ...prev].slice(0, 20))
-    } catch(e) {
-      // 테이블 없어도 성공 메시지 (UI 데모용)
-      showToast(`✓ ${selected.size}명에게 알림 발송 완료`)
-      setHistory(prev => [{
-        id: Date.now(), type: activeType, count: selected.size,
-        message: message.trim(), sent_at: new Date().toISOString(),
-      }, ...prev].slice(0, 20))
-      setSelected(new Set())
-    }
-    setSending(false)
-  }
-
-  useEffect(() => {
-    setMessage(getDefaultMessage())
-    setSelected(new Set())
-  }, [activeType])
-
-  const targetMembers = getTargetMembers()
-  const nt = NOTIF_TYPES[activeType]
+  // 미리보기는 고른 회원 중 첫 번째 기준
+  const sample = picked[0] || targets[0]
+  const preview = message
+    .replaceAll('{이름}', sample?.m.name || '홍길동')
+    .replaceAll('{남은횟수}', sample ? `${sample.p.remain}회` : '3회')
+    .replaceAll('{만료일}', sample?.p.endDate ? fmtDot(sample.p.endDate) : '2026.12.31')
 
   return (
-    <div style={{ display:'grid', gridTemplateColumns:'1fr 360px', gap:'16px', alignItems:'start' }}>
-      {/* 왼쪽: 대상 회원 선택 */}
-      <div>
-        {/* 알림 유형 탭 */}
-        <div style={{ display:'flex', gap:'8px', marginBottom:'16px', flexWrap:'wrap' }}>
-          {Object.entries(NOTIF_TYPES).map(([key, nt]) => (
-            <button key={key} onClick={() => setActiveType(key)}
-              style={{ padding:'8px 14px', borderRadius:'10px', border:`1px solid ${activeType===key ? nt.color : 'var(--border)'}`,
-                background: activeType===key ? nt.bg : 'none', color: activeType===key ? nt.color : 'var(--text-muted)',
-                cursor:'pointer', fontFamily:'inherit', fontWeight:600, fontSize:'12px', transition:'all 0.15s' }}>
-              {nt.emoji} {nt.label}
-              <span style={{ marginLeft:'6px', background:'var(--surface2)', borderRadius:'10px', padding:'1px 6px', fontSize:'10px' }}>
-                {members.filter(m => {
-                  const remain = Math.max(0,(m.total_sessions||0)-(m.done_sessions||0))
-                  const risk = riskMap[m.id]
-                  const ret  = retentionMap[m.id]
-                  if (key==='expiring') return ret?.expiry_warning === true
-                  if (key==='expired')  return remain===0
-                  if (key==='risk')     return risk && (risk.risk_level==='risk'||risk.risk_level==='critical')
-                  if (key==='inactive') return ret?.absence_warning === true
-                  return false
-                }).length}명
-              </span>
-            </button>
-          ))}
-        </div>
+    <div className="nt">
+      <TopbarActions>
+        <span className="nt-soon">발송 연결 준비 중</span>
+      </TopbarActions>
 
-        {/* 대상 설명 */}
-        <div style={{ background:nt.bg, border:`1px solid ${nt.color}33`, borderRadius:'8px', padding:'8px 12px', marginBottom:'12px', fontSize:'12px', color:nt.color }}>
-          {nt.emoji} <strong>{nt.label}</strong> — {nt.desc}
-        </div>
+      <section className="nt-types" aria-label="보낼 대상">
+        {TYPES.map(t => (
+          <button key={t.key} type="button" className={`nt-type ${active === t.key ? 'on' : ''}`} aria-pressed={active === t.key}
+            onClick={() => setActive(t.key)}>
+            <span className="nt-type-top">
+              <b>{t.label}</b>
+              <em style={{ color: t.tone }}>{groups[t.key].length}명</em>
+            </span>
+            <span className="nt-type-desc">{t.desc}</span>
+          </button>
+        ))}
+      </section>
 
-        {/* 회원 목록 */}
-        <div className="card" style={{ padding:0, overflow:'hidden' }}>
-          <div style={{ padding:'10px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-            <span style={{ fontSize:'12px', color:'var(--text-muted)' }}>대상 {targetMembers.length}명</span>
-            <div style={{ display:'flex', gap:'6px' }}>
-              <button onClick={selectAll}  style={{ fontSize:'11px', color:'var(--accent-text)', background:'none', border:'none', cursor:'pointer' }}>전체 선택</button>
-              <button onClick={clearAll}   style={{ fontSize:'11px', color:'var(--text-dim)', background:'none', border:'none', cursor:'pointer' }}>해제</button>
-            </div>
+      <div className="nt-layout">
+        <section className="nt-people" aria-label="받는 회원">
+          <div className="nt-people-head">
+            <h2>받는 회원 <span>{targets.length}명 중 {picked.length}명 선택</span></h2>
+            <span className="nt-people-acts">
+              <button type="button" onClick={() => setSelected(new Set(targets.map(t => t.m.id)))}>전체 선택</button>
+              <button type="button" onClick={() => setSelected(new Set())}>해제</button>
+            </span>
           </div>
-          {targetMembers.length === 0 ? (
-            <div className="empty-state"><div className="empty-state-icon">{nt.emoji}</div><div className="empty-state-text">{nt.label} 해당 회원이 없어요</div></div>
+          {targets.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon"><CrmIcon name="users" size={30} /></div>
+              <div className="empty-state-text">{type.label} 회원이 없어요</div>
+            </div>
           ) : (
-            <div style={{ maxHeight:'400px', overflowY:'auto' }}>
-              {targetMembers.map(m => {
-                const remain = Math.max(0,(m.total_sessions||0)-(m.done_sessions||0))
-                const risk   = riskMap[m.id]
-                const ret    = retentionMap[m.id]
-                const lastAt = ret?.last_attended_date
-                const isSelected = selected.has(m.id)
-                return (
-                  <div key={m.id} onClick={() => toggleMember(m.id)}
-                    style={{ display:'flex', alignItems:'center', gap:'12px', padding:'10px 16px',
-                      borderBottom:'1px solid var(--border)', cursor:'pointer',
-                      background: isSelected ? 'rgba(200,241,53,0.04)' : 'none', transition:'background 0.1s' }}>
-                    <div style={{ width:'18px', height:'18px', borderRadius:'4px', border:`2px solid ${isSelected?'var(--accent-text)':'var(--border)'}`,
-                      background: isSelected ? 'var(--accent)' : 'none', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                      {isSelected && <span style={{ fontSize:'10px', color:'#0a0a0a', fontWeight:900 }}>✓</span>}
-                    </div>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontWeight:600, fontSize:'13px' }}>{m.name}</div>
-                      <div style={{ fontSize:'11px', color:'var(--text-dim)', marginTop:'1px' }}>
-                        {m.phone || '—'} · 잔여 {remain}회
-                        {risk && ` · 위험도 ${risk.risk_score}/100`}
-                        {lastAt && ` · 최근 ${Math.floor((new Date()-new Date(lastAt))/(1000*60*60*24))}일 전 출석`}
-                      </div>
-                    </div>
-                    <span style={{ fontSize:'12px', color:'var(--text-dim)' }}>
-                      {trainers.find(t => t.id === m.trainer_id)?.name || '—'}
-                    </span>
-                  </div>
-                )
-              })}
+            <div className="nt-people-list">
+              {targets.map(({ m, sub, right }) => (
+                <label key={m.id} className="nt-person">
+                  <input type="checkbox" checked={selected.has(m.id)} onChange={() => toggle(m.id)} />
+                  <span className="nt-person-text">
+                    <b>{m.name}</b>
+                    <small>{sub}</small>
+                  </span>
+                  <em>{right}</em>
+                </label>
+              ))}
             </div>
           )}
-        </div>
-      </div>
+        </section>
 
-      {/* 오른쪽: 메시지 작성 + 발송 */}
-      <div style={{ position:'sticky', top:'80px' }}>
-        <div className="card" style={{ marginBottom:'16px' }}>
-          <div className="card-title">알림 메시지</div>
-          <div style={{ marginBottom:'8px', padding:'8px 10px', background:'var(--surface2)', borderRadius:'8px', fontSize:'11px', color:'var(--text-dim)' }}>
-            선택된 회원: <span style={{ color:'var(--accent-text)', fontWeight:700 }}>{selected.size}명</span>
-          </div>
-          <textarea
-            className="input"
-            rows={5}
-            placeholder="발송할 메시지를 입력하세요..."
-            value={message}
-            onChange={e => setMessage(e.target.value)}
-            style={{ resize:'none', marginBottom:'8px', fontSize:'12px', lineHeight:1.6 }}
-          />
-          <button
-            className="btn btn-primary"
-            style={{ width:'100%', justifyContent:'center', fontSize:'13px', padding:'10px' }}
-            onClick={handleSend} disabled={sending || selected.size === 0}
-          >
-            {sending ? <><span className="spinner">✦</span> 발송 중...</> : `📤 ${selected.size}명에게 알림 발송`}
-          </button>
-          <div style={{ marginTop:'8px', fontSize:'10px', color:'var(--text-dim)', textAlign:'center', lineHeight:1.5 }}>
-            ※ SMS 연동 시 실제 문자가 발송됩니다.<br />현재는 발송 기록만 저장됩니다.
-          </div>
-        </div>
-
-        {/* 발송 히스토리 */}
-        {history.length > 0 && (
-          <div className="card">
-            <div className="card-title">발송 기록</div>
-            <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-              {history.map(h => {
-                const nt = NOTIF_TYPES[h.type]
-                return (
-                  <div key={h.id} style={{ background:'var(--surface2)', borderRadius:'8px', padding:'10px 12px' }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'4px' }}>
-                      <span style={{ fontSize:'11px', fontWeight:600, color:nt?.color }}>{nt?.emoji} {nt?.label} · {h.count}명</span>
-                      <span style={{ fontSize:'10px', color:'var(--text-dim)' }}>{new Date(h.sent_at).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}</span>
-                    </div>
-                    <div style={{ fontSize:'11px', color:'var(--text-muted)', lineHeight:1.4 }}>{h.message.slice(0,50)}{h.message.length>50?'...':''}</div>
-                  </div>
-                )
-              })}
+        <div className="nt-right">
+          <section className="nt-compose" aria-label="메시지">
+            <div className="nt-write">
+              <label htmlFor="nt-msg">메시지</label>
+              <textarea id="nt-msg" ref={textRef} rows={6} value={message} onChange={e => setMessage(e.target.value)} />
+              <div className="nt-tokens">
+                {TOKENS.map(([token, label]) => (
+                  <button key={token} type="button" onClick={() => insertToken(token)}>+ {label}</button>
+                ))}
+              </div>
+              <div className="nt-send">
+                <span>회원 앱 알림이 연결되면 보낼 수 있어요</span>
+                <button type="button" className="btn btn-primary btn-lg" disabled>{picked.length}명에게 보내기</button>
+              </div>
             </div>
-          </div>
-        )}
+            <div className="nt-phone" aria-label="회원 앱에서 보이는 모습">
+              <span className="nt-phone-cap">회원 앱에서 이렇게 보여요</span>
+              <div className="nt-bubble">
+                <div className="nt-bubble-top">
+                  <span className="nt-bubble-logo" aria-hidden="true">운</span>
+                  <b>오운 · {center}</b>
+                  <em>지금</em>
+                </div>
+                <p>{preview || '메시지를 입력하면 여기에 보여요'}</p>
+              </div>
+            </div>
+          </section>
+
+          <section className="nt-history" aria-label="보낸 기록">
+            <h2>보낸 기록</h2>
+            <div className="rev-empty">아직 보낸 알림이 없어요. 발송이 연결되면 여기에 쌓여요.</div>
+          </section>
+        </div>
       </div>
     </div>
   )

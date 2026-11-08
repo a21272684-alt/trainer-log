@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import CrmIcon from '../components/CrmIcon'
 import { supabase, GEMINI_MODEL } from '@trainer-log/shared/lib/supabase'
 import { useToast } from '../components/CrmToast'
 import { generateWeeklyReport, fetchRecentReports, parseReportSections, getPrevMondayStr } from '@trainer-log/shared/lib/gymReport'
@@ -87,20 +88,20 @@ export default function ReportsTab({ gymId }) {
       {pendingReports.map(r => (
         <div key={r.id} style={{ background:'rgba(250,204,21,0.06)', border:'1px solid rgba(250,204,21,0.2)', borderRadius:'10px', padding:'14px', marginBottom:'14px' }}>
           <div style={{ fontSize:'12px', fontWeight:700, color:'var(--yellow)', marginBottom:'6px' }}>
-            {r.status==='error' ? '⚠️ 생성 실패 — 재시도 필요' : '📋 새 주간 리포트 대기 중'}
+            {r.status==='error' ? '만들지 못했어요 — 다시 시도해 주세요' : '새 주간 리포트 대기 중'}
           </div>
           <div style={{ fontSize:'11px', color:'var(--text-muted)', marginBottom:'8px' }}>기준: {r.week_start} ~ {r.week_end || ''}</div>
           {r.error_message && <div style={{ fontSize:'11px', color:'var(--red)', marginBottom:'8px' }}>{r.error_message}</div>}
           <button className="btn btn-primary" style={{ width:'100%', justifyContent:'center' }} onClick={() => handleGenerate(r)} disabled={phase==='loading'}>
-            {phase==='loading' ? statusMsg : '🤖 AI 리포트 지금 생성'}
+            {phase==='loading' ? statusMsg : 'AI 리포트 지금 만들기'}
           </button>
         </div>
       ))}
       {reports.length === 0 && phase !== 'loading' && (
         <div style={{ textAlign:'center', padding:'40px 0', marginBottom:'14px' }}>
-          <div style={{ fontSize:'36px', marginBottom:'10px' }}>📄</div>
+          <div style={{ marginBottom:'10px', color:'var(--text-dim)' }}><CrmIcon name="note" size={36} /></div>
           <div style={{ fontSize:'12px', color:'var(--text-dim)', marginBottom:'16px' }}>생성된 리포트가 없어요.<br />직전 주 데이터로 첫 리포트를 생성할 수 있어요.</div>
-          <button className="btn btn-primary" onClick={() => handleGenerate()}>📊 첫 리포트 생성</button>
+          <button className="btn btn-primary" onClick={() => handleGenerate()}>첫 리포트 만들기</button>
         </div>
       )}
       {phase==='loading' && (
@@ -110,7 +111,7 @@ export default function ReportsTab({ gymId }) {
         </div>
       )}
       {phase==='error' && errMsg && (
-        <div style={{ background:'rgba(248,113,113,0.08)', border:'1px solid rgba(248,113,113,0.2)', borderRadius:'10px', padding:'12px', marginBottom:'14px', fontSize:'12px', color:'var(--red)' }}>⚠️ {errMsg}</div>
+        <div style={{ background:'rgba(248,113,113,0.08)', border:'1px solid rgba(248,113,113,0.2)', borderRadius:'10px', padding:'12px', marginBottom:'14px', fontSize:'12px', color:'var(--red)' }}>{errMsg}</div>
       )}
       {doneReports.length > 0 && (
         <>
@@ -131,7 +132,7 @@ export default function ReportsTab({ gymId }) {
                   <div style={{ fontSize:'13px', fontWeight:700 }}>{selected.week_start} ~ {selected.week_end}</div>
                   <div style={{ fontSize:'10px', color:'var(--text-dim)', marginTop:'2px' }}>생성: {selected.generated_at ? new Date(selected.generated_at).toLocaleString('ko-KR') : '—'}</div>
                 </div>
-                <button className="btn btn-secondary" onClick={() => handleGenerate({ ...selected, status:'pending' })}>🔄 재생성</button>
+                <button className="btn btn-secondary" onClick={() => handleGenerate({ ...selected, status:'pending' })}>다시 만들기</button>
               </div>
               <StatsGrid stats={selected.stats_snapshot} />
               {renderReport(selected.report_text || '')}

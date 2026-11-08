@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import CrmIcon from '../components/CrmIcon'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import { useToast } from '../components/CrmToast'
 import Modal from '../components/CrmModal'
@@ -9,10 +10,6 @@ const mono = { fontVariantNumeric: 'tabular-nums' }
 const METHOD_LABEL = {
   cash: '현금', card: '카드', transfer: '계좌이체',
   local_currency: '지역화폐', payments_app: '페이먼츠앱',
-}
-const METHOD_ICON = {
-  cash: '💵', card: '💳', transfer: '🏦',
-  local_currency: '🪙', payments_app: '📱',
 }
 const METHOD_COLOR = {
   cash:           { color: 'var(--green)',  bg: 'rgba(74,222,128,0.12)'  },
@@ -593,7 +590,7 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
           </div>
           <button onClick={nextMonth} disabled={isCurrent} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '8px', width: '32px', height: '32px', fontSize: '16px', cursor: isCurrent ? 'not-allowed' : 'pointer', color: isCurrent ? 'var(--border)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
           <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '11px' }} onClick={load}>
-            🔄 새로고침
+            새로고침
           </button>
         </div>
         <button
@@ -602,7 +599,7 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
           onClick={exportExcel}
           disabled={exporting || payments.length === 0}
         >
-          {exporting ? '내보내는 중...' : '📥 엑셀 내보내기'}
+          {exporting ? '내보내는 중...' : '엑셀 내보내기'}
         </button>
       </div>
 
@@ -625,7 +622,7 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
           <Section title="트레이너별 정산 현황">
             {trainerStats.length === 0 ? (
               <div className="empty-state">
-                <div className="empty-state-icon">📊</div>
+                <div className="empty-state-icon"><CrmIcon name="chart" size={30} /></div>
                 <div className="empty-state-text">이달 결제 내역이 없어요</div>
               </div>
             ) : (
@@ -703,7 +700,7 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
                       <div key={m}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                           <span style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <span>{METHOD_ICON[m] || '💳'}</span>
+                            
                             <span>{METHOD_LABEL[m] || m}</span>
                             <span style={{ fontSize: '10px', color: 'var(--text-dim)', fontWeight: 400 }}>{s.count}건</span>
                           </span>
@@ -770,7 +767,7 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
           >
             {payments.length === 0 ? (
               <div className="empty-state">
-                <div className="empty-state-icon">💳</div>
+                <div className="empty-state-icon"><CrmIcon name="cash" size={30} /></div>
                 <div className="empty-state-text">이달 결제 내역이 없어요</div>
               </div>
             ) : (
@@ -801,7 +798,7 @@ export default function CenterSettlementTab({ gymId, trainers = [] }) {
                           <td style={{ textAlign: 'right', ...mono, fontWeight: 700, color: 'var(--blue)' }}>{fmt(p.amount)}원</td>
                           <td style={{ textAlign: 'center' }}>
                             <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '5px', background: mc.bg, color: mc.color }}>
-                              {METHOD_ICON[p.payment_method] || '💳'} {METHOD_LABEL[p.payment_method] || p.payment_method || '카드'}
+                              {METHOD_LABEL[p.payment_method] || p.payment_method || '카드'}
                             </span>
                           </td>
                           <td style={{ fontSize: '11px', color: 'var(--text-dim)' }}>{p.payment_method_memo || ''}</td>

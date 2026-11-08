@@ -24,7 +24,7 @@ function Keypad({ onKey, disabled }) {
           className={`kiosk-key ${k === 'C' || k === '<' ? 'fn' : ''}`}
           aria-label={k === 'C' ? '모두 지우기' : k === '<' ? '한 글자 지우기' : k}
           onClick={() => onKey(k)}>
-          {k === 'C' ? '지우기' : k === '<' ? '←' : k}
+          {k === 'C' ? '다시 입력' : k === '<' ? '←' : k}
         </button>
       ))}
     </div>
@@ -33,10 +33,15 @@ function Keypad({ onKey, disabled }) {
 
 function Dots({ value }) {
   return (
-    <div style={{ display: 'flex', gap: '12px' }}>
-      {[0, 1, 2, 3].map(i => (
-        <div key={i} className={`kiosk-dot ${value[i] ? 'on' : ''}`}>{value[i] ? value[i] : ''}</div>
-      ))}
+    <div style={{ display: 'flex', gap: '14px' }}>
+      {[0, 1, 2, 3].map(i => {
+        const cur = i === value.length
+        return (
+          <div key={i} className={`kiosk-dot ${value[i] ? 'on' : ''} ${cur ? 'cur' : ''}`}>
+            {value[i] ? value[i] : cur ? <span className="kiosk-caret" aria-hidden="true" /> : ''}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -156,31 +161,34 @@ export default function KioskMode({ gymId, gymName, onExit }) {
     }
   }
 
-  const dateText = now.toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit', weekday: 'short' })
+  const dateText = now.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })
   const timeText = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
   const r = result
 
   return (
     <div className="kiosk" role="application" aria-label="터치 출석">
       <div className="kiosk-top">
-        <div><span className="kiosk-brand">{gymName}</span><span style={{ fontSize: '15px', color: '#AEB6C2', marginLeft: '10px' }}>출석</span></div>
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-          <span style={{ ...mono, fontSize: '18px', color: '#AEB6C2' }}>{dateText} {timeText}</span>
+        <div className="kiosk-brand-wrap">
+          <span className="kiosk-logo" aria-hidden="true">{(gymName || '오')[0]}</span>
+          <span className="kiosk-brand">{gymName}</span>
+        </div>
+        <div style={{ display: 'flex', gap: '18px', alignItems: 'center' }}>
+          <span className="kiosk-clock" style={mono}>{dateText} <b>{timeText}</b></span>
           <button type="button" className="kiosk-lock" aria-label="출석 화면 나가기 (직원 PIN)" onClick={openPin}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" />
-            </svg>
+            </svg>직원
           </button>
         </div>
       </div>
 
       {screen === 'input' && (
         <div className="kiosk-body kiosk-row">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '26px', width: '380px' }}>
-            <div className="kiosk-title">전화번호<br />뒷 4자리를<br />눌러주세요</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', width: '420px' }}>
+            <div className="kiosk-title">전화번호 뒷 4자리를<br />눌러 주세요</div>
             <Dots value={code} />
-            <div style={{ fontSize: '15px', color: '#AEB6C2', lineHeight: 1.6 }}>
-              {busy ? '확인 중…' : <>회원권 정보가 화면에 잠깐 표시돼요.<br />문의는 안내 데스크로 와주세요.</>}
+            <div style={{ fontSize: '17px', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+              {busy ? '확인 중…' : <>회원권 정보가 화면에 잠깐 보여요.<br />문의는 안내 데스크로 와 주세요.</>}
             </div>
           </div>
           <Keypad onKey={onKey} disabled={busy} />
@@ -209,7 +217,7 @@ export default function KioskMode({ gymId, gymName, onExit }) {
           </div>
           <div style={{ textAlign: 'center' }}>
             <div className="kiosk-h1">{r.name}님, 반가워요</div>
-            <div style={{ fontSize: '18px', color: '#AEB6C2', marginTop: '6px' }}>
+            <div style={{ fontSize: '18px', color: 'var(--text-muted)', marginTop: '6px' }}>
               {r.pause_ended ? `회원권 정지를 풀고 입장했어요 · 정지 ${r.paused_days}일 반영`
                 : r.status === 'already' ? `오늘 이미 입장했어요 · 첫 입장 ${new Date(r.first_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}`
                 : '입장 처리됐어요'}
@@ -219,19 +227,19 @@ export default function KioskMode({ gymId, gymName, onExit }) {
             <div className="kiosk-info">
               <span className="k-l">회원권</span>
               <span className="k-v">{r.membership?.product_name || '없음'}</span>
-              <span style={{ ...mono, fontSize: '14px', color: '#c8f135' }}>
+              <span style={{ ...mono, fontSize: '14px', color: '#3F6212' }}>
                 {r.membership ? `~${r.membership.end_date} · D-${r.membership.days_left}` : 'PT 회원'}
               </span>
             </div>
             <div className="kiosk-info">
               <span className="k-l">PT 잔여</span>
               <span className="k-v" style={mono}>{r.pt_remaining}회</span>
-              <span style={{ fontSize: '14px', color: '#AEB6C2' }}>{r.trainer_name ? `담당 ${r.trainer_name}` : ''}</span>
+              <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>{r.trainer_name ? `담당 ${r.trainer_name}` : ''}</span>
             </div>
             <div className="kiosk-info">
               <span className="k-l">락커</span>
               <span className="k-v" style={mono}>{r.locker ? `${r.locker.number}번` : '없음'}</span>
-              <span style={{ ...mono, fontSize: '14px', color: '#AEB6C2' }}>{r.locker ? `~${md(r.locker.end_date)}` : ''}</span>
+              <span style={{ ...mono, fontSize: '14px', color: 'var(--text-muted)' }}>{r.locker ? `~${md(r.locker.end_date)}` : ''}</span>
             </div>
           </div>
           <button type="button" className="kiosk-btn ghost" onClick={reset}>확인</button>
@@ -243,15 +251,15 @@ export default function KioskMode({ gymId, gymName, onExit }) {
           <div className={`kiosk-badge ${r.status === 'clock_in' ? 'ok' : 'pause'}`} aria-hidden="true">
             {r.status === 'clock_in'
               ? <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth="2.6"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
-              : <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8FB0F5" strokeWidth="2.4"><path d="M15 4h4v16h-4" /><path d="M10 16l4-4-4-4" /><path d="M14 12H4" /></svg>}
+              : <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#1D4ED8" strokeWidth="2.4"><path d="M15 4h4v16h-4" /><path d="M10 16l4-4-4-4" /><path d="M14 12H4" /></svg>}
           </div>
           <div className="kiosk-h1">{r.name}님<br />{r.status === 'clock_in' ? '출근하셨습니다' : '퇴근하셨습니다'}</div>
-          <div style={{ ...mono, fontSize: '22px', color: r.status === 'clock_in' ? '#c8f135' : '#AEB6C2' }}>
+          <div style={{ ...mono, fontSize: '22px', color: r.status === 'clock_in' ? '#3F6212' : 'var(--text-muted)' }}>
             {r.status === 'clock_in'
               ? `${dateText} ${hmKst(r.clock_in)}`
               : `${hmKst(r.clock_in)} → ${hmKst(r.clock_out)} · 근무 ${Math.floor(r.minutes / 60)}시간 ${r.minutes % 60}분`}
           </div>
-          <div style={{ fontSize: '15px', color: '#8B93A1' }}>{r.status === 'clock_in' ? '오늘도 좋은 하루 보내세요' : '수고하셨어요'}</div>
+          <div style={{ fontSize: '15px', color: 'var(--text-dim)' }}>{r.status === 'clock_in' ? '오늘도 좋은 하루 보내세요' : '수고하셨어요'}</div>
           <button type="button" className="kiosk-btn ghost small" onClick={reset}>확인</button>
         </div>
       )}
@@ -260,7 +268,7 @@ export default function KioskMode({ gymId, gymName, onExit }) {
         <div className="kiosk-body kiosk-col" style={{ textAlign: 'center' }}>
           <div className="kiosk-badge bad" aria-hidden="true">!</div>
           <div className="kiosk-h1">회원권이 만료됐어요</div>
-          <div style={{ fontSize: '20px', color: '#AEB6C2', lineHeight: 1.6 }}>
+          <div style={{ fontSize: '20px', color: 'var(--text-muted)', lineHeight: 1.6 }}>
             {r.name}님{r.last ? ` · ${r.last.product_name || '회원권'} (~${md(r.last.end_date)} 만료)` : ''}<br />
             재등록은 안내 데스크로 와주세요
           </div>
@@ -271,14 +279,14 @@ export default function KioskMode({ gymId, gymName, onExit }) {
       {screen === 'paused' && r && (
         <div className="kiosk-body kiosk-col" style={{ textAlign: 'center' }}>
           <div className="kiosk-badge pause" aria-hidden="true">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8FB0F5" strokeWidth="2.4"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#1D4ED8" strokeWidth="2.4"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
           </div>
           <div className="kiosk-h1">회원권 정지 중이에요</div>
-          <div style={{ fontSize: '20px', color: '#AEB6C2' }}>{r.name}님 · 정지 {md(r.hold.start_date)} ~ {md(r.hold.end_date)}</div>
+          <div style={{ fontSize: '20px', color: 'var(--text-muted)' }}>{r.name}님 · 정지 {md(r.hold.start_date)} ~ {md(r.hold.end_date)}</div>
           <button type="button" className="kiosk-btn lime" disabled={busy} onClick={endPause}>
             {busy ? '처리 중…' : '정지 풀고 오늘부터 이용하기'}
           </button>
-          <div style={{ fontSize: '15px', color: '#8B93A1', lineHeight: 1.6, maxWidth: '640px' }}>
+          <div style={{ fontSize: '15px', color: 'var(--text-dim)', lineHeight: 1.6, maxWidth: '640px' }}>
             {r.hold.elapsed_days > 0
               ? <>누르면 정지가 어제까지로 끝나요. 실제로 쉰 {r.hold.elapsed_days}일만 정지로 남고,<br />회원권 만료일도 그만큼만 늘어난 상태로 바뀌어요.</>
               : <>오늘 시작한 정지라, 누르면 정지가 취소되고 회원권 날짜가 원래대로 돌아가요.</>}
@@ -290,7 +298,7 @@ export default function KioskMode({ gymId, gymName, onExit }) {
       {screen === 'notfound' && (
         <div className="kiosk-body kiosk-col" style={{ textAlign: 'center' }}>
           <div className="kiosk-h1">등록된 번호가 없어요</div>
-          <div style={{ fontSize: '20px', color: '#AEB6C2' }}>번호를 다시 확인하거나 안내 데스크로 와주세요</div>
+          <div style={{ fontSize: '20px', color: 'var(--text-muted)' }}>번호를 다시 확인하거나 안내 데스크로 와주세요</div>
           <button type="button" className="kiosk-btn ghost" onClick={reset}>다시 입력</button>
         </div>
       )}
@@ -298,7 +306,7 @@ export default function KioskMode({ gymId, gymName, onExit }) {
       {screen === 'error' && (
         <div className="kiosk-body kiosk-col" style={{ textAlign: 'center' }}>
           <div className="kiosk-h1">잠시 문제가 생겼어요</div>
-          <div style={{ fontSize: '18px', color: '#AEB6C2' }}>
+          <div style={{ fontSize: '18px', color: 'var(--text-muted)' }}>
             {(r?.message || '').includes('CHANGED_SINCE')
               ? '회원권 날짜가 따로 변경된 회원이라 자동으로 정지를 풀 수 없어요. 안내 데스크로 와주세요.'
               : '안내 데스크로 와주세요'}
@@ -312,7 +320,7 @@ export default function KioskMode({ gymId, gymName, onExit }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '22px', width: '380px' }}>
             <div className="kiosk-title" style={{ fontSize: '34px' }}>직원 PIN 4자리</div>
             <Dots value={pin.replace(/./g, '•')} />
-            <div style={{ fontSize: '15px', color: pinMsg ? '#F09A90' : '#8B93A1', minHeight: '24px' }}>
+            <div style={{ fontSize: '15px', color: pinMsg ? '#BE123C' : 'var(--text-dim)', minHeight: '24px' }}>
               {pinMsg || 'PIN 이 맞으면 출석 화면을 나가 CRM 으로 돌아가요'}
             </div>
             <button type="button" className="kiosk-btn ghost small" style={{ alignSelf: 'flex-start' }} onClick={reset}>취소</button>

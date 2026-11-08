@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import CrmIcon from '../components/CrmIcon'
 import * as XLSX from 'xlsx'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import { useToast } from '../components/CrmToast'
@@ -301,7 +302,7 @@ export default function StaffPayrollTab({ gymId, trainers = [] }) {
           STATUS_LABEL[row.status]     || row.status,
           row.perSessionPrice,
           getSessionPtAmount(row, sc),
-          !row.hasTicket ? '⚠ 수강권 미연결' : '',
+          !row.hasTicket ? '수강권 미연결' : '',
         ])
       }
       if (rows.length > 0) s2.push([])   // 트레이너 구분 빈 행
@@ -359,7 +360,7 @@ export default function StaffPayrollTab({ gymId, trainers = [] }) {
               style={{ ...navBtn, opacity: isCurrent ? 0.3 : 1, cursor: isCurrent ? 'not-allowed' : 'pointer' }}>›
             </button>
             <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '11px' }} onClick={load}>
-              🔄 새로고침
+              새로고침
             </button>
           </div>
           {/* 내보내기 + 저장 버튼 */}
@@ -367,17 +368,17 @@ export default function StaffPayrollTab({ gymId, trainers = [] }) {
             <button className="btn btn-secondary"
               style={{ padding: '6px 14px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '5px' }}
               onClick={handlePrint} disabled={loading || staffList.length === 0}>
-              🖨️ 인쇄 / PDF
+              인쇄 / PDF
             </button>
             <button className="btn btn-secondary"
               style={{ padding: '6px 14px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '5px' }}
               onClick={exportExcel} disabled={loading || staffList.length === 0}>
-              📥 엑셀 내보내기
+              엑셀 내보내기
             </button>
             <button className="btn btn-primary"
               style={{ padding: '6px 14px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '5px' }}
               onClick={saveAllOverrides} disabled={saving || loading || staffList.length === 0}>
-              {saving ? <><span className="spinner">✦</span> 저장 중...</> : '💾 저장'}
+              {saving ? <><span className="spinner">✦</span> 저장 중...</> : '저장'}
             </button>
           </div>
         </div>
@@ -387,7 +388,7 @@ export default function StaffPayrollTab({ gymId, trainers = [] }) {
           padding: '5px 12px', marginBottom: '16px',
           background: 'rgba(74,222,128,0.05)', border: '1px solid rgba(74,222,128,0.18)',
           borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span>💾</span>
+          <CrmIcon name="check" size={14} />
           <span>보너스 · 공제 입력 후 <strong style={{ color: 'var(--green)' }}>저장</strong> 버튼을 누르거나 입력 칸을 벗어나면 자동으로 DB에 저장됩니다</span>
         </div>
 
@@ -424,7 +425,7 @@ export default function StaffPayrollTab({ gymId, trainers = [] }) {
             </div>
           ) : staffList.length === 0 ? (
             <div className="empty-state">
-              <div className="empty-state-icon">💼</div>
+              <div className="empty-state-icon"><CrmIcon name="cash" size={30} /></div>
               <div className="empty-state-text">정산 대상 직원이 없어요</div>
               <div className="empty-state-sub">직원 관리에서 고용형태를 설정하면 이곳에 표시돼요</div>
             </div>
@@ -608,12 +609,12 @@ export default function StaffPayrollTab({ gymId, trainers = [] }) {
         <div className="payroll-no-print" style={{ marginTop: '16px', padding: '16px 18px',
           background: 'rgba(96,165,250,0.05)', border: '1px solid rgba(96,165,250,0.2)',
           borderRadius: '12px', fontSize: '12px', color: 'var(--text-dim)', lineHeight: 1.8 }}>
-          <div style={{ fontWeight: 700, color: 'var(--blue)', marginBottom: '8px' }}>💡 급여 계산 기준 안내</div>
+          <div style={{ fontWeight: 700, color: 'var(--blue)', marginBottom: '8px' }}>급여 계산 기준 안내</div>
           <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <li><strong>PT 수당 (고정단가)</strong>: 완료 × 단가 + 노쇼 × 단가 × 노쇼지급률</li>
             <li><strong>PT 수당 (비율제)</strong>: 수업별 수강권(ticket_id 직결) 1회 단가 × 비율 누적. 카드 건 수수료 선차감 반영.</li>
             <li><strong>영업 인센티브</strong>: 이달 결제 매출 × 영업 인센티브율</li>
-            <li><strong>⚠ 수강권 미연결</strong>: ticket_id 없는 구형 출석은 단가 0원 처리. 수강권 재등록 권장.</li>
+            <li><strong>수강권 미연결</strong>: ticket_id 없는 구형 출석은 단가 0원 처리. 수강권 재등록 권장.</li>
           </ul>
         </div>
 

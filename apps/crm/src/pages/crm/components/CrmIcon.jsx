@@ -26,6 +26,10 @@ const PATHS = {
   check:     <path d="m5 12 5 5 9-10" />,
   close:     <path d="M6 6l12 12M18 6 6 18" />,
   alert:     <><path d="M12 3 2 20h20z" /><path d="M12 10v4M12 17h.01" /></>,
+  filter:    <><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></>,
+  lock:      <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
+  note:      <><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5M9 13h6M9 17h4" /></>,
+  user:      <><circle cx="12" cy="8" r="3.4" /><path d="M5 20c.8-3.4 3.6-5.2 7-5.2s6.2 1.8 7 5.2" /></>,
 }
 
 export default function CrmIcon({ name, size = 17, stroke = 2, style, className }) {

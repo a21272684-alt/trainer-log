@@ -163,7 +163,7 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
     products:      { title: '상품 관리',     sub: '센터에서 파는 상품 · 결제 등록 창에 이 목록이 나와요' },
     schedule:      { title: '수업 예약',     sub: '센터 전체 수업 일정 · 트레이너 앱 시간표 그대로' },
     contracts:     { title: '전자 계약서',   sub: '계약서 작성 · 서명 · 보관' },
-    notifications: { title: '알림 발송',     sub: '회원에게 보낼 안내 고르기' },
+    notifications: { title: '알림 발송',     sub: '챙겨야 할 회원을 골라 회원 앱으로 보낼 안내를 만들어요' },
     reports:       { title: '주간 리포트',   sub: 'AI가 지난주 센터 운영을 정리해요' },
     settings:      { title: '센터 설정',     sub: '대표만 볼 수 있어요 · 직원 · 급여 · 기록 · 센터 정보' },
   }
@@ -247,6 +247,7 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
               <QuickActions members={members} trainers={trainers} gymId={gym.id} currentTrainer={trainer}
                 onOpenMember={openMember} onPaid={() => setDashKey(k => k + 1)} />
             )}
+            <div id="crm-topbar-slot" className="crm-topbar-slot" />
             <button type="button" className="btn btn-secondary btn-lg" onClick={loadData} disabled={loading}>
               <CrmIcon name="refresh" size={16} />새로고침
             </button>
@@ -268,7 +269,7 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
                   focus={membersFocus} onFocusDone={() => setMembersFocus(null)} />}
               {tab === 'attendance'    && <AttendanceTab gymId={gym.id} gymName={gym.name} members={members}
                   canManageAttendance={canManageAttendance}
-                  onOpenKiosk={() => setKioskMenu(true)} />}
+                  onOpenKiosk={() => setKioskMenu(true)} onOpenMember={openMember} />}
               {tab === 'lockers'       && <LockersTab gymId={gym.id} members={members} trainers={trainers} currentTrainer={trainer} />}
               {tab === 'benefits'      && (canAccess('benefits')
                 ? <BenefitsTab gymId={gym.id} members={members} />
@@ -282,7 +283,7 @@ export default function GymOwnerPortal({ trainer, gym: initialGym, onLogout }) {
                 : <AccessDenied />)}
               {tab === 'schedule'      && <ScheduleTab         gymId={gym.id} trainers={trainers} members={members} onOpenMember={openMember} />}
               {tab === 'contracts'     && <ContractsTab        gymId={gym.id} trainers={trainers} members={members} currentTrainer={trainer} />}
-              {tab === 'notifications' && <NotificationsTab    gymId={gym.id} members={members} trainers={trainers} />}
+              {tab === 'notifications' && <NotificationsTab    gymId={gym.id} gymName={gym.name} members={members} trainers={trainers} />}
               {tab === 'reports'       && <ReportsTab          gymId={gym.id} />}
               {tab === 'settings'      && (canAccess('settings')
                 ? <SettingsTab gymId={gym.id} gym={gym} trainers={trainers} members={members} onGymUpdate={g => setGym(g)} />

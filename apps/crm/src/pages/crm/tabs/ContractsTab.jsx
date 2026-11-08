@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import CrmIcon from '../components/CrmIcon'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import { useToast } from '../components/CrmToast'
 import Modal from '../components/CrmModal'
@@ -464,7 +465,7 @@ export default function ContractsTab({ gymId, trainers = [], members = [], curre
                   disabled={submitting}>
                   {submitting
                     ? <><span className="spinner">✦</span> 저장 중…</>
-                    : '📄 초안 저장'}
+                    : '초안 저장'}
                 </button>
               </div>
 
@@ -477,7 +478,7 @@ export default function ContractsTab({ gymId, trainers = [], members = [], curre
       <div className="card" style={{ padding:0, overflow:'hidden' }}>
         {filtered.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-state-icon">📝</div>
+            <div className="empty-state-icon"><CrmIcon name="contract" size={30} /></div>
             <div className="empty-state-text">계약서가 없어요</div>
           </div>
         ) : (
@@ -603,7 +604,7 @@ export default function ContractsTab({ gymId, trainers = [], members = [], curre
                 <button className="btn btn-primary"
                   style={{ width:'100%', justifyContent:'center', marginBottom:'8px' }}
                   onClick={() => setShowSign(true)}>
-                  ✍️ 서명하기
+                  서명하기
                 </button>
               ) : null}
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import CrmIcon from '../components/CrmIcon'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import Modal from '../components/CrmModal'
 import { useToast } from '../components/CrmToast'
@@ -291,7 +292,7 @@ function CouponsView({ gymId, members }) {
       </div>
       {coupons === null ? <div className="rev-empty">불러오는 중…</div>
         : coupons.length === 0 ? (
-          <div className="empty-state"><div className="empty-state-icon">🎟️</div><div className="empty-state-text">아직 만든 쿠폰이 없어요</div></div>
+          <div className="empty-state"><div className="empty-state-icon"><CrmIcon name="ticket" size={30} /></div><div className="empty-state-text">아직 만든 쿠폰이 없어요</div></div>
         ) : (
           <div className="bn-coupons">
             {coupons.map(c => {

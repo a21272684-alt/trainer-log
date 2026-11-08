@@ -102,7 +102,7 @@ function calcPt(sc, rows) {
     `비율 ${ptValue}% · 완료 ${completedCnt}회`,
     noshowCnt > 0     ? `노쇼 ${noshowCnt}회(${Math.round(noshowRate * 100)}%)` : '',
     cardFeeRate > 0   ? `카드 ${sc.card_fee_rate}% 선차감` : '',
-    ticketMissing > 0 ? `⚠ 수강권 미연결 ${ticketMissing}건` : '',
+    ticketMissing > 0 ? `수강권 미연결 ${ticketMissing}건` : '',
   ].filter(Boolean).join(' · ')
 
   return { ptPayout, ptDetail: detail, completedCnt, noshowCnt }
