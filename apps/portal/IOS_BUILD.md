@@ -18,7 +18,9 @@ ownapp.kr 웹앱을 **Capacitor 네이티브 셸**로 감싸 App Store 에 올�
 | 앱 표시 이름 | 오운 |
 | 로드 URL | https://ownapp.kr |
 | OAuth 딥링크(복귀 주소) | `kr.ownapp.app://oauth-callback` |
-| 최소 iOS | 14.0+ (Capacitor 8 기준) |
+| 최소 iOS | 15.0+ (Capacitor 8 기준) |
+| Apple Team ID | `XAN7Q2LBH3` (개인 계정, `project.pbxproj` 에 지정됨) |
+| 지원 기기 | iPhone 전용 (`TARGETED_DEVICE_FAMILY = 1`) |
 
 ---
 
@@ -28,7 +30,7 @@ ownapp.kr 웹앱을 **Capacitor 네이티브 셸**로 감싸 App Store 에 올�
 1. **Xcode** — Mac App Store 에서 설치(수 GB). 설치 후 1회 실행해 라이선스 동의.
 2. **Command Line Tools** — 터미널: `xcode-select --install`
 3. **Node.js 18+** — https://nodejs.org (LTS). 확인: `node -v`
-4. **CocoaPods** — 터미널: `sudo gem install cocoapods` (또는 `brew install cocoapods`)
+4. ~~CocoaPods~~ — **불필요**. Capacitor 8 은 Swift Package Manager(`ios/App/CapApp-SPM`)를 쓴다.
 5. **Git** — 보통 Xcode Command Line Tools 에 포함. 확인: `git --version`
    (없으면 위 `xcode-select --install` 로 설치되거나 `brew install git`)
 
@@ -48,46 +50,71 @@ npm run build -w apps/portal
 > 멈추면 `apps/portal/.env` 에 공개값 2개만 넣는다:
 > `VITE_SUPABASE_URL=...` / `VITE_SUPABASE_ANON_KEY=...` (둘 다 공개 클라이언트 값).
 
-### A-3. iOS 네이티브 프로젝트 생성 + 동기화
+### A-3. iOS 네이티브 프로젝트 동기화
+`ios/` 네이티브 프로젝트는 저장소에 커밋돼 있다. **`npx cap add ios` 는 다시 실행하지 않는다**
+(커밋된 설정이 덮어써짐). 웹 자산·플러그인만 동기화한다:
 ```bash
 cd apps/portal
-npx cap add ios      # ios/ 네이티브 프로젝트 생성 (Mac 전용, CocoaPods 필요)
-npx cap sync ios     # 웹 자산 + 플러그인 동기화
-npx cap open ios     # Xcode 열기
+npx cap sync ios     # 웹 자산 + 플러그인 동기화 (CapApp-SPM/Package.swift 갱신)
+npx cap open ios     # Xcode 열기 (필요할 때만)
 ```
-> `appName` 이 한글("오운")이라 `cap add ios` 가 멈추면, `capacitor.config.json` 의
-> `appName` 을 `Ownapp` 으로 바꿔 다시 실행하고, 표시 이름은 아래 A-5 에서 오운으로 지정한다.
 
-### A-4. OAuth 딥링크용 URL 스킴 등록 (★ 로그인 필수)
-Xcode → 좌측 `App` 타겟 → **Info** 탭 → **URL Types** → `+`
-- **Identifier**: `kr.ownapp.app`
-- **URL Schemes**: `kr.ownapp.app`
-
-> 이게 없으면 구글/카카오 로그인 후 앱으로 복귀가 안 된다.
-
-### A-5. 서명 + 표시 이름 + 권한 문구
-Xcode → `App` 타겟 → **General / Signing & Capabilities**
-- **Bundle Identifier**: `kr.ownapp.app`
-- **Display Name**: 오운
-- **Team**: 오운 Apple Developer 팀 선택 (→ "저장소 접근 / 애플 계정" 참고)
-- **Signing**: Automatically manage signing 체크
-- **Capability 추가 (★Apple 로그인 필수)**: **Signing & Capabilities** 탭 → **`+ Capability`** →
-  **Sign in with Apple** 추가. (자동 서명이라 App ID 에도 자동 등록됨)
-
-**Info.plist 권한 문구**(사진/카메라/마이크 기능 대비 — 심사 통과 위해 한글 설명 권장):
-- `NSPhotoLibraryUsageDescription` = 식단·운동 사진을 첨부하기 위해 사진 보관함에 접근합니다.
-- `NSCameraUsageDescription` = 식단·운동 사진을 촬영하기 위해 카메라를 사용합니다.
-- `NSMicrophoneUsageDescription` = 음성 입력(수업일지 받아쓰기)에 마이크를 사용합니다.
+### A-4 / A-5. 이미 커밋된 네이티브 설정 (확인만)
+아래는 `ios/App` 에 이미 반영돼 있어 Xcode 에서 따로 할 일이 없다.
+- **URL Types**: `kr.ownapp.app` 스킴 (구글/카카오 OAuth 딥링크 복귀) — `App/Info.plist`
+- **Sign in with Apple** entitlement — `App/App.entitlements` (`CODE_SIGN_ENTITLEMENTS`)
+- **서명**: Team `XAN7Q2LBH3`, Automatically manage signing
+- **Display Name** 오운, **앱 아이콘·스플래시** (오운 로고), **iPhone 전용**
+- **권한 문구**: 사진(`NSPhotoLibraryUsageDescription`), 카메라(`NSCameraUsageDescription`),
+  마이크(`NSMicrophoneUsageDescription`), 음성 인식(`NSSpeechRecognitionUsageDescription`)
+- **수출 규정**: `ITSAppUsesNonExemptEncryption = NO` (업로드 때 암호화 질문 생략)
+- **오프라인 화면**: 네트워크 실패 시 흰 화면 대신 `public/offline.html` 표시
+  (`capacitor.config.json` 의 `server.errorPath`)
 
 ### A-6. 실기기 테스트 (업로드 전 반드시)
-Mac 에 아이폰 연결 → Xcode 상단 기기 선택 → ▶ Run →
-1. **구글 로그인** 정상 → 앱 복귀 → 세션 유지 확인
-2. **카카오 로그인** 정상 (현재 웹에서 비활성 상태면 건너뜀)
+Mac 에 아이폰 연결 → Xcode 상단 기기 선택 → ▶ Run (또는 업로드 후 **TestFlight** 로 설치) →
+1. **Apple / 구글 / 카카오 로그인** 정상 → 앱 복귀 → 세션 유지 확인
+2. **계정 삭제** 동작 확인
 3. 사진 첨부 / 주요 화면 동작 확인
 
 ### A-7. 아카이브 + App Store 업로드
-Xcode 상단 기기 = **Any iOS Device (arm64)** → 메뉴 **Product → Archive** →
-Organizer 창 → **Distribute App → App Store Connect → Upload**.
+업로드할 때마다 **빌드 번호(`CURRENT_PROJECT_VERSION`)를 1 올린다** (같은 번호는 거부됨).
+Xcode → `App` 타겟 → General → Build 에서 바꾸거나 `project.pbxproj` 를 직접 수정.
+
+**방법 1 — Xcode**: 상단 기기 = **Any iOS Device (arm64)** → **Product → Archive** →
+Organizer → **Distribute App → App Store Connect → Upload**.
+(팀에 등록된 아이폰이 하나도 없으면 "Your team has no devices" 로 실패 → 아이폰을 한 번
+연결해 ▶ Run 하면 자동 등록되고, 그게 어려우면 방법 2)
+
+**방법 2 — CLI (등록된 기기 없이도 가능)**: Xcode 에 오운 계정이 로그인돼 있으면 된다.
+```bash
+cd apps/portal/ios/App
+# 1) 서명 없이 아카이브
+xcodebuild -project App.xcodeproj -scheme App -configuration Release \
+  -destination 'generic/platform=iOS' -archivePath build/App.xcarchive \
+  CODE_SIGNING_ALLOWED=NO archive
+# 2) Sign in with Apple entitlement 를 넣어 임시(ad-hoc) 서명 — 이게 없으면 배포 서명 때 빠짐
+A=build/App.xcarchive/Products/Applications/App.app
+for f in "$A"/Frameworks/*.framework; do codesign --force --sign - "$f"; done
+codesign --force --sign - --entitlements App/App.entitlements "$A"
+# 3) 배포 서명(클라우드 인증서) + 업로드
+cat > build/ExportOptions.plist <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>method</key><string>app-store-connect</string>
+  <key>destination</key><string>upload</string>
+  <key>teamID</key><string>XAN7Q2LBH3</string>
+  <key>signingStyle</key><string>automatic</string>
+</dict></plist>
+EOF
+xcodebuild -exportArchive -archivePath build/App.xcarchive \
+  -exportOptionsPlist build/ExportOptions.plist -exportPath build/upload \
+  -allowProvisioningUpdates
+```
+> `Error Downloading App Information` = App Store Connect 에 앱(번들 ID `kr.ownapp.app`)이
+> 아직 없다는 뜻 → B-2 의 "앱 생성" 먼저.
+> `PLA Update available` = 계정 소유자가 developer.apple.com 에서 새 약관에 동의해야 함.
 
 ---
 
@@ -130,9 +157,12 @@ kr.ownapp.app
 - **저장소(비공개)**: 친구가 clone 하려면 접근 권한이 필요하다. 가장 안전한 방법 —
   GitHub → 저장소 → Settings → Collaborators 에 **친구 GitHub 계정을 초대**
   (또는 Personal Access Token 발급해 전달). 작업 끝나면 권한 해제.
-- **애플 서명**: 친구 Xcode 가 빌드·업로드하려면 오운 Apple Developer 팀 접근 필요.
-  App Store Connect → 사용자 및 액세스 → 친구 Apple ID 를 **App Manager** 로 초대하면
-  자격증명 공유 없이 서명·업로드 가능. (끝나면 제거)
+- **애플 서명**: 오운 Apple Developer 계정은 **개인(Individual)** 계정이다. 개인 계정은
+  App Store Connect 에 다른 사람을 초대해도(Admin 포함) **인증서·프로파일 권한을 줄 수 없어서**
+  초대받은 사람의 Apple ID 로는 서명이 안 된다. 그래서 빌드하는 Mac 의
+  **Xcode → Settings → Apple Accounts** 에 **오운 계정 소유자가 직접 로그인**
+  (2단계 인증도 소유자 폰)한 상태에서 A-7 을 진행한다. 다 끝나면 같은 화면에서 로그아웃.
+  App Store Connect 의 앱 생성·메타데이터 입력은 초대받은 Admin 도 가능.
 
 ---
 
