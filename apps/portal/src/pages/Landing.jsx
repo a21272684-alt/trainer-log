@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { Link } from 'react-router-dom'
+import { trackEvent } from '@trainer-log/shared/lib/analytics'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import { isNativeApp } from '../lib/nativeAuth'
 
@@ -561,8 +562,8 @@ export default function Landing() {
             오<span style={{background:'#c8f135',color:'#111',padding:'1px 7px',borderRadius:'5px',marginLeft:'2px'}}>운</span>
           </div>
           <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
-            <Link to="/trainer" style={{fontSize:'13px',fontWeight:700,padding:'7px 16px',borderRadius:'9px',background:'#111827',color:'#fff',textDecoration:'none'}}>트레이너 앱</Link>
-            <Link to="/member" style={{fontSize:'13px',fontWeight:700,padding:'7px 16px',borderRadius:'9px',background:'#c8f135',color:'#111',textDecoration:'none'}}>회원 포털</Link>
+            <Link to="/trainer" onClick={() => trackEvent('cta_click', { cta: 'trainer', position: 'header' })} style={{fontSize:'13px',fontWeight:700,padding:'7px 16px',borderRadius:'9px',background:'#111827',color:'#fff',textDecoration:'none'}}>트레이너 앱</Link>
+            <Link to="/member" onClick={() => trackEvent('cta_click', { cta: 'member', position: 'header' })} style={{fontSize:'13px',fontWeight:700,padding:'7px 16px',borderRadius:'9px',background:'#c8f135',color:'#111',textDecoration:'none'}}>회원 포털</Link>
           </div>
         </div>
       </nav>
@@ -624,13 +625,13 @@ export default function Landing() {
             </p>
             <div className="ld-rise ld-hero-cta" style={{animationDelay:'250ms',
               display:'flex',gap:'10px',flexWrap:'wrap',marginBottom:'22px'}}>
-              <Link to="/trainer" style={{background:'#c8f135',color:'#0f172a',
+              <Link to="/trainer" onClick={() => trackEvent('cta_click', { cta: 'trainer', position: 'hero' })} style={{background:'#c8f135',color:'#0f172a',
                 padding:'15px 30px',borderRadius:'13px',fontWeight:800,fontSize:'15px',
                 textDecoration:'none',boxShadow:'0 6px 24px rgba(200,241,53,0.5)',
                 letterSpacing:'-0.3px'}}>
                 무료로 시작하기 →
               </Link>
-              <Link to="/member" style={{background:'transparent',color:'#0f172a',
+              <Link to="/member" onClick={() => trackEvent('cta_click', { cta: 'member', position: 'hero' })} style={{background:'transparent',color:'#0f172a',
                 padding:'15px 26px',borderRadius:'13px',fontWeight:700,fontSize:'14px',
                 textDecoration:'none',border:'1.5px solid #cbd5e1',letterSpacing:'-0.3px'}}>
                 회원 포털
@@ -1373,7 +1374,7 @@ export default function Landing() {
               return (
             <SlideCard delay={0}>
               {state === 'show' ? (
-                <Link to="/trainer" style={{
+                <Link to="/trainer" onClick={() => trackEvent('cta_click', { cta: 'trainer', position: 'bottom' })} style={{
                   background:'#ffffff',
                   border:'1px solid rgba(200,241,53,0.3)',borderRadius:'20px',padding:'32px 24px',
                   textAlign:'center',textDecoration:'none',color:'#0f172a',display:'block',
@@ -1422,7 +1423,7 @@ export default function Landing() {
               return (
             <SlideCard delay={150}>
               {state === 'show' ? (
-                <Link to="/member" style={{
+                <Link to="/member" onClick={() => trackEvent('cta_click', { cta: 'member', position: 'bottom' })} style={{
                   background:'#ffffff',
                   border:'1px solid rgba(79,195,247,0.3)',borderRadius:'20px',padding:'32px 24px',
                   textAlign:'center',textDecoration:'none',color:'#0f172a',display:'block',

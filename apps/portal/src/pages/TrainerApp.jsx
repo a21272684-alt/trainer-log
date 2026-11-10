@@ -13,6 +13,7 @@ import { signInWithProvider, isNativeApp, signInWithApple as appleSignIn, getSta
 const HIDE_PURCHASE = isNativeApp()
 import { subscribeToPush, scheduleNotification, deleteScheduledNotification } from '../lib/push'
 import { useToast } from '@trainer-log/shared/components/common/Toast'
+import { trackEvent, trackScreen, noteTier } from '@trainer-log/shared/lib/analytics'
 import Modal from '@trainer-log/shared/components/common/Modal'
 import TermsAgreementModal from '@trainer-log/shared/components/common/TermsAgreementModal'
 import InAppBrowserBanner from '@trainer-log/shared/components/common/InAppBrowserBanner'
@@ -2269,13 +2270,15 @@ export default function TrainerApp() {
       if (subErr) { console.warn('[loadFeatureGates] 구독 조회 실패:', subErr.message) }
       else {
         const active = Array.isArray(subs) && subs.length > 0 ? subs[0] : null
-        if (!active) setTier('free')
-        else {
+        let nextTier = 'free'
+        if (active) {
           const p = String(active.plan || '').toLowerCase()
           // premium/pro 만 명시 인식. 그 외 옛/알 수 없는 유료 플랜(basic·business·paid 등)은
           // 기존 유료 회원 보호를 위해 premium(전체 개방)으로 매핑 — 절대 강등 X.
-          setTier(p === 'pro' ? 'pro' : 'premium')
+          nextTier = p === 'pro' ? 'pro' : 'premium'
         }
+        setTier(nextTier)
+        noteTier(nextTier)   // GA4 — 요금제 속성 + 올라갔으면 plan_upgraded
       }
       // 관리자가 설정한 feature gates 불러오기 (구버전 2단계면 normGates 가 3단계로 흡수)
       const { data: fg, error: fgErr } = await supabase.from('app_settings').select('value').eq('key', 'feature_gates').maybeSingle()
@@ -2342,6 +2345,8 @@ export default function TrainerApp() {
       }
       const status = result?.status
       if (status === 'approved' || status === 'already_trainer') {
+        // GA4 — 새로 가입한 경우만 (이미 트레이너였던 계정은 제외)
+        if (status === 'approved') trackEvent('sign_up', { method: authUser?.app_metadata?.provider || 'unknown' })
         clearStashedAppleName()
         // 등록 화면에서 약관·개인정보처리방침 동의를 이미 받았으므로 동의 기록을 남김
         // → 첫 로그인 동의 창(TermsAgreementModal)이 같은 약관을 다시 묻지 않고 AI 항목만 묻게 됨
@@ -2781,6 +2786,7 @@ export default function TrainerApp() {
       setRevenueRefreshKey(k => k + 1)
       loadMonthPayments(payMonthStr)
       showToast('✓ 상품 등록이 완료됐어요')
+      trackEvent('payment_registered', { payment_method: paymentForm.paymentMethod || 'unknown' })
     } catch(e) {
       console.error('상품 등록 오류:', e)
       showToast('오류: ' + (e?.message || '상품 등록 실패'))
@@ -3008,12 +3014,16 @@ export default function TrainerApp() {
   function showTabFn(t) {
     const TAB_GATE = { history:'history_tab', schedule:'schedule_tab', revenue:'revenue_tab' }
     if (TAB_GATE[t] && !canUse(TAB_GATE[t])) {
+      trackEvent('paywall_view', { feature: TAB_GATE[t] })
       showToast(HIDE_PURCHASE ? '🔒 현재 이용할 수 없는 기능이에요.' : '🔒 유료 플랜 전용 기능이에요. 플랜 업그레이드 후 이용 가능합니다.')
       return
     }
     setTab(t)
     setActivePage('page-' + t)
   }
+
+  // GA4 — 주소가 바뀌지 않는 앱 안 탭 이동 기록 (익명, 탭 이름만)
+  useEffect(() => { if (screen === 'app') trackScreen('trainer_' + tab) }, [screen, tab])
 
   // === MEMBERS ===
   async function addMember() {
@@ -3031,6 +3041,7 @@ export default function TrainerApp() {
       })
       if (insErr) throw insErr
       await loadMembers(); setActivePage('page-members'); setTab('members'); showToast('✓ 회원이 추가됐어요')
+      trackEvent('member_added', { is_first: members.length === 0, member_count: members.length + 1 })
     } catch(e) { showToast(e?.hint === 'member_limit' ? e.message : '오류: ' + e.message) }
   }
 
@@ -3481,6 +3492,7 @@ export default function TrainerApp() {
 
     // ── 사용 가능 횟수 체크 (유료 무제한 / 무료 월 횟수 → 크레딧). 다시 만들기는 차감 없음 ──
     if (!isRegen && aiRemaining <= 0) {
+      trackEvent('ai_limit_reached', { quota_mode: aiQuota?.mode || 'none' })
       if (aiQuota?.mode === 'quota') showToast(`이번 달 무료 AI 일지 ${aiQuota.quota}회를 모두 사용했어요. ${fmtResetDate(aiQuota.resets_at)}에 다시 충전돼요.`)
       setShowLimitModal(true)
       return
@@ -3523,6 +3535,7 @@ export default function TrainerApp() {
       // sendKakao() 에서 수행됨 (생성 미리보기 → 확인 → 전송 흐름)
 
       showToast('✦ 수업일지 생성 완료!')
+      trackEvent('journal_generated', { regenerate: isRegen })
     } catch(e) {
       // 서버가 막은 경우엔 안내 문구를 그대로 (횟수 소진 → 안내 창)
       if (e?.reason === 'regen_limit' && sessionKey) setRegenInfo({ key: sessionKey, left: 0 })
@@ -3684,6 +3697,7 @@ export default function TrainerApp() {
 
       await loadMembers(); await loadLogs()
       showToast('📱 회원 앱으로 일지가 전송되었습니다.')
+      trackEvent('journal_sent', { has_media: (insertData.media_urls?.length || 0) > 0 })
       setTimeout(() => {
         // 모든 setter 는 TrainerApp closure 내부 정의 — 안전망으로 존재 여부 검증 후 호출
         if (typeof setShowSend === 'function') setShowSend(false)

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import { signInWithProvider, isNativeApp, signInWithApple as appleSignIn } from '../lib/nativeAuth'
 import { useToast } from '@trainer-log/shared/components/common/Toast'
+import { setAnalyticsUser, trackScreen } from '@trainer-log/shared/lib/analytics'
 import Modal from '@trainer-log/shared/components/common/Modal'
 import Icon from '../components/Icon'
 import TermsAgreementModal from '@trainer-log/shared/components/common/TermsAgreementModal'
@@ -258,8 +259,12 @@ export default function MemberPortal() {
   async function _loginWithRecord(m) {
     setUnregistered(null)
     setMember(m); setLoggedIn(true)
+    setAnalyticsUser({ role: 'member' })   // GA4 — 역할만 (계정 식별자 없음)
     showToast('✓ 환영해요, ' + m.name + '님!')
   }
+
+  // GA4 — 회원 앱 하단 탭 이동 기록 (익명, 탭 이름만)
+  useEffect(() => { if (loggedIn) trackScreen('member_' + tab) }, [loggedIn, tab])
 
   async function logout() {
     await supabase.auth.signOut()
