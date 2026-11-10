@@ -1,0 +1,14 @@
+# 오운 (ownapp.kr)
+# 공개 페이지는 모두 허용. 로그인해야 쓰는 앱 화면 · 서버 함수는 검색에서 뺀다.
+User-agent: *
+Allow: /
+Disallow: /trainer
+Disallow: /member
+Disallow: /report
+Disallow: /intro
+Disallow: /crm
+Disallow: /gym
+Disallow: /community
+Disallow: /api/
+
+Sitemap: https://ownapp.kr/sitemap.xml

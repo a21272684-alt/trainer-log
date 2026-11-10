@@ -30,6 +30,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="오운">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <!-- iOS 사파리 상단 '앱에서 열기 · 받기' 배너 (앱스토어 오운 id6821127302). 사파리에서만 뜨고 앱 안 웹뷰에서는 무시됨 -->
+  <meta name="apple-itunes-app" content="app-id=6821127302">
 
   <title>오운 — 1인 강사를 위한 AI 일지·회원관리·공개 프로필</title>
   <meta name="description" content="AI 수업일지 자동 생성, 회원·결제·정산 관리, 트레이너 공개 프로필까지. 1인 강사를 위한 올인원 도구 · 오운(ownapp.kr)">
@@ -54,6 +56,49 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap"
     rel="stylesheet">
+
+  <!-- 구조화 데이터 (검색 · AI 답변 엔진이 오운이 무엇인지 읽는 정보). 화면에 보이는 사실만 적는다 -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://ownapp.kr/#org",
+        "name": "이루스케일즈",
+        "alternateName": ["Iruscales", "오운", "ownapp"],
+        "url": "https://ownapp.kr",
+        "logo": "https://ownapp.kr/icons/icon-512.png"
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://ownapp.kr/#website",
+        "name": "오운",
+        "alternateName": "ownapp",
+        "url": "https://ownapp.kr",
+        "inLanguage": "ko-KR",
+        "publisher": { "@id": "https://ownapp.kr/#org" }
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://ownapp.kr/#app",
+        "name": "오운",
+        "alternateName": "ownapp",
+        "description": "1인 PT 트레이너를 위한 수업일지 · 회원관리 앱. AI가 수업일지를 만들어 회원에게 보내고, 회원 · 결제 · 매출 · 시간표를 한 곳에서 관리한다.",
+        "applicationCategory": "HealthApplication",
+        "operatingSystem": "Web, Android, iOS",
+        "url": "https://ownapp.kr",
+        "inLanguage": "ko-KR",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "KRW" },
+        "publisher": { "@id": "https://ownapp.kr/#org" },
+        "sameAs": [
+          "https://play.google.com/store/apps/details?id=kr.ownapp.twa",
+          "https://apps.apple.com/kr/app/id6821127302"
+        ]
+      }
+    ]
+  }
+  </script>
 </head>
 
 <body>
