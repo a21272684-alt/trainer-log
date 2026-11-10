@@ -52,15 +52,53 @@ function ExThumb({ name, size = 46 }) {
   )
 }
 
+// ── 매출관리 · 분석 · 내역 공통 (2026-11 리디자인) ──────────────────
+// CRM 과 같은 규칙: 라임은 채움에만, 글자는 올리브, 금액은 잉크, 이모지 대신 선 아이콘.
+// 스타일은 trainer.css 의 rv- 클래스. 계산 · 저장 · 조회는 리디자인 전과 같다.
+const RV_METHOD_LABEL = { cash:'현금', card:'카드', transfer:'계좌이체', local_currency:'지역화폐', payments_app:'간편결제' }
+const rvWon = n => Number(n || 0).toLocaleString() + '원'
+const rvSigned = n => (Number(n) < 0 ? '−' : '') + Math.abs(Number(n || 0)).toLocaleString() + '원'
+const rvMonthDay = d => {
+  if (!d) return ''
+  const [, m, day] = String(d).slice(0, 10).split('-').map(Number)
+  return m && day ? `${m}월 ${day}일` : String(d)
+}
+const rvDotDate = d => String(d || '').slice(5, 10).replace('-', '.')
+const rvShortDate = d => new Date(d).toLocaleDateString('ko-KR', { month:'long', day:'numeric' })
+
+const RV_ICON = {
+  chevronDown:  'M6 9l6 6 6-6',
+  chevronUp:    'M6 15l6-6 6 6',
+  chevronLeft:  'M15 6l-6 6 6 6',
+  chevronRight: 'M9 6l6 6-6 6',
+  lock:      'M7 11h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2zM8 11V8a4 4 0 0 1 8 0v3',
+  info:      'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v5M12 8h.01',
+  search:    'M11 17.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM16 16l4 4',
+  close:     'M7 7l10 10M17 7L7 17',
+  box:       'M4 8l8-4 8 4v8l-8 4-8-4zM4 8l8 4 8-4M12 12v8',
+  card:      'M5.5 6h13a2.5 2.5 0 0 1 2.5 2.5v8a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 16.5v-8A2.5 2.5 0 0 1 5.5 6zM3 10.5h18',
+  doc:       'M7 3h7l4 4v14H7zM14 3v4h4M10 12h5M10 16h5',
+  rental:    'M5 20V4h10v16M15 7h4v13M3 20h18M12 12h.01',
+  freelance: 'M5.5 7h13a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2zM9 7V5h6v2M3.5 12h17',
+  employee:  'M7.5 3.5h9a2.5 2.5 0 0 1 2.5 2.5v12a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 5 18V6a2.5 2.5 0 0 1 2.5-2.5zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM8.5 16.5a3.5 3.5 0 0 1 7 0',
+}
+function RvIcon({ d, size = 18 }) {
+  return (
+    <svg className="rv-ic" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true"><path d={d} /></svg>
+  )
+}
+
 // 통합 매출 내역 (revenue 탭용)
 // 트레이너 앱 매출 = 트레이너 앱에서 등록한 결제만 (gym_product_id 있는 CRM 결제는 CRM 에서만 표시)
+// 2026-11: 달별로 묶고, 불러온 결제로 결제 수단 비중을 계산 (추가 조회 없음)
+const RV_PAY_LIMIT = 100
 function RevenuePaymentList({ trainerId, members, refreshKey }) {
   const [list, setList] = useState(null)
   const [loading, setLoading] = useState(false)
   const fetchList = () => {
     if (!trainerId) return
     setLoading(true)
-    supabase.from('payments').select('*').eq('trainer_id', trainerId).is('gym_product_id', null).order('paid_at', { ascending: false }).limit(100)
+    supabase.from('payments').select('*').eq('trainer_id', trainerId).is('gym_product_id', null).order('paid_at', { ascending: false }).limit(RV_PAY_LIMIT)
       .then(({ data, error }) => {
         if (error) console.warn('[RevenuePaymentList] payments 조회 실패:', error.message)
         setList(data || [])
@@ -74,124 +112,225 @@ function RevenuePaymentList({ trainerId, members, refreshKey }) {
       })
   }
   useEffect(() => { fetchList() }, [trainerId, refreshKey])
-  if (!list) return <div style={{padding:'12px',color:'var(--text-dim)',fontSize:'13px'}}>불러오는 중...</div>
-  const total = list.reduce((s,p) => s+p.amount, 0)
+
+  const view = useMemo(() => {
+    if (!list) return null
+    const total = list.reduce((s, p) => s + (p.amount || 0), 0)
+    const byMethod = {}
+    list.forEach(p => {
+      const k = RV_METHOD_LABEL[p.payment_method] || '기타'
+      byMethod[k] = (byMethod[k] || 0) + (p.amount || 0)
+    })
+    const methods = Object.entries(byMethod)
+      .filter(([, v]) => v > 0)
+      .sort((a, b) => b[1] - a[1])
+      .map(([label, amount]) => ({ label, amount, pct: total > 0 ? amount / total * 100 : 0 }))
+    const thisYear = new Date().getFullYear()
+    const groups = []
+    list.forEach(p => {   // paid_at 내림차순이라 같은 달이 붙어 있다
+      const d = new Date(p.paid_at)
+      const key = d.getFullYear() + '-' + d.getMonth()
+      let g = groups[groups.length - 1]
+      if (!g || g.key !== key) {
+        g = { key, label: d.getFullYear() === thisYear ? `${d.getMonth() + 1}월` : `${d.getFullYear()}년 ${d.getMonth() + 1}월`, total: 0, items: [] }
+        groups.push(g)
+      }
+      g.total += p.amount || 0
+      g.items.push(p)
+    })
+    return { total, methods, groups }
+  }, [list])
+
+  if (!list) return <div className="rv-loading">불러오는 중...</div>
+  if (!list.length) return (
+    <div className="rv-empty">
+      <RvIcon d={RV_ICON.card} size={32} />
+      <b>아직 결제 기록이 없어요</b>
+      <span>회원별 결제 관리에서 결제를 등록하면<br />여기에 모여요.</span>
+    </div>
+  )
+  const memberName = id => members.find(m => m.id === id)?.name
   return (
-    <div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:'8px',marginBottom:'8px'}}>
-        {loading && <span style={{fontSize:'11px',color:'var(--text-dim)'}}>새로고침 중...</span>}
-        <span style={{fontSize:'12px',color:'var(--text-muted)'}}>총 <span style={{color:'var(--accent-text)',fontWeight:700}}>{total.toLocaleString()}원</span> · {list.length}건</span>
+    <div className="rv">
+      <div className="rv-sum">
+        <div>
+          <div className="rv-sum-l">받은 결제 합계{loading && ' · 새로고침 중'}</div>
+          <div className="rv-sum-v">{view.total.toLocaleString()}<small>원</small></div>
+        </div>
+        <span className="rv-count">{list.length}건</span>
       </div>
-      {!list.length && <div className="empty" style={{padding:'20px'}}><p>결제 내역이 없어요</p></div>}
-      {list.map(p => {
-        const mem = members.find(m => m.id === p.member_id)
-        const d = new Date(p.paid_at).toLocaleDateString('ko-KR',{month:'short',day:'numeric'})
-        const METHOD_LABEL = {cash:'현금',card:'카드',transfer:'계좌이체',local_currency:'지역화폐',payments_app:'간편결제'}
-        const methodLabel = METHOD_LABEL[p.payment_method] || ''
-        const methodDetail = p.payment_method_memo ? ` (${p.payment_method_memo})` : ''
-        return (
-          <div key={p.id} style={{display:'flex',alignItems:'center',gap:'10px',padding:'10px 12px',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'8px',marginBottom:'6px'}}>
-            <div style={{width:'28px',height:'28px',borderRadius:'50%',background:'var(--accent)',color:'#0f0f0f',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:'12px',flexShrink:0}}>{mem?.name?.[0]||'?'}</div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:'13px',fontWeight:500}}>{mem?.name||'회원'} · {p.product_name}</div>
-              <div style={{display:'flex',flexWrap:'wrap',alignItems:'center',gap:'4px',marginTop:'2px'}}>
-                {methodLabel && (
-                  <span style={{fontSize:'10px',fontWeight:600,padding:'1px 6px',borderRadius:'4px',
-                    background:'rgba(200,241,53,0.12)',color:'var(--accent-text)',border:'1px solid rgba(200,241,53,0.3)'}}>
-                    {methodLabel}{methodDetail}
-                  </span>
-                )}
-                <span style={{fontSize:'11px',color:'var(--text-muted)'}}>{d} · {p.session_count}회{p.memo?' · '+p.memo:''}{p.tax_included?' (부가세포함)':''}</span>
-              </div>
+
+      {view.methods.length > 0 && (
+        <section className="rv-methods" aria-label="결제 수단 비중">
+          <h4 className="rv-h">결제 수단</h4>
+          {view.methods.map(m => (
+            <div key={m.label} className="rv-mth" title={rvWon(m.amount)}>
+              <b>{m.label}</b>
+              <span className="rv-track"><i style={{ width: m.pct + '%' }} /></span>
+              <em>{Math.round(m.pct)}%</em>
             </div>
-            <div style={{fontSize:'14px',fontWeight:700,fontVariantNumeric:'tabular-nums',color:'var(--accent-text)',flexShrink:0}}>{p.amount.toLocaleString()}원</div>
-          </div>
-        )
-      })}
+          ))}
+        </section>
+      )}
+
+      {view.groups.map(g => (
+        <section key={g.key} aria-label={`${g.label} 결제`}>
+          <div className="rv-grp"><b>{g.label}</b><span>{g.items.length}건 · {rvWon(g.total)}</span></div>
+          {g.items.map(p => {
+            const name = memberName(p.member_id)
+            const methodLabel = RV_METHOD_LABEL[p.payment_method] || ''
+            const sub = [rvShortDate(p.paid_at), p.session_count ? `${p.session_count}회` : '', p.memo, p.tax_included ? '부가세 포함' : ''].filter(Boolean).join(' · ')
+            return (
+              <div key={p.id} className="rv-pay">
+                <span className="rv-av" aria-hidden="true">{name?.[0] || '?'}</span>
+                <span className="rv-pay-t"><b>{name || '회원'} · {p.product_name}</b><span>{sub}</span></span>
+                <span className="rv-pay-r">
+                  <b>{rvWon(p.amount)}</b>
+                  {methodLabel && <span className="rv-tag">{methodLabel}{p.payment_method_memo ? ` (${p.payment_method_memo})` : ''}</span>}
+                </span>
+              </div>
+            )
+          })}
+        </section>
+      ))}
+
+      {list.length >= RV_PAY_LIMIT && <p className="rv-foot">최근 결제 {RV_PAY_LIMIT}건까지 보여요</p>}
     </div>
   )
 }
 
-// 회원별 결제 관리 카드 (확정 매출 = payments 합계)
-function MemberRevenueCard({ m, mWeekLogs, mMonthLogs, attendRate, cancelledBlocks, remain, pct, price, dayOfMonth, daysInMonth, confirmed, recentPays, onOpenPayment }) {
+// 회원별 결제 관리 — 접힌 한 줄 (남은 횟수 · 진행 막대)
+function rvMemberSub(m, price) {
+  return [m.lesson_purpose, price ? `회당 ${price.toLocaleString()}원` : '단가 미설정'].filter(Boolean).join(' · ')
+}
+function rvRemainInfo(m) {
+  const total = m.total_sessions || 0
+  const remain = total - (m.done_sessions || 0)
+  if (total <= 0) return { label: '결제 전', tone: 'dim', pct: 0 }
+  return {
+    label: `잔여 ${remain}회`,
+    tone: remain <= 0 ? 'risk' : remain <= 3 ? 'warn' : '',
+    pct: Math.min(100, Math.round((m.done_sessions || 0) / total * 100)),
+  }
+}
+function MemberRevenueRow({ m, onOpen }) {
+  const r = rvRemainInfo(m)
   return (
-    <div className="card" style={{marginBottom:'12px'}}>
-      {/* 헤더 */}
-      <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'12px'}}>
-        <div style={{width:'36px',height:'36px',borderRadius:'50%',background:'var(--accent)',color:'#0f0f0f',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:'14px',flexShrink:0}}>{m.name[0]}</div>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:'14px',fontWeight:600}}>{m.name}</div>
-          <div style={{fontSize:'11px',color:'var(--text-muted)'}}>{m.lesson_purpose||''} · 단가 {price ? price.toLocaleString()+'원' : '미설정'}</div>
+    <button type="button" className="rv-mem" aria-expanded="false" onClick={onOpen}>
+      <span className="rv-av" aria-hidden="true">{m.name?.[0] || '?'}</span>
+      <span className="rv-mem-t"><b>{m.name}</b><span>{rvMemberSub(m, m.session_price || 0)}</span></span>
+      <span className="rv-mem-r">
+        <b className={r.tone}>{r.label}</b>
+        <span className={'rv-mini' + (r.tone === 'warn' || r.tone === 'risk' ? ' low' : '')}><i style={{ width: r.pct + '%' }} /></span>
+      </span>
+    </button>
+  )
+}
+
+// 회원별 결제 관리 — 펼친 모습 (확정 매출 = payments 합계)
+function MemberRevenueCard({ m, mWeekLogs, mMonthLogs, attendRate, cancelledBlocks, remain, pct, price, dayOfMonth, daysInMonth, confirmed, recentPays, onOpenPayment, onClose }) {
+  const projected = dayOfMonth > 0 && mMonthLogs.length > 0 ? Math.round(mMonthLogs.length / dayOfMonth * daysInMonth) : 0
+  const rateTone = attendRate === null ? 'dim' : attendRate >= 80 ? 'good' : attendRate >= 60 ? 'warn' : 'risk'
+  const fmtDay = d => /^\d{4}-\d{2}-\d{2}/.test(String(d || '')) ? rvMonthDay(d) : (d || '')
+  return (
+    <div className="rv-mopen">
+      <button type="button" className="rv-mem" aria-expanded="true" onClick={onClose}>
+        <span className="rv-av" aria-hidden="true">{m.name?.[0] || '?'}</span>
+        <span className="rv-mem-t"><b>{m.name}</b><span>{rvMemberSub(m, price)}</span></span>
+        <span className="rv-mem-chev"><RvIcon d={RV_ICON.chevronUp} /></span>
+      </button>
+      <div className="rv-mdetail">
+        <div className="rv-pass">
+          <div className="rv-pass-top"><span>남은 수업</span>{price > 0 && <span>잔존 가치 {rvWon(price * remain)}</span>}</div>
+          <div className="rv-pass-v">{remain}회</div>
+          <div className="rv-pass-bar"><i style={{ width: Math.min(100, Math.max(0, pct)) + '%' }} /></div>
+          <div className="rv-pass-sub">총 {m.total_sessions}회 중 {m.done_sessions}회 완료</div>
         </div>
-        <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:'4px',flexShrink:0}}>
-          <div style={{textAlign:'right'}}>
-            <div style={{fontSize:'15px',fontWeight:700,fontVariantNumeric:'tabular-nums',color:'var(--accent-text)'}}>{confirmed!=null?confirmed.toLocaleString():'—'}<span style={{fontSize:'11px'}}>원</span></div>
-            <div style={{fontSize:'10px',color:'var(--text-dim)'}}>누적 결제</div>
+        <div className="rv-paid">
+          <span><small>누적 결제</small><b>{confirmed != null ? rvWon(confirmed) : '—'}</b></span>
+          <button type="button" className="rv-btn" onClick={onOpenPayment}><RvIcon d={RV_ICON.card} size={17} />결제 관리</button>
+        </div>
+        <div className="rv-mstats">
+          <div><b className={rateTone}>{attendRate !== null ? attendRate + '%' : '—'}</b><span>주간 출석률</span></div>
+          <div><b>{mWeekLogs.length}회</b><span>이번 주 소진</span></div>
+          <div><b>{mMonthLogs.length}회</b><span>이번 달 소진</span></div>
+          <div><b>{projected}회</b><span>이번 달 예상</span></div>
+        </div>
+        {recentPays.length > 0 && (
+          <div className="rv-mbox">
+            <h5>최근 결제</h5>
+            {recentPays.map(p => (
+              <div key={p.id} className="rv-line"><span>{rvShortDate(p.paid_at)} · {p.product_name}</span><b>{rvWon(p.amount)}</b></div>
+            ))}
           </div>
-          <button
-            onClick={onOpenPayment}
-            style={{padding:'5px 12px',borderRadius:'8px',border:'none',background:'var(--accent)',
-              color:'#0f0f0f',fontSize:'11px',fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
-            💳 결제관리
-          </button>
-        </div>
-      </div>
-
-      {/* 세션 통계 */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'8px',marginBottom:'12px'}}>
-        {[
-          [attendRate!==null?attendRate+'%':'—','주간출석률',attendRate!==null?(attendRate>=80?'#4ade80':attendRate>=60?'#facc15':'var(--danger)'):'var(--text-dim)'],
-          [mWeekLogs.length,'주당소진','var(--text)'],
-          [mMonthLogs.length,'월간소진','var(--text)'],
-          [dayOfMonth>0&&mMonthLogs.length>0?Math.round(mMonthLogs.length/dayOfMonth*daysInMonth):0,'월간예상','#60a5fa']
-        ].map(([v,l,c],i)=>(
-          <div key={i} style={{textAlign:'center',padding:'8px',background:'var(--surface2)',borderRadius:'8px'}}>
-            <div style={{fontSize:'15px',fontWeight:700,fontVariantNumeric:'tabular-nums',color:c}}>{v}</div>
-            <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'2px'}}>{l}</div>
+        )}
+        {cancelledBlocks.length > 0 && (
+          <div className="rv-mbox">
+            <h5 className="risk">취소 이력 {cancelledBlocks.length}건</h5>
+            {cancelledBlocks.slice(-3).map((b, i) => (
+              <div key={i} className="rv-line"><span>{fmtDay(b.date)} · {b.cancelType}{b.cancelDetail ? ' — ' + b.cancelDetail : ''}</span></div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
-
-      {/* 세션 프로그레스 바 */}
-      <div style={{height:'4px',background:'var(--border)',borderRadius:'2px',overflow:'hidden',marginBottom:'8px'}}>
-        <div style={{height:'100%',background:'var(--accent)',borderRadius:'2px',width:pct+'%'}}></div>
-      </div>
-      <div style={{display:'flex',justifyContent:'space-between',fontSize:'11px',color:'var(--text-muted)',marginBottom: recentPays.length>0?'10px':0}}>
-        <span>{m.done_sessions}회 완료 · 잔여 {remain}회</span>
-        {price>0 && <span style={{color:'var(--accent-text)'}}>잔존가치 {(price*remain).toLocaleString()}원</span>}
-      </div>
-
-      {/* 최근 결제 미리보기 */}
-      {recentPays.length>0 && (
-        <div style={{borderTop:'1px solid var(--border)',paddingTop:'10px'}}>
-          <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'6px',fontWeight:600,letterSpacing:'0.05em'}}>최근 결제 내역</div>
-          {recentPays.map(p=>(
-            <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 0',borderBottom:'1px solid var(--border)'}}>
-              <div style={{fontSize:'11px',color:'var(--text-muted)'}}>
-                {new Date(p.paid_at).toLocaleDateString('ko-KR',{month:'short',day:'numeric'})} · {p.product_name}
-              </div>
-              <div style={{fontSize:'11px',fontWeight:700,color:'var(--accent-text)',fontVariantNumeric:'tabular-nums'}}>{p.amount.toLocaleString()}원</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* 취소 이력 */}
-      {cancelledBlocks.length>0 && (
-        <div style={{marginTop:'10px',paddingTop:'10px',borderTop:'1px solid var(--border)'}}>
-          <div style={{fontSize:'10px',color:'var(--danger)',marginBottom:'6px'}}>취소 이력 {cancelledBlocks.length}건</div>
-          {cancelledBlocks.slice(-3).map((b,i)=>(
-            <div key={i} style={{fontSize:'11px',color:'var(--text-muted)',padding:'4px 0',borderBottom:'1px solid var(--border)'}}>
-              {b.date} · {b.cancelType}{b.cancelDetail?' — '+b.cancelDetail:''}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   )
 }
 
 // ── 주간 리포트 컴포넌트 ─────────────────────────────────────
+// 2026-11 리디자인: CRM 주간 리포트와 같은 문서 모양 (지난 리포트 칩 · 숫자 6칸 · 색 표시 섹션 · 7일 잠금 한 줄)
+const RV_SECTION_MARKS = ['#4D7C0F', '#B45309', '#4F46E5', '#0891B2', '#BE123C']
+// AI 리포트 제목 이모지 → 색 표시 (요약 청록 · 잘된 점 올리브 · 챙길 점 주황 · 제안 남색). 모르는 제목은 순서대로.
+const RV_MARK_BY_EMOJI = { '📊': '#0891B2', '✅': '#4D7C0F', '⚠️': '#B45309', '💡': '#4F46E5' }
+const rvStripMark = line => String(line || '').replace(/^[^\p{L}\p{N}]+/u, '').trim()   // 제목 앞 이모지 제거
+function rvWeekLabel(r) {
+  const [, m, d] = String(r.week_end || r.week_start || '').split('-').map(Number)
+  return m && d ? `${m}월 ${Math.ceil(d / 7)}주` : (r.week_start || '')
+}
+
+// 통계 요약 (생성된 리포트의 snapshot)
+function WeeklyStatsGrid({ stats }) {
+  if (!stats) return null
+  const n = (v, unit) => (v === undefined || v === null) ? '—' : v + unit
+  const atRisk = stats.members?.at_risk
+  const expiring = stats.members?.expiring
+  const items = [
+    ['이번 주 출석', n(stats.attendance?.this_week, '회'), ''],
+    ['수업 완료',   n(stats.sessions?.this_week, '회'), ''],
+    ['이번 주 매출', (Number(stats.revenue?.this_week || 0) / 10000).toFixed(0) + '만원', ''],
+    ['신규 회원',   n(stats.members?.new_this_week, '명'), ''],
+    ['이탈 위험',   n(atRisk, '명'),   atRisk > 0 ? 'risk' : ''],
+    ['만료 예정',   n(expiring, '명'), expiring > 0 ? 'warn' : ''],
+  ]
+  return (
+    <div className="rv-kpis">
+      {items.map(([label, val, tone]) => <div key={label}><span>{label}</span><b className={tone}>{val}</b></div>)}
+    </div>
+  )
+}
+
+// 리포트 본문 — 제목 앞 이모지는 떼고 색 표시로, '한마디' 섹션은 라임 상자로
+function WeeklyReportBody({ text }) {
+  let mark = 0
+  return parseReportSections(text).map((sec, i) => {
+    const body = String(sec.body || '')
+    if (!sec.emoji) return body.trim() ? <p key={i} className="rv-intro">{body}</p> : null
+    const [head, ...rest] = body.split('\n')
+    const title = rvStripMark(head)
+    const lines = rest.map(l => l.trim()).filter(Boolean)
+    if (title.includes('한마디')) {
+      return <div key={i} className="rv-callout"><b>{title}</b>{lines.map((l, j) => <p key={j}>{l}</p>)}</div>
+    }
+    const color = RV_MARK_BY_EMOJI[sec.emoji] || RV_SECTION_MARKS[mark++ % RV_SECTION_MARKS.length]
+    return (
+      <section key={i} className="rv-rsec">
+        <h4><i style={{ background: color }} />{title}</h4>
+        {lines.map((l, j) => <p key={j}>{l}</p>)}
+      </section>
+    )
+  })
+}
+
 function WeeklyReportPanel({ gymId, apiKey }) {
   const [reports,   setReports]   = useState([])
   const [selected,  setSelected]  = useState(null)   // 보고 있는 레코드
@@ -199,8 +338,6 @@ function WeeklyReportPanel({ gymId, apiKey }) {
   const [statusMsg, setStatus]    = useState('')
   const [errMsg,    setErrMsg]    = useState('')
   const showToast = useToast()
-
-  const mono = { fontVariantNumeric:'tabular-nums' }
 
   // ── 7일 1회 rate limit (AI 비용 폭탄 방지) ────────────────
   // 무한 재생성 / 수동 생성 클릭으로 Gemini API 호출이 누적되는 것을 차단.
@@ -219,12 +356,21 @@ function WeeklyReportPanel({ gymId, apiKey }) {
     return { blocked: true, hoursLeft, lastGeneratedAt: last.generated_at }
   }, [reports])
 
-  // 표시용 잔여시간 라벨 ("3일" / "5시간")
+  // 표시용 잔여시간 라벨 ("3일" / "5시간") — 토스트용
   const cooldownLabel = cooldown.blocked
     ? (cooldown.hoursLeft >= 24
         ? `약 ${Math.ceil(cooldown.hoursLeft / 24)}일 후`
         : `약 ${cooldown.hoursLeft}시간 후`)
     : ''
+  // 잠금이 풀리는 때 — 잠금 줄에 표시 ("오늘 오후 3시" / "내일 오전 9시" / "11월 17일")
+  const unlockLabel = (() => {
+    if (!cooldown.blocked || !cooldown.lastGeneratedAt) return ''
+    const at = new Date(new Date(cooldown.lastGeneratedAt).getTime() + SEVEN_DAYS_MS)
+    const now = new Date()
+    const dayDiff = Math.round((new Date(at.getFullYear(), at.getMonth(), at.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000)
+    const hour = at.toLocaleTimeString('ko-KR', { hour:'numeric' })
+    return dayDiff <= 0 ? `오늘 ${hour}` : dayDiff === 1 ? `내일 ${hour}` : `${at.getMonth() + 1}월 ${at.getDate()}일`
+  })()
 
   // ── 리포트 목록 로드 ──────────────────────────────────────
   async function loadReports() {
@@ -233,7 +379,8 @@ function WeeklyReportPanel({ gymId, apiKey }) {
     try {
       const list = await fetchRecentReports(supabase, gymId)
       setReports(list)
-      if (list.length > 0) setSelected(list[0])
+      // 기다리는 리포트가 맨 앞에 있어도, 다 만든 최신 리포트를 먼저 펼쳐 보여준다
+      if (list.length > 0) setSelected(list.find(r => r.status === 'done') || list[0])
       setPhase('idle')
     } catch (e) {
       setPhase('error'); setErrMsg(e.message)
@@ -271,7 +418,7 @@ function WeeklyReportPanel({ gymId, apiKey }) {
         if (!reportRow) { setPhase('error'); setErrMsg('리포트 레코드 생성 실패'); return }
       }
 
-      const { reportText } = await generateWeeklyReport({
+      await generateWeeklyReport({
         supabase,
         apiKey,
         model:     GEMINI_MODEL,
@@ -289,170 +436,178 @@ function WeeklyReportPanel({ gymId, apiKey }) {
     }
   }
 
-  // ── 리포트 텍스트 렌더링 ──────────────────────────────────
-  function renderReport(text) {
-    return parseReportSections(text).map((sec, i) => {
-      if (!sec.emoji) {
-        return <p key={i} style={{fontSize:'12px',color:'var(--text-muted)',marginBottom:'8px'}}>{sec.body}</p>
-      }
-      return (
-        <div key={i} style={{background: sec.style.bg, border:`1px solid ${sec.style.border}`,
-          borderRadius:'10px', padding:'12px', marginBottom:'10px'}}>
-          <pre style={{margin:0, fontSize:'13px', lineHeight:1.7, color:'var(--text)',
-            whiteSpace:'pre-wrap', fontFamily:"'Noto Sans KR',sans-serif"}}>
-            {sec.body}
-          </pre>
-        </div>
-      )
-    })
-  }
-
-  // ── 통계 요약 카드 (생성된 리포트의 snapshot) ────────────
-  function StatsGrid({ stats }) {
-    if (!stats) return null
-    const items = [
-      ['이번 주 출석', stats.attendance?.this_week + '회', '#60a5fa'],
-      ['신규 회원',    stats.members?.new_this_week + '명', '#4ade80'],
-      ['이번 주 매출', (Number(stats.revenue?.this_week || 0) / 10000).toFixed(0) + '만', '#c8f135'],
-      ['이탈 위험',   stats.members?.at_risk + '명',    stats.members?.at_risk > 0 ? '#f87171' : '#9ca3af'],
-      ['만료 예정',   stats.members?.expiring + '명',   stats.members?.expiring > 0 ? '#fb923c' : '#9ca3af'],
-      ['수업 완료',   stats.sessions?.this_week + '회', '#a78bfa'],
-    ]
-    return (
-      <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'6px', marginBottom:'14px'}}>
-        {items.map(([label, val, color]) => (
-          <div key={label} style={{background:'var(--surface2)', borderRadius:'8px', padding:'8px 10px', textAlign:'center'}}>
-            <div style={{...mono, fontSize:'14px', fontWeight:700, color}}>{val}</div>
-            <div style={{fontSize:'9px', color:'var(--text-dim)', marginTop:'2px'}}>{label}</div>
-          </div>
-        ))}
-      </div>
-    )
-  }
-
   // ── 렌더 ─────────────────────────────────────────────────
   const pendingReports = reports.filter(r => r.status === 'pending' || r.status === 'error')
   const doneReports    = reports.filter(r => r.status === 'done')
+  const busy = phase === 'loading'
 
   return (
-    <div>
-      {/* pending / 자동 알림 배너 */}
+    <div className="rv">
+      {/* 만들 차례인 리포트 · 실패한 리포트 */}
       {pendingReports.map(r => (
-        <div key={r.id} style={{background:'rgba(250,204,21,0.08)',border:'1px solid rgba(250,204,21,0.25)',
-          borderRadius:'10px',padding:'12px',marginBottom:'12px'}}>
-          <div style={{fontSize:'12px',fontWeight:700,color:'#92400E',marginBottom:'6px'}}>
-            {r.status === 'error' ? '⚠️ 생성 실패 — 재시도 필요' : '📋 새 주간 리포트 대기 중'}
+        <div key={r.id} className={'rv-alert ' + (r.status === 'error' ? 'bad' : 'ok')} role={r.status === 'error' ? 'alert' : undefined}>
+          <div>
+            <b>{r.status === 'error' ? '만들지 못했어요 — 다시 시도해 주세요' : '새 주간 리포트가 기다리고 있어요'}</b>
+            <small>{rvMonthDay(r.week_start)}{r.week_end ? ` – ${rvMonthDay(r.week_end)}` : ''}</small>
+            {r.error_message && <small>{r.error_message}</small>}
           </div>
-          <div style={{fontSize:'11px',color:'var(--text-muted)',marginBottom:'8px'}}>
-            기준 기간: {r.week_start} ~ {r.week_end || ''}
-          </div>
-          {r.error_message && (
-            <div style={{fontSize:'11px',color:'#B91C1C',marginBottom:'8px'}}>{r.error_message}</div>
-          )}
-          <button onClick={() => handleGenerate(r)} disabled={phase === 'loading'}
-            style={{width:'100%',padding:'8px',borderRadius:'8px',border:'none',fontWeight:700,
-              fontSize:'12px',cursor:'pointer',fontFamily:'inherit',
-              background:'#facc15',color:'#0f0f0f'}}>
-            {phase === 'loading' ? statusMsg : '🤖 AI 리포트 지금 생성'}
+          <button type="button" className="rv-btn block" onClick={() => handleGenerate(r)} disabled={busy}>
+            {busy ? (statusMsg || '만드는 중...') : (r.status === 'error' ? '다시 만들기' : 'AI 리포트 지금 만들기')}
           </button>
         </div>
       ))}
 
-      {/* 리포트 없고 pending도 없을 때 수동 생성 */}
-      {reports.length === 0 && phase !== 'loading' && (
-        <div style={{textAlign:'center',padding:'20px 0',marginBottom:'12px'}}>
-          <div style={{fontSize:'28px',marginBottom:'8px'}}>📄</div>
-          <div style={{fontSize:'12px',color:'var(--text-dim)',marginBottom:'12px'}}>
-            아직 생성된 리포트가 없어요.<br/>직전 주 데이터로 리포트를 생성할 수 있어요.
-          </div>
-          <button onClick={() => handleGenerate()}
-            style={{padding:'10px 20px',borderRadius:'8px',border:'none',background:'var(--accent)',
-              color:'#0f0f0f',fontWeight:700,fontSize:'13px',cursor:'pointer',fontFamily:'inherit'}}>
-            📊 첫 리포트 생성
-          </button>
+      {/* 리포트가 하나도 없을 때 */}
+      {reports.length === 0 && !busy && (
+        <div className="rv-empty">
+          <RvIcon d={RV_ICON.doc} size={34} />
+          <b>아직 만든 리포트가 없어요</b>
+          <span>지난주 데이터로 첫 리포트를 만들 수 있어요.</span>
+          <button type="button" className="rv-btn block" onClick={() => handleGenerate()}>첫 리포트 만들기</button>
         </div>
       )}
 
-      {/* 로딩 */}
-      {phase === 'loading' && (
-        <div style={{textAlign:'center',padding:'16px',color:'var(--text-dim)',fontSize:'13px',marginBottom:'12px'}}>
-          <div style={{fontSize:'22px',marginBottom:'6px',display:'inline-block',
-            animation:'spin 1.5s linear infinite'}}>✦</div>
-          <div>{statusMsg}</div>
+      {busy && (
+        <div className="rv-empty" role="status">
+          <span className="rv-spin" aria-hidden="true" />
+          <span>{statusMsg}</span>
         </div>
       )}
 
-      {/* 에러 */}
-      {phase === 'error' && errMsg && (
-        <div style={{background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',
-          borderRadius:'10px',padding:'12px',marginBottom:'12px',fontSize:'12px',color:'#B91C1C'}}>
-          {errMsg}
-        </div>
-      )}
+      {phase === 'error' && errMsg && <div className="rv-err" role="alert">{errMsg}</div>}
 
-      {/* 리포트 목록 탭 */}
       {doneReports.length > 0 && (
         <>
-          <div style={{display:'flex',gap:'6px',overflowX:'auto',marginBottom:'12px',paddingBottom:'2px'}}>
-            {doneReports.map(r => (
-              <button key={r.id} onClick={() => setSelected(r)}
-                style={{flexShrink:0,padding:'5px 10px',borderRadius:'8px',border:'1px solid',fontSize:'10px',
-                  fontWeight:600,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap',
-                  background: selected?.id === r.id ? 'var(--accent)' : 'var(--surface2)',
-                  color:      selected?.id === r.id ? '#0f0f0f' : 'var(--text-muted)',
-                  borderColor: selected?.id === r.id ? 'var(--accent)' : 'var(--border)'}}>
-                {r.week_start}
-              </button>
-            ))}
+          <div className="rv-chips" aria-label="지난 리포트">
+            {doneReports.map(r => {
+              const on = selected?.id === r.id
+              return (
+                <button key={r.id} type="button" className={'rv-chip' + (on ? ' on' : '')} aria-pressed={on} onClick={() => setSelected(r)}>
+                  <b>{rvWeekLabel(r)}</b>
+                  <span>{rvDotDate(r.week_start)}{r.week_end ? ` – ${rvDotDate(r.week_end)}` : ''}</span>
+                </button>
+              )
+            })}
           </div>
 
-          {selected && selected.status === 'done' && (
-            <div>
-              {/* 기간 헤더 */}
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
-                <div>
-                  <div style={{fontSize:'13px',fontWeight:700}}>{selected.week_start} ~ {selected.week_end}</div>
-                  <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'2px'}}>
-                    생성: {selected.generated_at ? new Date(selected.generated_at).toLocaleString('ko-KR') : '-'}
-                  </div>
+          {selected?.status === 'done' && (
+            <article className="rv-doc" aria-label={`${rvWeekLabel(selected)} 리포트`}>
+              <header>
+                <div className="rv-doc-top">
+                  <p className="rv-doc-meta">
+                    {selected.generated_at
+                      ? `AI가 ${new Date(selected.generated_at).toLocaleString('ko-KR', { month:'long', day:'numeric', hour:'numeric' })}에 작성`
+                      : 'AI가 작성'}
+                  </p>
+                  {!cooldown.blocked && !busy && (
+                    <button type="button" className="rv-btn sub sm" onClick={() => handleGenerate({ ...selected, status: 'pending' })}>다시 만들기</button>
+                  )}
                 </div>
-                <button onClick={() => handleGenerate({ ...selected, status: 'pending' })}
-                  disabled={cooldown.blocked || phase === 'loading'}
-                  title={cooldown.blocked ? `7일 1회 제한 — ${cooldownLabel} 다시 시도 가능` : ''}
-                  style={{padding:'6px 10px',borderRadius:'6px',border:'1px solid var(--border)',
-                    background:'transparent',color:'var(--text-dim)',fontSize:'11px',fontFamily:'inherit',
-                    cursor: cooldown.blocked ? 'not-allowed' : 'pointer',
-                    opacity: cooldown.blocked ? 0.4 : 1}}>
-                  {cooldown.blocked ? '🔒 7일 제한' : '🔄 재생성'}
-                </button>
-              </div>
+                <h3 className="rv-doc-title">{rvMonthDay(selected.week_start)} – {rvMonthDay(selected.week_end)} 운영 리포트</h3>
+              </header>
+              <WeeklyStatsGrid stats={selected.stats_snapshot} />
+              <WeeklyReportBody text={selected.report_text || ''} />
+            </article>
+          )}
 
-              {/* 통계 요약 */}
-              <StatsGrid stats={selected.stats_snapshot} />
-
-              {/* 리포트 본문 */}
-              {renderReport(selected.report_text || '')}
+          {cooldown.blocked ? (
+            <div className="rv-lock">
+              <RvIcon d={RV_ICON.lock} size={15} />
+              <span><b>다시 만들기는 {unlockLabel}부터</b>AI 리포트는 7일에 한 번 만들 수 있어요</span>
             </div>
+          ) : (pendingReports.length === 0 && !busy) && (
+            <button type="button" className="rv-btn sub block" onClick={() => handleGenerate()}>이번 주 리포트 만들기</button>
           )}
         </>
       )}
-
-      {/* 새 리포트 생성 버튼 (리포트가 있을 때) */}
-      {doneReports.length > 0 && pendingReports.length === 0 && phase !== 'loading' && (
-        <button onClick={() => handleGenerate()}
-          disabled={cooldown.blocked}
-          title={cooldown.blocked ? `7일 1회 제한 — ${cooldownLabel} 다시 시도 가능` : ''}
-          style={{width:'100%',marginTop:'10px',padding:'9px',borderRadius:'8px',
-            border:'1px solid var(--border)',background:'transparent',color:'var(--text-dim)',
-            fontSize:'12px',fontFamily:'inherit',
-            cursor: cooldown.blocked ? 'not-allowed' : 'pointer',
-            opacity: cooldown.blocked ? 0.5 : 1}}>
-          {cooldown.blocked
-            ? `🔒 7일 1회 제한 — ${cooldownLabel} 생성 가능`
-            : '+ 이번 주 리포트 수동 생성'}
-        </button>
-      )}
     </div>
+  )
+}
+
+// ── 정산 분석 화면 조각 (2026-11 리디자인) ─────────────────────
+// 입력 칸 · 표 · 결과 카드는 SettlementBreakdown 바깥에 둔다.
+// (안에 두면 렌더마다 새 컴포넌트가 되어 글자를 칠 때마다 입력 칸이 다시 만들어지고 커서가 풀린다)
+const RV_EMP_TABS = [
+  { key:'rental',    label:'대관',     icon: RV_ICON.rental },
+  { key:'freelance', label:'프리랜서', icon: RV_ICON.freelance },
+  { key:'employee',  label:'정직원',   icon: RV_ICON.employee },
+]
+const RV_SETTLE_STATUS = {
+  none:      { label:'계산 전',  bg:'rgba(255,255,255,0.14)', color:'#E5E7EB' },
+  draft:     { label:'초안',     bg:'#FEF3C7', color:'#92400E' },
+  confirmed: { label:'확정',     bg:'#ECFCCB', color:'#3F6212' },
+  paid:      { label:'지급완료', bg:'#C8F135', color:'#111827' },
+}
+const RV_BAR_COLORS = ['#C8F135', '#6B7280', '#D1D5DB']
+
+// 숫자 입력 — 원 단위는 쉼표를 넣어 보여주고, %는 숫자 칸 그대로
+function SettleNumInput({ label, value, onChange, unit = '원', hint }) {
+  const money = unit === '원'
+  return (
+    <div className="rv-fld">
+      <label>
+        <span className="rv-fld-l">{label}</span>
+        <span className="rv-inp">
+          <input
+            type={money ? 'text' : 'number'}
+            inputMode={money ? 'numeric' : 'decimal'}
+            value={money ? (Number(value) ? Number(value).toLocaleString() : '') : value}
+            placeholder="0"
+            onChange={e => onChange(money ? (Number(e.target.value.replace(/[^0-9]/g, '')) || 0) : Number(e.target.value))}
+          />
+          <em>{unit}</em>
+        </span>
+      </label>
+      {hint && <span className="rv-hint">{hint}</span>}
+    </div>
+  )
+}
+
+// 상세 내역 한 줄 (음수는 −로 표시)
+function SettleRow({ label, sub, value, sum }) {
+  return (
+    <div className={'rv-dl' + (sum ? ' sum' : '')}>
+      <span>{label}{sub && <small>{sub}</small>}</span>
+      <b>{rvSigned(value)}</b>
+    </div>
+  )
+}
+
+// 결과 카드 — 예상 실수령 + 비율 막대 (실수령 · 비용 · 세금)
+function SettleResult({ title, value, parts, foot, status }) {
+  const total = parts.reduce((s, p) => s + Math.max(0, p.value || 0), 0)
+  const pctOf = v => total > 0 ? Math.max(0, v || 0) / total * 100 : 0
+  return (
+    <section className="rv-res" aria-label={title}>
+      <div>
+        <div className="rv-res-top">
+          <span>{title}</span>
+          {status && <span className="rv-status" style={{ background: status.bg, color: status.color }}>{status.label}</span>}
+        </div>
+        <div className="rv-res-v">{Number(value || 0).toLocaleString()}<small>원</small></div>
+      </div>
+      {total > 0 ? (
+        <div className="rv-bar" role="img" aria-label={parts.map(p => `${p.label} ${Math.round(pctOf(p.value))}%`).join(', ')}>
+          {parts.map((p, i) => p.value > 0 && <i key={p.label} style={{ width: pctOf(p.value) + '%', background: RV_BAR_COLORS[i] }} />)}
+        </div>
+      ) : <div className="rv-bar rv-bar-zero" aria-hidden="true" />}
+      <div className="rv-legs">
+        {parts.map((p, i) => (
+          <div key={p.label} className="rv-leg"><i style={{ background: RV_BAR_COLORS[i] }} /><span>{p.label}</span><b>{rvWon(p.value)}</b></div>
+        ))}
+      </div>
+      {foot && <div className="rv-res-foot"><span>{foot[0]}</span><b>{rvWon(foot[1])}</b></div>}
+    </section>
+  )
+}
+
+// 접었다 펴는 머리줄 (상세 내역 · 회원 목록)
+function SettleFold({ open, onToggle, children }) {
+  return (
+    <button type="button" className={'rv-fold' + (open ? ' open' : '')} aria-expanded={open} onClick={onToggle}>
+      <span>{children}</span>
+      <RvIcon d={RV_ICON.chevronDown} />
+    </button>
   )
 }
 
@@ -496,7 +651,6 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
   const [savingCfg, setSavingCfg] = useState(false)
   // P1 fix: 정산 계산 더블클릭 방지 (calculate_settlement RPC 다중 호출 차단)
   const [calculating, setCalculating] = useState(false)
-  const mono = { fontVariantNumeric:'tabular-nums' }
 
   // ── 로드 ──────────────────────────────────────────────────
   useEffect(() => { if (trainerId) load() }, [trainerId, year, month])
@@ -707,134 +861,35 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
     return { baseSalary, iRate, incentiveAmt, grossPay, pension, health, ltc, employ, totalIns, incomeTax, localTax, totalTax, payout, gradeLabel }
   }
 
-  // ── 헬퍼 컴포넌트 ──────────────────────────────────────────
-  function NumInput({ label, value, onChange, unit='원', hint }) {
-    return (
-      <div style={{marginBottom:'10px'}}>
-        <div style={{fontSize:'11px',color:'var(--text-muted)',marginBottom:'4px'}}>{label}</div>
-        <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
-          <input type="number" value={value} onChange={e=>onChange(Number(e.target.value))}
-            style={{flex:1,background:'var(--surface2)',border:'1px solid var(--border)',
-              borderRadius:'8px',padding:'8px 10px',color:'var(--text)',fontSize:'13px',
-              fontVariantNumeric:'tabular-nums',outline:'none'}}/>
-          <span style={{fontSize:'12px',color:'var(--text-dim)',minWidth:'18px'}}>{unit}</span>
-        </div>
-        {hint && <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'3px'}}>{hint}</div>}
-      </div>
-    )
-  }
-
-  function Row({ label, value, sub, highlight }) {
-    return (
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',
-        padding:'4px 0',borderBottom:'1px solid var(--border)'}}>
-        <span style={{fontSize:'12px',color:highlight?'var(--text)':'var(--text-muted)',fontWeight:highlight?700:400}}>{label}</span>
-        <span style={{textAlign:'right'}}>
-          {value!=null && <span style={{...mono,fontWeight:highlight?700:600,color:highlight?'var(--accent)':'var(--text)',fontSize:'12px'}}>{Number(value).toLocaleString()}원</span>}
-          {sub && <span style={{fontSize:'10px',color:'var(--text-dim)',marginLeft:'5px'}}>{sub}</span>}
-        </span>
-      </div>
-    )
-  }
-
-  // ── 회원별 수수료율 테이블 (공통 UI) ───────────────────────
-  function MemberRateTable({ accentColor, getRateFor, setRateFor, getPayment, showAll = true }) {
-    const activeMembers = members.filter(m => showAll || getPayment(m.id) > 0)
-    if (!activeMembers.length) return (
-      <div style={{fontSize:'11px',color:'var(--text-dim)',padding:'8px 0'}}>
-        이번 달 결제된 회원이 없어요.
-      </div>
-    )
-    return (
-      <div>
-        {activeMembers.map(m => {
-          const amt  = getPayment(m.id)
-          const rate = getRateFor(m.id)
-          const fee  = Math.round(amt * rate / 100)
-          const isCustom = memberCommissions[m.id] !== undefined
-          return (
-            <div key={m.id} style={{
-              display:'flex', alignItems:'center', gap:'8px',
-              padding:'8px 0', borderBottom:'1px solid var(--border)',
-            }}>
-              {/* 이름 + 결제액 */}
-              <div style={{flex:1, minWidth:0}}>
-                <div style={{fontSize:'12px',fontWeight:600,color:'var(--text)',
-                  display:'flex',alignItems:'center',gap:'5px'}}>
-                  {m.name}
-                  {isCustom && <span style={{fontSize:'9px',color:accentColor,
-                    background:`${accentColor}22`,borderRadius:'4px',padding:'1px 4px'}}>
-                    개별설정
-                  </span>}
-                </div>
-                {amt > 0
-                  ? <div style={{...mono,fontSize:'10px',color:'var(--text-dim)',marginTop:'2px'}}>
-                      이번달 {amt.toLocaleString()}원
-                      {amt > 0 && fee > 0 && <span style={{color:'#B91C1C',marginLeft:'4px'}}>→ 수수료 {fee.toLocaleString()}원</span>}
-                    </div>
-                  : <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'2px'}}>이번달 결제 없음</div>
-                }
-              </div>
-              {/* 수수료율 입력 */}
-              <div style={{display:'flex',alignItems:'center',gap:'4px',flexShrink:0}}>
-                <input type="number" min="0" max="100" value={rate}
-                  onChange={e => setRateFor(m.id, Number(e.target.value))}
-                  style={{width:'52px',background:'var(--surface)',border:`1px solid ${isCustom ? accentColor+'88' : 'var(--border)'}`,
-                    borderRadius:'6px',padding:'5px 6px',color:'var(--text)',fontSize:'12px',
-                    fontVariantNumeric:'tabular-nums',outline:'none',textAlign:'center'}}/>
-                <span style={{fontSize:'11px',color:'var(--text-dim)'}}>%</span>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    )
-  }
-
-  // ── 렌더 ──────────────────────────────────────────────────
-  const EMP_TABS = [
-    { key:'rental',    label:'🏠 대관',     color:'#6D28D9' },
-    { key:'freelance', label:'💼 프리랜서', color:'#C2410C' },
-    { key:'employee',  label:'👔 정직원',   color:'#1D4ED8' },
-  ]
+  // ── 렌더 (2026-11 리디자인) ────────────────────────────────
+  // 순서: 월 · 고용 형태 → 결과(예상 실수령) → 상세 내역(기본 접힘) → 정산 설정 → 세금 안내
+  const detailFold = (
+    <SettleFold open={showDetail} onToggle={() => setShowDetail(d => !d)}>상세 내역</SettleFold>
+  )
 
   return (
-    <div className="card" style={{marginBottom:'16px',padding:'16px'}}>
-
-      {/* 헤더: 월 선택 */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'14px'}}>
-        <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
-          <button onClick={prevMonth}
-            style={{background:'none',border:'none',color:'var(--text-muted)',fontSize:'18px',cursor:'pointer',lineHeight:1,padding:'0 4px'}}>‹</button>
-          <span style={{fontSize:'14px',fontWeight:700,minWidth:'90px',textAlign:'center'}}>{year}년 {month}월</span>
-          <button onClick={nextMonth} disabled={isCurrentMonth}
-            style={{background:'none',border:'none',fontSize:'18px',cursor:'pointer',lineHeight:1,padding:'0 4px',
-              color:isCurrentMonth?'var(--border)':'var(--text-muted)'}}>›</button>
+    <div className="rv">
+      <div className="rv-mnav">
+        <button type="button" className="rv-mbtn" onClick={prevMonth} aria-label="이전 달"><RvIcon d={RV_ICON.chevronLeft} /></button>
+        <div className="rv-mnav-c">
+          <b>{year}년 {month}월</b>
+          {loading ? <span>불러오는 중</span>
+            : (payCount > 0 || totalRevenue > 0) ? <span>결제 {payCount}건 · {rvWon(totalRevenue)}</span>
+            : <span className="none">이 달은 결제가 없어요</span>}
         </div>
-        {totalRevenue > 0 && (
-          <span style={{...mono,fontSize:'12px',fontWeight:700,color:'var(--accent-text)'}}>
-            {totalRevenue.toLocaleString()}원
-            <span style={{fontSize:'10px',color:'var(--text-dim)',fontWeight:400,fontFamily:'inherit',marginLeft:'4px'}}>{payCount}건</span>
-          </span>
-        )}
+        <button type="button" className="rv-mbtn" onClick={nextMonth} disabled={isCurrentMonth} aria-label="다음 달"><RvIcon d={RV_ICON.chevronRight} /></button>
       </div>
 
-      {/* 고용형태 탭 */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'6px',marginBottom:'14px'}}>
-        {EMP_TABS.map(t => (
-          <button key={t.key} onClick={()=>setEmpType(t.key)}
-            style={{padding:'8px 4px',borderRadius:'8px',border:'1px solid',fontWeight:600,fontSize:'11px',
-              cursor:'pointer',fontFamily:'inherit',transition:'all 0.15s',
-              background: empType===t.key ? t.color+'22' : 'var(--surface2)',
-              color:      empType===t.key ? t.color       : 'var(--text-dim)',
-              borderColor:empType===t.key ? t.color       : 'var(--border)'}}>
-            {t.label}
+      <div className="rv-seg" role="group" aria-label="고용 형태">
+        {RV_EMP_TABS.map(t => (
+          <button key={t.key} type="button" className={empType === t.key ? 'on' : ''} aria-pressed={empType === t.key} onClick={() => setEmpType(t.key)}>
+            <RvIcon d={t.icon} size={16} />{t.label}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div style={{textAlign:'center',padding:'20px',color:'var(--text-dim)',fontSize:'13px'}}>불러오는 중...</div>
+        <div className="rv-loading">불러오는 중...</div>
       ) : (
 
         /* ════ 대관 ════ */
@@ -842,256 +897,166 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
           const r = calcRental()
           const assignedSet = new Set(assignedMembers)
           return (
-            <div>
-              <div style={{background:'rgba(167,139,250,0.08)',border:'1px solid rgba(167,139,250,0.2)',
-                borderRadius:'8px',padding:'10px 12px',marginBottom:'14px',fontSize:'11px',color:'#6D28D9',lineHeight:1.6}}>
-                📌 <strong>대관 트레이너 세금 안내</strong><br/>
-                사업소득 3.3% 예납 · 매년 5월 종합소득세 신고 · 대관료·장비비 등 필요경비 공제 가능
-              </div>
+            <>
+              <SettleResult title={`${month}월 예상 실수령`} value={r.payout} foot={['과세 순수익', r.netIncome]}
+                parts={[
+                  { label:'실수령', value:r.payout },
+                  { label:'필요경비', value:r.expenses },
+                  { label:'사업소득 예납 3.3%', value:r.prepaidTax },
+                ]} />
 
-              <NumInput label="월 대관료" value={rentalFee} onChange={setRentalFee} hint="헬스장에 매월 납부하는 공간 임차료"/>
-              <NumInput label="기타 필요경비" value={otherExpenses} onChange={setOtherExpenses} hint="장비·소모품·교육비 등"/>
+              <section className="rv-panel" aria-label="상세 내역">
+                {detailFold}
+                {showDetail && (<>
+                  <SettleRow label="총 결제 수입" sub={`${payCount}건`} value={totalRevenue} />
+                  <SettleRow label="월 대관료" sub="필요경비" value={-r.fee} />
+                  <SettleRow label="기타 필요경비" sub="필요경비" value={-r.other} />
+                  {r.assignedCommission > 0 && <>
+                    <div className="rv-dh">배정 회원 수수료 (필요경비)</div>
+                    {r.memberFeeDetails.map((d, i) => (
+                      <SettleRow key={i} label={`└ ${d.name} (${d.rate}%)`} sub={`결제 ${rvWon(d.amount)}`} value={-d.fee} />
+                    ))}
+                  </>}
+                  <div className="rv-dv" />
+                  <SettleRow label="과세 순수익" value={r.netIncome} sum />
+                  <SettleRow label="사업소득 예납 (3.3%)" sub="소득세 3% + 지방세 0.3%" value={-r.prepaidTax} />
+                  <div className="rv-fin"><span>예상 실수령</span><span>{rvWon(r.payout)}</span></div>
+                  <p className="rv-memo">부가세: {r.vatStatus}<br />배정 회원 수수료는 사업 필요경비로 처리돼요.</p>
+                </>)}
+              </section>
 
-              {/* ── 센터 배정 회원 설정 ── */}
-              <div style={{border:'1px solid rgba(167,139,250,0.25)',borderRadius:'10px',marginBottom:'12px',overflow:'hidden'}}>
-                <button onClick={()=>setShowRentalAssigned(v=>!v)}
-                  style={{width:'100%',display:'flex',justifyContent:'space-between',alignItems:'center',
-                    padding:'10px 12px',background:'rgba(167,139,250,0.08)',border:'none',cursor:'pointer',fontFamily:'inherit'}}>
-                  <span style={{fontSize:'12px',fontWeight:700,color:'#6D28D9'}}>
-                    🏢 센터 배정 회원 수수료 설정
-                    {assignedMembers.length > 0 && <span style={{marginLeft:'6px',fontSize:'10px',
-                      background:'rgba(167,139,250,0.2)',borderRadius:'4px',padding:'1px 5px'}}>
-                      {assignedMembers.length}명 배정
-                    </span>}
-                  </span>
-                  <span style={{fontSize:'12px',color:'#6D28D9'}}>{showRentalAssigned?'▲':'▼'}</span>
-                </button>
-                {showRentalAssigned && (
-                  <div style={{padding:'12px'}}>
-                    <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'10px',lineHeight:1.6}}>
-                      센터가 배정해준 회원에 한해 수수료율을 설정할 수 있어요.<br/>
-                      배정 회원의 수수료는 필요경비로 처리됩니다.
-                    </div>
-                    {members.map(m => {
+              <section className="rv-set" aria-label="정산 설정">
+                <h4 className="rv-h">정산 설정</h4>
+                <SettleNumInput label="월 대관료" value={rentalFee} onChange={setRentalFee} hint="헬스장에 매월 내는 공간 임차료" />
+                <SettleNumInput label="기타 필요경비" value={otherExpenses} onChange={setOtherExpenses} hint="장비 · 소모품 · 교육비 등" />
+                <div className="rv-box">
+                  <SettleFold open={showRentalAssigned} onToggle={() => setShowRentalAssigned(v => !v)}>
+                    센터 배정 회원{assignedMembers.length > 0 && <small>{assignedMembers.length}명 · 수수료 {rvWon(r.assignedCommission)}</small>}
+                  </SettleFold>
+                  {showRentalAssigned && (<>
+                    <p className="rv-hint rv-box-hint">센터가 배정해 준 회원만 수수료율을 정할 수 있어요. 배정 회원의 수수료는 필요경비로 처리돼요.</p>
+                    {members.length === 0 ? <p className="rv-hint rv-box-hint">아직 회원이 없어요.</p> : members.map(m => {
                       const isAssigned = assignedSet.has(m.id)
                       const amt = memberPayments[m.id] ?? 0
                       const rate = rentalMemberRates[m.id] ?? 0
                       const fee = Math.round(amt * rate / 100)
                       return (
-                        <div key={m.id} style={{
-                          display:'flex', alignItems:'center', gap:'8px',
-                          padding:'8px 0', borderBottom:'1px solid var(--border)',
-                          opacity: isAssigned ? 1 : 0.5,
-                        }}>
-                          {/* 배정 토글 */}
-                          <button onClick={() => {
-                              setAssignedMembers(prev =>
-                                prev.includes(m.id) ? prev.filter(id=>id!==m.id) : [...prev, m.id])
-                            }}
-                            style={{width:'20px',height:'20px',borderRadius:'4px',border:'2px solid',
-                              flexShrink:0,cursor:'pointer',transition:'all 0.15s',
-                              background: isAssigned ? '#a78bfa' : 'transparent',
-                              borderColor: isAssigned ? '#a78bfa' : 'var(--border)'}}>
-                            {isAssigned && <span style={{color:'#0f0f0f',fontSize:'12px',lineHeight:'16px',display:'block',textAlign:'center'}}>✓</span>}
-                          </button>
-                          {/* 이름 + 결제액 */}
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{fontSize:'12px',fontWeight:600,color:'var(--text)'}}>{m.name}</div>
-                            {amt > 0
-                              ? <div style={{...mono,fontSize:'10px',color:'var(--text-dim)',marginTop:'1px'}}>
-                                  이번달 {amt.toLocaleString()}원
-                                  {isAssigned && fee > 0 && <span style={{color:'#6D28D9',marginLeft:'4px'}}>→ 수수료 {fee.toLocaleString()}원</span>}
-                                </div>
-                              : <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'1px'}}>이번달 결제 없음</div>
-                            }
-                          </div>
-                          {/* 수수료율 (배정된 경우만 활성) */}
+                        <div key={m.id} className="rv-mrow">
+                          <button type="button" role="switch" aria-checked={isAssigned} aria-label={`${m.name} 센터 배정`}
+                            className={'rv-tg' + (isAssigned ? ' on' : '')}
+                            onClick={() => setAssignedMembers(prev => prev.includes(m.id) ? prev.filter(id => id !== m.id) : [...prev, m.id])} />
+                          <span className={'rv-mrow-t' + (isAssigned ? '' : ' off')}>
+                            <b>{m.name}</b>
+                            <span>{amt > 0 ? `이번 달 ${rvWon(amt)}${isAssigned && fee > 0 ? ` · 수수료 ${rvWon(fee)}` : ''}` : '이번 달 결제 없음'}</span>
+                          </span>
                           {isAssigned && (
-                            <div style={{display:'flex',alignItems:'center',gap:'4px',flexShrink:0}}>
-                              <input type="number" min="0" max="100" value={rate}
-                                onChange={e => setRentalMemberRates(prev=>({...prev,[m.id]:Number(e.target.value)}))}
-                                style={{width:'52px',background:'var(--surface)',
-                                  border:'1px solid rgba(167,139,250,0.5)',borderRadius:'6px',
-                                  padding:'5px 6px',color:'var(--text)',fontSize:'12px',
-                                  fontVariantNumeric:'tabular-nums',outline:'none',textAlign:'center'}}/>
-                              <span style={{fontSize:'11px',color:'var(--text-dim)'}}>%</span>
-                            </div>
+                            <span className="rv-rate">
+                              <input type="number" min="0" max="100" inputMode="decimal" value={rate} aria-label={`${m.name} 수수료율`}
+                                onChange={ev => setRentalMemberRates(prev => ({ ...prev, [m.id]: Number(ev.target.value) }))} />
+                              <em>%</em>
+                            </span>
                           )}
                         </div>
                       )
                     })}
-                    {assignedMembers.length > 0 && (
-                      <div style={{marginTop:'10px',padding:'8px',background:'rgba(167,139,250,0.08)',
-                        borderRadius:'6px',fontSize:'10px',color:'#6D28D9',lineHeight:1.5}}>
-                        배정 회원 수수료 합계: <strong>{r.assignedCommission.toLocaleString()}원</strong> (필요경비 처리)
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* 결과 카드 */}
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'12px'}}>
-                {[['순수익',r.netIncome,'#a78bfa'],['실수령',r.payout,'var(--accent)'],
-                  ['필요경비',r.expenses,'#9ca3af'],['예납세 3.3%',r.prepaidTax,'#f87171']
-                ].map(([l,v,c])=>(
-                  <div key={l} style={{background:'var(--surface2)',borderRadius:'8px',padding:'10px',textAlign:'center'}}>
-                    <div style={{fontSize:'9px',color:c,fontWeight:600,marginBottom:'5px'}}>{l}</div>
-                    <div style={{...mono,fontSize:'14px',fontWeight:700,color:c,lineHeight:1.2}}>{Number(v).toLocaleString()}</div>
-                    <div style={{fontSize:'9px',color:'var(--text-dim)',marginTop:'3px'}}>원</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* 상세 내역 */}
-              <button onClick={()=>setShowDetail(d=>!d)}
-                style={{width:'100%',background:'none',border:'none',color:'var(--text-dim)',
-                  fontSize:'11px',cursor:'pointer',textAlign:'left',padding:'4px 0',marginBottom:'6px'}}>
-                {showDetail?'▲':'▼'} 상세 내역
-              </button>
-              {showDetail && (
-                <div style={{background:'var(--surface2)',borderRadius:'8px',padding:'12px',marginBottom:'12px'}}>
-                  <Row label="총 결제 수입" value={totalRevenue} sub={`${payCount}건`}/>
-                  <Row label="월 대관료" value={-r.fee} sub="필요경비"/>
-                  <Row label="기타 필요경비" value={-r.other} sub="필요경비"/>
-                  {r.assignedCommission > 0 && <>
-                    <div style={{fontSize:'10px',color:'var(--text-dim)',fontWeight:600,padding:'6px 0 2px'}}>배정 회원 수수료 (필요경비)</div>
-                    {r.memberFeeDetails.map(d=>(
-                      <Row key={d.name} label={`└ ${d.name} (${d.rate}%)`} value={-d.fee} sub={`결제 ${d.amount.toLocaleString()}원`}/>
-                    ))}
-                  </>}
-                  <div style={{borderTop:'1px solid var(--border)',margin:'6px 0'}}/>
-                  <Row label="과세 순수익" value={r.netIncome}/>
-                  <Row label="사업소득 예납 (3.3%)" value={-r.prepaidTax} sub="소득세3%+지방세0.3%"/>
-                  <div style={{borderTop:'1px solid var(--border)',margin:'6px 0'}}/>
-                  <Row label="예상 실수령" value={r.payout} highlight/>
-                  <div style={{marginTop:'10px',padding:'8px',background:'rgba(167,139,250,0.08)',
-                    borderRadius:'6px',fontSize:'10px',color:'#6D28D9',lineHeight:1.6}}>
-                    💡 부가세: {r.vatStatus}<br/>
-                    💡 배정 회원 수수료는 사업 필요경비로 처리됩니다.
-                  </div>
+                  </>)}
                 </div>
-              )}
-              <button onClick={()=>saveConfig({employment_type:'rental'})} disabled={savingCfg}
-                style={{width:'100%',padding:'11px',borderRadius:'8px',border:'none',
-                  background:savingCfg?'var(--surface2)':'#a78bfa',color:savingCfg?'var(--text-dim)':'#0f0f0f',
-                  fontWeight:700,fontSize:'13px',cursor:savingCfg?'default':'pointer',fontFamily:'inherit',transition:'all 0.2s'}}>
-                {savingCfg?'저장 중...':'💾 설정 저장'}
-              </button>
-            </div>
+                <button type="button" className="rv-btn block" onClick={() => saveConfig({ employment_type:'rental' })} disabled={savingCfg}>
+                  {savingCfg ? '저장 중...' : '설정 저장'}
+                </button>
+              </section>
+
+              <div className="rv-note">
+                <RvIcon d={RV_ICON.info} />
+                <span><b>대관 트레이너 세금 안내</b>사업소득 3.3% 예납 · 매년 5월 종합소득세 신고 · 대관료 · 장비비 등 필요경비 공제 가능</span>
+              </div>
+            </>
           )
         })()
 
         /* ════ 프리랜서 ════ */
         : empType === 'freelance' ? (() => {
           const f = calcFreelance()
+          const customCount = Object.keys(memberCommissions).length
           return (
-            <div>
-              <div style={{background:'rgba(251,146,60,0.08)',border:'1px solid rgba(251,146,60,0.2)',
-                borderRadius:'8px',padding:'10px 12px',marginBottom:'14px',fontSize:'11px',color:'#C2410C',lineHeight:1.6}}>
-                📌 <strong>프리랜서 세금 안내</strong><br/>
-                센터가 수수료 지급 시 3.3% 원천징수 · 매년 5월 종합소득세 신고 · 지급조서 발급 의무
-              </div>
+            <>
+              <SettleResult title={`${month}월 예상 실수령`} value={f.payout} foot={['프리랜서 수입', f.myIncome]}
+                parts={[
+                  { label:'실수령', value:f.payout },
+                  { label:'센터 수수료', value:f.totalCenterFee },
+                  { label:'원천징수 3.3%', value:f.withheld },
+                ]} />
 
-              <NumInput label="기본 수수료율 (전체 적용)" value={commissionRate} onChange={setCommissionRate} unit="%"
-                hint="회원별 설정이 없는 경우 이 비율을 적용합니다 (통상 20~40%)"/>
-
-              {/* ── 회원별 수수료율 설정 ── */}
-              <div style={{border:'1px solid rgba(251,146,60,0.25)',borderRadius:'10px',marginBottom:'12px',overflow:'hidden'}}>
-                <button onClick={()=>setShowMemberRates(v=>!v)}
-                  style={{width:'100%',display:'flex',justifyContent:'space-between',alignItems:'center',
-                    padding:'10px 12px',background:'rgba(251,146,60,0.08)',border:'none',cursor:'pointer',fontFamily:'inherit'}}>
-                  <span style={{fontSize:'12px',fontWeight:700,color:'#C2410C'}}>
-                    👤 회원별 수수료율 개별 설정
-                    {Object.keys(memberCommissions).length > 0 && (
-                      <span style={{marginLeft:'6px',fontSize:'10px',
-                        background:'rgba(251,146,60,0.2)',borderRadius:'4px',padding:'1px 5px'}}>
-                        {Object.keys(memberCommissions).length}명 개별설정
-                      </span>
-                    )}
-                  </span>
-                  <span style={{fontSize:'12px',color:'#C2410C'}}>{showMemberRates?'▲':'▼'}</span>
-                </button>
-                {showMemberRates && (
-                  <div style={{padding:'12px'}}>
-                    <div style={{fontSize:'10px',color:'var(--text-dim)',marginBottom:'10px',lineHeight:1.6}}>
-                      수수료율을 변경하면 해당 회원에게만 개별 적용됩니다.<br/>
-                      기본율과 같으면 '개별설정' 표시가 제거됩니다.
-                    </div>
-                    <MemberRateTable
-                      accentColor="#fb923c"
-                      getRateFor={mid => memberCommissions[mid] !== undefined ? memberCommissions[mid] : commissionRate}
-                      setRateFor={(mid, val) => {
-                        if (val === commissionRate) {
-                          // 기본율과 같으면 개별 설정 제거
-                          setMemberCommissions(prev => { const n={...prev}; delete n[mid]; return n })
-                        } else {
-                          setMemberCommissions(prev => ({...prev, [mid]: val}))
-                        }
-                      }}
-                      getPayment={mid => memberPayments[mid] ?? 0}
-                      showAll={true}
-                    />
-                    {Object.keys(memberCommissions).length > 0 && (
-                      <button onClick={()=>setMemberCommissions({})}
-                        style={{marginTop:'10px',background:'none',border:'none',color:'#B91C1C',
-                          fontSize:'10px',cursor:'pointer',fontFamily:'inherit',padding:'4px 0'}}>
-                        × 모든 개별 설정 초기화
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* 결과 카드 */}
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'12px'}}>
-                {[['내 수입',f.myIncome,'#fb923c'],['실수령',f.payout,'var(--accent)'],
-                  ['센터 수수료',f.totalCenterFee,'#9ca3af'],['원천징수 3.3%',f.withheld,'#f87171']
-                ].map(([l,v,c])=>(
-                  <div key={l} style={{background:'var(--surface2)',borderRadius:'8px',padding:'10px',textAlign:'center'}}>
-                    <div style={{fontSize:'9px',color:c,fontWeight:600,marginBottom:'5px'}}>{l}</div>
-                    <div style={{...mono,fontSize:'14px',fontWeight:700,color:c,lineHeight:1.2}}>{Number(v).toLocaleString()}</div>
-                    <div style={{fontSize:'9px',color:'var(--text-dim)',marginTop:'3px'}}>원</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* 상세 */}
-              <button onClick={()=>setShowDetail(d=>!d)}
-                style={{width:'100%',background:'none',border:'none',color:'var(--text-dim)',
-                  fontSize:'11px',cursor:'pointer',textAlign:'left',padding:'4px 0',marginBottom:'6px'}}>
-                {showDetail?'▲':'▼'} 상세 내역
-              </button>
-              {showDetail && (
-                <div style={{background:'var(--surface2)',borderRadius:'8px',padding:'12px',marginBottom:'12px'}}>
-                  <Row label="총 레슨 수입" value={totalRevenue} sub={`${payCount}건`}/>
+              <section className="rv-panel" aria-label="상세 내역">
+                {detailFold}
+                {showDetail && (<>
+                  <SettleRow label="총 레슨 수입" sub={`${payCount}건`} value={totalRevenue} />
                   {f.memberFeeDetails.length > 0 && <>
-                    <div style={{fontSize:'10px',color:'var(--text-dim)',fontWeight:600,padding:'6px 0 2px'}}>회원별 수수료</div>
-                    {f.memberFeeDetails.map(d=>(
-                      <Row key={d.name}
-                        label={`└ ${d.name} (${d.rate}%${d.isCustom?' 개별':''})`}
-                        value={-d.fee} sub={`결제 ${d.amount.toLocaleString()}원`}/>
+                    <div className="rv-dh">센터 수수료</div>
+                    {f.memberFeeDetails.map((d, i) => (
+                      <SettleRow key={i} label={`└ ${d.name} (${d.rate}%${d.isCustom ? ' · 개별' : ''})`} sub={`결제 ${rvWon(d.amount)}`} value={-d.fee} />
                     ))}
                   </>}
-                  <div style={{borderTop:'1px solid var(--border)',margin:'6px 0'}}/>
-                  <Row label="프리랜서 수입" value={f.myIncome}/>
-                  <Row label="원천징수 (3.3%)" value={-f.withheld} sub="소득세3%+지방세0.3%"/>
-                  <div style={{borderTop:'1px solid var(--border)',margin:'6px 0'}}/>
-                  <Row label="예상 실수령" value={f.payout} highlight/>
-                  <div style={{marginTop:'10px',padding:'8px',background:'rgba(251,146,60,0.08)',
-                    borderRadius:'6px',fontSize:'10px',color:'#C2410C',lineHeight:1.6}}>
-                    💡 {f.simpleExpenseNote}<br/>
-                    💡 센터는 분기별 지급조서(원천징수영수증)를 발급해야 합니다.
-                  </div>
+                  <div className="rv-dv" />
+                  <SettleRow label="프리랜서 수입" value={f.myIncome} sum />
+                  <SettleRow label="원천징수 (3.3%)" sub="소득세 3% + 지방세 0.3%" value={-f.withheld} />
+                  <div className="rv-fin"><span>예상 실수령</span><span>{rvWon(f.payout)}</span></div>
+                  <p className="rv-memo">{f.simpleExpenseNote}<br />센터는 분기별 지급조서(원천징수영수증)를 발급해야 해요.</p>
+                </>)}
+              </section>
+
+              <section className="rv-set" aria-label="정산 설정">
+                <h4 className="rv-h">정산 설정</h4>
+                <SettleNumInput label="기본 수수료율" value={commissionRate} onChange={setCommissionRate} unit="%"
+                  hint="센터가 가져가는 비율이에요. 회원별로 정하지 않으면 이 비율을 써요 (보통 20~40%)" />
+                <div className="rv-box">
+                  <SettleFold open={showMemberRates} onToggle={() => setShowMemberRates(v => !v)}>
+                    회원별 수수료율{customCount > 0 && <small>개별 설정 {customCount}명</small>}
+                  </SettleFold>
+                  {showMemberRates && (<>
+                    <p className="rv-hint rv-box-hint">바꾼 회원에게만 따로 적용돼요. 기본 수수료율과 같게 맞추면 개별 설정이 풀려요.</p>
+                    {members.length === 0 ? <p className="rv-hint rv-box-hint">아직 회원이 없어요.</p> : members.map(m => {
+                      const amt = memberPayments[m.id] ?? 0
+                      const isCustom = memberCommissions[m.id] !== undefined
+                      const rate = isCustom ? memberCommissions[m.id] : commissionRate
+                      const fee = Math.round(amt * rate / 100)
+                      return (
+                        <div key={m.id} className="rv-mrow">
+                          <span className="rv-mrow-t">
+                            <b>{m.name}{isCustom && <em className="rv-flag">개별</em>}</b>
+                            <span>{amt > 0 ? `이번 달 ${rvWon(amt)}${fee > 0 ? ` · 수수료 ${rvWon(fee)}` : ''}` : '이번 달 결제 없음'}</span>
+                          </span>
+                          <span className={'rv-rate' + (isCustom ? ' custom' : '')}>
+                            <input type="number" min="0" max="100" inputMode="decimal" value={rate} aria-label={`${m.name} 수수료율`}
+                              onChange={ev => {
+                                const val = Number(ev.target.value)
+                                if (val === commissionRate) {
+                                  // 기본율과 같으면 개별 설정 제거
+                                  setMemberCommissions(prev => { const n = { ...prev }; delete n[m.id]; return n })
+                                } else {
+                                  setMemberCommissions(prev => ({ ...prev, [m.id]: val }))
+                                }
+                              }} />
+                            <em>%</em>
+                          </span>
+                        </div>
+                      )
+                    })}
+                    {customCount > 0 && (
+                      <button type="button" className="rv-link danger" onClick={() => setMemberCommissions({})}>모든 개별 설정 초기화</button>
+                    )}
+                  </>)}
                 </div>
-              )}
-              <button onClick={()=>saveConfig({employment_type:'freelance'})} disabled={savingCfg}
-                style={{width:'100%',padding:'11px',borderRadius:'8px',border:'none',
-                  background:savingCfg?'var(--surface2)':'#fb923c',color:savingCfg?'var(--text-dim)':'#0f0f0f',
-                  fontWeight:700,fontSize:'13px',cursor:savingCfg?'default':'pointer',fontFamily:'inherit',transition:'all 0.2s'}}>
-                {savingCfg?'저장 중...':'💾 설정 저장'}
-              </button>
-            </div>
+                <button type="button" className="rv-btn block" onClick={() => saveConfig({ employment_type:'freelance' })} disabled={savingCfg}>
+                  {savingCfg ? '저장 중...' : '설정 저장'}
+                </button>
+              </section>
+
+              <div className="rv-note">
+                <RvIcon d={RV_ICON.info} />
+                <span><b>프리랜서 세금 안내</b>센터가 수수료를 지급할 때 3.3% 원천징수 · 매년 5월 종합소득세 신고 · 지급조서 발급 의무</span>
+              </div>
+            </>
           )
         })()
 
@@ -1099,124 +1064,90 @@ function SettlementBreakdown({ trainerId, showToast, members = [] }) {
         : (() => {
           const e = calcEmployee()
           const status = settle?.status ?? 'none'
-          const STATUS_META = {
-            none:      { label:'계산 전',  color:'var(--text-dim)', bg:'var(--surface2)' },
-            draft:     { label:'초안',     color:'#92400E',         bg:'rgba(250,204,21,0.12)' },
-            confirmed: { label:'확정',     color:'#1D4ED8',         bg:'rgba(96,165,250,0.12)' },
-            paid:      { label:'지급완료', color:'var(--accent-text)',   bg:'rgba(200,241,53,0.12)' },
-          }
-          const sm = STATUS_META[status] || STATUS_META.none
+          const sm = RV_SETTLE_STATUS[status] || RV_SETTLE_STATUS.none
           return (
-            <div>
-              <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'12px'}}>
-                <div style={{fontSize:'11px',fontWeight:600,borderRadius:'6px',padding:'3px 8px',color:sm.color,background:sm.bg}}>{sm.label}</div>
-                <div style={{fontSize:'11px',borderRadius:'6px',padding:'3px 8px',
-                  color:hasGym?'#4ade80':'#facc15',background:hasGym?'rgba(74,222,128,0.1)':'rgba(250,204,21,0.1)'}}>
-                  {hasGym ? `🏢 CRM 연동 · ${e.gradeLabel}` : '⚙️ 직접 설정'}
-                </div>
+            <>
+              <SettleResult title={`${month}월 예상 실수령`} value={e.payout} status={hasGym ? sm : null} foot={['세전 합계', e.grossPay]}
+                parts={[
+                  { label:'실수령', value:e.payout },
+                  { label:'4대보험 (근로자 부담)', value:e.totalIns },
+                  { label:'소득세 (근로 + 지방)', value:e.totalTax },
+                ]} />
+
+              <section className="rv-panel" aria-label="상세 내역">
+                {detailFold}
+                {showDetail && (<>
+                  <SettleRow label={`기본급 (${e.gradeLabel})`} value={e.baseSalary} />
+                  <SettleRow label={`인센티브 (${Math.round(e.iRate * 100)}%)`} sub={`결제액 × ${Math.round(e.iRate * 100)}%`} value={e.incentiveAmt} />
+                  <div className="rv-dv" />
+                  <SettleRow label="세전 합계" value={e.grossPay} sum />
+                  <div className="rv-dh">4대보험 (근로자 부담)</div>
+                  <SettleRow label="국민연금 4.5%" value={-e.pension} />
+                  <SettleRow label="건강보험 3.545%" value={-e.health} />
+                  <SettleRow label="장기요양" sub="건강보험 × 12.95%" value={-e.ltc} />
+                  <SettleRow label="고용보험 0.9%" value={-e.employ} />
+                  <div className="rv-dh">근로소득세 (간이세액 추정)</div>
+                  <SettleRow label="근로소득세" value={-e.incomeTax} />
+                  <SettleRow label="지방소득세" sub="근로소득세의 10%" value={-e.localTax} />
+                  <div className="rv-fin"><span>예상 실수령</span><span>{rvWon(e.payout)}</span></div>
+                  <p className="rv-memo">
+                    {lessonCount > 0 && <>수업 완료 {lessonCount}회 기록됨<br /></>}
+                    4대보험 요율은 2024년 기준이에요.<br />
+                    근로소득세는 간이세액표로 추정한 값이에요. 연말정산 때 다시 정산돼요.<br />
+                    식대 비과세 월 20만원 공제를 적용했어요.
+                  </p>
+                </>)}
+              </section>
+
+              <section className="rv-set" aria-label="정산 설정">
+                <h4 className="rv-h">정산 설정</h4>
+                {hasGym ? (
+                  <>
+                    <div className="rv-info"><RvIcon d={RV_ICON.info} size={16} /><span>센터 CRM과 연결돼 있어요 · 직급 {e.gradeLabel}</span></div>
+                    {(status === 'none' || status === 'draft') && (
+                      <button type="button" className="rv-btn block" disabled={calculating}
+                        onClick={async () => {
+                          if (calculating) return // P1 fix: 더블클릭 방지
+                          setCalculating(true)
+                          try {
+                            const { data, error } = await supabase.rpc('calculate_settlement', { p_trainer_id: trainerId, p_year: year, p_month: month })
+                            if (error) { showToast('오류: ' + error.message); return }
+                            setSettle(data); showToast('✓ 정산이 계산됐어요')
+                          } catch (err) {
+                            showToast('정산 계산 중 오류가 발생했어요: ' + (err?.message || ''))
+                          } finally {
+                            setCalculating(false)
+                          }
+                        }}>
+                        {calculating ? '계산 중...' : (status === 'draft' ? '다시 계산하기' : '정산 계산하기')}
+                      </button>
+                    )}
+                    {status === 'confirmed' && <div className="rv-info ok">정산이 확정됐어요. 지급 처리 후 '지급완료'로 바꿔 주세요.</div>}
+                    {status === 'paid' && <div className="rv-info ok">지급이 끝난 정산이에요.</div>}
+                  </>
+                ) : (
+                  <>
+                    <p className="rv-hint">소속 센터가 CRM을 쓰지 않아서 급여 조건을 직접 넣어 계산해요.</p>
+                    <div className="rv-fld">
+                      <label>
+                        <span className="rv-fld-l">직급명</span>
+                        <span className="rv-inp"><input type="text" value={customGrade} onChange={ev => setCustomGrade(ev.target.value)} placeholder="예: 트레이너, 팀장, 대리" /></span>
+                      </label>
+                    </div>
+                    <SettleNumInput label="월 기본급" value={customBaseSalary} onChange={setCustomBaseSalary} hint="센터 계약서 기준 고정 월급" />
+                    <SettleNumInput label="인센티브율" value={customIncentiveRate} onChange={setCustomIncentiveRate} unit="%" hint="이번 달 결제액 대비 인센티브 비율" />
+                    <button type="button" className="rv-btn block" onClick={() => saveConfig({ employment_type:'employee' })} disabled={savingCfg}>
+                      {savingCfg ? '저장 중...' : '설정 저장'}
+                    </button>
+                  </>
+                )}
+              </section>
+
+              <div className="rv-note">
+                <RvIcon d={RV_ICON.info} />
+                <span><b>정직원 세금 안내</b>4대보험 (근로자 부담 약 9.6%) · 근로소득세 간이세액 · 연말정산 (1월)</span>
               </div>
-              {!hasGym && (
-                <div style={{background:'var(--surface2)',borderRadius:'8px',padding:'12px',marginBottom:'12px'}}>
-                  <div style={{fontSize:'11px',color:'var(--text-dim)',marginBottom:'10px',lineHeight:1.5}}>
-                    ⚙️ 소속 센터가 CRM 포털에 미가입 상태입니다.<br/>직접 급여 조건을 입력해 정산을 계산할 수 있어요.
-                  </div>
-                  <div style={{marginBottom:'8px'}}>
-                    <div style={{fontSize:'11px',color:'var(--text-muted)',marginBottom:'4px'}}>직급명</div>
-                    <input value={customGrade} onChange={e=>setCustomGrade(e.target.value)}
-                      placeholder="예: 트레이너, 팀장, 대리..."
-                      style={{width:'100%',boxSizing:'border-box',background:'var(--surface)',
-                        border:'1px solid var(--border)',borderRadius:'8px',padding:'8px 10px',
-                        color:'var(--text)',fontSize:'13px',fontFamily:'inherit',outline:'none'}}/>
-                  </div>
-                  <NumInput label="월 기본급" value={customBaseSalary} onChange={setCustomBaseSalary} hint="센터 계약서 기준 고정 월급"/>
-                  <NumInput label="인센티브율" value={customIncentiveRate} onChange={setCustomIncentiveRate} unit="%" hint="이번 달 결제액 대비 인센티브 지급 비율"/>
-                </div>
-              )}
-              <div style={{background:'rgba(96,165,250,0.08)',border:'1px solid rgba(96,165,250,0.2)',
-                borderRadius:'8px',padding:'10px 12px',marginBottom:'12px',fontSize:'11px',color:'#1D4ED8',lineHeight:1.6}}>
-                📌 <strong>정직원 세금 안내</strong><br/>4대보험(근로자부담 ~9.6%) · 근로소득세 간이세액 · 연말정산 (1월)
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'12px'}}>
-                {[['세전 급여',e.grossPay,'#60a5fa'],['실수령 예상',e.payout,'var(--accent)'],
-                  ['4대보험 공제',e.totalIns,'#fb923c'],['소득세+지방세',e.totalTax,'#f87171']
-                ].map(([l,v,c])=>(
-                  <div key={l} style={{background:'var(--surface2)',borderRadius:'8px',padding:'10px',textAlign:'center'}}>
-                    <div style={{fontSize:'9px',color:c,fontWeight:600,marginBottom:'5px'}}>{l}</div>
-                    <div style={{...mono,fontSize:'14px',fontWeight:700,color:c,lineHeight:1.2}}>{Number(v).toLocaleString()}</div>
-                    <div style={{fontSize:'9px',color:'var(--text-dim)',marginTop:'3px'}}>원</div>
-                  </div>
-                ))}
-              </div>
-              <button onClick={()=>setShowDetail(d=>!d)}
-                style={{width:'100%',background:'none',border:'none',color:'var(--text-dim)',
-                  fontSize:'11px',cursor:'pointer',textAlign:'left',padding:'4px 0',marginBottom:'6px'}}>
-                {showDetail?'▲':'▼'} 상세 내역
-              </button>
-              {showDetail && (
-                <div style={{background:'var(--surface2)',borderRadius:'8px',padding:'12px',marginBottom:'12px'}}>
-                  <Row label={`기본급 (${e.gradeLabel})`} value={e.baseSalary}/>
-                  <Row label={`인센티브 (${Math.round(e.iRate*100)}%)`} value={e.incentiveAmt} sub={`결제액 × ${Math.round(e.iRate*100)}%`}/>
-                  <div style={{borderTop:'1px solid var(--border)',margin:'6px 0'}}/>
-                  <Row label="세전 합계" value={e.grossPay}/>
-                  <div style={{marginTop:'6px',marginBottom:'4px',fontSize:'10px',color:'var(--text-dim)',fontWeight:600}}>4대보험 (근로자 부담)</div>
-                  <Row label="국민연금 4.5%" value={-e.pension}/>
-                  <Row label="건강보험 3.545%" value={-e.health}/>
-                  <Row label="장기요양 (건강보험×12.95%)" value={-e.ltc}/>
-                  <Row label="고용보험 0.9%" value={-e.employ}/>
-                  <div style={{marginTop:'6px',marginBottom:'4px',fontSize:'10px',color:'var(--text-dim)',fontWeight:600}}>근로소득세 (간이세액 추정)</div>
-                  <Row label="근로소득세" value={-e.incomeTax}/>
-                  <Row label="지방소득세 10%" value={-e.localTax}/>
-                  <div style={{borderTop:'1px solid var(--border)',margin:'6px 0'}}/>
-                  <Row label="예상 실수령" value={e.payout} highlight/>
-                  {lessonCount > 0 && <div style={{marginTop:'8px',fontSize:'11px',color:'var(--text-dim)'}}>📋 수업 완료 {lessonCount}회 기록됨</div>}
-                  <div style={{marginTop:'10px',padding:'8px',background:'rgba(96,165,250,0.08)',
-                    borderRadius:'6px',fontSize:'10px',color:'#1D4ED8',lineHeight:1.6}}>
-                    💡 4대보험 요율은 2024년 기준입니다.<br/>
-                    💡 근로소득세는 간이세액표 추정값 — 연말정산으로 정산됩니다.<br/>
-                    💡 식대 비과세 월 20만원 공제 적용.
-                  </div>
-                </div>
-              )}
-              {!hasGym && (
-                <button onClick={()=>saveConfig({employment_type:'employee'})} disabled={savingCfg}
-                  style={{width:'100%',padding:'11px',borderRadius:'8px',border:'none',
-                    background:savingCfg?'var(--surface2)':'#60a5fa',color:savingCfg?'var(--text-dim)':'#0f0f0f',
-                    fontWeight:700,fontSize:'13px',cursor:savingCfg?'default':'pointer',fontFamily:'inherit',transition:'all 0.2s',marginBottom:'8px'}}>
-                  {savingCfg?'저장 중...':'💾 설정 저장'}
-                </button>
-              )}
-              {hasGym && (status==='none'||status==='draft') && (
-                <button onClick={async()=>{
-                    if (calculating) return // P1 fix: 더블클릭 방지
-                    setCalculating(true)
-                    try {
-                      const{data,error}=await supabase.rpc('calculate_settlement',{p_trainer_id:trainerId,p_year:year,p_month:month})
-                      if(error){showToast('오류: '+error.message);return}
-                      setSettle(data);showToast('✓ 정산이 계산됐어요')
-                    } catch (e) {
-                      showToast('정산 계산 중 오류가 발생했어요: ' + (e?.message || ''))
-                    } finally {
-                      setCalculating(false)
-                    }
-                  }}
-                  disabled={calculating}
-                  style={{width:'100%',padding:'11px',borderRadius:'8px',border:'none',
-                    background:calculating?'var(--surface2)':'var(--accent)',color:calculating?'var(--text-dim)':'#0f0f0f',fontWeight:700,fontSize:'13px',
-                    cursor:calculating?'default':'pointer',fontFamily:'inherit',transition:'all 0.2s'}}>
-                  {calculating?'계산 중...':(status==='draft'?'🔄 재계산':'📊 정산 계산하기')}
-                </button>
-              )}
-              {hasGym && status==='confirmed' && (
-                <div style={{textAlign:'center',fontSize:'12px',color:'#1D4ED8',padding:'8px',background:'rgba(96,165,250,0.08)',borderRadius:'8px'}}>
-                  ✅ 정산이 확정됐어요. 지급 처리 후 '지급완료'로 변경해주세요.
-                </div>
-              )}
-              {hasGym && status==='paid' && (
-                <div style={{textAlign:'center',fontSize:'12px',color:'var(--accent-text)',padding:'8px',background:'rgba(200,241,53,0.08)',borderRadius:'8px'}}>
-                  🎉 지급 완료된 정산입니다.
-                </div>
-              )}
-            </div>
+            </>
           )
         })()
       )}
@@ -1788,6 +1719,8 @@ export default function TrainerApp() {
   // Revenue tab — tooltip
   // Revenue tab — 회원별 결제 검색
   const [revMemberSearch, setRevMemberSearch] = useState('')
+  const [revMemberOpenId, setRevMemberOpenId] = useState(null)    // 회원별 결제 관리 — 펼친 회원
+  const [revMemberShowAll, setRevMemberShowAll] = useState(false)  // 처음 6명 → 전체
 
   // Settings — profile photo upload
   const [profileUploading, setProfileUploading] = useState(false)
@@ -4272,20 +4205,20 @@ export default function TrainerApp() {
           <div className="rev-tile"><div className="rl">잔존 가치</div><div className="rv">{remainRevenue.toLocaleString()}원</div></div>
         </div>
 
-        {/* 분석 · 내역 — 한 카드 안 접이식 행 (기본 닫힘, 스캔성 ↑) */}
+        {/* 분석 · 내역 — 한 카드 안 접이식 행 (기본 닫힘). 2026-11 리디자인: 큰 행 + 선 아이콘 (rev-rows-lg, 설정 탭의 rev-rows 는 그대로) */}
         <div className="section-label">분석 · 내역</div>
-        <div className="rev-rows" style={{marginBottom:'16px'}}>
+        <div className="rev-rows rev-rows-lg" style={{marginBottom:'16px'}}>
 
           {/* 주간 리포트 */}
           <div className="rev-sec">
             {canUse('weekly_report') ? (
-              <button className={'rev-row'+(weeklyReportOpen?' open':'')} onClick={()=>setWeeklyReportOpen(o=>!o)}>
+              <button type="button" className={'rev-row'+(weeklyReportOpen?' open':'')} aria-expanded={weeklyReportOpen} onClick={()=>setWeeklyReportOpen(o=>!o)}>
                 <span className="rev-row-ic"><svg viewBox="0 0 24 24"><path d="M4 19V5m0 14h16M8 15l3-4 3 2 4-6"/></svg></span>
-                <span className="rev-row-t"><span className="rev-row-l">주간 리포트</span><span className="rev-row-s">AI 요약</span></span>
-                <span className="rev-row-chev">›</span>
+                <span className="rev-row-t"><span className="rev-row-l">주간 리포트</span><span className="rev-row-s">AI가 지난주 운영을 정리해요</span></span>
+                <span className="rev-row-chev"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span>
               </button>
             ) : HIDE_PURCHASE ? null : (
-              <div className="rev-row" style={{cursor:'default'}}>
+              <div className="rev-row locked" style={{cursor:'default'}}>
                 <span className="rev-row-ic"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
                 <span className="rev-row-t"><span className="rev-row-l">주간 리포트</span><span className="rev-row-s">유료 플랜 전용</span></span>
               </div>
@@ -4298,13 +4231,13 @@ export default function TrainerApp() {
           {/* 정산 분석 */}
           <div className="rev-sec">
             {canUse('settlement') ? (
-              <button className={'rev-row'+(revSettlementOpen?' open':'')} onClick={()=>setRevSettlementOpen(o=>!o)}>
+              <button type="button" className={'rev-row'+(revSettlementOpen?' open':'')} aria-expanded={revSettlementOpen} onClick={()=>setRevSettlementOpen(o=>!o)}>
                 <span className="rev-row-ic"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
-                <span className="rev-row-t"><span className="rev-row-l">정산 분석</span></span>
-                <span className="rev-row-chev">›</span>
+                <span className="rev-row-t"><span className="rev-row-l">정산 분석</span><span className="rev-row-s">고용 형태별 예상 실수령 · 세금</span></span>
+                <span className="rev-row-chev"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span>
               </button>
             ) : HIDE_PURCHASE ? null : (
-              <div className="rev-row" style={{cursor:'default'}}>
+              <div className="rev-row locked" style={{cursor:'default'}}>
                 <span className="rev-row-ic"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
                 <span className="rev-row-t"><span className="rev-row-l">정산 분석</span><span className="rev-row-s">유료 플랜 전용</span></span>
               </div>
@@ -4316,94 +4249,88 @@ export default function TrainerApp() {
 
           {/* 통합 매출 내역 */}
           <div className="rev-sec">
-            <button className={'rev-row'+(revPaymentsOpen?' open':'')} onClick={()=>setRevPaymentsOpen(o=>!o)}>
+            <button type="button" className={'rev-row'+(revPaymentsOpen?' open':'')} aria-expanded={revPaymentsOpen} onClick={()=>setRevPaymentsOpen(o=>!o)}>
               <span className="rev-row-ic"><svg viewBox="0 0 24 24"><path d="M3 7h18M3 12h18M3 17h18"/></svg></span>
-              <span className="rev-row-t"><span className="rev-row-l">통합 매출 내역</span><span className="rev-row-s">전체 결제 로그</span></span>
-              <span className="rev-row-chev">›</span>
+              <span className="rev-row-t"><span className="rev-row-l">통합 매출 내역</span><span className="rev-row-s">받은 결제 전체 · 결제 수단</span></span>
+              <span className="rev-row-chev"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span>
             </button>
             {revPaymentsOpen && (
               <div className="rev-body"><RevenuePaymentList trainerId={trainer?.id} members={members} refreshKey={revenueRefreshKey} /></div>
             )}
           </div>
 
-          {/* 회원별 결제 관리 */}
+          {/* 회원별 결제 관리 — 검색 전에도 남은 횟수 적은 순 목록 (처음 6명 + 더 보기), 누르면 그 자리에서 펼침 */}
           <div className="rev-sec">
-            <button className={'rev-row'+(revMemberPayOpen?' open':'')} onClick={()=>setRevMemberPayOpen(o=>!o)}>
+            <button type="button" className={'rev-row'+(revMemberPayOpen?' open':'')} aria-expanded={revMemberPayOpen} onClick={()=>setRevMemberPayOpen(o=>!o)}>
               <span className="rev-row-ic"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M16 11l2 2 4-4"/></svg></span>
-              <span className="rev-row-t"><span className="rev-row-l">회원별 결제 관리</span><span className="rev-row-s">회원 검색 · 결제 등록</span></span>
-              <span className="rev-row-chev">›</span>
+              <span className="rev-row-t"><span className="rev-row-l">회원별 결제 관리</span><span className="rev-row-s">회원 {members.length}명 · 결제 등록 · 남은 횟수</span></span>
+              <span className="rev-row-chev"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span>
             </button>
             {revMemberPayOpen && (
               <div className="rev-body">
-                {/* 상품 관리 — 보조 버튼 */}
-                <div style={{display:'flex',justifyContent:'flex-end',marginBottom:'10px'}}>
-                  <button onClick={()=>setProductManageModal(true)}
-                    style={{padding:'7px 14px',borderRadius:'9px',border:'1px solid var(--border)',
-                      background:'var(--surface2)',color:'var(--text-muted)',fontSize:'12px',fontWeight:600,
-                      cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
-                    상품 관리
-                  </button>
-                </div>
-                {/* 검색창 */}
-                <div style={{position:'relative',marginBottom:'10px'}}>
-                  <input
-                    type="text"
-                    value={revMemberSearch}
-                    onChange={e=>setRevMemberSearch(e.target.value)}
-                    placeholder="회원 이름 검색..."
-                    style={{width:'100%',padding:'10px 34px 10px 14px',borderRadius:'10px',
-                      border:'1px solid var(--border)',background:'var(--surface)',
-                      color:'var(--text)',fontSize:'13px',fontFamily:'inherit',boxSizing:'border-box'}}
-                  />
-                  {revMemberSearch && (
-                    <button onClick={()=>setRevMemberSearch('')}
-                      style={{position:'absolute',right:'10px',top:'50%',transform:'translateY(-50%)',
-                        background:'none',border:'none',color:'var(--text-dim)',cursor:'pointer',fontSize:'16px',lineHeight:1,padding:0}}>
-                      ×
-                    </button>
-                  )}
-                </div>
-                {/* 회원 카드 목록 */}
-                {!revMemberSearch.trim() ? (
-                  <div style={{textAlign:'center',padding:'20px 0',color:'var(--text-dim)',fontSize:'13px'}}>
-                    회원 이름을 검색하면 결제 정보가 표시돼요
+                <div className="rv">
+                  <div className="rv-search-row">
+                    <label className="rv-search">
+                      <RvIcon d={RV_ICON.search} size={17} />
+                      <input type="text" value={revMemberSearch} onChange={e=>setRevMemberSearch(e.target.value)} placeholder="회원 이름 검색" aria-label="회원 이름 검색" />
+                      {revMemberSearch && (
+                        <button type="button" className="rv-clear" onClick={()=>setRevMemberSearch('')} aria-label="검색어 지우기"><RvIcon d={RV_ICON.close} size={16} /></button>
+                      )}
+                    </label>
+                    <button type="button" className="rv-btn sub sm" onClick={()=>setProductManageModal(true)}><RvIcon d={RV_ICON.box} size={16} />상품 관리</button>
                   </div>
-                ) : (() => {
-                  const q = revMemberSearch.trim().toLowerCase()
-                  const filtered = members.filter(m => m.name.toLowerCase().includes(q))
-                  if (!filtered.length) return (
-                    <div style={{textAlign:'center',padding:'18px 0',color:'var(--text-dim)',fontSize:'13px'}}>
-                      '{revMemberSearch}' 회원을 찾을 수 없어요
-                    </div>
-                  )
-                  return filtered.map(m => {
-                    const mLogs = logs.filter(l => l.member_id === m.id)
-                    const mWeekLogs = mLogs.filter(l => new Date(l.created_at) >= weekStart)
-                    const mMonthLogs = mLogs.filter(l => new Date(l.created_at) >= monthStart)
-                    const price = m.session_price || 0
-                    const weekBlocks = blocks.filter(b => b.type==='lesson' && b.memberId===m.id && !b.cancelled && new Date(b.date+'T00:00:00')>=weekStart && new Date(b.date+'T00:00:00')<=now)
-                    const attendRate = weekBlocks.length>0 ? Math.round((mWeekLogs.length/weekBlocks.length)*100) : null
-                    const cancelledBlocks = blocks.filter(b => b.memberId===m.id && b.cancelled)
-                    const remain = m.total_sessions - m.done_sessions
-                    const pct = m.total_sessions>0 ? Math.round((m.done_sessions/m.total_sessions)*100) : 0
-                    const cached = revenueByMember[m.id]
-                    return (
-                      <MemberRevenueCard key={m.id} m={m} mWeekLogs={mWeekLogs} mMonthLogs={mMonthLogs}
-                        attendRate={attendRate} cancelledBlocks={cancelledBlocks}
-                        remain={remain} pct={pct} price={price}
-                        dayOfMonth={dayOfMonth} daysInMonth={daysInMonth}
-                        confirmed={cached ? cached.confirmed : null}
-                        recentPays={cached ? cached.recentPays : []}
-                        onOpenPayment={()=>{
-                          setCurrentMemberId(m.id)
-                          setPaymentTab('pay')
-                          setPaymentForm({productId:'',memo:'',taxIncluded:false,paymentMethod:'card',paymentMethodMemo:''})
-                          loadPayments(m.id)
-                          setPaymentModal(true)
-                        }} />
+                  {(() => {
+                    const q = revMemberSearch.trim().toLowerCase()
+                    // 남은 횟수 적은 순 (다 쓴 회원이 맨 위, 아직 결제 전인 회원은 맨 아래)
+                    const remainKey = m => (m.total_sessions || 0) <= 0 ? Infinity : (m.total_sessions - (m.done_sessions || 0))
+                    const sorted = [...members].sort((a, b) => (remainKey(a) - remainKey(b)) || (a.name || '').localeCompare(b.name || '', 'ko'))
+                    const filtered = q ? sorted.filter(m => (m.name || '').toLowerCase().includes(q)) : sorted
+                    if (q && !filtered.length) return (
+                      <div className="rv-empty"><span>'{revMemberSearch.trim()}' 회원을 찾을 수 없어요</span></div>
                     )
-                  })
-                })()}
+                    const LIMIT = 6
+                    const shown = (q || revMemberShowAll) ? filtered : filtered.slice(0, LIMIT)
+                    return (
+                      <>
+                        <p className="rv-meta">{q ? `검색 결과 ${filtered.length}명` : `회원 ${members.length}명 · 남은 횟수 적은 순`}</p>
+                        <div className="rv-mlist">
+                          {shown.map(m => {
+                            if (revMemberOpenId !== m.id) return <MemberRevenueRow key={m.id} m={m} onOpen={() => setRevMemberOpenId(m.id)} />
+                            const mLogs = logs.filter(l => l.member_id === m.id)
+                            const mWeekLogs = mLogs.filter(l => new Date(l.created_at) >= weekStart)
+                            const mMonthLogs = mLogs.filter(l => new Date(l.created_at) >= monthStart)
+                            const price = m.session_price || 0
+                            const weekBlocks = blocks.filter(b => b.type==='lesson' && b.memberId===m.id && !b.cancelled && new Date(b.date+'T00:00:00')>=weekStart && new Date(b.date+'T00:00:00')<=now)
+                            const attendRate = weekBlocks.length>0 ? Math.round((mWeekLogs.length/weekBlocks.length)*100) : null
+                            const cancelledBlocks = blocks.filter(b => b.memberId===m.id && b.cancelled)
+                            const remain = m.total_sessions - m.done_sessions
+                            const pct = m.total_sessions>0 ? Math.round((m.done_sessions/m.total_sessions)*100) : 0
+                            const cached = revenueByMember[m.id]
+                            return (
+                              <MemberRevenueCard key={m.id} m={m} mWeekLogs={mWeekLogs} mMonthLogs={mMonthLogs}
+                                attendRate={attendRate} cancelledBlocks={cancelledBlocks}
+                                remain={remain} pct={pct} price={price}
+                                dayOfMonth={dayOfMonth} daysInMonth={daysInMonth}
+                                confirmed={cached ? cached.confirmed : null}
+                                recentPays={cached ? cached.recentPays : []}
+                                onClose={() => setRevMemberOpenId(null)}
+                                onOpenPayment={()=>{
+                                  setCurrentMemberId(m.id)
+                                  setPaymentTab('pay')
+                                  setPaymentForm({productId:'',memo:'',taxIncluded:false,paymentMethod:'card',paymentMethodMemo:''})
+                                  loadPayments(m.id)
+                                  setPaymentModal(true)
+                                }} />
+                            )
+                          })}
+                        </div>
+                        {!q && !revMemberShowAll && filtered.length > LIMIT && (
+                          <button type="button" className="rv-btn sub sm rv-more" onClick={() => setRevMemberShowAll(true)}>회원 {filtered.length - LIMIT}명 더 보기</button>
+                        )}
+                      </>
+                    )
+                  })()}
+                </div>
               </div>
             )}
           </div>
