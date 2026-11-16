@@ -19,9 +19,13 @@ import { removeStorageOnError } from '@trainer-log/shared/lib/storageCleanup'
 import TransformationsShare from './member/TransformationsShare'
 import MemberAttendanceView from './member/MemberAttendanceView'
 import MemberBooking from './member/MemberBooking'
+import { useAppShell, useResumeRefresh, mergeLatest, appendUnique } from '../lib/appShell'
 import '../styles/member.css'
 
 Chart.register(...registerables)
+
+// 회원 앱 수업일지 목록이 읽는 열 (처음 불러오기 · 더 보기 · 일지 탭 진입 · 앱으로 돌아올 때 새로고침 공통)
+const MEMBER_LOG_COLS = 'id, created_at, read_at, session_number, content, media_urls, session_rating, exercises_data, session_id, workout_session:workout_sessions(exercises)'
 
 const MUSCLE_GROUPS = ['가슴','등','어깨','이두','삼두','하체','코어','유산소','전신']
 const MUSCLE_COLOR = {'가슴':'#ef4444','등':'#3b82f6','어깨':'#8b5cf6','이두':'#f97316','삼두':'#06b6d4','하체':'#22c55e','코어':'#eab308','유산소':'#ec4899','전신':'#6b7280'}
@@ -316,7 +320,7 @@ export default function MemberPortal() {
     try {
       const [l, h] = await Promise.all([
         supabase.from('logs')
-          .select('id, created_at, read_at, session_number, content, media_urls, session_rating, exercises_data, session_id, workout_session:workout_sessions(exercises)')
+          .select(MEMBER_LOG_COLS)
           .eq('member_id', member.id)
           .order('created_at', { ascending: false })
           .limit(20),
@@ -340,7 +344,7 @@ export default function MemberPortal() {
     try {
       const { data, error } = await supabase
         .from('logs')
-        .select('id, created_at, read_at, session_number, content, media_urls, session_rating, exercises_data, session_id, workout_session:workout_sessions(exercises)')
+        .select(MEMBER_LOG_COLS)
         .eq('member_id', member.id)
         .order('created_at', { ascending: false })
         .range(logsOffset, logsOffset + 19)
@@ -351,7 +355,8 @@ export default function MemberPortal() {
         return
       }
       const rows = data || []
-      setMemberLogs(prev => [...prev, ...rows])
+      // 앱으로 돌아올 때 새로고침이 새 일지를 앞에 붙였으면 이번 쪽 첫 몇 건이 이미 보이는 일지와 겹친다 → 겹치는 건 뺀다
+      setMemberLogs(prev => appendUnique(prev, rows))
       setLogsOffset(prev => prev + rows.length)
       setLogsHasMore(rows.length === 20)
     } catch (e) {
@@ -361,6 +366,37 @@ export default function MemberPortal() {
       setLogsLoading(false)
     }
   }
+
+  // 앱으로 돌아올 때 조용히 갱신 — 트레이너가 새로 보낸 일지는 앞에 붙이고, 더 불러온 옛 일지 · 스크롤 위치는 그대로 둔다.
+  // 실패하면 지금 화면을 그대로 둔다 (loadAll 은 목록을 처음 20건으로 되돌려서 여기선 쓰지 않는다).
+  async function refreshMemberQuietly() {
+    try {
+      const [l, h] = await Promise.all([
+        supabase.from('logs')
+          .select(MEMBER_LOG_COLS)
+          .eq('member_id', member.id)
+          .order('created_at', { ascending: false })
+          .limit(20),
+        supabase.from('health_records').select('*').eq('member_id', member.id).order('record_date', { ascending: false }).limit(60),
+      ])
+      if (!l.error && l.data) setMemberLogs(prev => mergeLatest(prev, l.data))
+      if (!h.error && h.data) {
+        setHealthRecords(h.data)
+        setDietRecords(h.data.filter(r => r.diet_note != null).slice(0, 30))
+      }
+    } catch (e) {
+      console.warn('[refreshMemberQuietly]', e?.message)
+    }
+  }
+
+  // 화면 끝에서 화면 전체가 늘어나는 효과 · 당겨서 새로고침을 끄고(lib/appShell.js), 대신 앱으로 돌아오면
+  // 트레이너가 새로 보낸 일지 · 기록, 지금 보고 있는 탭(운동 루틴 · 식단)을 조용히 다시 불러온다.
+  useAppShell(loggedIn)
+  useResumeRefresh(() => {
+    refreshMemberQuietly()
+    if (tab === 'workout') { loadWorkoutSessions(); loadWorkoutRoutines() }
+    if (tab === 'diet') loadDietLogs(dietDate, { quiet: true })
+  }, loggedIn && !!member?.id)
 
   // 로그 카드 내 모든 <video> 의 배속을 일괄 변경
   function changeVideoSpeed(logId, rate) {
@@ -410,7 +446,7 @@ export default function MemberPortal() {
   useEffect(() => {
     if (tab === 'logs' && member && memberLogs.length === 0) {
       supabase.from('logs')
-        .select('id, created_at, read_at, session_number, content, media_urls, session_rating, exercises_data, session_id, workout_session:workout_sessions(exercises)')
+        .select(MEMBER_LOG_COLS)
         .eq('member_id', member.id)
         .order('created_at', { ascending: false })
         .limit(20)
@@ -442,7 +478,8 @@ export default function MemberPortal() {
 
   // ── 식단 v2 함수 ─────────────────────────────────────────────
 
-  async function loadDietLogs(date) {
+  // quiet: 앱으로 돌아올 때 — 실패해도 알림 없이 지금 목록을 그대로 둔다
+  async function loadDietLogs(date, { quiet = false } = {}) {
     if (!member) return
     try {
       const { data, error } = await supabase
@@ -454,13 +491,13 @@ export default function MemberPortal() {
       if (error) {
         // U-008 fix: silent fail 방지 — toast 추가
         console.warn('[loadDietLogs] 로드 실패:', error.message)
-        showToast('식단 기록을 불러오지 못했어요. 새로고침해주세요')
+        if (!quiet) showToast('식단 기록을 불러오지 못했어요. 새로고침해주세요')
         return
       }
       setDietLogs(data || [])
     } catch(e) {
       console.warn('[loadDietLogs] 오류:', e.message)
-      showToast('식단 로드 중 오류: ' + e.message)
+      if (!quiet) showToast('식단 로드 중 오류: ' + e.message)
     }
   }
 

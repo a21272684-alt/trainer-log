@@ -12,6 +12,7 @@ import { signInWithProvider, isNativeApp, signInWithApple as appleSignIn, getSta
 // (App Store 가이드라인 3.1.1 / 3.1.3(f)). 기능 제한 자체는 동일하게 적용되고 안내 문구만 중립화.
 const HIDE_PURCHASE = isNativeApp()
 import { subscribeToPush, scheduleNotification, deleteScheduledNotification } from '../lib/push'
+import { useAppShell, useResumeRefresh, mergeLatest, appendUnique } from '../lib/appShell'
 import { useToast } from '@trainer-log/shared/components/common/Toast'
 import { trackEvent, trackScreen, noteTier } from '@trainer-log/shared/lib/analytics'
 import Modal from '@trainer-log/shared/components/common/Modal'
@@ -41,6 +42,9 @@ import {
   callGemini,
   buildSessionLogPrompt,
 } from '@trainer-log/shared/lib/ai_templates'
+
+// 발송기록 목록이 읽는 열 (처음 불러오기 · 더 보기 · 날짜 필터 · 앱으로 돌아올 때 새로고침 공통)
+const HISTORY_COLS = 'id, created_at, read_at, report_id, member_id, members(name)'
 
 // 운동 동작 일러스트 썸네일 (밝은 박스 — 다크 테마에서도 보이게). 매칭 없으면 렌더 안 함.
 function ExThumb({ name, size = 46 }) {
@@ -2424,7 +2428,9 @@ export default function TrainerApp() {
       })
   }, [trainer?.id])
 
-  async function loadMembers() {
+  // quiet: 앱으로 돌아올 때 조용히 갱신 — 실패 알림을 띄우지 않고, 위험 점수 재계산(조회 3개, 최대 2,500행)은
+  //        건너뛴다(최근 60일 기준이라 자주 바뀌지 않음 — 앱을 다시 열거나 회원 정보를 바꾸면 다시 계산).
+  async function loadMembers({ quiet = false } = {}) {
     // is_personal=true 만 조회: CRM 에서 등록된 센터 회원(false)은 트레이너 포털에 노출 X
     // U-005 fix: error 무시하던 부분 — silent fail 방지
     const { data, error } = await supabase.from('members').select('*')
@@ -2432,11 +2438,11 @@ export default function TrainerApp() {
       .order('created_at', { ascending: false })
     if (error) {
       console.warn('[loadMembers]', error.message)
-      showToast('회원 목록을 불러오지 못했어요')
+      if (!quiet) showToast('회원 목록을 불러오지 못했어요')
       return
     }
     setMembers(data || [])
-    computeAllRiskScores(data || [])  // 리스크 점수는 회원 데이터 필요 → 직후 호출
+    if (!quiet) computeAllRiskScores(data || [])  // 리스크 점수는 회원 데이터 필요 → 직후 호출
     // loadTodayAttendance 는 useEffect에서 명시적으로 독립 호출됨
   }
 
@@ -2475,7 +2481,7 @@ export default function TrainerApp() {
     setHistoryLoading(true)
     const { data } = await supabase
       .from('logs')
-      .select('id, created_at, read_at, report_id, member_id, members(name)')
+      .select(HISTORY_COLS)
       .eq('trainer_id', trainer.id)
       .order('created_at', { ascending: false })
       .range(0, 19)
@@ -2493,32 +2499,58 @@ export default function TrainerApp() {
     const from = historyOffset
     const { data } = await supabase
       .from('logs')
-      .select('id, created_at, read_at, report_id, member_id, members(name)')
+      .select(HISTORY_COLS)
       .eq('trainer_id', trainer.id)
       .order('created_at', { ascending: false })
       .range(from, from + 19)
     const rows = data || []
-    setLogs(prev => [...prev, ...rows])
+    // 앱으로 돌아올 때 새로고침이 새 일지를 앞에 붙였으면 이번 쪽 첫 몇 건이 이미 보이는 일지와 겹친다 → 겹치는 건 뺀다
+    setLogs(prev => appendUnique(prev, rows))
     setHistoryOffset(prev => prev + rows.length)
     setHistoryHasMore(rows.length === 20)
     setHistoryLoading(false)
   }
 
-  async function loadHistoryFiltered(dateStr) {
+  // quiet: 앱으로 돌아올 때 — 불러오는 중 표시 없이, 실패하면 지금 목록을 그대로 둔다
+  async function loadHistoryFiltered(dateStr, { quiet = false } = {}) {
     if (!dateStr) { setHistoryFiltered(null); return }
-    setHistoryLoading(true)
+    if (!quiet) setHistoryLoading(true)
     const fromTs = dateStr + 'T00:00:00'
     const toTs   = dateStr + 'T23:59:59.999'
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('logs')
-      .select('id, created_at, read_at, report_id, member_id, members(name)')
+      .select(HISTORY_COLS)
       .eq('trainer_id', trainer.id)
       .gte('created_at', fromTs)
       .lte('created_at', toTs)
       .order('created_at', { ascending: false })
-    setHistoryFiltered(data || [])
-    setHistoryLoading(false)
+    if (!(quiet && error)) setHistoryFiltered(data || [])
+    if (!quiet) setHistoryLoading(false)
   }
+
+  // 앱으로 돌아올 때 발송기록 조용히 갱신 — 최신 20건을 다시 받아 새 일지는 앞에 붙이고 확인 표시(read_at)는 새 값으로.
+  // loadLogs 는 목록을 처음 20건으로 되돌리고 날짜 필터도 풀어 스크롤이 튀므로 여기선 쓰지 않는다.
+  async function refreshHistoryQuietly() {
+    const { data, error } = await supabase
+      .from('logs')
+      .select(HISTORY_COLS)
+      .eq('trainer_id', trainer.id)
+      .order('created_at', { ascending: false })
+      .range(0, 19)
+    if (!error && data) setLogs(prev => mergeLatest(prev, data))
+    if (historyDateFilter) loadHistoryFiltered(historyDateFilter, { quiet: true })
+  }
+
+  // 화면 끝에서 화면 전체가 늘어나는 효과 · 당겨서 새로고침을 끄고(lib/appShell.js), 대신 앱으로 돌아오면
+  // 다른 곳에서 바뀌었을 수 있는 것을 조용히 다시 불러온다: 회원 목록 · 회원이 일지를 읽었는지 · 오늘 출석 · AI 남은 횟수.
+  // (수업 신청 건수는 위 refreshPendingReqs useEffect 가 따로 갱신한다)
+  useAppShell(screen === 'app')
+  useResumeRefresh(() => {
+    loadMembers({ quiet: true })
+    refreshHistoryQuietly()
+    loadTodayAttendance()
+    loadAiUsage(trainer.id)
+  }, screen === 'app' && !!trainer?.id)
 
   async function loadProducts() {
     if (!trainer) return
@@ -2961,11 +2993,13 @@ export default function TrainerApp() {
   async function loadTodayAttendance() {
     if (!trainer?.id) return
     const todayStr = localDateStr()
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('attendance')
       .select('member_id')
       .eq('trainer_id', trainer.id)
       .eq('attended_date', todayStr)
+    // 실패하면 지금 표시를 그대로 둔다 (앱으로 돌아온 직후 네트워크가 덜 깼을 때 출석 표시가 지워지지 않게)
+    if (error) { console.warn('[loadTodayAttendance]', error.message); return }
     setTodayAttendSet(new Set((data || []).map(a => a.member_id)))
   }
 
