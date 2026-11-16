@@ -79,11 +79,42 @@ Xcode → `App` 타겟 → **General / Signing & Capabilities**
 - `NSCameraUsageDescription` = 식단·운동 사진을 촬영하기 위해 카메라를 사용합니다.
 - `NSMicrophoneUsageDescription` = 음성 입력(수업일지 받아쓰기)에 마이크를 사용합니다.
 
+### A-5b. 화면 끝 튕김 끄기 (2026-11-16 추가 — 다음 업데이트 빌드부터)
+아이폰 앱에서 화면 맨 위·맨 아래를 넘겨 밀면 화면 전체가 튕기면서 **위 메뉴줄 · 아래 탭까지 같이 끌려간다**
+(앱이 웹페이지처럼 보임). 안드로이드는 웹 수정(#180)으로 해결됐지만, 아이폰의 튕김은 앱 껍데기(WKWebView 의
+스크롤 뷰)가 직접 하는 것이라 웹으로는 끌 수 없어 네이티브 설정이 필요하다. 맨 위에서 당기는 동작은 웹의
+'당겨서 새로고침'(#181)이 처리하므로 튕김을 꺼도 새로고침은 그대로 된다.
+
+1. Xcode 좌측 `App` 그룹 우클릭 → **New File...** → **Cocoa Touch Class** →
+   Class `MainViewController`, Subclass of `UIViewController` → 만들기.
+2. 만들어진 `MainViewController.swift` 내용을 아래로 통째로 바꾼다:
+   ```swift
+   import UIKit
+   import Capacitor
+
+   class MainViewController: CAPBridgeViewController {
+       override open func capacitorDidLoad() {
+           // 화면 끝 튕김 끄기 — 튕길 때 위 메뉴줄 · 아래 탭까지 끌려가던 문제 (당겨서 새로고침은 웹이 처리)
+           webView?.scrollView.bounces = false
+           webView?.scrollView.alwaysBounceVertical = false
+           webView?.scrollView.alwaysBounceHorizontal = false
+       }
+   }
+   ```
+3. `Main.storyboard` 열기 → **Bridge View Controller Scene** 의 Bridge View Controller 선택 →
+   오른쪽 **Identity Inspector** → Custom Class 의 **Class** 를 `MainViewController` 로 바꾼다.
+4. 아래 A-6 실기기 테스트 4번으로 확인.
+
+> `npx cap sync` 는 이 파일과 storyboard 를 건드리지 않는다. 다만 `ios/` 폴더를 지우고 `npx cap add ios` 로
+> 새로 만들면 A-4 · A-5 와 함께 이 단계도 다시 해야 한다.
+
 ### A-6. 실기기 테스트 (업로드 전 반드시)
 Mac 에 아이폰 연결 → Xcode 상단 기기 선택 → ▶ Run →
 1. **구글 로그인** 정상 → 앱 복귀 → 세션 유지 확인
 2. **카카오 로그인** 정상 (현재 웹에서 비활성 상태면 건너뜀)
 3. 사진 첨부 / 주요 화면 동작 확인
+4. **화면 끝 튕김(A-5b)**: 목록을 맨 아래까지 빠르게 휙 넘겨도 아래 탭이 움직이지 않음 /
+   맨 위에서 아래로 당기면 목록만 내려오고 라임색 표시가 돌며 새로고침됨
 
 ### A-7. 아카이브 + App Store 업로드
 Xcode 상단 기기 = **Any iOS Device (arm64)** → 메뉴 **Product → Archive** →
