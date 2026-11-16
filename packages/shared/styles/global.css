@@ -24,6 +24,11 @@
 
 * { box-sizing:border-box; margin:0; padding:0; }
 body { background:var(--bg); color:var(--text); font-family:'Noto Sans KR',sans-serif; min-height:100vh; -webkit-font-smoothing:antialiased; }
+/* 앱 화면(트레이너 · 회원) — app-shell 클래스는 포털의 useAppShell(apps/portal/src/lib/appShell.js)이 붙인다.
+   화면 끝에서 한 번 더 밀 때 브라우저가 화면 전체를 늘였다 되돌리는 효과를 끈다. 이 효과가 바닥에 고정된
+   아래 탭 · 위 메뉴줄까지 끌어당겨 앱이 웹페이지처럼 보였다. 크롬의 당겨서 새로고침도 같이 꺼지므로,
+   새 내용은 앱으로 돌아올 때 자동으로 불러온다(useResumeRefresh). 좌우(뒤로 가기 몸짓)는 그대로 둔다. */
+html.app-shell, html.app-shell body { overscroll-behavior-y:none; }
 
 /* ========== INPUTS ========== */
 input[type="text"],input[type="password"],input[type="number"],input[type="date"],input[type="email"],input[type="time"],select,textarea {
