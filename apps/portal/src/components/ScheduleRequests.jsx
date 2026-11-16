@@ -263,7 +263,8 @@ function reqLabel(r) {
     : `${d.getMonth()+1}/${d.getDate()} (${day}) ${r.start_time}–${r.end_time}`
 }
 
-export function RequestInbox({ trainerId, members, blocks, onApprove, onChanged, showToast }) {
+// refreshKey: 트레이너 앱에서 당겨서 새로고침할 때마다 바뀐다 → 신청 목록을 다시 불러온다
+export function RequestInbox({ trainerId, members, blocks, refreshKey, onApprove, onChanged, showToast }) {
   const [rows, setRows] = useState(null)
   const [busy, setBusy] = useState(null)
 
@@ -278,7 +279,7 @@ export function RequestInbox({ trainerId, members, blocks, onApprove, onChanged,
     setRows(data || [])
   }, [trainerId])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load() }, [load, refreshKey])
 
   const memberOf = id => members.find(m => m.id === id)
 

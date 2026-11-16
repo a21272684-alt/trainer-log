@@ -20,6 +20,7 @@ import TransformationsShare from './member/TransformationsShare'
 import MemberAttendanceView from './member/MemberAttendanceView'
 import MemberBooking from './member/MemberBooking'
 import { useAppShell, useResumeRefresh, mergeLatest, appendUnique } from '../lib/appShell'
+import { usePullToRefresh, PullIndicator } from '../components/PullToRefresh'
 import '../styles/member.css'
 
 Chart.register(...registerables)
@@ -389,13 +390,23 @@ export default function MemberPortal() {
     }
   }
 
-  // 화면 끝에서 화면 전체가 늘어나는 효과 · 당겨서 새로고침을 끄고(lib/appShell.js), 대신 앱으로 돌아오면
+  // 지금 보고 있는 탭에만 있는 내용 (운동 루틴 · 식단) — 돌아올 때 · 당겨서 새로고침 공통
+  function refreshMemberTab() {
+    if (tab === 'workout') return Promise.allSettled([loadWorkoutSessions(), loadWorkoutRoutines()])
+    if (tab === 'diet') return loadDietLogs(dietDate, { quiet: true })
+    return null
+  }
+
+  // 화면 끝에서 화면 전체가 늘어나는 효과 · 크롬의 당겨서 새로고침을 끄고(lib/appShell.js), 대신 앱으로 돌아오면
   // 트레이너가 새로 보낸 일지 · 기록, 지금 보고 있는 탭(운동 루틴 · 식단)을 조용히 다시 불러온다.
   useAppShell(loggedIn)
-  useResumeRefresh(() => {
-    refreshMemberQuietly()
-    if (tab === 'workout') { loadWorkoutSessions(); loadWorkoutRoutines() }
-    if (tab === 'diet') loadDietLogs(dietDate, { quiet: true })
+  useResumeRefresh(() => { refreshMemberQuietly(); refreshMemberTab() }, loggedIn && !!member?.id)
+
+  // 오운 전용 당겨서 새로고침(components/PullToRefresh) — 위와 같은 것 + 수업 신청 탭(빈 시간 · 내 신청)
+  const [ptrTick, setPtrTick] = useState(0)   // 올리면 수업 신청 탭(MemberBooking)이 다시 불러온다
+  const ptr = usePullToRefresh(() => {
+    setPtrTick(t => t + 1)
+    return Promise.allSettled([refreshMemberQuietly(), refreshMemberTab()])
   }, loggedIn && !!member?.id)
 
   // 로그 카드 내 모든 <video> 의 배속을 일괄 변경
@@ -1311,6 +1322,10 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
           )
         })}
       </nav>
+
+      {/* 당겨서 새로고침 — 표시는 위 메뉴줄 바로 아래, 손가락을 따라 내려오는 건 아래 탭 내용 묶음뿐(위 메뉴줄 · 하단 탭 · 모달은 밖) */}
+      <PullIndicator indicatorRef={ptr.indicatorRef} />
+      <div ref={ptr.contentRef}>{/* ↓ 당겨서 새로고침으로 내려오는 탭 내용 묶음 시작 (안쪽 들여쓰기는 그대로 둠) */}
 
       {/* ── 수업일지 ── */}
       {tab === 'logs' && (
@@ -2390,7 +2405,7 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
       })()}
 
       {/* 개인운동 */}
-      {tab === 'booking' && bookingInfo?.enabled && <MemberBooking info={bookingInfo} showToast={showToast} />}
+      {tab === 'booking' && bookingInfo?.enabled && <MemberBooking info={bookingInfo} showToast={showToast} refreshKey={ptrTick} />}
 
       {tab === 'workout' && (() => {
         const now = new Date()
@@ -2487,6 +2502,18 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
           </div>
         )
       })()}
+
+      {/* 계정 삭제 — 상단바에서 분리, 맨 아래 작고 조용하게 + 탭 시 2차 경고 (오탭 방지).
+          내용이 짧은 탭에서 당길 때 내용과 겹치지 않게 내려오는 묶음 안(맨 끝)에 둔다 */}
+      <div style={{textAlign:'center',padding:'18px 0 10px'}}>
+        <button type="button" onClick={confirmDeleteAccount}
+          style={{background:'none',border:'none',color:'#b8bdb4',fontSize:'11.5px',fontWeight:600,
+            textDecoration:'underline',cursor:'pointer',fontFamily:'inherit'}}>
+          계정 삭제
+        </button>
+      </div>
+
+      </div>{/* ↑ 당겨서 새로고침으로 내려오는 탭 내용 묶음 끝 — 아래 모달들은 position:fixed 라 묶음 밖에 둔다 */}
 
       {/* WORKOUT MODAL */}
       <Modal open={workoutModal} onClose={()=>setWorkoutModal(false)} title={workoutEditId?'운동일지 수정':'운동 기록'} maxWidth="520px">
@@ -2595,15 +2622,6 @@ ${(log.workout_session?.exercises || log.exercises_data) ? `<div class="section"
           </div>
         ))}
       </Modal>
-
-      {/* 계정 삭제 — 상단바에서 분리, 맨 아래 작고 조용하게 + 탭 시 2차 경고 (오탭 방지) */}
-      <div style={{textAlign:'center',padding:'18px 0 10px'}}>
-        <button type="button" onClick={confirmDeleteAccount}
-          style={{background:'none',border:'none',color:'#b8bdb4',fontSize:'11.5px',fontWeight:600,
-            textDecoration:'underline',cursor:'pointer',fontFamily:'inherit'}}>
-          계정 삭제
-        </button>
-      </div>
     </div>
   )
 }
