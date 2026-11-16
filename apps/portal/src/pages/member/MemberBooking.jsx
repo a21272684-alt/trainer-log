@@ -28,7 +28,8 @@ const STATUS = {
 
 const card = { background:'var(--m-surface)', border:'1px solid var(--m-border)', borderRadius:'14px', padding:'14px 16px', marginBottom:'12px' }
 
-export default function MemberBooking({ info, showToast }) {
+// refreshKey: 회원 앱에서 당겨서 새로고침할 때마다 바뀐다 → 빈 시간 · 내 신청을 다시 불러온다
+export default function MemberBooking({ info, showToast, refreshKey }) {
   const [weekOff, setWeekOff] = useState(0)
   const [slots, setSlots] = useState(null)          // [{slot_date,start_time,end_time}]
   const [day, setDay] = useState(null)
@@ -54,8 +55,8 @@ export default function MemberBooking({ info, showToast }) {
     setMine(data || [])
   }, [])
 
-  useEffect(() => { loadSlots() }, [loadSlots])
-  useEffect(() => { loadMine() }, [loadMine])
+  useEffect(() => { loadSlots() }, [loadSlots, refreshKey])
+  useEffect(() => { loadMine() }, [loadMine, refreshKey])
 
   // 주가 바뀌거나 목록이 새로 오면 첫 빈 날을 자동 선택
   useEffect(() => {

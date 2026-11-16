@@ -13,6 +13,7 @@ import { signInWithProvider, isNativeApp, signInWithApple as appleSignIn, getSta
 const HIDE_PURCHASE = isNativeApp()
 import { subscribeToPush, scheduleNotification, deleteScheduledNotification } from '../lib/push'
 import { useAppShell, useResumeRefresh, mergeLatest, appendUnique } from '../lib/appShell'
+import { usePullToRefresh, PullIndicator } from '../components/PullToRefresh'
 import { useToast } from '@trainer-log/shared/components/common/Toast'
 import { trackEvent, trackScreen, noteTier } from '@trainer-log/shared/lib/analytics'
 import Modal from '@trainer-log/shared/components/common/Modal'
@@ -45,6 +46,9 @@ import {
 
 // 발송기록 목록이 읽는 열 (처음 불러오기 · 더 보기 · 날짜 필터 · 앱으로 돌아올 때 새로고침 공통)
 const HISTORY_COLS = 'id, created_at, read_at, report_id, member_id, members(name)'
+
+// 하단 탭이 있는 메인 페이지 목록 (서브페이지에서는 탭 숨김 · 당겨서 새로고침도 이 페이지들에서만)
+const MAIN_PAGES = ['page-members','page-history','page-schedule','page-revenue','page-settings','page-support']
 
 // 운동 동작 일러스트 썸네일 (밝은 박스 — 다크 테마에서도 보이게). 매칭 없으면 렌더 안 함.
 function ExThumb({ name, size = 46 }) {
@@ -2541,16 +2545,26 @@ export default function TrainerApp() {
     if (historyDateFilter) loadHistoryFiltered(historyDateFilter, { quiet: true })
   }
 
-  // 화면 끝에서 화면 전체가 늘어나는 효과 · 당겨서 새로고침을 끄고(lib/appShell.js), 대신 앱으로 돌아오면
+  // 화면 끝에서 화면 전체가 늘어나는 효과 · 크롬의 당겨서 새로고침을 끄고(lib/appShell.js), 대신 앱으로 돌아오면
   // 다른 곳에서 바뀌었을 수 있는 것을 조용히 다시 불러온다: 회원 목록 · 회원이 일지를 읽었는지 · 오늘 출석 · AI 남은 횟수.
   // (수업 신청 건수는 위 refreshPendingReqs useEffect 가 따로 갱신한다)
+  function refreshQuietly() {
+    return Promise.allSettled([loadMembers({ quiet: true }), refreshHistoryQuietly(), loadTodayAttendance(), loadAiUsage(trainer.id)])
+  }
   useAppShell(screen === 'app')
-  useResumeRefresh(() => {
-    loadMembers({ quiet: true })
-    refreshHistoryQuietly()
-    loadTodayAttendance()
-    loadAiUsage(trainer.id)
-  }, screen === 'app' && !!trainer?.id)
+  useResumeRefresh(refreshQuietly, screen === 'app' && !!trainer?.id)
+
+  // 오운 전용 당겨서 새로고침(components/PullToRefresh) — 하단 탭이 있는 페이지에서만.
+  // 위와 같은 것 + 수업 신청(건수 · 신청함) + 매출관리 탭이면 이번 달 매출.
+  const [ptrTick, setPtrTick] = useState(0)   // 올리면 신청함(RequestInbox)이 다시 불러온다
+  const ptr = usePullToRefresh(() => {
+    setPtrTick(t => t + 1)
+    return Promise.allSettled([
+      refreshQuietly(),
+      refreshPendingReqs(),
+      tab === 'revenue' ? loadMonthPayments(payMonthStr) : null,
+    ])
+  }, screen === 'app' && !!trainer?.id && MAIN_PAGES.includes(activePage))
 
   async function loadProducts() {
     if (!trainer) return
@@ -4960,8 +4974,6 @@ export default function TrainerApp() {
   }
 
   // === MAIN APP ===
-  // 하단 탭이 있는 메인 페이지 목록 (서브페이지에서는 탭 숨김)
-  const MAIN_PAGES = ['page-members','page-history','page-schedule','page-revenue','page-settings','page-support']
   const TAB_LABELS = {members:'회원',history:'발송기록',schedule:'시간표',revenue:'매출관리',settings:'설정',support:'문의'}
   // 하단 탭 아이콘 — components/Icon 의 선 아이콘 이름
   const TAB_ICON_NAMES = { members:'users', history:'file', schedule:'calendar', revenue:'chart', settings:'settings', support:'message' }
@@ -5017,6 +5029,10 @@ export default function TrainerApp() {
           })}
         </nav>
       )}
+
+      {/* 당겨서 새로고침 — 표시는 위 메뉴줄 바로 아래, 손가락을 따라 내려오는 건 아래 페이지 묶음뿐(위 메뉴줄 · 하단 탭 · 모달은 밖) */}
+      <PullIndicator indicatorRef={ptr.indicatorRef} />
+      <div ref={ptr.contentRef}>{/* ↓ 당겨서 새로고침으로 내려오는 페이지 묶음 시작 (안쪽 들여쓰기는 그대로 둠) */}
 
       {/* MEMBERS LIST */}
       {activePage === 'page-members' && (
@@ -5548,7 +5564,7 @@ export default function TrainerApp() {
           </div>
           {schedView === 'booking' && <BookingSettings trainerId={trainer?.id} showToast={showToast} />}
           {schedView === 'inbox' && (
-            <RequestInbox trainerId={trainer?.id} members={members} blocks={blocks}
+            <RequestInbox trainerId={trainer?.id} members={members} blocks={blocks} refreshKey={ptrTick}
               onApprove={handleApproveRequest} onChanged={refreshPendingReqs} showToast={showToast} />
           )}
           {schedView === 'grid' && <>
@@ -7006,6 +7022,8 @@ export default function TrainerApp() {
           )}
         </div>
       )}
+
+      </div>{/* ↑ 당겨서 새로고침으로 내려오는 페이지 묶음 끝 — 아래 모달들은 position:fixed 라 묶음 밖에 둔다 */}
 
       {/* PAYMENT CANCEL CONFIRM MODAL — 결제 관리 모달 위에 떠야 하므로 zIndex 강제 */}
       <Modal open={!!cancelPaymentTarget} onClose={()=>setCancelPaymentTarget(null)} title="결제 취소 확인" maxWidth="320px" zIndex={2000}>

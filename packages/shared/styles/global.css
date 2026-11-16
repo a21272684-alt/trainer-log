@@ -29,6 +29,20 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans KR',sans-
    아래 탭 · 위 메뉴줄까지 끌어당겨 앱이 웹페이지처럼 보였다. 크롬의 당겨서 새로고침도 같이 꺼지므로,
    새 내용은 앱으로 돌아올 때 자동으로 불러온다(useResumeRefresh). 좌우(뒤로 가기 몸짓)는 그대로 둔다. */
 html.app-shell, html.app-shell body { overscroll-behavior-y:none; }
+/* 오운 전용 당겨서 새로고침 표시 (apps/portal/src/components/PullToRefresh.jsx) — 위 메뉴줄 바로 아래,
+   목록이 내려오며 생긴 틈에 나타난다. 당기는 중 = 흰 원 + 회색 아이콘, 놓으면 새로고침되는 지점부터 =
+   라임 채움 + 잉크 아이콘(선택된 하단 탭과 같은 규칙). 위치 · 투명도 · 회전은 스크립트가 손가락을 따라 바꾼다. */
+.ptr-slot { position:relative; height:0; z-index:50; }
+.ptr-indicator {
+  position:absolute; top:0; left:50%; width:36px; height:36px; margin-left:-18px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:#fff; color:#6B7280; border:1px solid #E1E4D9; box-shadow:0 2px 10px rgba(0,0,0,0.08);
+  opacity:0; transform:translate3d(0,-44px,0); pointer-events:none;
+}
+.ptr-indicator.armed { background:var(--accent); border-color:var(--accent); color:#111827; }
+.ptr-indicator.spinning svg { animation:ptr-spin 0.8s linear infinite; }
+@keyframes ptr-spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ptr-indicator.spinning svg { animation-duration:2.4s; } }
 
 /* ========== INPUTS ========== */
 input[type="text"],input[type="password"],input[type="number"],input[type="date"],input[type="email"],input[type="time"],select,textarea {
