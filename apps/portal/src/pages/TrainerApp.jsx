@@ -1603,6 +1603,8 @@ function notifPerm() { return NOTIF_SUPPORTED ? Notification.permission : 'unsup
 function localDateStr(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
+// 출결 상태 이름 — [이름, '~(으)로' 붙인 꼴] (토스트 문구용)
+const ATT_STATUS_NAME = { attended: ['출석', '출석으로'], noshow: ['노쇼', '노쇼로'], cancelled: ['사전취소', '사전취소로'] }
 
 // ── 스크롤 애니메이션 헬퍼 ─────────────────────────────────────
 function useInView(threshold = 0.12) {
@@ -1770,7 +1772,8 @@ export default function TrainerApp() {
   const [attendanceDates,  setAttendanceDates]  = useState([]) // [{id, attended_date, status, session_deducted}]
   const [attendancePolicy, setAttendancePolicy] = useState(null) // 트레이너 출결 정책
   const [showAttendancePolicy, setShowAttendancePolicy] = useState(false) // 정책 편집 모달
-  const [noshowDate, setNoshowDate] = useState('') // 노쇼/취소 기록용 선택 날짜
+  const [recordDate, setRecordDate] = useState('') // 출석 탭에서 출석 · 노쇼 · 사전취소를 기록할 날짜 (비우면 오늘)
+  const recordingRef = useRef(false)               // 출결 기록 버튼 연타 방지
   const [attendanceMonth,  setAttendanceMonth]  = useState(() => { const n=new Date(); return {y:n.getFullYear(),m:n.getMonth()} })
   const [todayAttendSet,   setTodayAttendSet]   = useState(new Set()) // 오늘 출석한 회원 ID Set
 
@@ -2971,36 +2974,51 @@ export default function TrainerApp() {
       await loadAttendance(currentMemberId)
     } catch (e) { showToast('출석 처리 실패: ' + e.message) }
   }
-  // 노쇼/사전취소 기록 (정책에 따라 세션 차감)
+  // 출석 탭에서 고른 날짜로 출결 기록 — 출석(세션 1회 차감) · 노쇼(정책에 따라 차감) · 사전취소(차감 없음).
+  // 그날 출석 체크를 깜빡한 지난 수업도 수업한 날짜로 남겨야 매출 소진 · 정산의 날짜가 맞는다.
+  // 회원 · 날짜당 기록은 1건(DB unique) — 이미 있으면 상태만 바꾸고, 차감 여부가 달라진 만큼만 세션을 보정한다.
   async function recordAttendanceStatus(dateStr, status) {
     if (!dateStr) { showToast('날짜를 선택해주세요'); return }
-    const existing = attendanceDates.find(a => a.attended_date === dateStr)
-    const deduct = status === 'noshow' && attendancePolicy?.noshow_deduct === 1
+    if (dateStr > localDateStr()) { showToast('오늘 이후 날짜는 기록할 수 없어요'); return }
+    if (recordingRef.current) return
+    recordingRef.current = true
+    const deduct = status === 'attended' || (status === 'noshow' && attendancePolicy?.noshow_deduct === 1)
+    const [yy, mo, dd] = dateStr.split('-').map(Number)
+    const day = `${mo}월 ${dd}일`
+    const [name, nameRo] = ATT_STATUS_NAME[status]
     try {
+      // 펼친 달 밖의 날짜도 고를 수 있어서, 화면 목록(attendanceDates) 대신 DB 에서 그날 기록을 찾는다
+      const { data: existing, error: fErr } = await supabase.from('attendance')
+        .select('id, status, session_deducted')
+        .eq('member_id', currentMemberId).eq('attended_date', dateStr).maybeSingle()
+      if (fErr) throw fErr
+      const prevDeducted = !!existing?.session_deducted
+      if (existing && (existing.status || 'attended') === status && prevDeducted === deduct) {
+        showToast(`${day}은 이미 ${nameRo} 기록돼 있어요`)
+        return
+      }
       if (existing) {
-        // 상태 변경: 이전 차감 여부와 새 차감 여부 차이만큼 세션 보정
-        const prevDeducted = !!existing.session_deducted
         const { error: uErr } = await supabase.from('attendance').update({ status, session_deducted: deduct }).eq('id', existing.id)
         if (uErr) throw uErr
-        if (prevDeducted !== deduct && currentMember) {
-          const delta = deduct ? 1 : -1
-          const { error: mErr } = await supabase.from('members').update({ done_sessions: Math.max(0, (currentMember.done_sessions||0) + delta) }).eq('id', currentMember.id)
-          if (mErr) throw mErr
-          await loadMembers()
-        }
       } else {
         const { error: iErr } = await supabase.from('attendance').insert({ trainer_id: trainer.id, member_id: currentMemberId, attended_date: dateStr, status, session_deducted: deduct })
         if (iErr) throw iErr
-        if (deduct && currentMember) {
-          const { error: mErr } = await supabase.from('members').update({ done_sessions: (currentMember.done_sessions||0) + 1 }).eq('id', currentMember.id)
-          if (mErr) throw mErr
-          await loadMembers()
-        }
       }
-      await loadAttendance(currentMemberId)
-      setNoshowDate('')
-      showToast(status === 'noshow' ? (deduct ? '노쇼 기록 · 세션 1회 차감' : '노쇼 기록됨 (차감 없음)') : '사전취소 기록됨')
+      const delta = (deduct ? 1 : 0) - (prevDeducted ? 1 : 0)
+      if (delta !== 0 && currentMember) {
+        const { error: mErr } = await supabase.from('members').update({ done_sessions: Math.max(0, (currentMember.done_sessions||0) + delta) }).eq('id', currentMember.id)
+        if (mErr) throw mErr
+        await loadMembers()
+      }
+      // 고른 날짜가 펼친 달과 다르면 그 달로 넘겨 방금 기록이 보이게 한다 (달이 바뀌면 출결을 다시 불러온다)
+      if (yy !== attendanceMonth.y || mo - 1 !== attendanceMonth.m) setAttendanceMonth({ y: yy, m: mo - 1 })
+      else await loadAttendance(currentMemberId)
+      if (dateStr === localDateStr()) loadTodayAttendance()   // 오늘이면 회원 목록의 출석 버튼도 맞춘다
+      setRecordDate('')
+      const sessionNote = delta > 0 ? ' · 세션 1회 차감' : delta < 0 ? ' · 세션 1회 복원' : ''
+      showToast(existing ? `${day} ${nameRo} 바꿨어요${sessionNote}` : `${day} ${name} 기록${sessionNote || ' (차감 없음)'}`)
     } catch (e) { showToast('처리 실패: ' + e.message) }
+    finally { recordingRef.current = false }
   }
 
   // 오늘 출석한 회원 ID 목록 로드 (회원 리스트 퀵 액션용)
@@ -6291,7 +6309,7 @@ export default function TrainerApp() {
             const firstDay = new Date(y, m, 1)
             const daysInMonth = new Date(y, m+1, 0).getDate()
             const startDow = (firstDay.getDay()+6)%7 // 월=0
-            const todayStr = new Date().toISOString().split('T')[0]
+            const todayStr = localDateStr()   // 로컬 날짜 (toISOString 은 KST 새벽 0~9시에 어제가 돼서 오늘을 못 골랐다)
             const statusOf = d => attendanceDates.find(a => a.attended_date === d)?.status || null
             const attendedSet = new Set(attendanceDates.filter(a => (a.status||'attended')==='attended').map(a => a.attended_date))
             const noshowSet   = new Set(attendanceDates.filter(a => a.status==='noshow').map(a => a.attended_date))
@@ -6331,22 +6349,24 @@ export default function TrainerApp() {
                     )
                   })}
                 </div>
-                {/* 달력은 조회 전용 — 실수 클릭 방지. 출석은 회원 목록 버튼으로만 */}
+                {/* 달력은 조회 전용 — 실수 클릭 방지. 기록은 아래 날짜 + 버튼으로만 */}
                 <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'9px',lineHeight:1.5,textAlign:'center'}}>
-                  달력은 조회용이에요. 출석 체크는 <b style={{color:'var(--text-muted)'}}>회원 목록의 출석 버튼</b>으로 해주세요.
+                  달력은 조회용이에요. 지난 수업 출석은 <b style={{color:'var(--text-muted)'}}>아래에서 날짜를 골라</b> 기록해요.
                 </div>
-                {/* 노쇼/취소 기록 + 정책 */}
+                {/* 출석 · 노쇼 · 사전취소 기록 (고른 날짜로) + 정책 */}
                 <div style={{marginTop:'14px',display:'flex',gap:'8px',alignItems:'center'}}>
-                  <input type="date" value={noshowDate} max={todayStr}
-                    onChange={e=>setNoshowDate(e.target.value)}
-                    style={{flex:1,fontSize:'12px'}} />
+                  <input type="date" value={recordDate} max={todayStr} aria-label="기록할 날짜"
+                    onChange={e=>setRecordDate(e.target.value)}
+                    style={{flex:1,minWidth:0,fontSize:'12px'}} />
+                  <button className="btn btn-sm" style={{background:'var(--accent)',color:'#111827',border:'1px solid var(--accent)',whiteSpace:'nowrap'}}
+                    onClick={()=>recordAttendanceStatus(recordDate||todayStr,'attended')}>출석</button>
                   <button className="btn btn-sm" style={{background:'rgba(239,68,68,0.1)',color:'#ef4444',border:'1px solid rgba(239,68,68,0.25)',whiteSpace:'nowrap'}}
-                    onClick={()=>recordAttendanceStatus(noshowDate||todayStr,'noshow')}>노쇼</button>
+                    onClick={()=>recordAttendanceStatus(recordDate||todayStr,'noshow')}>노쇼</button>
                   <button className="btn btn-sm" style={{background:'var(--surface2)',color:'var(--text-muted)',border:'1px solid var(--border)',whiteSpace:'nowrap'}}
-                    onClick={()=>recordAttendanceStatus(noshowDate||todayStr,'cancelled')}>사전취소</button>
+                    onClick={()=>recordAttendanceStatus(recordDate||todayStr,'cancelled')}>사전취소</button>
                 </div>
                 <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:'6px',lineHeight:1.5}}>
-                  날짜 선택 후 기록 (미선택 시 오늘). 노쇼는 {attendancePolicy?.noshow_deduct===1?'정책에 따라 세션 1회 차감':'차감 없음'}.{' '}
+                  날짜 선택 후 기록 (미선택 시 오늘). 출석은 세션 1회 차감, 노쇼는 {attendancePolicy?.noshow_deduct===1?'정책에 따라 세션 1회 차감':'차감 없음'}.{' '}
                   <span onClick={()=>setShowAttendancePolicy(true)} style={{color:'var(--accent-text)',cursor:'pointer',fontWeight:600}}>출결 정책 설정 ›</span>
                 </div>
 
