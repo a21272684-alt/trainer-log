@@ -1693,6 +1693,10 @@ export default function TrainerApp() {
   const [showPreview, setShowPreview] = useState(false)
   const [editingLog, setEditingLog] = useState(false)   // 미리보기 '직접 수정하기' 토글
   const [showSend, setShowSend] = useState(false)
+  // 일지 수업 날짜 ('' = 오늘). 지난 수업 일지도 그날로 남긴다 — 일지 글의 📅 · 운동 기록 · 출석(세션 차감) 날짜.
+  const [lessonDate,    setLessonDate]    = useState('')
+  const [lessonAtt,     setLessonAtt]     = useState(null) // { memberId, day, rec } — 그 회원 · 날짜의 출결 기록. 세션이 이미 빠졌는지 안내 · 잠금용
+  const [lessonAttTick, setLessonAttTick] = useState(0)    // 올리면 그날 출결을 다시 확인
   const VALID_RTABS = ['write','attendance','health','holds','personal','diet','insight']
   const [rtab, setRtab] = useState('write')
   // rtab setter — 유효하지 않은 값은 'write'로 강제
@@ -3123,6 +3127,7 @@ export default function TrainerApp() {
     if (typeof setShowSend === 'function') setShowSend(false)
     if (typeof setRawInput === 'function') setRawInput('')
     if (typeof setFinalContent === 'function') setFinalContent('')
+    setLessonDate('')   // 회원을 열 때마다 수업 날짜는 오늘로 (지난 날짜가 다음 회원에게 이어지지 않게)
     safeSetRtab('write')
     loadHolds(memberId)
   }
@@ -3543,6 +3548,42 @@ export default function TrainerApp() {
         && !window.confirm('직접 고친 내용이 사라져요. 다시 만들까요?')) return
     generateLog()
   }
+  // ── 일지 수업 날짜 ─────────────────────────────────────────
+  // 일지 글의 📅 줄과 같은 꼴 (buildSessionLogPrompt 와 같은 형식이어야 날짜 바꾸기가 글에도 반영된다)
+  const lessonDayLabel = (ds) => new Date(ds + 'T00:00:00').toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
+  async function fetchLessonAtt(memberId, day) {
+    const { data, error } = await supabase.from('attendance')
+      .select('id, status, session_deducted')
+      .eq('member_id', memberId).eq('attended_date', day).maybeSingle()
+    if (error) throw error
+    return data || null
+  }
+  // 날짜를 바꾸면 이미 만든 일지 글의 날짜(📅 줄)도 같이 바꾼다 — AI 는 프롬프트의 날짜를 그대로 옮겨 적는다
+  function changeLessonDate(next) {
+    const prevDay = lessonDate || localDateStr()
+    const nextDay = next || localDateStr()
+    setLessonDate(next === localDateStr() ? '' : next)
+    if (prevDay === nextDay) return
+    const a = lessonDayLabel(prevDay), b = lessonDayLabel(nextDay)
+    setFinalContent(t => (t ? t.split(a).join(b) : t))
+    setPreviewContent(t => (t ? t.split(a).join(b) : t))
+  }
+  // 일지 탭이 열려 있을 때 그날 출결을 확인 — 출석 체크 · 지난 날짜 출석 기록 뒤에 일지를 쓰면 세션이 이미 빠져 있다
+  const onWriteTab = activePage === 'page-record' && (rtab === 'write' || !VALID_RTABS.includes(rtab ?? ''))
+  useEffect(() => {
+    if (!onWriteTab || !currentMemberId) return
+    let alive = true
+    const day = lessonDate || localDateStr()
+    fetchLessonAtt(currentMemberId, day)
+      .then(rec => { if (alive) setLessonAtt({ memberId: currentMemberId, day, rec }) })
+      .catch(() => { if (alive) setLessonAtt(null) })
+    return () => { alive = false }
+  }, [onWriteTab, currentMemberId, lessonDate, lessonAttTick])
+  // 지금 고른 회원 · 날짜의 결과만 쓴다 (날짜를 바꾼 직후엔 아직 이전 날짜 결과가 남아 있어서)
+  const lessonRec = lessonAtt?.memberId === currentMemberId && lessonAtt?.day === (lessonDate || localDateStr()) ? lessonAtt.rec : null
+  // 남은 수업이 없어도 그날 출석으로 세션이 이미 빠졌다면 그 수업의 일지는 쓸 수 있다
+  const noSessionLeft = ((currentMember?.total_sessions||0) - (currentMember?.done_sessions||0)) <= 0 && !lessonRec?.session_deducted
+
   async function generateLog() {
     if (!rawInput.trim() && !exercises.length) { showToast('수업 내용을 입력해주세요'); return }
     const key = centralApiKey
@@ -3565,10 +3606,15 @@ export default function TrainerApp() {
     }
     // ─────────────────────────────────────────────────────────
 
-    // ── 잔여 수업 체크 ────────────────────────────────────────
+    // ── 수업 날짜 · 잔여 수업 체크 ────────────────────────────
     const m = currentMember
+    const lessonDay = lessonDate || localDateStr()
+    if (lessonDay > localDateStr()) { showToast('오늘 이후 날짜로는 일지를 쓸 수 없어요'); return }
+    // 그날 출석이 이미 세션을 뺐으면(출석 체크 뒤 일지) 이번 일지는 그 회차 — 회차 번호에 1을 더하지 않는다
+    let counted = false
+    try { counted = !!(await fetchLessonAtt(m.id, lessonDay))?.session_deducted } catch {}
     const remainSessions = (m?.total_sessions || 0) - (m?.done_sessions || 0)
-    if (remainSessions <= 0) {
+    if (!counted && remainSessions <= 0) {
       showToast('잔여 수업이 0회예요. 수업권을 먼저 추가해주세요.')
       return
     }
@@ -3587,6 +3633,8 @@ export default function TrainerApp() {
         rawInput:    combinedInput,
         hasAudio:    false,
         perspective: perspectiveChip || 'rehab',
+        lessonDate:     lessonDay,
+        alreadyCounted: counted,
       })
 
       // 사용 횟수 확인·차감은 서버가 함 (gemini-proxy → ai_gate_begin/finish, 101).
@@ -3625,6 +3673,8 @@ export default function TrainerApp() {
   async function sendKakao() {
     const m = currentMember
     if (!finalContent) { showToast('먼저 수업일지를 생성해주세요'); return }
+    const lessonDay = lessonDate || localDateStr()   // 수업 날짜 — 운동 기록 · 출석(세션 차감)이 이 날로 남는다
+    if (lessonDay > localDateStr()) { showToast('오늘 이후 날짜로는 보낼 수 없어요'); return }
     if (sendingRef.current) return
     sendingRef.current = true
     setSending(true)
@@ -3701,7 +3751,6 @@ export default function TrainerApp() {
               const sets = ex?.sets || []
               return tot + sets.reduce((s, set) => s + ((parseFloat(set?.weight) || 0) * (parseInt(set?.reps) || 0)), 0)
             }, 0)
-            const today = new Date().toISOString().split('T')[0]
             const { data: sotRow, error: sotErr } = await supabase
               .from('workout_sessions')
               .insert({
@@ -3709,7 +3758,7 @@ export default function TrainerApp() {
                 trainer_id:   trainer.id,
                 source:       'trainer',
                 title:        null,
-                workout_date: today,
+                workout_date: lessonDay,   // 수업 날짜 (예전엔 UTC 오늘이라 한국 새벽 0~9시엔 어제로 남았다)
                 duration_min: null,
                 memo:         null,
                 exercises:    cleanExArr,
@@ -3728,12 +3777,17 @@ export default function TrainerApp() {
         console.warn('[sendKakao] SoT 처리 중 예외:', sotE?.message)
       }
 
+      // 수업 날짜의 출결 — 회차 번호와 아래 출석 처리에 같이 쓴다 (조회 실패 시 예전처럼 '아직 안 빠짐'으로 본다)
+      let dayAtt = null
+      try { dayAtt = await fetchLessonAtt(currentMemberId, lessonDay) } catch (e) { console.warn('[sendKakao] 출결 조회 실패:', e?.message) }
+      const counted = !!dayAtt?.session_deducted   // 출석 체크 · 지난 날짜 출석으로 세션이 이미 빠졌으면 이번 일지는 그 회차
+
       // logs 인서트 — 무거운 JSONB 제거, session_id 참조만 보유 (Payload 경량화)
       const insertData = {
         trainer_id:     trainer.id,
         member_id:      currentMemberId,
         content:        finalContent,
-        session_number: m.done_sessions + 1,
+        session_number: m.done_sessions + (counted ? 0 : 1),
         report_id:      reportId,
         session_id:     sotSessionId,   // ← SoT 참조 (workout_sessions.id)
         media_urls:     mediaPayload,   // [] or [{url, type}, ...]
@@ -3743,26 +3797,29 @@ export default function TrainerApp() {
       const { error: logErr } = await supabase.from('logs').insert(insertData)
       if (logErr) throw new Error('일지 저장 실패: ' + logErr.message)
 
-      // 출석 = 세션 차감(단일 주체). 일지 발송 = 그날 자동 출석 처리 → 이중차감 방지.
-      //   · 그날 출석 없음 → 출석 생성 + 세션 -1
-      //   · 옛 출석행(차감 안 됨) → 차감 처리로 승격 + 세션 -1
-      //   · 이미 차감된 출석 있음 → 아무것도 안 함(이중차감 방지)
+      // 출석 = 세션 차감(단일 주체). 일지 발송 = 수업 날짜 출석 처리 → 이중차감 방지.
+      //   · 그날 출결 없음 → 출석 생성 + 세션 -1
+      //   · 차감 안 된 기록(옛 출석행 · 사전취소) → 출석 + 차감으로 바꾸고 세션 -1
+      //   · 이미 차감된 기록(출석 체크 · 지난 날짜 출석 · 차감된 노쇼) → 세션은 그대로, 노쇼였다면 출석으로만 바꿈
       try {
-        const today = localDateStr()
-        const { data: todayAtt } = await supabase.from('attendance')
-          .select('id, session_deducted')
-          .eq('member_id', currentMemberId).eq('attended_date', today).maybeSingle()
-        if (!todayAtt) {
-          await supabase.from('attendance').insert({ trainer_id: trainer.id, member_id: currentMemberId, attended_date: today, status: 'attended', session_deducted: true })
-          await supabase.from('members').update({ done_sessions: m.done_sessions + 1 }).eq('id', currentMemberId)
-        } else if (!todayAtt.session_deducted) {
-          await supabase.from('attendance').update({ session_deducted: true }).eq('id', todayAtt.id)
-          await supabase.from('members').update({ done_sessions: m.done_sessions + 1 }).eq('id', currentMemberId)
+        if (!dayAtt) {
+          const { error: iErr } = await supabase.from('attendance').insert({ trainer_id: trainer.id, member_id: currentMemberId, attended_date: lessonDay, status: 'attended', session_deducted: true })
+          if (iErr) throw iErr
+        } else if (dayAtt.status !== 'attended' || !dayAtt.session_deducted) {
+          const { error: uErr } = await supabase.from('attendance').update({ status: 'attended', session_deducted: true }).eq('id', dayAtt.id)
+          if (uErr) throw uErr
+        }
+        if (!counted) {
+          const { error: mErr } = await supabase.from('members').update({ done_sessions: m.done_sessions + 1 }).eq('id', currentMemberId)
+          if (mErr) throw mErr
         }
       } catch (attE) { console.warn('[sendKakao] 출석 연동 실패:', attE?.message) }
 
       await loadMembers(); await loadLogs()
-      showToast('📱 회원 앱으로 일지가 전송되었습니다.')
+      if (lessonDay === localDateStr()) loadTodayAttendance()   // 회원 목록의 출석 버튼도 맞춘다
+      setLessonAttTick(t => t + 1)
+      const [, lm, ld] = lessonDay.split('-').map(Number)
+      showToast(lessonDay === localDateStr() ? '📱 회원 앱으로 일지가 전송되었습니다.' : `📱 ${lm}월 ${ld}일 수업일지를 회원 앱으로 보냈어요`)
       trackEvent('journal_sent', { has_media: (insertData.media_urls?.length || 0) > 0 })
       setTimeout(() => {
         // 모든 setter 는 TrainerApp closure 내부 정의 — 안전망으로 존재 여부 검증 후 호출
@@ -3775,6 +3832,7 @@ export default function TrainerApp() {
         if (typeof setFinalContent === 'function') setFinalContent('')
         if (typeof setExercises === 'function') setExercises([])
         if (typeof setMediaFiles === 'function') setMediaFiles([])
+        setLessonDate('')   // 다음 일지는 다시 오늘로
         // 발송 화면이 닫힌 뒤에 잠금 해제 (1.5초 사이 재전송 방지)
         sendingRef.current = false
         setSending(false)
@@ -6615,6 +6673,38 @@ export default function TrainerApp() {
               })()}
               <div className="card write-card">
 
+                {/* ── 수업 날짜 — 기본 오늘. 지난 수업 일지면 그날로 바꾸면 일지 글 · 운동 기록 · 출석이 그 날짜로 남는다 ── */}
+                {(() => {
+                  const todayStr = localDateStr()
+                  const day = lessonDate || todayStr
+                  const past = day !== todayStr
+                  const [, mo, dd] = day.split('-').map(Number)
+                  const note = lessonRec?.session_deducted
+                    ? `${past ? `${mo}월 ${dd}일` : '오늘'} 출석이 이미 기록돼 있어요. 보내도 세션은 다시 빠지지 않아요.`
+                    : past ? `${mo}월 ${dd}일 수업으로 보내요. 출석 · 운동 기록도 그날로 남아요.` : ''
+                  return (
+                    <div style={{marginBottom:'14px'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                        <span style={{fontSize:'14px',fontWeight:800,color:'var(--text)',flexShrink:0}}>수업 날짜</span>
+                        <input type="date" value={day} max={todayStr} aria-label="수업 날짜"
+                          onChange={e => changeLessonDate(e.target.value)}
+                          style={{flex:1,minWidth:0,height:'44px',fontSize:'15px',borderRadius:'12px',
+                            ...(past ? {borderColor:'#F59E0B',background:'#FFFBEB'} : {})}} />
+                        {past && (
+                          <button onClick={() => changeLessonDate('')}
+                            style={{flexShrink:0,height:'44px',padding:'0 12px',borderRadius:'12px',border:'1px solid #E6E8E0',background:'#fff',
+                              fontSize:'13px',fontWeight:700,color:'var(--text)',cursor:'pointer',fontFamily:'inherit'}}>
+                            오늘로
+                          </button>
+                        )}
+                      </div>
+                      {note && (
+                        <div style={{fontSize:'12px',lineHeight:1.5,marginTop:'6px',paddingLeft:'2px',color: past ? '#92400E' : 'var(--text-muted)'}}>{note}</div>
+                      )}
+                    </div>
+                  )
+                })()}
+
                 {/* ── AI 음성 마이크 버튼 (Web Speech API) — 잉크 버튼, 듣는 중엔 빨강 ── */}
                 {speechSupported && (
                   <button
@@ -6978,13 +7068,13 @@ export default function TrainerApp() {
                   <button
                     className="btn btn-primary"
                     style={{width:'100%',marginBottom:'10px',minHeight:'58px',borderRadius:'18px',fontSize:'17px',fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',
-                      opacity: aiRemaining <= 0 || ((currentMember?.total_sessions||0)-(currentMember?.done_sessions||0)) <= 0 ? 0.5 : 1,
-                      cursor: aiRemaining <= 0 || ((currentMember?.total_sessions||0)-(currentMember?.done_sessions||0)) <= 0 ? 'not-allowed' : 'pointer'}}
+                      opacity: aiRemaining <= 0 || noSessionLeft ? 0.5 : 1,
+                      cursor: aiRemaining <= 0 || noSessionLeft ? 'not-allowed' : 'pointer'}}
                     onClick={generateLog}
                   >
                     {aiRemaining <= 0
                       ? <><Icon name="lock" size={17} />{aiQuota?.mode === 'quota' ? '이번 달 무료 횟수 소진' : '크레딧 부족'}</>
-                      : ((currentMember?.total_sessions||0)-(currentMember?.done_sessions||0)) <= 0
+                      : noSessionLeft
                         ? <><Icon name="lock" size={17} />잔여 수업 없음</>
                         : <><Icon name="sparkle" size={19} strokeWidth={2.2} />AI 수업일지 만들기</>}
                   </button>
@@ -7007,6 +7097,10 @@ export default function TrainerApp() {
                   </button>
                   <div style={{fontSize:'12px',color:'var(--text-muted)',textAlign:'center',marginBottom:'10px'}}>
                     {currentMember?.name ? `${currentMember.name} 님의 ` : '회원님의 '}오운 앱으로 바로 전달돼요
+                    {lessonDate && lessonDate !== localDateStr() && (() => {
+                      const [, mo, dd] = lessonDate.split('-').map(Number)
+                      return <b style={{display:'block',marginTop:'2px',color:'#92400E',fontWeight:700}}>{mo}월 {dd}일 수업으로 기록돼요</b>
+                    })()}
                   </div>
                 </div>
               )}
