@@ -186,15 +186,20 @@ const PERSPECTIVE_TEXT = {
  * @param {string} [p.rawInput]       - 트레이너 메모 (STT 또는 직접 입력)
  * @param {string} [p.perspective]    - AI 해석 관점 키워드(rehab/motivation/performance/diet/ak/complex) 또는 자유 텍스트
  * @param {boolean} [p.hasAudio]      - 오디오 파일 포함 여부 (멀티파트 시 true)
+ * @param {string} [p.lessonDate]     - 수업 날짜 'YYYY-MM-DD' (없으면 오늘) — 지난 수업 일지를 다음 날 쓸 때
+ * @param {boolean} [p.alreadyCounted] - 그날 출석으로 세션이 이미 빠졌으면 true → 이번 일지는 done_sessions 회차
  * @returns {string} Gemini 프롬프트
  */
 export function buildSessionLogPrompt({
   trainer, member, exercises = [], rawInput = '',
   perspective = '', hasAudio = false,
+  lessonDate = null, alreadyCounted = false,
 }) {
-  const remain  = Math.max(0, member.total_sessions - member.done_sessions - 1)
-  const session = member.done_sessions + 1
-  const today   = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
+  const session = member.done_sessions + (alreadyCounted ? 0 : 1)
+  const remain  = Math.max(0, member.total_sessions - session)
+  // TrainerApp 의 lessonDayLabel 과 같은 꼴이어야 한다 (날짜를 바꾸면 일지 글의 📅 줄을 이 꼴로 찾아 바꾼다)
+  const today   = (lessonDate ? new Date(lessonDate + 'T00:00:00') : new Date())
+    .toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
 
   const exStr = exercises.length
     ? exercises.map(ex => {
