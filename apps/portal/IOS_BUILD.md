@@ -18,7 +18,8 @@ ownapp.kr 웹앱을 **Capacitor 네이티브 셸**로 감싸 App Store 에 올�
 | 앱 표시 이름 | 오운 |
 | 로드 URL | https://ownapp.kr |
 | OAuth 딥링크(복귀 주소) | `kr.ownapp.app://oauth-callback` |
-| 최소 iOS | 15.0+ (Capacitor 8 기준 — 출시된 1.0 도 앱스토어에 15.0 으로 표시) |
+| 앱 버전 | 1.0 (2026-11-10 출시) → 다음 업데이트 1.1 |
+| 최소 iOS 버전 (설치 가능한 아이폰 운영체제) | iOS 15.0 이상 — 앱 버전과는 다른 숫자. 앱 껍데기 도구(Capacitor 8)가 정한 값이라 바꿀 일 없음 (아이폰 6s 이후 모델 설치 가능) |
 
 ---
 
