@@ -20,6 +20,21 @@ export default defineConfig({
       'Cross-Origin-Embedder-Policy': 'credentialless',
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // 잘 안 바뀌는 기본 부품(node_modules)은 따로 묶는다 — 앱 코드만 바뀐 배포에선 이 파일들을 휴대폰에 저장된 그대로 쓴다.
+        // chart.js 는 회원 앱만 쓰므로 회원 앱을 열 때만 받는다.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+          if (id.includes('@sentry')) return 'sentry'
+          if (id.includes('@supabase')) return 'supabase'
+          if (id.includes('chart.js')) return 'chart'
+          if (/[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler|@remix-run)[\\/]/.test(id)) return 'react'
+        },
+      },
+    },
+  },
   preview: {
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
