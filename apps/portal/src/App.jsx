@@ -1,17 +1,19 @@
 import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ToastProvider } from '@trainer-log/shared/components/common/Toast'
-import Landing from './pages/Landing'
-import TrainerApp from './pages/TrainerApp'
-import MemberPortal from './pages/MemberPortal'
-import Report from './pages/Report'
-import Terms from './pages/Terms'
-import Privacy from './pages/Privacy'
-import Refund from './pages/Refund'
-import AccountDeletion from './pages/AccountDeletion'
-import ComingSoon from './pages/ComingSoon'
-import NativeStart from './pages/NativeStart'
 import { initNativeAuthListener, isNativeApp } from './lib/nativeAuth'
+
+// 페이지는 필요할 때만 받는다 — 랜딩만 보러 온 사람이 트레이너 앱 · 회원 앱 코드까지 받지 않게.
+const Landing         = lazy(() => import('./pages/Landing'))
+const TrainerApp      = lazy(() => import('./pages/TrainerApp'))
+const MemberPortal    = lazy(() => import('./pages/MemberPortal'))
+const Report          = lazy(() => import('./pages/Report'))
+const Terms           = lazy(() => import('./pages/Terms'))
+const Privacy         = lazy(() => import('./pages/Privacy'))
+const Refund          = lazy(() => import('./pages/Refund'))
+const AccountDeletion = lazy(() => import('./pages/AccountDeletion'))
+const ComingSoon      = lazy(() => import('./pages/ComingSoon'))
+const NativeStart     = lazy(() => import('./pages/NativeStart'))
 
 // ⚠️ Phase D-4 베타 출시 정책 (Path B):
 // CRM / Community 는 코드는 완성 상태이나 운영(prod) 배포엔 미공개.
@@ -33,6 +35,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <ToastProvider>
+        <Suspense fallback={null}>
         <Routes>
           {/* iOS 앱은 역할 선택 화면으로 시작(심사 4.2·2.1), 웹·안드로이드는 마케팅 랜딩 */}
           <Route path="/" element={isNativeApp() ? <NativeStart /> : <Landing />} />
@@ -78,6 +81,7 @@ export default function App() {
           <Route path="/refund" element={<Refund />} />
           <Route path="/account-deletion" element={<AccountDeletion />} />
         </Routes>
+        </Suspense>
       </ToastProvider>
     </BrowserRouter>
   )
