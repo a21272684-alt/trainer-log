@@ -5822,10 +5822,10 @@ export default function TrainerApp() {
                   boxShadow: '0 1px 8px rgba(200,241,53,0.25)', letterSpacing: '-0.2px' }}>
                 👤 공개 프로필 관리 (dev)
               </button>
-              <Modal open={showProfileEditor} onClose={() => setShowProfileEditor(false)}
+              {showProfileEditor && <Modal open={showProfileEditor} onClose={() => setShowProfileEditor(false)}
                 title="공개 프로필 관리" maxWidth="560px">
                 {trainer && <ProfileEditor trainer={trainer} onClose={() => setShowProfileEditor(false)} />}
-              </Modal>
+              </Modal>}
 
               <button type="button" onClick={() => setShowTransformUpload(true)}
                 style={{ width: '100%', padding: '13px', borderRadius: '11px', marginTop: '10px', border: 'none',
@@ -5835,10 +5835,10 @@ export default function TrainerApp() {
                   boxShadow: '0 1px 8px rgba(200,241,53,0.25)', letterSpacing: '-0.2px' }}>
                 📸 회원 변화 사진 업로드 (dev)
               </button>
-              <Modal open={showTransformUpload} onClose={() => setShowTransformUpload(false)}
+              {showTransformUpload && <Modal open={showTransformUpload} onClose={() => setShowTransformUpload(false)}
                 title="회원 변화 사진 업로드" maxWidth="520px">
                 {trainer && <MemberTransformationUpload trainer={trainer} members={members} onClose={() => setShowTransformUpload(false)} />}
-              </Modal>
+              </Modal>}
             </div>
           )}
 
@@ -6455,9 +6455,9 @@ export default function TrainerApp() {
             )
           })()}
 
-          <Modal open={showAttendancePolicy} onClose={() => setShowAttendancePolicy(false)} title="출결 정책 설정" maxWidth="480px">
+          {showAttendancePolicy && <Modal open={showAttendancePolicy} onClose={() => setShowAttendancePolicy(false)} title="출결 정책 설정" maxWidth="480px">
             {trainer && <AttendancePolicyEditor trainer={trainer} onClose={() => { setShowAttendancePolicy(false); setAttendancePolicy(null); if (currentMemberId) loadAttendance(currentMemberId) }} />}
-          </Modal>
+          </Modal>}
 
           {rtab === 'health' && (
             <div>
@@ -7139,8 +7139,10 @@ export default function TrainerApp() {
 
       </div>{/* ↑ 당겨서 새로고침으로 내려오는 페이지 묶음 끝 — 아래 모달들은 position:fixed 라 묶음 밖에 둔다 */}
 
+      {/* 팝업은 열려 있을 때만 그린다 ({열림 && <Modal …>}). 공용 Modal 은 닫혀 있어도 내용을 그려 두고 숨기기만 해서,
+          팝업 17개가 글자 하나 칠 때마다 전부 다시 계산돼 앱이 무거웠다(입력 한 글자 60~80ms → 7ms). */}
       {/* PAYMENT CANCEL CONFIRM MODAL — 결제 관리 모달 위에 떠야 하므로 zIndex 강제 */}
-      <Modal open={!!cancelPaymentTarget} onClose={()=>setCancelPaymentTarget(null)} title="결제 취소 확인" maxWidth="320px" zIndex={2000}>
+      {!!cancelPaymentTarget && <Modal open={!!cancelPaymentTarget} onClose={()=>setCancelPaymentTarget(null)} title="결제 취소 확인" maxWidth="320px" zIndex={2000}>
         <div style={{textAlign:'center',padding:'8px 0 20px'}}>
           <div style={{display:'flex',justifyContent:'center',marginBottom:'12px',color:'#B91C1C'}}><Icon name="alert" size={32} strokeWidth={1.8} /></div>
           <div style={{fontSize:'14px',fontWeight:600,marginBottom:'8px'}}>정말로 결제를 취소하시겠습니까?</div>
@@ -7156,10 +7158,10 @@ export default function TrainerApp() {
           <button className="btn btn-ghost" style={{flex:1}} onClick={()=>setCancelPaymentTarget(null)}>아니오</button>
           <button className="btn btn-primary" style={{flex:1,background:'var(--danger)',color:'#fff',opacity:paymentBusy?0.55:1,cursor:paymentBusy?'not-allowed':'pointer'}} disabled={paymentBusy} onClick={()=>{deletePayment(cancelPaymentTarget);setCancelPaymentTarget(null)}}>{paymentBusy ? '처리 중…' : '네'}</button>
         </div>
-      </Modal>
+      </Modal>}
 
       {/* PAYMENT MODAL */}
-      <Modal sheet open={paymentModal} onClose={()=>setPaymentModal(false)} title={`결제 관리 — ${currentMember?.name||''}`}>
+      {paymentModal && <Modal sheet open={paymentModal} onClose={()=>setPaymentModal(false)} title={`결제 관리 — ${currentMember?.name||''}`}>
         <div className="type-row" style={{marginBottom:'14px'}}>
           <button className={`type-btn${paymentTab==='pay'?' active':''}`} onClick={()=>setPaymentTab('pay')}>결제 등록</button>
           <button className={`type-btn${paymentTab==='history'?' active':''}`} onClick={()=>setPaymentTab('history')}>결제 내역</button>
@@ -7337,10 +7339,10 @@ export default function TrainerApp() {
             }
           </div>
         )}
-      </Modal>
+      </Modal>}
 
       {/* PRODUCT MANAGE MODAL */}
-      <Modal open={productManageModal} onClose={()=>setProductManageModal(false)} title="상품 관리" maxWidth="400px">
+      {productManageModal && <Modal open={productManageModal} onClose={()=>setProductManageModal(false)} title="상품 관리" maxWidth="400px">
         <div style={{marginBottom:'12px',display:'flex',justifyContent:'flex-end'}}>
           <button
             className="btn btn-primary btn-sm"
@@ -7392,10 +7394,10 @@ export default function TrainerApp() {
             ))}
           </div>
         )}
-      </Modal>
+      </Modal>}
 
       {/* PRODUCT FORM MODAL */}
-      <Modal open={productFormModal} onClose={()=>setProductFormModal(false)} title={editingProductId?'상품 수정':'상품 추가'} maxWidth="360px" zIndex={400}>
+      {productFormModal && <Modal open={productFormModal} onClose={()=>setProductFormModal(false)} title={editingProductId?'상품 수정':'상품 추가'} maxWidth="360px" zIndex={400}>
         <div className="form-group"><label>상품명</label><input type="text" value={productForm.name} onChange={e=>setProductForm({...productForm,name:e.target.value})} placeholder="예: 30회 패키지" /></div>
         <div className="form-group"><label>횟수</label><input type="number" value={productForm.count} onChange={e=>setProductForm({...productForm,count:e.target.value})} placeholder="30" min="1" /></div>
         <div className="divider"></div>
@@ -7414,10 +7416,10 @@ export default function TrainerApp() {
         )}
         <div className="form-group"><label>메모 (선택)</label><input type="text" value={productForm.memo||''} onChange={e=>setProductForm({...productForm,memo:e.target.value})} placeholder="할인 조건 등" /></div>
         <button className="btn btn-primary" style={{width:'100%'}} onClick={saveProduct}>저장</button>
-      </Modal>
+      </Modal>}
 
       {/* WORKOUT LOG MODAL */}
-      <Modal open={workoutModal} onClose={()=>setWorkoutModal(false)} title={workoutEditId?'운동일지 수정':'운동 기록'} maxWidth="520px">
+      {workoutModal && <Modal open={workoutModal} onClose={()=>setWorkoutModal(false)} title={workoutEditId?'운동일지 수정':'운동 기록'} maxWidth="520px">
         <div className="two-col">
           <div className="form-group"><label>날짜</label><input type="date" value={workoutForm.date} onChange={e=>setWorkoutForm(f=>({...f,date:e.target.value}))} /></div>
           <div className="form-group"><label>운동 시간 (분)</label><input type="number" value={workoutForm.duration_min} onChange={e=>setWorkoutForm(f=>({...f,duration_min:e.target.value}))} placeholder="60" min="1" /></div>
@@ -7479,10 +7481,10 @@ export default function TrainerApp() {
           <button className="btn btn-ghost btn-sm" style={{flexShrink:0,fontSize:'12px'}} onClick={saveAsRoutine}>루틴 저장</button>
         </div>
         <button className="btn btn-primary" style={{width:'100%'}} onClick={saveWorkoutSession}>{workoutEditId?'수정 완료':'기록 완료'}</button>
-      </Modal>
+      </Modal>}
 
       {/* WORKOUT ROUTINE MODAL */}
-      <Modal open={workoutRoutineModal} onClose={()=>setWorkoutRoutineModal(false)} title="루틴 불러오기">
+      {workoutRoutineModal && <Modal open={workoutRoutineModal} onClose={()=>setWorkoutRoutineModal(false)} title="루틴 불러오기">
         {/* ── 마켓 루틴 보관함 ── */}
         {trainerLibraryRoutines.length > 0 && (
           <>
@@ -7549,10 +7551,10 @@ export default function TrainerApp() {
             <button className="btn btn-ghost btn-sm" style={{flexShrink:0,fontSize:'12px',color:'var(--danger)',padding:'4px 6px'}} onClick={()=>deleteWorkoutRoutine(r.id)}>×</button>
           </div>
         ))}
-      </Modal>
+      </Modal>}
 
       {/* HOLD (정지/홀딩) MODAL */}
-      <Modal open={holdModal} onClose={()=>setHoldModal(false)} title="정지 (기간 홀딩)" zIndex={400}>
+      {holdModal && <Modal open={holdModal} onClose={()=>setHoldModal(false)} title="정지 (기간 홀딩)" zIndex={400}>
         {/* 기존 홀딩 이력 */}
         {holds.length > 0 && (
           <>
@@ -7608,10 +7610,10 @@ export default function TrainerApp() {
           )}
         </div>
         <button className="btn btn-primary" style={{width:'100%'}} onClick={addHold}>정지 등록</button>
-      </Modal>
+      </Modal>}
 
       {/* EDIT MEMBER MODAL */}
-      <Modal open={editMemberModal} onClose={()=>setEditMemberModal(false)} title="회원 정보 수정">
+      {editMemberModal && <Modal open={editMemberModal} onClose={()=>setEditMemberModal(false)} title="회원 정보 수정">
         <div className="section-label" style={{marginTop:0}}>기본 정보</div>
         <div className="form-group"><label>이름 *</label><input type="text" value={editMemberForm.name||''} onChange={e=>setEditMemberForm({...editMemberForm,name:e.target.value})} placeholder="홍길동" /></div>
         <div className="form-group"><label>휴대폰 번호</label><input type="text" value={editMemberForm.kakao_phone||''} onChange={e=>setEditMemberForm({...editMemberForm,kakao_phone:e.target.value})} placeholder="010-1234-5678" /></div>
@@ -7846,10 +7848,10 @@ export default function TrainerApp() {
 
         <button className="btn btn-primary" style={{width:'100%',marginBottom:'8px'}} onClick={updateMember}>저장</button>
         <button className="btn btn-ghost" style={{width:'100%',color:'var(--danger)',borderColor:'rgba(255,92,92,0.3)'}} onClick={()=>setDeleteConfirmModal(true)}>회원 삭제</button>
-      </Modal>
+      </Modal>}
 
       {/* DELETE CONFIRM MODAL */}
-      <Modal open={deleteConfirmModal} onClose={()=>setDeleteConfirmModal(false)} title="회원 삭제" maxWidth="320px">
+      {deleteConfirmModal && <Modal open={deleteConfirmModal} onClose={()=>setDeleteConfirmModal(false)} title="회원 삭제" maxWidth="320px">
         <div style={{textAlign:'center',padding:'8px 0 20px'}}>
           <div style={{display:'flex',justifyContent:'center',marginBottom:'12px',color:'#B91C1C'}}><Icon name="alert" size={32} strokeWidth={1.8} /></div>
           <div style={{fontSize:'14px',fontWeight:600,marginBottom:'8px'}}>{editMemberForm.name} 회원을 삭제할까요?</div>
@@ -7859,11 +7861,11 @@ export default function TrainerApp() {
           <button className="btn btn-ghost" style={{flex:1}} onClick={()=>setDeleteConfirmModal(false)}>취소</button>
           <button className="btn btn-primary" style={{flex:1,background:'var(--danger)',color:'#fff'}} onClick={deleteMember}>삭제</button>
         </div>
-      </Modal>
+      </Modal>}
 
       {/* SETTINGS MODAL */}
       {/* 일지 확인 현황 모달 */}
-      <Modal open={showReadModal} onClose={()=>setShowReadModal(false)} title="일지 확인 현황">
+      {showReadModal && <Modal open={showReadModal} onClose={()=>setShowReadModal(false)} title="일지 확인 현황">
         {(() => {
           const readLogs   = logs.filter(l => l.read_at)
           const unreadLogs = logs.filter(l => !l.read_at)
@@ -7931,10 +7933,10 @@ export default function TrainerApp() {
             </div>
           )
         })()}
-      </Modal>
+      </Modal>}
 
       {/* AI 일지 — 상단 칩에서 열림. 지금 쓸 수 있는 횟수(무료 월 잔여 + 크레딧) */}
-      <Modal open={settingsModal} onClose={()=>setSettingsModal(false)} title="AI 일지">
+      {settingsModal && <Modal open={settingsModal} onClose={()=>setSettingsModal(false)} title="AI 일지">
         <div style={{background:'#111827',borderRadius:'18px',padding:'18px',color:'#fff',marginBottom:'14px'}}>
           <div style={{fontSize:'12px',color:'#9CA3AF'}}>지금 쓸 수 있는 AI 일지</div>
           <div style={{display:'flex',alignItems:'baseline',gap:'4px',marginTop:'4px'}}>
@@ -7962,10 +7964,10 @@ export default function TrainerApp() {
           {!HIDE_PURCHASE && aiQuota?.mode === 'credits' && <><br/>크레딧이 부족하면 관리자에게 충전을 요청하세요.</>}
         </div>
         <button className="btn btn-primary" style={{width:'100%',marginTop:'16px'}} onClick={()=>setSettingsModal(false)}>닫기</button>
-      </Modal>
+      </Modal>}
 
       {/* ── 크레딧 부족 모달 ── */}
-      <Modal open={showLimitModal} onClose={()=>setShowLimitModal(false)} title={HIDE_PURCHASE ? 'AI 일지 횟수를 모두 사용했어요' : '크레딧이 부족해요'}>
+      {showLimitModal && <Modal open={showLimitModal} onClose={()=>setShowLimitModal(false)} title={HIDE_PURCHASE ? 'AI 일지 횟수를 모두 사용했어요' : '크레딧이 부족해요'}>
         {HIDE_PURCHASE ? (
         <div style={{textAlign:'center',padding:'8px 0'}}>
           <div style={{display:'flex',justifyContent:'center',marginBottom:'12px',color:'var(--text-muted)'}}><Icon name="file" size={40} strokeWidth={1.6} /></div>
@@ -8003,7 +8005,7 @@ export default function TrainerApp() {
           </button>
         </div>
         )}
-      </Modal>
+      </Modal>}
 
 
       {/* ── 영상 구간 편집(Trimmer) 모달 ── */}
@@ -8141,7 +8143,7 @@ export default function TrainerApp() {
       )}
 
       {/* 이메일 필수 안내 모달 */}
-      <Modal open={showEmailGuide} onClose={()=>setShowEmailGuide(false)} title="이메일을 입력하는 이유">
+      {showEmailGuide && <Modal open={showEmailGuide} onClose={()=>setShowEmailGuide(false)} title="이메일을 입력하는 이유">
         <div style={{fontSize:'13px',lineHeight:1.7}}>
           {[
             { icon:'link', title:'수업 리포트 직접 전달', desc:'AI가 생성한 수업일지 리포트 링크를 이메일로도 전달할 수 있어요. 카카오톡이 없는 회원도 리포트를 받을 수 있어요.' },
@@ -8163,10 +8165,10 @@ export default function TrainerApp() {
           </div>
         </div>
         <button className="btn btn-primary" style={{width:'100%',marginTop:'16px'}} onClick={()=>setShowEmailGuide(false)}>확인</button>
-      </Modal>
+      </Modal>}
 
       {/* EXERCISE MODAL */}
-      <Modal open={exModal} onClose={()=>setExModal(false)} title={editingExId?'운동 수정':'운동 종목 추가'} maxWidth="400px">
+      {exModal && <Modal open={exModal} onClose={()=>setExModal(false)} title={editingExId?'운동 수정':'운동 종목 추가'} maxWidth="400px">
         <div className="form-group">
           <label>운동 종목명</label>
           <input type="text" value={exName} onChange={e=>setExName(e.target.value)} placeholder="예: 벤치프레스" />
@@ -8242,7 +8244,7 @@ export default function TrainerApp() {
           <button className="btn btn-ghost btn-sm" onClick={addSet} style={{width:'100%',padding:'8px'}}>+ 세트 추가</button>
         </div>
         <button className="btn btn-primary" style={{width:'100%',marginTop:'10px'}} onClick={confirmAddExercise}>운동 저장</button>
-      </Modal>
+      </Modal>}
 
       {/* SCHEDULE MODAL — form state 가 자체적으로 격리된 별도 컴포넌트.
           부모(TrainerApp) 의 다른 state 변경에 영향 없음 → 모달 input 응답성 ↑ */}
