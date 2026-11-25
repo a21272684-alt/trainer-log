@@ -1,5 +1,6 @@
 /* ========== GLOBAL RESET & TOKENS — Premium Light Theme ========== */
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap');
+/* 글꼴(Noto Sans KR · DM Mono)은 각 앱 index.html 의 <link> 한 곳에서만 불러온다.
+   여기서 @import 로 또 부르면 이 CSS 를 다 받은 뒤에야 글꼴 요청이 시작돼 첫 화면 그리기가 늦어진다. */
 
 :root {
   --bg:#F7F8F4;
