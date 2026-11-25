@@ -4,7 +4,8 @@
   "webDir": "dist",
   "server": {
     "url": "https://ownapp.kr",
-    "cleartext": false
+    "cleartext": false,
+    "errorPath": "offline.html"
   },
   "ios": {
     "contentInset": "always",
