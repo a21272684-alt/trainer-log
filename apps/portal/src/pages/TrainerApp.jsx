@@ -6241,6 +6241,7 @@ export default function TrainerApp() {
                   flexShrink:0,fontFamily:'inherit',lineHeight:1}}>?</button>
             </label>
             <input type="email" value={addForm.email} onChange={e=>setAddForm({...addForm,email:e.target.value})} placeholder="example@gmail.com" />
+            <div style={{fontSize:'12px',color:'#6B7280',marginTop:'6px',lineHeight:1.5}}>회원이 로그인할 카카오 · 구글 · 애플 계정 이메일과 똑같이 적어 주세요. 한 글자라도 다르면 회원 앱에 들어갈 수 없어요.</div>
           </div>
           <div className="form-group"><label>특이사항</label><textarea value={addForm.special_notes} onChange={e=>setAddForm({...addForm,special_notes:e.target.value})} placeholder="부상 이력, 주의사항 등" rows={2} style={{resize:'vertical'}} /></div>
           <div className="form-group"><label>운동 목적</label>
@@ -7630,6 +7631,7 @@ export default function TrainerApp() {
                   flexShrink:0,fontFamily:'inherit',lineHeight:1}}>?</button>
             </label>
             <input type="email" value={editMemberForm.email||''} onChange={e=>setEditMemberForm({...editMemberForm,email:e.target.value})} placeholder="example@gmail.com" />
+            <div style={{fontSize:'12px',color:'#6B7280',marginTop:'6px',lineHeight:1.5}}>회원이 로그인할 카카오 · 구글 · 애플 계정 이메일과 똑같이 적어 주세요. 한 글자라도 다르면 회원 앱에 들어갈 수 없어요.</div>
           </div>
         <div className="form-group"><label>특이사항</label><textarea value={editMemberForm.special_notes||''} onChange={e=>setEditMemberForm({...editMemberForm,special_notes:e.target.value})} placeholder="부상 이력, 주의사항 등" rows={2} style={{resize:'vertical'}} /></div>
         <div className="form-group"><label>운동 목적</label>
