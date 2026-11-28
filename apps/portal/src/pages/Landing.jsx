@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { Link } from 'react-router-dom'
-import { trackEvent } from '@trainer-log/shared/lib/analytics'
+import { trackEvent, detectPlatform } from '@trainer-log/shared/lib/analytics'
 import { supabase } from '@trainer-log/shared/lib/supabase'
 import { isNativeApp } from '../lib/nativeAuth'
 
@@ -8,6 +8,8 @@ import { isNativeApp } from '../lib/nativeAuth'
 //  - 요금제 섹션, 가격·충전 FAQ (인앱결제 없이 심사 통과 조건 — 가이드라인 3.1.1 / 3.1.3(f))
 //  - PWA·홈 화면 추가·브라우저 안내 FAQ, CRM '곧 출시' 카드·링크 (웹사이트 감싼 앱 인상 — 4.2)
 const HIDE_PURCHASE = isNativeApp()
+// 오운 앱(안드로이드 TWA · iOS · 홈 화면 앱) 안에서 연 랜딩 — 맨 아래 '앱 설치' 띠를 숨김
+const IN_APP = detectPlatform() !== 'web'
 const PURCHASE_FAQ_RE = /가격|요금|충전|구독|결제|유료|\bPro\b|프리미엄|Premium/i
 const WEB_ONLY_FAQ_RE = /홈 화면|PWA|브라우저/i
 
@@ -1568,6 +1570,33 @@ export default function Landing() {
           </SlideCard>
             )
           })()}
+
+          {/* 앱 설치 띠 — 웹에서만. 오운 앱(안드로이드 · iOS · 홈 화면 앱) 안에서는 숨김. 배지는 구글 · 애플 공식 그림 */}
+          {!IN_APP && (
+            <div style={{marginTop:'14px',background:'#0f172a',borderRadius:'20px',padding:'24px',color:'#fff',
+              display:'flex',flexWrap:'wrap',alignItems:'center',justifyContent:'space-between',gap:'16px'}}>
+              <div style={{display:'flex',alignItems:'center',gap:'12px',minWidth:0}}>
+                <div style={{width:'48px',height:'48px',borderRadius:'12px',background:'#c8f135',color:'#111',flexShrink:0,
+                  display:'flex',alignItems:'center',justifyContent:'center',fontSize:'24px',fontWeight:900}}>오</div>
+                <div>
+                  <div style={{fontSize:'17px',fontWeight:800,letterSpacing:'-0.4px'}}>휴대폰에 오운 앱 설치하기</div>
+                  <div style={{fontSize:'12px',color:'#cbd5e1',marginTop:'3px'}}>홈 화면에서 바로 열고, 알림도 받아요</div>
+                </div>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                <a href="https://play.google.com/store/apps/details?id=kr.ownapp.twa" target="_blank" rel="noopener noreferrer"
+                  onClick={() => trackEvent('cta_click', { cta: 'play_store', position: 'bottom' })}
+                  style={{display:'block',lineHeight:0}}>
+                  <img src="/badges/google-play-ko.png" alt="Google Play에서 받기" style={{height:'58px',margin:'-9px'}} />
+                </a>
+                <a href="https://apps.apple.com/kr/app/id6821127302" target="_blank" rel="noopener noreferrer"
+                  onClick={() => trackEvent('cta_click', { cta: 'app_store', position: 'bottom' })}
+                  style={{display:'block',lineHeight:0}}>
+                  <img src="/badges/app-store-ko.svg" alt="App Store에서 다운로드" style={{height:'40px'}} />
+                </a>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
